@@ -1,0 +1,3 @@
+from .doc_templates import DocTemplate, DocTemplateRepo
+from .act_templates import ActTemplate, ActTemplateRepo
+from .additional_agreement_templates import AdditionalAgreementTemplate, AdditionalAgreementTemplateRepo

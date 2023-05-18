@@ -1,0 +1,79 @@
+{% load l10n filters %}<?xml version="1.0" encoding="UTF-8"?>
+<feed>
+  <feed_version>2</feed_version>
+  <generation-date>{% now 'c' %}</generation-date>
+  {% for object in object_list %}
+    <offer internal-id="{{ object.pk }}">
+    {# Общая информация об объявлении #}
+      <type>продажа</type>
+      <property-type>жилая</property-type>
+      <category>квартира</category>
+      {{ object.get_url|feed_field:"url" }}
+      <creation-date>{% now 'c' %}</creation-date>
+      <location>
+        <country>Россия</country>
+        {{ object.project.city.name|feed_field:"locality-name" }}
+        {{ object.project.address|feed_field:"address" }}
+        {{ object.project.latitude|feed_field:"latitude" }}
+        {{ object.project.longitude|feed_field:"longitude" }}
+        <metro>
+          {{ object.project.metro.name|feed_field:"name" }}
+        </metro>
+      </location>
+
+      {# Информация об условиях сделки #}
+      <deal-status>первичная продажа</deal-status>
+      <price>
+        {{ object.price|feed_field:"value" }}
+        <currency>RUB</currency>
+      </price>
+
+      {# Информация о продавце #}
+      {% if feed.manager %}
+      <sales-agent>
+        {% if feed.manager.first_name or feed.manager.last_name %}
+          <name>{{ feed.manager.first_name }} {{ feed.manager.last_name }}</name>
+        {% endif %}
+        {{ feed.manager.phone|feed_field:"phone" }}
+        {{ feed.manager.email|feed_field:"email" }}
+        <category>developer</category>
+        <url>https://strana.com/</url>
+        {% if feed.manager.organization %}
+          <organization>{{ feed.manager.organization }}</organization>
+        {% endif %}
+      </sales-agent>
+      {% endif %}
+
+      {# Информация об объекте #}
+      {% if not object.rooms == 0 %} {# studio case #}
+        {{ object.rooms|feed_field:"rooms" }}
+      {% endif %}
+      <new-flat>1</new-flat>
+      {{ object.separate_wcs_count|feed_field:"bathroom-unit" }}
+      {{ object.balconies_count|feed_field:"balcony" }}
+      {{ object.floor.number|feed_field:"floor" }}
+      {{ object.building.name|feed_field:"building-name" }}
+      {{ object.project.yandex_id|feed_field:"yandex-building-id" }}
+      {{ object.building.yandex_id|feed_field:"yandex-house-id" }}
+      {{ object.section.name|feed_field:"building-section" }}
+      {% if not object.building.building_state == "ready" %}
+        {{ object.building.get_state_yandex|feed_field:"building-state" }}
+      {% endif %}
+      {{ object.building.ready_quarter|feed_field:"ready-quarter" }}
+      {{ object.building.built_year|feed_field:"built-year" }}
+      {{ object.building.get_building_type_display|feed_field:"building-type" }}
+      <building-phase>{% if object.building.building_phase %}очередь {{ object.building.building_phase }}{% endif %}</building-phase>
+      {% if object.plan %}
+        {{ object.plan.url|feed_field:"image" }}
+      {% endif %}
+      <description>Продается {% if object.rooms %}{{ object.rooms }}-комнатная квартира{% endif %}
+      {% if object.area %}{{ object.area }} кв. м.{% endif %}
+      {% if object.project.name %}«{{ object.project.name }}»{% endif %}
+      - {% if object.project.title %}{{ object.project.title }}{% endif %}.</description>
+      <area>
+        {{ object.area|feed_field:"value" }}
+        <unit>кв. м</unit>
+      </area>
+    </offer>
+  {% endfor %}
+</feed>

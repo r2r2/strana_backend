@@ -1,0 +1,67 @@
+.before_script_configure_ssh: &before_script_configure_ssh |
+    'which ssh-agent || ( apk --update add openssh-client )'
+    eval $(ssh-agent -s)
+    echo "$RUNNER_SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add - > /dev/null
+    mkdir -p ~/.ssh
+    chmod 700 ~/.ssh
+    ssh-keyscan "$GITLAB_HOST" >> ~/.ssh/known_hosts
+    chmod 644 ~/.ssh/known_hosts
+    '[[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
+
+
+.before_script_docker_login: &before_script_docker_login
+  - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
+
+deploy_hotfix_mr:
+  stage: deploy
+#  needs: [build]
+  rules:
+    - if: '($CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master" && $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME =~ /^hotfix\/.*$/)'
+#    - if: $CI_COMMIT_TAG =~ /-hotfix$/
+#    - if: $CI_COMMIT_TITLE =~ /Merge branch.*/
+#    - if: $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "hotfix"
+#  only:
+#    - merge_requests
+  environment:
+    name: ${CI_COMMIT_REF_SLUG}
+    url: ${ENVIRONMENT_URL}
+  variables:
+    DOCKER_HOST: ssh://$DEPLOY_USER@$DEPLOY_HOST
+  before_script:
+    - export
+    - *before_script_configure_ssh
+    - *before_script_docker_login
+  script:
+    # - TAG=${CI_COMMIT_SHA} ${COMPOSE_FILES} pull
+    # - TAG=${CI_COMMIT_SHA} ${COMPOSE_FILES} up -d ${SERVICES_BACKENDS}
+    # - TAG=${CI_COMMIT_SHA} ${COMPOSE_FILES} up -d ${SERVICES_FRONTENDS} panel
+    # - TAG=${CI_COMMIT_SHA} ${COMPOSE_FILES} up --remove-orphans -d
+    # - docker-compose exec -T nginx nginx -s reload
+    - echo "HOTFIX - mr from hotfix to master"
+    - echo -e "\nDeploy to prod\n"
+  tags:
+    - docker
+
+deploy_hotfix_commit:
+  stage: deploy
+#  needs: [build]
+  rules:
+    - if: $CI_COMMIT_BRANCH == "hotfix"
+#    - if: '($CI_COMMIT_BRANCH == "hotfix" && $CI_PIPELINE_SOURCE== "push")'
+#    - if: $CI_COMMIT_TAG =~ /-final$/
+  variables:
+    DOCKER_HOST: ssh://$DEPLOY_USER@$DEPLOY_HOST
+  before_script:
+    - export
+    - *before_script_configure_ssh
+    - *before_script_docker_login
+  script:
+    # - TAG=${CI_COMMIT_SHA} ${COMPOSE_FILES} pull
+    # - TAG=${CI_COMMIT_SHA} ${COMPOSE_FILES} up -d ${SERVICES_BACKENDS}
+    # - TAG=${CI_COMMIT_SHA} ${COMPOSE_FILES} up -d ${SERVICES_FRONTENDS} panel
+    # - TAG=${CI_COMMIT_SHA} ${COMPOSE_FILES} up --remove-orphans -d
+    # - docker-compose exec -T nginx nginx -s reload
+    - echo "HOTFIX commit with syff tag \'-final\'"
+    - echo -e "\nDeploy to test\n"
+  tags:
+    - docker

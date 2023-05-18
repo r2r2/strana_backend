@@ -1,0 +1,28 @@
+{% load l10n filters %}<?xml version="1.0" encoding="UTF-8"?>
+<Ads formatVersion="3" target="Avito.ru">
+  {% for object in object_list %}
+  <Ad>
+    <Id>{{ object.pk }}</Id>
+    <OperationType>Продажа</OperationType>
+    <Category>квартира</Category>
+    <Description>
+      {% if object.description %}
+      {{ object.description }}
+      {% endif %}
+    </Description>
+    <Price>{{ object.price}}</Price>
+    <MarketType>Новостройка</MarketType>
+    <HouseType></HouseType>
+    <Floor>{{ object.floor.number }}</Floor>
+    <Floors>{{ object.building.total_floors }}</Floors>
+    <Rooms>{{ object.rooms }}</Rooms>
+    <Square>{{ object.area }}</Square>
+    <KitchenSpace>{{ object.kitchen_area }}</KitchenSpace>
+    <Status>Квартира</Status>
+    <RoomType></RoomType>
+    <NewDevelopmentId></NewDevelopmentId>
+    <PropertyRights>Застройщик</PropertyRights>
+    <Decoration></Decoration>
+  </Ad>
+  {% endfor %}
+</Ads>

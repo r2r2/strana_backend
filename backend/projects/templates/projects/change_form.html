@@ -1,0 +1,64 @@
+{% extends 'ajaximage/change_form.html' %}
+{% load static fields_tags %}
+
+{% block admin_change_form_document_ready %}
+    {{ block.super }}
+    {% block extrajs %}
+        {{ block.super }}
+        <script src="{% static 'admin/js/vendor/jquery/jquery.js' %}"></script>
+    {% endblock %}
+
+    <script>
+        var business_fields = {% get_business_fields %}
+        var project_fields = {% get_project_fields %}
+        var common_fields = {% get_common_fields %}
+        var fields = project_fields.filter(el => !common_fields.includes(el));
+            $(document).ready(function () {
+                function hideFields(business_fields, project_fields, fields) {
+                    $.each(project_fields, function () {
+                        $('.field-' + this).removeClass('hidden')
+                    })
+
+                    $.each(business_fields, function () {
+                        $('.field-' + this).addClass('hidden')
+                    })
+                    el = $('#collapse-close-all')
+                    el.text('Показать поля для бизнеса')
+                    el.attr('id', 'collapse-open-all')
+                    el.on('click', function (e) {
+                        showFields(business_fields, project_fields, fields)
+                    })
+                }
+
+                function showFields(business_fields, project_fields, fields) {
+                    $.each(business_fields, function () {
+                        $('.field-' + this).removeClass('hidden')
+                    })
+                    $.each(fields, function () {
+                        $('.field-' + this).addClass('hidden')
+                    })
+                    el = $('#collapse-open-all')
+                    el.text('Скрыть поля для бизнеса')
+                    el.attr('id', 'collapse-close-all')
+                    el.on('click', function (e) {
+                        hideFields(business_fields, project_fields, fields)
+                    });
+                }
+
+                $('#collapse-close-all').on('click', function (e) {
+                    hideFields(business_fields, project_fields, fields)
+                });
+                $('#collapse-open-all').on('click', function (e) {
+                    showFields(business_fields, project_fields, fields)
+                })
+                hideFields(business_fields, project_fields, fields)
+            });
+    </script>
+{% endblock %}
+
+{% block object-tools-items %}
+    {{ block.super }}
+    {% if not is_popup %}
+        <li><a href="#" id="collapse-open-all">Показать поля для бизнеса</a></li>
+    {% endif %}
+{% endblock %}

@@ -1,0 +1,98 @@
+[
+  {
+    "id": 32104,
+    "title": "Тестовый",
+    "type": "complex",
+    "region": "Тюменская область",
+    "district": "Тюменский",
+    "locality": "Тюмень",
+    "developer": null,
+    "developer_brand": "Страна Девелопмент",
+    "banks": null,
+    "currency": "RUB"
+  },
+  {
+    "id": 24652,
+    "title": "Сердце Сибири",
+    "type": "quarter",
+    "region": null,
+    "district": null,
+    "locality": "Тюмень",
+    "developer": null,
+    "developer_brand": "Страна Девелопмент",
+    "banks": null,
+    "currency": "RUB"
+  },
+  {
+    "id": 17815,
+    "title": "ПРИНЦИП",
+    "type": "complex",
+    "region": null,
+    "district": null,
+    "locality": "Санкт-Петербург",
+    "developer": null,
+    "developer_brand": "Страна-Девелопмент",
+    "banks": null,
+    "currency": "RUB"
+  },
+  {
+    "id": 17323,
+    "title": "Колумб",
+    "type": "complex",
+    "region": null,
+    "district": null,
+    "locality": "Тюмень",
+    "developer": null,
+    "developer_brand": "Страна-Девелопмент",
+    "banks": null,
+    "currency": "RUB"
+  },
+  {
+    "id": 9589,
+    "title": "Европейский берег",
+    "type": "district",
+    "region": null,
+    "district": null,
+    "locality": "Тюмень",
+    "developer": null,
+    "developer_brand": "К2",
+    "banks": "Сбербанк, ВТБ, Открытие, Запсибкомбанк, Абсолют банк, Газпромбанк, Сургутнефтегазбанк, Уралсиб банк, Россельхозбанк, Промсвязьбанк, Совкомбанк, Дельтакредит банк, Российский капитал банк",
+    "currency": "RUB"
+  },
+  {
+    "id": 9980,
+    "title": "Звездный",
+    "type": "district",
+    "region": null,
+    "district": null,
+    "locality": "Тюмень",
+    "developer": null,
+    "developer_brand": null,
+    "banks": null,
+    "currency": "RUB"
+  },
+  {
+    "id": 15619,
+    "title": "Квартал на Московском",
+    "type": "quarter",
+    "region": null,
+    "district": null,
+    "locality": "Тюмень",
+    "developer": null,
+    "developer_brand": "СЗ Страна.72",
+    "banks": null,
+    "currency": "RUB"
+  },
+  {
+    "id": 15611,
+    "title": "Донской Квартал",
+    "type": "quarter",
+    "region": null,
+    "district": null,
+    "locality": "Москва",
+    "developer": null,
+    "developer_brand": "Страна",
+    "banks": null,
+    "currency": "RUB"
+  }
+]

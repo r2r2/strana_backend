@@ -1,0 +1,1 @@
+from .update_properties import UpdatePropertiesManage

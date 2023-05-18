@@ -1,0 +1,6 @@
+mutation changePropertyStatus{
+  changePropertyStatus(id: "%s", status: "%s") {
+    ok
+    reason
+  }
+}

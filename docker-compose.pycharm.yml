@@ -1,0 +1,107 @@
+version: '3.7'
+
+
+x-app_environment: &app_environment
+  environment:
+    - DEBUG
+    - POSTGRES_PASSWORD
+    - POSTGRES_HOST
+    - POSTGRES_PORT
+    - POSTGRES_NAME
+    - POSTGRES_USER
+    - SITE_HOST
+    - LK_SITE_HOST
+    - EMAIL_HOST
+    - EMAIL_PORT
+    - EMAIL_HOST_USER
+    - EMAIL_HOST_PASSWORD
+    - EMAIL_USE_TLS
+    - EMAIL_USE_SSL
+    - SERVER_EMAIL
+    - SENTRY_DSN
+    - CSRF_TRUSTED_ORIGINS
+    - AWS_ACCESS_KEY_ID
+    - AWS_SECRET_ACCESS_KEY
+    - AWS_STORAGE_BUCKET_NAME
+    - AWS_S3_ENDPOINT_URL
+    - PROFITBASE_BASE_URL
+    - PROFITBASE_API_KEY
+    - CRM_URL
+    - FLOWER_BASIC_AUTH
+    - SESSION_COOKIE_DOMAIN
+    - LK_DEBUG
+    - LK_HOST
+    - LK_PORT
+    - LK_LOG_LEVEL
+    - LK_USE_COLORS
+    - LK_RELOAD
+    - LK_PROXY_HEADERS
+    - LK_POSTGRES_PORT
+    - LK_POSTGRES_USER
+    - LK_POSTGRES_HOST
+    - LK_POSTGRES_PASSWORD
+    - LK_POSTGRES_DATABASE
+    - LK_POSTGRES_DATABASE_TEST
+    - LK_BACKEND_URL
+    - LK_BACKEND_GRAPHQL
+    - SBERBANK_URL
+    - SBERBANK_FAIL_URL
+    - SBERBANK_RETURN_URL
+    - SBERBANK_MSK_USERNAME
+    - SBERBANK_MSK_PASSWORD
+    - SBERBANK_SPB_USERNAME
+    - SBERBANK_SPB_PASSWORD
+    - SBERBANK_TMN_USERNAME
+    - SBERBANK_TMN_PASSWORD
+    - INTERNAL_LOGIN
+    - INTERNAL_PASSWORD
+    - SMS_CENTER_URL
+    - SMS_CENTER_LOGIN
+    - SMS_CENTER_PASSWORD
+    - CORS_ORIGINS
+    - TRUSTED_ORIGINS
+    - SBERBANK_SECRET
+    - AMOCRM_SECRET
+    - LK_SESSION_DOMAIN
+    - LK_REDIRECT_TO
+    - LK_AUTH_SECRET_KEY
+    - MAIN_SITE_HOST
+    - PORTAL_POSTGRES_HOST
+    - PORTAL_POSTGRES_PORT
+    - PORTAL_POSTGRES_USER
+    - PORTAL_POSTGRES_DATABASE
+    - PORTAL_POSTGRES_PASSWORD
+    - LK_PROFITBASE_API_KEY
+    - IMGPROXY_SITE_HOST
+    - IMGPROXY_KEY
+    - IMGPROXY_SALT
+    - IMGPROXY_S3_ENDPOINT
+    - BROKER_LK_SITE_HOST
+
+
+services:
+  backend:
+    image: registry.gitlab.idacloud.ru/idaproject/strana/strana/backend
+    build:
+      context: ./backend
+    volumes:
+      - ./backend/:/app/:cached
+    <<: *app_environment
+
+  cabinet:
+    image: registry.gitlab.idacloud.ru/idaproject/strana/strana/cabinet
+    build:
+      context: ./cabinet
+    volumes:
+      - ./cabinet/:/app/:cached
+    <<: *app_environment
+
+  admin:
+    image: registry.gitlab.idacloud.ru/idaproject/strana/strana/admin
+    build:
+      context: ./admin
+    volumes:
+      - ./admin/:/app/:cached
+    <<: *app_environment
+
+

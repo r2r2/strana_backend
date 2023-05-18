@@ -1,0 +1,10 @@
+<div class="PpoiField">
+  {% include 'django/forms/widgets/text.html' with widget=widget.subwidgets.0 %}
+  {% include 'django/forms/widgets/hidden.html' with widget=widget.subwidgets.1 %}
+<h1>Если нет изображения, нужно добавить какое то значение в поле.</h1>
+  {% if widget.subwidgets.1.value %}
+    <div class="PpoiField__overlay">
+        <img src="{{ widget.subwidgets.1.value }}" alt="ppoi image" class="PpoiField__image"/>
+    </div>
+  {% endif %}
+</div>

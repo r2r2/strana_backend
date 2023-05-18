@@ -1,0 +1,45 @@
+install-pkg-python-admin:
+  stage: install_packages
+  only:
+    refs:
+      - development
+      - master
+      - pre-production
+    changes:
+      - admin/poetry.lock
+      - admin/pyproject.toml
+  script:
+    - docker pull $PYTHON_ADMIN || true
+    - >
+      docker build
+      --pull
+      --tag $PYTHON_ADMIN
+      --cache-from $PYTHON_ADMIN
+      --file ./admin/Dockerfile.packages
+      ./admin
+    - docker push $PYTHON_ADMIN
+  tags:
+    - docker
+
+install-pkg-python-cabinet:
+  stage: install_packages
+  only:
+    refs:
+      - development
+      - master
+      - pre-production
+    changes:
+      - cabinet/poetry.lock
+      - cabinet/pyproject.toml
+  script:
+    - docker pull $PYTHON_CABINET || true
+    - >
+      docker build
+      --pull
+      --tag $PYTHON_CABINET
+      --cache-from $PYTHON_CABINET
+      --file ./cabinet/Dockerfile.packages
+      ./cabinet
+    - docker push $PYTHON_CABINET
+  tags:
+    - docker

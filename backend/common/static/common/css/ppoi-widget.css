@@ -1,0 +1,27 @@
+.PpoiField {
+    display: inline-block;
+    width: 600px;
+}
+
+.PpoiField input.PpoiField__input {
+    margin: 0 0 20px 0;
+}
+
+.PpoiField__overlay {
+    position: relative;
+}
+
+.PpoiField__image {
+    width: 100%;
+}
+
+.PpoiField__pointer {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    border-radius: 3px;
+    background-color: red;
+    transform: translate(-50%, -50%);
+    z-index: 1;
+    pointer-events: none;
+}

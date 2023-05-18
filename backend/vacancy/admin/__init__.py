@@ -1,0 +1,4 @@
+from .vacancy_admin import VacancyAdmin
+from .vacancy_category_admin import VacancyCategoryAdmin
+from .vacancy_page_admin import VacancyAboutAdmin, VacancyPageFormEmployeeAdmin
+from .vacancy_format_admin import VacancyFormatAdmin

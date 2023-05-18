@@ -1,0 +1,27 @@
+FROM python:3.9.4-alpine
+ARG POETRY_PARAMS=""
+ENV PYTHONUNBUFFERED 1
+ENV PYTHONWARNINGS=ignore
+ENV PATH="${PATH}:/root/.local/bin"
+ENV POETRY_VIRTUALENVS_CREATE=false
+EXPOSE 8000/tcp
+COPY wait-for /usr/bin/
+RUN chmod +x /usr/bin/wait-for
+RUN mkdir /app
+WORKDIR /app/
+COPY poetry.lock pyproject.toml /app/
+RUN apk add --no-cache libjpeg-turbo zlib libffi cairo libwebp libxml2 libxslt libstdc++
+RUN apk add --no-cache --virtual build-deps \
+    curl `# для установки poetry` \
+    git `# для установки зависимостей из git` \
+    build-base  `# для сборки пакетов` \
+    postgresql-dev `# для psycopg2` \
+    libjpeg-turbo-dev zlib-dev libffi-dev cairo-dev libwebp-dev `# для pillow` \
+    libxml2-dev libxslt-dev `# для zeep` \
+    gcc musl-dev python3-dev openssl-dev cargo `# для cryptography` \
+    && apk add libpq `# для psycopg в тестах` \
+    && pip install cryptography==2.3\
+    && pip install --user poetry==1.2.0 \
+    && poetry add certifi \
+    && poetry install $POETRY_PARAMS --no-interaction --no-ansi \
+    && apk del --no-cache build-deps

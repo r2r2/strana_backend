@@ -1,0 +1,23 @@
+server {
+    server_name <%= $REDIRECT_DOMAINS_MSK %>;
+
+    <% if [ "$TLS_MODE" != "off" ]; then -%>
+        listen 443 ssl http2;
+        include ssl_params_redirect;
+    <% else -%>
+        listen 80;
+    <% fi -%>
+
+    if ($host ~ ^www\.(?<domain>.+)$) {
+        return  301 http://$domain$request_uri;
+    }
+    location / {
+        return 301 https://msk.strana.com/;
+    }
+    location /.well-known/acme-challenge/ {
+        allow all;
+        root /var/www/local_static/;
+        try_files $uri =404;
+        break;
+    }
+}

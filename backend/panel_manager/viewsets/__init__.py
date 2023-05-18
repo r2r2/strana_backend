@@ -1,0 +1,18 @@
+from .auth_manager_viewset import PanelAuthManagerViewSet
+from .property_viewset import PanelManagerFlatViewSet
+from .client_viewset import ClientViewSet
+from .meeting_viewset import MeetingViewSet
+from .statistic_viewset import StatisticViewSet
+from .project_viewset import PanelManagerProjectViewSet
+from .about_project_viewset import PanelManagerAboutProjectViewSet
+from .presentation_stage_viewset import PanelManagerPresentationStageViewSet
+from .project_gallery_viewset import PanelManagerProjectGalleryViewSet
+from .progress_viewset import PanelManagerProgressViewSet, PanelManagerCameraViewSet
+from .mortgage_viewset import PanelManagerOfferViewSet, PanelManagerBankViewSet
+from .infra_viewset import PanelManagerInfraObjectViewSet, PanelManagerInfraCategoryViewSet
+from .favorite_viewset import PanelManagerFavoritesViewSet
+from .building_viewset import BuildingViewSet
+from .section_group_viewset import GroupSectionViewSet
+from .section_viewset import SectionViewSet
+from .floor_viewset import FloorViewSet
+from .webhook_viewset import WebHookViewSet

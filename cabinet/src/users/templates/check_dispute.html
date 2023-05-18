@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+Агент {{ agent_name }} оспорил результат проверки на уникальность по клиенту {{ client_name }}<br>
+телефон клиента: {{ client_phone }} <br>
+почта клиента: {{ client_email }} <br>
+Ссылка на оспаривание: {{ dispute_link }} <br>
+{% if client_comment %}Комментарий: {{ client_comment }}{% endif %}
+</body>
+</html>

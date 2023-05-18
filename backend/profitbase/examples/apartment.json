@@ -1,0 +1,575 @@
+{
+    
+    "id": 6079693,
+    "house_id": 30705,
+    "number": "22",
+    "rooms_amount": 1,
+    "floor": 1,
+    "studio": false,
+    "free_layout": true,
+    "euro_layout": false,
+    "propertyType": "apartment",
+    "typePurpose": "residential",
+    "has_related_preset_with_layout": true,
+    "area": {
+        "area_total": "58.45",
+        "area_estimated": "None",
+        "area_living": "None",
+        "area_kitchen": "None",
+        "area_balcony": "None",
+        "area_without_balcony": "None"
+    },
+    "houseName": "ПРИНЦИП ГП-1",
+    "sectionName": "4",
+    "projectName": "ПРИНЦИП",
+    "specialOffers": [],
+    "address": "Санкт-Петербург, Двинская, 6 - ПРИНЦИП, ПРИНЦИП ГП-1, эт. 1, № 22",
+    "section": "4",
+    "preset": "https://pb4988.profitbase.ru/uploads/preset/4988/60ade6ab84848.jpg",
+    "attachments": [],
+    "planImages": [
+        {
+            "source": "https://pb4988.profitbase.ru/uploads/preset/4988/60ade6ab84848.jpg",
+            "imageName": "1L_14_53.57_4paradnaya"
+        },
+        {
+            "source": "https://pb4988.profitbase.ru/uploads/preset/4988/5f97b45fc4719.jpg",
+            "imageName": "1L_14_53.57_4paradnaya"
+        }
+    ],
+    "attributes": {
+        "loggia_count": "None",
+        "balcony_count": "None",
+        "combined_bathroom_count": "None",
+        "separated_bathroom_count": "None",
+        "position_on_floor": "None",
+        "bti_number": "None",
+        "deposit_type": "None",
+        "bti_area": "None",
+        "window_view": "None",
+        "description": "None",
+        "code": "1L_1_80.55_1paradnaya",
+        "facing": "None"
+    },
+    "custom_fields": [
+        {
+            "id": "pbcf_5b7a8c5636afe",
+            "name": "Номер помещения для БТИ",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5b7a8c564e623",
+            "name": "Общая площадь по БТИ",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5b7a8c5650bb8",
+            "name": "Площадь без балкона",
+            "value": "53.57"
+        },
+        {
+            "id": "pbcf_5b7a8c5652d9d",
+            "name": "Площадь прихожей, м2",
+            "value": "None"
+        },
+        {
+            "id": "id",
+            "name": "ID помещения",
+            "value": 6079693
+        },
+        {
+            "id": "number",
+            "name": "Номер помещения",
+            "value": "22"
+        },
+        {
+            "id": "property_price",
+            "name": "Полная цена",
+            "value": 9107000
+        },
+        {
+            "id": "description",
+            "name": "Описание",
+            "value": "None"
+        },
+        {
+            "id": "amo_responsible_name",
+            "name": "Менеджер",
+            "value": "None"
+        },
+        {
+            "id": "amo_contact_name",
+            "name": "Покупатель",
+            "value": "None"
+        },
+        {
+            "id": "owner",
+            "name": "Владелец",
+            "value": "None"
+        },
+        {
+            "id": "address",
+            "name": "Адрес",
+            "value": "Санкт-Петербург, Двинская, 6 - эт. 1 № 22"
+        },
+        {
+            "id": "floor_number",
+            "name": "Этаж",
+            "value": 1
+        },
+        {
+            "id": "section_name",
+            "name": "Подъезд",
+            "value": "4"
+        },
+        {
+            "id": "house_name",
+            "name": "Название дома",
+            "value": "ПРИНЦИП ГП-1"
+        },
+        {
+            "id": "project_name",
+            "name": "Название ЖК",
+            "value": "ПРИНЦИП"
+        },
+        {
+            "id": "property_area",
+            "name": "Площадь, м2",
+            "value": "58.45"
+        },
+        {
+            "id": "price_meter",
+            "name": "Цена за метр",
+            "value": 155808
+        },
+        {
+            "id": "rooms",
+            "name": "Кол-во комнат",
+            "value": 1
+        },
+        {
+            "id": "position_on_floor",
+            "name": "Номер на площадке",
+            "value": "None"
+        },
+        {
+            "id": "code",
+            "name": "Код планировки",
+            "value": "1L_1_80.55_1paradnaya"
+        },
+        {
+            "id": "building_states",
+            "name": "Стадия строительства",
+            "value": "Строится"
+        },
+        {
+            "id": "area_living",
+            "name": "Жилая площадь, м2",
+            "value": "None"
+        },
+        {
+            "id": "area_kitchen",
+            "name": "Площадь кухни, м2",
+            "value": "None"
+        },
+        {
+            "id": "area_estimated",
+            "name": "Расчетная площадь, м2",
+            "value": "None"
+        },
+        {
+            "id": "window",
+            "name": "Куда выходят окна",
+            "value": "None"
+        },
+        {
+            "id": "loggia_count",
+            "name": "Кол-во лоджий",
+            "value": "None"
+        },
+        {
+            "id": "balcony_count",
+            "name": "Кол-во балконов",
+            "value": "None"
+        },
+        {
+            "id": "combined_bathroom_count",
+            "name": "Кол-во совмещенных санузлов",
+            "value": "None"
+        },
+        {
+            "id": "separated_bathroom_count",
+            "name": "Кол-во раздельных санузлов",
+            "value": "None"
+        },
+        {
+            "id": "is_studio",
+            "name": "Студия",
+            "value": "None"
+        },
+        {
+            "id": "is_free_layout",
+            "name": "Свободная планировка",
+            "value": true
+        },
+        {
+            "id": "pbcf_5b98849ebbf7f",
+            "name": "Продавец",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5b9885d43da10",
+            "name": "Площадь балконов и лоджий",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5bb199f6a65fb",
+            "name": "Артикул",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5bc06fc33a329",
+            "name": "ГП",
+            "value": "ГП1"
+        },
+        {
+            "id": "pbcf_5bc80b88068ac",
+            "name": "Паркинг",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5bc80b96e4a46",
+            "name": "Видовая квартира",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5bc80ba2a311a",
+            "name": "Терраса",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5bebf073966d9",
+            "name": "Общая приведенная проектная площадь",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5bebf0a9d0d10",
+            "name": "Общая проектная площадь без учета балконов лоджий террас",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5bebf0b85cc68",
+            "name": "Площадь комнат",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5bebf0c881a28",
+            "name": "Площадь помещений вспомогательного использования",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5bebf0dc9dfb9",
+            "name": "Кол-во помещений вспомогательного использования",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5bebf12890f42",
+            "name": "1 Площадь балконов и лоджий",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5bebf12fd4d74",
+            "name": "2 Площадь балконов и лоджий",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5bebf139100f1",
+            "name": "3 Площадь балконов и лоджий",
+            "value": "None"
+        },
+        {
+            "id": "facing",
+            "name": "Отделка",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5cb99f879d5cf",
+            "name": "Двухуровневая",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5cb9a4e1a64c9",
+            "name": "Планировка",
+            "value": "https://strana.com/profitbase/petersburg/princip/e01_1_80-55_1paradnaya_p.jpg"
+        },
+        {
+            "id": "pbcf_5cb9a4fad6ae8",
+            "name": "Поэтажный план",
+            "value": "https://strana.com/profitbase/petersburg/princip/e01_1_80-55_1paradnaya_s.jpg"
+        },
+        {
+            "id": "pbcf_5cb9a51486b89",
+            "name": "Доп.изображение",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5cb9a523bd89a",
+            "name": "Planoplan",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5d11e8645592b",
+            "name": "VIP",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5d43d4d32676f",
+            "name": "Д-3D-планировка",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5d43d4e2735c9",
+            "name": "Д-Вид из окна",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5d43d4ecf23fe",
+            "name": "Д-Отделка",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5d78b877cfabd",
+            "name": "Д-Планировка-Артикул",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5d78b89a268f5",
+            "name": "Д-Поэтажный план-Артикул",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5d78b909699f1",
+            "name": "Д-Планировка",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5d78b92065ee0",
+            "name": "Д-Поэтажный план",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5d78b9c63a6d4",
+            "name": "Высокий потолок",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5d78b9da864a9",
+            "name": "Угловая",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5d78b9ea0f34c",
+            "name": "Панорамные окна",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5d78b9fca3ba0",
+            "name": "Окна на 2 стороны",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5d78ba0f0b4cb",
+            "name": "Вид на детскую площадку",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5da44fcd1af99",
+            "name": "Стоимость отделка WB",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5da553f5a56ee",
+            "name": "Стоимость отделка черновая",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5da5542355a6a",
+            "name": "Стоимость отделка дизайн-проект",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5df1e1de60b44",
+            "name": "Высота потолка",
+            "value": "4.15 метра"
+        },
+        {
+            "id": "pbcf_5e097f86174d0",
+            "name": "Подъезд по БТИ",
+            "value": "None"
+        },
+        {
+            "id": "is_euro_layout",
+            "name": "Европланировка",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5ec4c4c06def6",
+            "name": "Отделка сайт",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5ec65e47d9fca",
+            "name": "Вид на Финский залив",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5ec65eb113f8d",
+            "name": "Группа артикул+Вид",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5ec65ecfaff03",
+            "name": "Вид на парк Екатерингоф",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5ec66167a0a82",
+            "name": "Окна во двор",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5ec6619e98f80",
+            "name": "Мастер спальня",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5ec6621e549be",
+            "name": "Французский балкон",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5f0e91f8946f5",
+            "name": "ПП-Современный",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5f0e920a82547",
+            "name": "ПП-лофт",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5f0e92244070b",
+            "name": "ПП-классика",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5f27ad0c8e54e",
+            "name": "Цена отделки за квадрат",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5f2a505f42e6e",
+            "name": "Комнатность для сайта",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5f2a864a0a57a",
+            "name": "Лоджия",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5f2a866729551",
+            "name": "Балкон",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5f2a867d95534",
+            "name": "Два санузла",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5f2a874a73c72",
+            "name": "Гардеробная",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5f2a8e1b07684",
+            "name": "Угловые окна",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5f6857dff0495",
+            "name": "Оценочная стоимость",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5f6857fa44743",
+            "name": "Залоговая стоимость",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5fbb7e6f27120",
+            "name": "Адрес по БТИ",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5fbb7e8fc90d3",
+            "name": "Адрес по РнС (Часть 1)",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5fbb7ee236ff1",
+            "name": "Застройщик (наименование)",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5fbe457a99378",
+            "name": "Адрес по РнС (Часть 2)",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5fc4953556705",
+            "name": "Артикул ДЦО",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_5fe1f2000e365",
+            "name": "Д-Планировка-2020",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_60221b7dd80e9",
+            "name": "Рассрочка",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_6046f9fd5cb5e",
+            "name": "Запретить онлайн-бронирование",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_605dbac17822b",
+            "name": "Кадастровый номер участка",
+            "value": "None"
+        },
+        {
+            "id": "pbcf_6063f6a13f481",
+            "name": "Тип помещения по БТИ",
+            "value": "None"
+        }
+    ],
+    "price": {
+        "value": 9107000,
+        "pricePerMeter": 155808
+    },
+    "status": "AVAILABLE",
+    "customStatusId": 4855,
+    "responsibleName": "Гуменюк Алина Николаевна",
+    "responsibleId": "6446001",
+    "crmContactName": "Елена",
+    "crmContactId": 47803968,
+    "countHistoryRecord": "1",
+    "countDeals": 1,
+    "bookedUntilDate": "None",
+    "bookedUntilTime": "None"
+}

@@ -1,0 +1,118 @@
+{% extends "admin/base.html" %}
+{% block title %}Документация по заполнению{% endblock %}
+{% block content %}
+    Для появления таймера обратного отсчета нужно добавить дату в поле "Дата окончания акции"
+    <hr>
+    <br>
+    {% for choice in choices %}
+        <h1>{{ choice.1 }}</h1>
+        {% if choice.0 == "OneImage" %}
+            <ul>
+                <li>Заголовок</li>
+                <li>Текст</li>
+                <li>Изображение</li>
+            </ul>
+        {% elif choice.0 == "TwoImage" %}
+            <ul>
+                <li>Заголовок</li>
+                <li>Текст</li>
+                <li>Изображение</li>
+                <li>Описание изображения</li>
+                <li>Изображение (2)</li>
+                <li>Описание изображения (2)</li>
+            </ul>
+        {% elif choice.0 == "ThreeImage" %}
+            <ul>
+                <li>Заголовок</li>
+                <li>Текст</li>
+                <li>Изображение</li>
+                <li>Изображение (2)</li>
+                <li>Изображение (3)</li>
+            </ul>
+        {% elif choice.0 == "TitleText" %}
+            <ul>
+                <li>Заголовок</li>
+                <li>Текст</li>
+            </ul>
+        {% elif choice.0 == "Slider" %}
+            <ul>
+                <li>Заголовок</li>
+                <li>Текст</li>
+                <li>Слайды блока со слайдером</li>
+                <li>*если установлен чекбокс "Full-screen слайды", слайды будут отображаться в полноэкранном режиме, без текста и заголовка</li>
+            </ul>
+        {% elif choice.0 == "SimpleCta" %}
+            <ul>
+                <li>Заголовок</li>
+                <li>Текст</li>
+                <li>Изображение</li>
+                <li>Презентация</li>
+                <li>Тип CTA блока</li>
+                <li>Отправлять презентацию на почту (check-box)</li>
+            </ul>
+        {% elif choice.0 == "TextList" %}
+            <ul>
+                <li>Заголовок</li>
+                <li>Текст</li>
+                <li>Элемены блока со списком</li>
+                <li>Текст в конце блока</li>
+            </ul>
+        {% elif choice.0 == "Image" %}
+            <ul>
+                <li>Изображение</li>
+            </ul>
+        {% elif choice.0 == "Panorama" %}
+            <ul>
+                <li>Изображение</li>
+                <li>Заголовок</li>
+                <li>Текст</li>
+                <li>Надпись на кнопке (1)</li>
+                <li>Ссылка на кнопке (1)</li>
+            </ul>
+        {% elif choice.0 == "TwoColumn" %}
+            <ul>
+                <li>Заголовок</li>
+                <li>Текст</li>
+                <li>Текст в конце блока</li>
+                <li>Элементы блока c иконками в две колонки</li>
+            </ul>
+        {% elif choice.0 == "Furnish" %}
+            <ul>
+                <li>Варианты отделки</li>
+            </ul>
+        {% elif choice.0 == "Digits" %}
+            <ul>
+                <li>Элементы блока цифры</li>
+            </ul>
+        {% elif choice.0 == "Flats" %}
+            <ul>
+                <li>Проект</li>
+                <li>Квартиры</li>
+            </ul>
+        {% elif choice.0 == "Advantage" %}
+            <ul>
+                <li>Элементы блока преимуществ</li>
+            </ul>
+        {% elif choice.0 == "Steps" %}
+            <ul>
+                <li>Заголовок</li>
+                <li>Надпись на кнопке (1)</li>
+                <li>Ссылка на кнопке (1)</li>
+                <li>Элементы блока шаги</li>
+            </ul>
+        {% elif choice.0 == "Mortgage" %}
+        {% elif choice.0 == "Progress" %}
+            <ul>
+                <li>Проект</li>
+                <li>Новости ход строительства</li>
+            </ul>
+        {% elif choice.0 == "Forms" %}
+        {% elif choice.0 == "News" %}
+            <ul>
+                <li>Новости</li>
+            </ul>
+        {% endif %}
+        <hr>
+        <br>
+    {% endfor %}
+{% endblock %}

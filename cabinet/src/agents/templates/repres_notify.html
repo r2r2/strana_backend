@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Добавлен сотрудник</title>
+</head>
+<body>
+<p>
+    В агентство  {{ agency.name }}  был зарегистрирован агент  {{ agent.surname }}   {{ agent.name }}   {{ agent.patronymic or '' }} .
+    Если этот сотрудник не работает в вашей компании - авторизуйтесь по <a href="{{ url }}">ссылке</a> и удалите агента.
+</p>
+</body>
+</html>

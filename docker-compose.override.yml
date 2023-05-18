@@ -1,0 +1,65 @@
+version: '3.7'
+
+services:
+  backend:
+    restart: unless-stopped
+    volumes:
+      - ./backend/:/app/:cached
+      - static:/app/static/:delegated
+    entrypoint: sh wait-for db:5432 -- ./entrypoint.sh
+    command: python manage.py runserver 0.0.0.0:8000
+    ports:
+    - 8000:8000
+
+  realty:
+    command: celery -A app worker -l debug -B -c 2 -n realty1@strana.com -E -Q realty
+    volumes:
+      - ./backend:/app:cached
+
+  celery:
+    command: celery -A app worker -l debug -c 1 -E -Q celery
+    volumes:
+      - ./backend:/app:cached
+
+  tasks:
+    restart: always
+    command: celery -A config worker -l debug -B -c 1 -n tasks@strana.com -E -Q tasks
+    volumes:
+      - ./backend:/app:cached
+
+  beat:
+    command: celery -A app worker -l debug -B -c 1 -n beat1@strana.com -E -Q beat
+    volumes:
+      - ./backend:/app:cached
+
+  amo_tasks:
+    command: celery -A app worker -l debug -c 1 -n amo_tasks1@strana.com -E -Q amo
+    volumes:
+      - ./backend:/app:cached
+
+  cabinet:
+    restart: unless-stopped
+    volumes:
+      - ./cabinet/:/app/:cached
+    command: python manage.py runserver
+    ports:
+    - 1800:1800
+
+  admin:
+    restart: unless-stopped
+    volumes:
+      - ./admin/:/app/:cached
+      - adminstatic:/app/static/:delegated
+    entrypoint: sh wait-for db_cabinet:5432 -- ./entrypoint.sh
+    command: python manage.py runserver 0.0.0.0:2100
+    ports:
+    - 2100:2100
+
+  redis:
+    ports:
+    - 6379:6379
+
+  flower:
+    restart: unless-stopped
+    ports:
+      - 5555:5555

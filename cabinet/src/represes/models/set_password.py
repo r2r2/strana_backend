@@ -1,0 +1,26 @@
+from typing import Optional
+
+from common.security.models import PasswordModel
+from ..entities import BaseRepresModel
+
+
+class RequestSetPasswordModel(BaseRepresModel, PasswordModel):
+    """
+    Модель запроса установки пароля
+    """
+    is_contracted: Optional[bool] = False
+
+    class Config:
+        orm_mode = True
+
+
+class ResponseSetPasswordModel(BaseRepresModel):
+    """
+    Модель ответа установки пароля
+    """
+
+    id: int
+    is_approved: bool
+
+    class Config:
+        orm_mode = True

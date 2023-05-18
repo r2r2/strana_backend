@@ -1,0 +1,121 @@
+[
+  {
+    "id": 26458,
+    "projectId": 9980,
+    "projectName": "Звездный",
+    "title": "Марс ГП-4",
+    "type": "RESIDENTIAL",
+    "street": "Алматинская",
+    "number": "4",
+    "facing": null,
+    "material": null,
+    "buildingState": "UNFINISHED",
+    "developmentStartQuarter": {
+      "year": "2019",
+      "quarter": 4
+    },
+    "developmentEndQuarter": {
+      "year": "2021",
+      "quarter": 3
+    },
+    "salesStart": {
+      "month": "12",
+      "year": "2019"
+    },
+    "salesEnd": null,
+    "image": "https://pb4988.profitbase.ru/uploads/house_470_320/uploads/house/4988/5dee40e21da5b.jpg",
+    "minFloor": "1",
+    "maxFloor": "19",
+    "currency": {
+      "id": 1,
+      "code": "RUB",
+      "class": "rub",
+      "symbol": "p",
+      "title": "Рубли",
+      "shortName": "руб",
+      "unicodeSymbol": "8381"
+    },
+    "address": {
+      "full": "Тюмень Алматинская 4",
+      "locality": "Тюмень",
+      "district": null,
+      "region": null,
+      "street": "Алматинская",
+      "number": "4"
+    },
+    "minPrice": 1490000,
+    "minPriceArea": 74500,
+    "propertyCount": "604",
+    "countFilteredProperty": "604",
+    "houseBadges": [],
+    "propertyTypes": [
+      4860,
+      41946
+    ],
+    "roomsFilter": [
+      "one",
+      "studio",
+      "two",
+      "three",
+      "more_than_three"
+    ],
+    "landNumber": null
+  },
+  {
+    "id": 26459,
+    "projectId": 9980,
+    "projectName": "Звездный",
+    "title": "Паркинг ГП-3",
+    "type": "PARKING",
+    "street": "Алматинская",
+    "number": "2",
+    "facing": null,
+    "material": "монолитно-каркасный",
+    "buildingState": "UNFINISHED",
+    "developmentStartQuarter": {
+      "year": "2020",
+      "quarter": 2
+    },
+    "developmentEndQuarter": {
+      "year": "2021",
+      "quarter": 3
+    },
+    "salesStart": {
+      "month": "03",
+      "year": "2020"
+    },
+    "salesEnd": null,
+    "image": "https://pb4988.profitbase.ru/uploads/house_470_320/uploads/house/4988/5e71bc52bf510.JPG",
+    "minFloor": "0",
+    "maxFloor": "8",
+    "currency": {
+      "id": 1,
+      "code": "RUB",
+      "class": "rub",
+      "symbol": "p",
+      "title": "Рубли",
+      "shortName": "руб",
+      "unicodeSymbol": "8381"
+    },
+    "address": {
+      "full": "Тюмень Алматинская 2",
+      "locality": "Тюмень",
+      "district": null,
+      "region": null,
+      "street": "Алматинская",
+      "number": "2"
+    },
+    "minPrice": 240000,
+    "minPriceArea": 17455,
+    "propertyCount": "483",
+    "countFilteredProperty": "483",
+    "houseBadges": [],
+    "propertyTypes": [
+      41942
+    ],
+    "roomsFilter": [
+      "one"
+    ],
+    "landNumber": null
+  }
+]

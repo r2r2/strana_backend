@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Бронирование по сделке не было оплачен в установленное время. Квартира клиента была освобождена.</title>
+  </head>
+  <body>
+    <div>ФИО Клиента: {{ booking.user.full_name }}</div>
+    <br />
+    <div>
+        Сделка: {{ booking.id }} (<a href="https://broker.stranadev.com/deals/{{ booking.id }}">ссылка на сделку</a>)
+    </div>
+    <br />
+    <div>Сумма бронирования: {{ booking.payment_amount }}</div>
+  </body>
+</html>

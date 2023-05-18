@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
+    <link rel="shortcut icon" href="./error502/favicon.ico">   
+    <title>502 Страница ошибки | «Страна Девелопмент»</title>    
+    <style>
+        @font-face {
+            font-family: "Mazzard";
+            src: url("./error502/Mazzard-Medium.woff2");
+        }
+
+        body {
+            font-family: "Mazzard";   
+            background: #f0f1f2;
+            font-size: 16px;
+        }
+        
+        .error {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 0 12rem;
+            margin-top: 120px;
+        }
+
+        .content {
+            flex: 1 1 60%;
+        }
+
+        .content__text {
+            line-height: 112%;
+            font-size: 70px;
+            font-weight: 500;
+            color: #012345; 
+        }
+        
+        .content__text-red {
+            color: #ed1c24;
+        }
+        
+        .content__btn {
+            display: inline-block;
+            margin-top: 55px;
+            background: #ed1c24;
+            border-radius: 28px;
+        }
+
+        .content__btn-link {
+            display: block;
+            text-decoration: none;
+            color: #fff;            
+            padding: 20px 40px;
+        }
+
+        .content__btn-link:hover {
+            background: #012345;
+            border-radius: 28px;
+        }
+
+        .img {
+            flex: 0 1 40%;
+            width: 100%;
+            height: 650px;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-size: contain;
+            background-image: url("./error502/error502.png");
+        }       
+
+        @media (max-width: 1440px) {
+            .content__text {  
+                font-size: 50px;
+            }
+            
+            .content__btn-link {
+                padding: 15px 30px;
+                font-size: 16px;
+            }
+        }
+
+        @media (max-width: 1024px) {
+            .error {
+                padding: 0 5rem;
+            }
+
+            .content {
+                flex: 1 1 50%;
+            }
+
+            .content__text {  
+                font-size: 46px;
+            }
+
+            .content__btn-link {
+                padding: 10px 20px;
+                font-size: 16px;
+            }
+
+            .img {
+                flex: 1 1 50%;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .error {
+                padding: 0 20px;
+                flex-direction: column-reverse;
+            }
+
+            .content {
+                flex: none;
+            }
+
+            .content__text {  
+                font-size: 28px;
+            }
+
+            .content__btn {
+                margin-top: 25px;
+            }
+            
+            .img {
+                max-height: 300px;
+                flex: none;
+            }
+        }
+
+        @media (max-width: 411px) {
+            .error {
+                margin-top: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="error">
+        <div class="content">
+            <div class="content__text">
+                Упс! Кажется у нас технические неполадки...<br>
+                <span class="content__text-red">Обновите страницу</span>
+            </div>
+            <div class="content__btn">
+                <a class="content__btn-link" onClick="refreshPage()">Обновить страницу</a>
+            </div>
+        </div> 
+        <div class="img"></div>          
+    </div>
+    
+    <script>
+        function refreshPage(){
+            window.location.reload();
+        } 
+    </script>
+</body>
+</html>

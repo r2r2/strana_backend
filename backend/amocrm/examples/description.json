@@ -1,0 +1,14 @@
+{
+  "id": 547667,
+  "name": "Описание",
+  "field_type": 1,
+  "sort": 656,
+  "code": "",
+  "is_multiple": false,
+  "is_system": false,
+  "is_editable": false,
+  "is_required": true,
+  "is_deletable": true,
+  "is_visible": true,
+  "params": {}
+}

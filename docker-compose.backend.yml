@@ -1,0 +1,232 @@
+version: '3.7'
+
+x-ftp_environment: &ftp_environment
+  environment:
+    - FTP_USER
+    - FTP_PASS
+    - PASV_ADDRESS
+
+x-app_environment: &app_environment
+  environment:
+    - DEBUG
+    - POSTGRES_PASSWORD
+    - POSTGRES_HOST
+    - POSTGRES_PORT
+    - POSTGRES_NAME
+    - POSTGRES_USER
+    - SITE_HOST
+    - LK_SITE_HOST
+    - EMAIL_HOST
+    - EMAIL_PORT
+    - EMAIL_HOST_USER
+    - EMAIL_HOST_PASSWORD
+    - EMAIL_USE_TLS
+    - EMAIL_USE_SSL
+    - SERVER_EMAIL
+    - SENTRY_DSN
+    - CSRF_TRUSTED_ORIGINS
+    - AWS_ACCESS_KEY_ID
+    - AWS_SECRET_ACCESS_KEY
+    - AWS_STORAGE_BUCKET_NAME
+    - AWS_S3_ENDPOINT_URL
+    - PROFITBASE_BASE_URL
+    - PROFITBASE_API_KEY
+    - CRM_URL
+    - FLOWER_BASIC_AUTH
+    - SESSION_COOKIE_DOMAIN
+    - LK_DEBUG
+    - LK_HOST
+    - LK_PORT
+    - DOCS_HTPASSWD
+    - LK_LOG_LEVEL
+    - LK_USE_COLORS
+    - LK_RELOAD
+    - LK_PROXY_HEADERS
+    - LK_POSTGRES_PORT
+    - LK_POSTGRES_USER
+    - LK_POSTGRES_HOST
+    - LK_POSTGRES_PASSWORD
+    - LK_POSTGRES_DATABASE
+    - LK_POSTGRES_DATABASE_TEST
+    - LK_BACKEND_URL
+    - LK_BACKEND_GRAPHQL
+    - SBERBANK_URL
+    - SBERBANK_FAIL_URL
+    - SBERBANK_RETURN_URL
+    - SBERBANK_MSK_USERNAME
+    - SBERBANK_MSK_PASSWORD
+    - SBERBANK_SPB_USERNAME
+    - SBERBANK_SPB_PASSWORD
+    - SBERBANK_TMN_USERNAME
+    - SBERBANK_TMN_PASSWORD
+    - SBERBANK_EKB_USERNAME
+    - SBERBANK_EKB_PASSWORD
+    - INTERNAL_LOGIN
+    - INTERNAL_PASSWORD
+    - SMS_CENTER_URL
+    - SMS_CENTER_LOGIN
+    - SMS_CENTER_PASSWORD
+    - CORS_ORIGINS
+    - TRUSTED_ORIGINS
+    - SBERBANK_SECRET
+    - AMOCRM_SECRET
+    - LK_SESSION_DOMAIN
+    - LK_REDIRECT_TO
+    - LK_AUTH_SECRET_KEY
+    - MAIN_SITE_HOST
+    - PORTAL_POSTGRES_HOST
+    - PORTAL_POSTGRES_PORT
+    - PORTAL_POSTGRES_USER
+    - PORTAL_POSTGRES_DATABASE
+    - PORTAL_POSTGRES_PASSWORD
+    - TOP_HOST
+    - LK_PROFITBASE_API_KEY
+    - IMGPROXY_SITE_HOST
+    - IMGPROXY_KEY
+    - IMGPROXY_SALT
+    - IMGPROXY_S3_ENDPOINT
+    - EMAIL_HOST_STRANA
+    - EMAIL_HOST_USER_STRANA
+    - EMAIL_HOST_PASSWORD_STRANA
+    - BROKER_LK_SITE_HOST
+    - VK_TOKEN
+    - BAZIS_URL
+    - BAZIS_USERNAME
+    - BAZIS_PASSWORD
+    - LK_STRANA_ENVIRONMENT
+    - LK_STRANA_GETDOC_AMO_DOMAIN
+    - LK_STRANA_GETDOC_ACCOUNT_ID
+    - LK_STRANA_GETDOC_USER_ID
+    - LK_STRANA_FAKE_NUMBER
+    - LK_STRANA_FAKE_SMS_CODE
+    - PYTHON_ADMIN=itpro72.ru:5050/strana-artw/strana-backend/python-admin:latest
+    - PYTHON_BACKEND=itpro72.ru:5050/strana-artw/strana-backend/python-backend:latest
+    - PYTHON_CABINET=itpro72.ru:5050/strana-artw/strana-backend/python-cabinet:latest
+    - REQUESTS_FULL_LOGGING
+    - CELERY_BROKER_URL
+    - CELERY_RESULT_BACKEND
+    - TEST_CASE_USERNAME
+    - TEST_CASE_PASSWORD
+    - GUNICORN_WORKERS
+    - REDIS_CACHE_URL
+    - CACHE_TTL
+    - LK_SENTRY_DSN
+    - LK_STRANA_MANAGER_EMAIL
+    - LK_STRANA_BOOKING_EMAIL
+    - DADATA_TOKEN
+    - DADATA_SECRET
+    - SESSION_CACHE_URL
+    - LK_STRANA_FAKE_NUMBERS
+
+services:
+  backend:
+    image: ${DOCKER_REGISTRY}backend:${TAG:-latest}
+    restart: always
+    build:
+      context: ./backend
+      cache_from: ["${DOCKER_REGISTRY}backend:${CACHE_FROM_TAG:-latest}"]
+      args:
+        POETRY_PARAMS: "--no-dev"
+    entrypoint: sh wait-for ${POSTGRES_HOST:-db}:${POSTGRES_PORT:-5432} -- ./entrypoint.production.sh
+    command: gunicorn app.wsgi:application -w ${GUNICORN_WORKERS:-12} --keep-alive 120 -b 0.0.0.0:8000 --max-requests 2000 --max-requests-jitter 200 --access-logfile - --error-logfile -
+    <<: *app_environment
+    volumes:
+      - static:/app/static/:delegated
+#      - ftpdata:/home/vsftpd
+    networks:
+      - strana
+
+  cabinet:
+    image: ${DOCKER_REGISTRY}cabinet:${TAG:-latest}
+    restart: always
+    build:
+      context: ./cabinet
+      cache_from: [ "${DOCKER_REGISTRY}cabinet:${CACHE_FROM_TAG:-latest}" ]
+      args:
+        POETRY_PARAMS: "--no-dev"
+    <<: *app_environment
+    entrypoint: sh wait-for ${LK_POSTGRES_HOST:-db_cabinet}:${LK_POSTGRES_PORT:-5432} -- ./entrypoint.production.sh
+    command: gunicorn config.asgi:application -w ${GUNICORN_WORKERS:-5} -k uvicorn.workers.UvicornWorker --keep-alive 120 -b 0.0.0.0:1800 --access-logfile - --error-logfile -
+    depends_on:
+      - db_cabinet
+    networks:
+      - strana
+
+  db:
+    image: postgres:12.3-alpine
+    restart: always
+    volumes:
+      - postgresdata:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD
+    ports:
+      - 127.0.0.1:5432:5432
+    command: postgres -c 'shared_buffers=256MB' -c 'work_mem=8MB'
+    networks:
+      - strana
+
+  db_cabinet:
+    image: postgres:12.3-alpine
+    restart: always
+    ports:
+      - 127.0.0.1:5433:5432
+    volumes:
+      - cabinetpostgresdata:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD
+    command: postgres -c 'shared_buffers=256MB' -c 'work_mem=8MB'
+    networks:
+      - strana
+
+  admin:
+    image: ${DOCKER_REGISTRY}admin:${TAG:-latest}
+    restart: always
+    build:
+      context: ./admin
+      cache_from: [ "${DOCKER_REGISTRY}admin:${CACHE_FROM_TAG:-latest}" ]
+      args:
+        POETRY_PARAMS: "--no-dev"
+    <<: *app_environment
+    entrypoint: sh wait-for ${LK_POSTGRES_HOST:-db_cabinet}:${LK_POSTGRES_PORT:-5432} -- ./entrypoint.production.sh
+    command: gunicorn config.wsgi:application -w 1 --keep-alive 120 -b 0.0.0.0:2100 --access-logfile - --error-logfile -
+    ports:
+      - 127.0.0.1:2100:2100
+    volumes:
+      - adminstatic:/app/static/:delegated
+    depends_on:
+      - db
+      - db_cabinet
+    networks:
+      - strana
+
+  redis:
+    image: redis:6.0-alpine
+    restart: always
+    logging:
+      driver: "fluentd"
+      options:
+        fluentd-address: localhost:24224
+        tag: redis-backend
+    networks:
+      - strana
+
+volumes:
+  static:
+    name: static
+  redisdata:
+    name: redisdata
+  adminstatic:
+    name: adminstatic
+  local_static:
+    name: local_static
+  nuxt:
+    name: nuxt
+  postgresdata:
+    name: postgresdata
+  cabinetpostgresdata:
+      name: cabinetpostgresdata
+
+networks:
+  strana:
+    name: strana
+

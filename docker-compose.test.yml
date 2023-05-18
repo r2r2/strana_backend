@@ -1,0 +1,67 @@
+version: '3.7'
+
+services:
+  nginx:
+    restart: "no"
+    environment:
+      - NGINX_MOD=development
+
+  backend:
+    build:
+      context: ./backend
+      cache_from: ["${DOCKER_REGISTRY}backend"]
+      args:
+        POETRY_PARAMS: "--no-dev"
+    entrypoint: sh wait-for db:5432 -- ./entrypoint.test.sh
+    restart: "no"
+    depends_on:
+      - db
+      - redis
+    environment:
+      - DEBUG=False
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - POSTGRES_NAME=postgres
+      - POSTGRES_USER=postgres
+
+  cabinet:
+    build:
+      context: ./cabinet
+      cache_from: ["${DOCKER_REGISTRY}cabinet"]
+      args:
+        POETRY_PARAMS: "--no-dev"
+    entrypoint: sh wait-for db_cabinet:5432 -- ./entrypoint.test.sh
+    restart: "no"
+    depends_on:
+      - db_cabinet
+      - redis
+    environment:
+      - LK_DEBUG=False
+      - LK_POSTGRES_HOST=db_cabinet
+      - LK_POSTGRES_PORT=5432
+      - LK_POSTGRES_NAME=postgres
+      - LK_POSTGRES_USER=postgres
+
+  db:
+    restart: "no"
+
+  db_cabinet:
+    restart: "no"
+
+  redis:
+    restart: "no"
+
+  celery:
+    restart: "no"
+
+  beat:
+    restart: "no"
+
+  tasks:
+    restart: "no"
+
+  amo_tasks:
+    restart: "no"
+
+  realy:
+    restart: "no"

@@ -1,0 +1,97 @@
+.sc {
+    position: relative;
+    display: block;
+    width: 100%;
+    margin-top: 22px;
+}
+
+.sc__wrapper {
+    position: relative;
+    display: block;
+    width: 1000px;
+}
+
+.sc__image {
+    width: 100%;
+    display: block;
+}
+
+.sc__svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    display: block;
+    fill: rgba(71, 186, 193, 0.43);
+    stroke: #47bac1;
+    stroke-miterlimit: 10;
+    stroke-width: 1;
+}
+
+.sc__controls {
+    margin-top: 8px;
+}
+
+.sc__output {
+    margin-bottom: 8px;
+}
+
+.sc__controls,
+.sc__output {
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-align: center;
+    -ms-flex-align: center;
+    align-items: center;
+}
+
+.sc__controls > *,
+.sc__output > * {
+    margin-right: 8px;
+}
+
+.sc__output > * {
+    padding: 0 12px;
+}
+
+.sc__controls > *:last-child,
+.sc__output > *:last-child {
+    margin-right: 0;
+}
+
+.sc__action {
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-align: center;
+    -ms-flex-align: center;
+    align-items: center;
+    -webkit-box-pack: center;
+    -ms-flex-pack: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 3px;
+    background-color: #47bac1;
+    font-size: 12px;
+    font-family: Helvetica;
+    line-height: 26px;
+    color: white;
+    fill: white;
+    -webkit-transition: background-color .3s ease;
+    -o-transition: background-color .3s ease;
+    transition: background-color .3s ease;
+    cursor: pointer;
+}
+
+.sc__action:hover,
+.sc__action._active{
+    background-color: #639af5;
+}
+
+.sc__action svg {
+    display: block;
+    width: 16px;
+    height: 16px;
+}

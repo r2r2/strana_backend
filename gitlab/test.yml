@@ -1,0 +1,40 @@
+# test-backend:
+#   stage: test
+#   script:
+#     - docker pull ${CI_REGISTRY_IMAGE}/backend:${CI_COMMIT_SHA}
+#     - >
+#       echo $ENV_NEW_DEV_FULL_FILE > .env
+#       TAG=${CI_COMMIT_SHA} COMPOSE_HTTP_TIMEOUT=6000 docker-compose -f docker-compose.backend.yml -f docker-compose.test.yml  --env-file .env  run --rm backend /bin/sh -c "coverage run --source='.' manage.py test --noinput --parallel && coverage combine && coverage report --skip-covered"
+#   only:
+#     refs:
+#       - new-dev
+#       - master
+#       - pre-production
+#     changes:
+#       - backend/**/*
+#       - .gitlab-ci.yml
+#       - docker-compose.yml
+#       - docker-compose.production.yml
+#   tags:
+#     - docker
+
+test-cabinet:
+  stage: test
+  script:
+    - docker pull ${CI_REGISTRY_IMAGE}/cabinet:${CI_COMMIT_SHA}
+    - >
+      echo $ENV_NEW_DEV_FULL_FILE > .env
+      TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.backend.yml -f docker-compose.test.yml --env-file .env
+      run --rm cabinet /bin/sh -c "pytest -n 8 -p no:warnings --cov-report term:skip-covered --cov=. tests/"
+  only:
+    refs:
+      - development
+      - master
+      - pre-production
+    changes:
+      - cabinet/**/*
+      - .gitlab-ci.yml
+      - docker-compose.yml
+      - docker-compose.production.yml
+  tags:
+    - docker

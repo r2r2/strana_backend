@@ -1,0 +1,44 @@
+query detailFlat {
+    globalFlat(id: "%s") {
+        id
+        article
+        plan
+        planPng
+        price
+        originalPrice
+        area
+        completed
+        action
+        type
+        status
+        rooms
+        number
+        project {
+            id
+            name
+            slug
+            amocrmName
+            amocrmEnum
+            amocrmOrganization
+            amoPipelineId
+            amoResponsibleUserId
+            city {
+                slug
+            }
+        }
+        building {
+            id
+            name
+            readyQuarter
+            builtYear
+            bookingActive
+            bookingPeriod
+            bookingPrice
+            totalFloor
+        }
+        floor {
+            id
+            number
+        }
+    }
+}

@@ -1,0 +1,11 @@
+{% extends "admin/change_form.html" %}
+{% load i18n admin_urls %}
+
+{% block object-tools-items %}
+    {{ block.super }}
+    <li>
+        <a href="{% url "admin:set_window_view" object_id %}">
+            Установить вид из окна
+        </a>
+    </li>
+{% endblock %}

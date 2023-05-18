@@ -1,0 +1,175 @@
+<table>
+    <tbody>
+        {% if request.name %}
+            <tr>
+                <td style="font-weight: bold; padding: 5px 30px 5px 0;">Имя</td>
+                <td style="padding: 5px 0;">{{ request.name }}</td>
+            </tr>
+        {% endif %}
+        {% if request.phone %}
+            <tr>
+                <td style="font-weight: bold; padding: 5px 30px 5px 0;">Телефон</td>
+                <td style="padding: 5px 0;">{{ request.phone }}</td>
+            </tr>
+        {% endif %}
+        {% if request.email %}
+            <tr>
+                <td style="font-weight: bold; padding: 5px 30px 5px 0;">Email</td>
+                <td style="padding: 5px 0;">{{ request.email }}</td>
+            </tr>
+        {% endif %}
+
+        {% if request.applicant %}
+            <tr>
+                <td style="font-weight: bold; padding: 5px 30px 5px 0;">Тип заявителя</td>
+                <td style="padding: 5px 0;">
+                    {% if request.applicant == "realtor" %}
+                        Риелтор
+                    {% else %}
+                        Частное лицо
+                    {% endif %}
+                </td>
+            </tr>
+        {% endif %}
+        {% if request.property %}
+            <tr>
+                <td style="font-weight: bold; padding: 5px 30px 5px 0;">Объект собственности</td>
+                <td style="padding: 5px 0;">{{ request.property.id }}</td>
+            </tr>
+        {% endif %}
+        {% if request.property_type %}
+            <tr>
+                <td style="font-weight: bold; padding: 5px 30px 5px 0;">Тип недвижимости</td>
+                <td style="padding: 5px 0;">{{ request.get_property_type_display }}</td>
+            </tr>
+        {% endif %}
+        {% if request.project %}
+            <tr>
+                <td style="font-weight: bold; padding: 5px 30px 5px 0;">Проект</td>
+                <td style="padding: 5px 0;">{{ request.project.name }}</td>
+            </tr>
+        {% endif %}
+        {% if request.vacancy %}
+            <tr>
+                <td style="font-weight: bold; padding: 5px 30px 5px 0;">Вакансия</td>
+                <td style="padding: 5px 0;">{{ request.vacancy.job_title }}</td>
+            </tr>
+        {% endif %}
+        {% if request.resume %}
+            <tr>
+                <td style="font-weight: bold; padding: 5px 30px 5px 0;">Резюме</td>
+                <td style="padding: 5px 0;">
+                    <a href="{{ request.resume.url }}">{{ request.resume.name }}</a>
+                </td>
+            </tr>
+        {% endif %}
+        {% if request.offer %}
+            <tr>
+                <td style="font-weight: bold; padding: 5px 30px 5px 0;">Коммерческое предложение</td>
+                <td style="padding: 5px 0;">
+                    <a href="{{ request.offer.url }}">{{ request.offer.name }}</a>
+                </td>
+            </tr>
+        {% endif %}
+        {% if request.about_company %}
+            <tr>
+                <td style="font-weight: bold; padding: 5px 30px 5px 0;">О компании подрядчика</td>
+                <td style="padding: 5px 0;">{{ request.about_company }}</td>
+            </tr>
+        {% endif %}
+        {% if request.type_of_job %}
+            <tr>
+                <td style="font-weight: bold; padding: 5px 30px 5px 0;">Виды работ</td>
+                <td style="padding: 5px 0;">{{ request.type_of_job }}</td>
+            </tr>
+        {% endif %}
+        {% if request.agency_name %}
+            <tr>
+                <td style="font-weight: bold; padding: 5px 30px 5px 0;">Название агенства недвижимости</td>
+                <td style="padding: 5px 0;">{{ request.agency_name }}</td>
+            </tr>
+        {% endif %}
+        {% if request.city_name %}
+            <tr>
+                <td style="font-weight: bold; padding: 5px 30px 5px 0;">Город</td>
+                <td style="padding: 5px 0;">{{ request.city_name }}</td>
+            </tr>
+        {% endif %}
+        {% if request.cadastral_number %}
+            <tr>
+                <td style="font-weight: bold; padding: 5px 30px 5px 0;">Кадастровый номер</td>
+                <td style="padding: 5px 0;">{{ request.cadastral_number }}</td>
+            </tr>
+        {% endif %}
+        {% if request.price %}
+            <tr>
+                <td style="font-weight: bold; padding: 5px 30px 5px 0;">Стоимость</td>
+                <td style="padding: 5px 0;">{{ request.price }}</td>
+            </tr>
+        {% endif %}
+        {% if request.message %}
+            <tr>
+                <td style="font-weight: bold; padding: 5px 30px 5px 0;">Сопроводительное письмо</td>
+                <td style="padding: 5px 0;">{{ request.message }}</td>
+            </tr>
+        {% endif %}
+        {% if request.text %}
+            <tr>
+                <td style="font-weight: bold; padding: 5px 30px 5px 0;">Сообщение</td>
+                <td style="padding: 5px 0;">{{ request.text }}</td>
+            </tr>
+        {% endif %}
+        {% if request.graduated_at %}
+            <tr>
+                <td style="font-weight: bold; padding: 5px 30px 5px 0;">Дата выпуска</td>
+                <td style="padding: 5px 0;">{{ request.graduated_at }}</td>
+            </tr>
+        {% endif %}
+        {% if request.specialty %}
+            <tr>
+                <td style="font-weight: bold; padding: 5px 30px 5px 0;">Специальность</td>
+                <td style="padding: 5px 0;">{{ request.specialty }}</td>
+            </tr>
+        {% endif %}
+        {% if request.institution %}
+            <tr>
+                <td style="font-weight: bold; padding: 5px 30px 5px 0;">Учебное заведение</td>
+                <td style="padding: 5px 0;">{{ request.institution }}</td>
+            </tr>
+        {% endif %}
+        {% if request.comment %}
+            <tr>
+                <td style="font-weight: bold; padding: 5px 30px 5px 0;">Комментарий</td>
+                <td style="padding: 5px 0;">{{ request.comment }}</td>
+            </tr>
+        {% endif %}
+        {% if request.related_object %}
+            <tr>
+                <td style="font-weight: bold; padding: 5px 30px 5px 0;">Дополнительное описание заявки</td>
+                <td style="padding: 5px 0;">{{ request.format_text }}</td>
+            </tr>
+        {% endif %}
+        {% if request.from_url %}
+            <tr>
+                <td style="font-weight: bold; padding: 5px 30px 5px 0;">Отправлено со страницы</td>
+                <td style="padding: 5px 0;">{{ request.from_url }}</td>
+            </tr>
+        {% endif %}
+        {% if request.date %}
+            <tr>
+                <td style="font-weight: bold; padding: 5px 30px 5px 0;">Дата и время отправки</td>
+                <td style="padding: 5px 0;">{{ request.date }}</td>
+            </tr>
+        {% endif %}
+        {% if request.document_set %}
+            <tr>
+                <td style="font-weight: bold; padding: 5px 30px 5px 0;">Документы</td>
+                <td style="padding: 5px 0;">
+                    {% for document in request.document_set.all %}
+                        <a href="{{ document.file.url }}">{{ document.file.name }}</a><br>
+                    {% endfor %}
+                </td>
+            </tr>
+        {% endif %}
+    </tbody>
+</table>

@@ -1,0 +1,116 @@
+variables:
+  DOCKER_DRIVER: overlay2
+  CI_DEBUG_SERVICES: trace
+  CI_COMPOSE_FILES: docker-compose -f docker-compose.yml -f docker-compose.production.yml
+  CI_COMPOSE_FILES_FRONT: docker-compose -f docker-compose.yml -f docker-compose.production.yml
+
+release-backend:
+  stage: release
+  only:
+    refs:
+      - development
+      - master
+      - test-ci
+      - pre-production
+  script:
+    # Быстрый откат через $CI_COMMIT_SHA
+    # Cервисы по очереди pulled, tagged and pushed. Новый сервис добавляется через пробел в соответствующий release.
+    - |
+      for i in backend cabinet admin
+        do
+          if docker pull ${CI_REGISTRY_IMAGE}/$i:${CI_COMMIT_SHA}
+          then
+            echo "// Successfully pulled $i SHA"
+            echo "// Tagging SHA->SLUG $i"
+            docker tag ${CI_REGISTRY_IMAGE}/$i:${CI_COMMIT_SHA} ${CI_REGISTRY_IMAGE}/$i:${CI_COMMIT_REF_SLUG}
+            echo "// Pushing $i SLUG"
+            TAG=${CI_COMMIT_REF_SLUG} $CI_COMPOSE_FILES push $i
+          else
+            echo "// Pulling $i SLUG"
+            TAG=${CI_COMMIT_REF_SLUG} $CI_COMPOSE_FILES pull $i
+            echo "// Tagging SLUG->SHA $i"
+            docker tag ${CI_REGISTRY_IMAGE}/$i:${CI_COMMIT_REF_SLUG} ${CI_REGISTRY_IMAGE}/$i:${CI_COMMIT_SHA}
+            echo "// Pushing $i SHA"
+            TAG=${CI_COMMIT_SHA} $CI_COMPOSE_FILES push $i
+          fi
+      done
+  tags:
+   - docker
+
+release-frontend:
+  stage: release
+  only:
+    refs:
+      - development
+      - master
+      - test-ci
+      - pre-production
+  script:
+    - |
+      for i in frontend panel broker lk
+        do
+          if docker pull ${CI_REGISTRY_IMAGE}/$i:${CI_COMMIT_SHA}
+          then
+            echo "// Successfully pulled $i SHA"
+            echo "// Tagging SHA->SLUG $i"
+            docker tag ${CI_REGISTRY_IMAGE}/$i:${CI_COMMIT_SHA} ${CI_REGISTRY_IMAGE}/$i:${CI_COMMIT_REF_SLUG}
+            echo "Pushing $i SLUG"
+            TAG=${CI_COMMIT_REF_SLUG} $CI_COMPOSE_FILES_FRONT push $i
+          else
+            echo "// Pulling $i SLUG"
+            TAG=${CI_COMMIT_REF_SLUG} $CI_COMPOSE_FILES_FRONT pull $i
+            echo "// Tagging SLUG->SHA $i"
+            docker tag ${CI_REGISTRY_IMAGE}/$i:${CI_COMMIT_REF_SLUG} ${CI_REGISTRY_IMAGE}/$i:${CI_COMMIT_SHA}
+            echo "// Pushing $i SHA"
+            TAG=${CI_COMMIT_SHA} $CI_COMPOSE_FILES_FRONT push $i
+          fi
+      done
+  needs:
+    - job: "build-frontend"
+      optional: true
+    - job: "build-lk"
+      optional: true
+    - job: "build-broker"
+      optional: true
+    - job: "build-panel"
+      optional: true
+  tags:
+    - docker
+
+release-services:
+  stage: release
+  only:
+    refs:
+      - development
+      - master
+      - test-ci
+      - pre-production
+  script:
+    - |
+      for i in nginx flower imageproxy
+        do
+          if docker pull ${CI_REGISTRY_IMAGE}/$i:${CI_COMMIT_SHA}
+          then
+            echo "// Successfully pulled $i SHA"
+            echo "// Tagging SHA->SLUG $i"
+            docker tag ${CI_REGISTRY_IMAGE}/$i:${CI_COMMIT_SHA} ${CI_REGISTRY_IMAGE}/$i:${CI_COMMIT_REF_SLUG}
+            echo "// Pushing $i SLUG"
+            TAG=${CI_COMMIT_REF_SLUG} $CI_COMPOSE_FILES push $i
+          else
+            echo "// Pulling $i SLUG"
+            TAG=${CI_COMMIT_REF_SLUG} $CI_COMPOSE_FILES pull $i
+            echo "// Tagging SLUG->SHA $i"
+            docker tag ${CI_REGISTRY_IMAGE}/$i:${CI_COMMIT_REF_SLUG} ${CI_REGISTRY_IMAGE}/$i:${CI_COMMIT_SHA}
+            echo "// Pushing $i SHA"
+            TAG=${CI_COMMIT_SHA} $CI_COMPOSE_FILES push $i
+          fi
+      done
+  needs:
+    - job: "build-imageproxy"
+      optional: true
+    - job: "build-flower"
+      optional: true
+    - job: "build-nginx"
+      optional: true
+  tags:
+    - docker

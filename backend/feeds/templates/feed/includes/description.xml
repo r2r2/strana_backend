@@ -1,0 +1,5 @@
+{% if object.description %}
+      {{ object.description }}
+          {% else %}
+          Коммерческое помещение № {{ object.id }} площадью {{ object.area }} м в ЖК {{ object.building.project.name }}
+      {% endif %}

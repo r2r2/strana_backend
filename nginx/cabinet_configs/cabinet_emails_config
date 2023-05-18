@@ -1,0 +1,7 @@
+set $cabinet_upstream http://cabinet:1800;
+proxy_pass $cabinet_upstream/api/$1$is_args$args;
+proxy_set_header Host $server_name;
+proxy_set_header X-Real-IP $remote_addr;
+proxy_set_header X-Forwarded-Host $x_forwarded_host;
+proxy_set_header X-Forwarded-Port $server_port;
+proxy_set_header X-Forwarded-Proto $scheme;

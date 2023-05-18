@@ -1,0 +1,4 @@
+[submodule "docs"]
+	path = docs
+	url = ../docs.git
+	branch = development

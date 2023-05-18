@@ -1,0 +1,14 @@
+{
+  "id": 685389,
+  "name": "Бронь",
+  "field_type": 1,
+  "sort": 802,
+  "code": "",
+  "is_multiple": true,
+  "is_system": false,
+  "is_editable": true,
+  "is_required": false,
+  "is_deletable": true,
+  "is_visible": true,
+  "params": {}
+}

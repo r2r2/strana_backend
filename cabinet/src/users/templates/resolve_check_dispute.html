@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+Статус для клиента {{ client_phone }} пересмотрен администратором.
+Запрос о смене статуса на "Уникальный" {% if approve %}одобрен{% else %}отклонён{% endif %}.
+{% if admin_comment %}Ответ администратора: {{ admin_comment }}{% endif %}
+broker.strana.com
+</body>
+</html>

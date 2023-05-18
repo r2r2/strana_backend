@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+      @media screen and (max-width:480px) {
+        table {
+          width: 100%!important;
+          table-layout: auto;
+        }
+      }
+
+      body {
+        width: 100% !important;
+        -webkit-text-size-adjust: 100%;
+        -ms-text-size-adjust: 100%;
+        margin: 0;
+        padding: 0;
+      }
+      #background_table {
+        margin: 0;
+        padding: 0;
+        width: 100%!important;
+        line-height: 100%!important;
+      }
+      img {
+        outline: none;
+        text-decoration: none;
+        border: none;
+        -ms-interpolation-mode: bicubic;
+        max-width:100%;
+        height:auto;
+      }
+
+      a {
+        text-decoration: none;
+      }
+
+      table td {
+        border-collapse: collapse;
+        vertical-align: middle;
+        font-size: 14px;
+        color: #000;
+        padding-left: 57px;
+      }
+
+      table td[class="column"] {
+          height:100px;
+          width:200px;
+      }
+
+      table td[class="no_padding"],
+      table td.no_padding {
+        padding-left: 0;
+      }
+
+      table td.vertical-top {
+        vertical-align: top;
+      }
+
+      table {
+        table-layout: fixed;
+        border-collapse: collapse;
+        mso-table-lspace: 0pt;
+        mso-table-rspace: 0pt;
+      }
+
+      table[class="body_table"] {
+        width: 600px;
+      }
+
+      .tel {
+        font-style: normal;
+        font-weight: 500;
+        font-size: 14px;
+        line-height: 116%;
+        color: #012345;
+        text-align: right;
+        padding-right: 56px;
+      }
+
+      .heading {
+        font-style: normal;
+        font-weight: 500;
+        font-size: 32px;
+        line-height: 124%;
+        color: #012345;
+        padding-top: 56px;
+      }
+
+      .code {
+        font-style: normal;
+        font-weight: 500;
+        font-size: 10px;
+        line-height: 1.46;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: #99A7B5;
+        padding-top: 24px;
+      }
+
+      .text_with_border {
+        font-style: normal;
+        font-weight: 500;
+        font-size: 20px;
+        line-height: 1.40;
+        color: #012345;
+        padding-top: 4px;
+
+      }
+
+      .left_text {
+        font-style: normal;
+        font-weight: normal;
+        font-size: 16px;
+        line-height: 152%;
+        color: #677B8F;
+        padding-top: 12px;
+      }
+
+      .first {
+        padding-top: 24px;
+      }
+
+      .purple {
+        font-style: normal;
+        font-weight: 500;
+        font-size: 16px;
+        line-height: 156%;
+        text-align: right;
+        color: #92278F;
+        padding-top: 24px;
+        padding-right: 56px;
+      }
+
+      .right_text {
+        font-style: normal;
+        font-weight: 500;
+        font-size: 16px;
+        line-height: 1.56;
+        text-align: right;
+        color: #012345;
+        padding-top: 12px;
+        padding-right: 56px;
+      }
+
+      .price {
+        font-style: normal;
+        font-weight: 500;
+        font-size: 24px;
+        line-height: 1.32;
+        color: #012345;
+      }
+
+      .cross {
+        text-decoration: line-through;
+        padding-top: 29px;
+      }
+
+      .discount {
+        background-color: #FBD2D3;
+        border-radius: 4px;
+        font-style: normal;
+        font-weight: 500;
+        font-size: 14px;
+        line-height: 116%;
+        color: #ED1C24;
+      }
+
+      .padding {
+        padding: 46px 56px 56px;
+      }
+
+      .padding_footer {
+        padding-top: 56px;
+      }
+
+      .without_left_padding {
+        padding: 0;
+      }
+
+      .padding-img {
+        padding-top: 80px;
+        padding-bottom: 93px;
+      }
+
+      .strana_text {
+        font-style: normal;
+        font-weight: 500;
+        font-size: 16px;
+        line-height: 1.56;
+        color: #CCD3DA;
+      }
+
+      .footer_text {
+        font-style: normal;
+        font-weight: normal;
+        font-size: 12px;
+        line-height: 1.32;
+        color: #CCD3DA;
+      }
+
+      .footer_text_right {
+        font-style: normal;
+        font-weight: normal;
+        font-size: 10px;
+        line-height: 1.32;
+        color: #677B8F;
+        /* padding: 0; */
+      }
+
+      .images {
+        padding: 0;
+      }
+
+      .button {
+        width: 216px;
+        color: #92278F;
+        border-radius: 28px;
+        text-align: center;
+        padding: 16px 0;
+        background-color: #E9D4E9;
+        display: inline-block;
+        width: 100%;
+        box-sizing: border-box;
+      }
+
+      .social-links {
+        padding-right: 52px;
+      }
+
+      .social-links a {
+        margin-left: 21px;
+      }
+
+      .social-links a img {
+        width: 13px;
+        height: 13px;
+      }
+
+      .download-links a {
+        display: inline-block;
+        margin-right: 8px;
+      }
+
+      @media only screen and (max-width: 480px) {
+        table[class="body_table"] {
+          width: 100%!important;
+        }
+
+        table td[class="column"] {
+            width:100%!important;
+            display: block!important;
+        }
+
+        table td {
+          padding-left: 20px;
+        }
+
+        table td.no_padding {
+          padding-right: 0 !important;
+        }
+
+        table td.heading,
+        table td.code,
+        table td.text_with_border,
+        table td.left_text,
+        table td.price,
+        table td.padding {
+          padding-left: 20px !important;
+          padding-right: 20px !important;
+        }
+
+        table td:last-child {
+          padding-right: 20px;
+          padding-left: 0;
+        }
+
+        .logo {
+          padding: 20px 0 20px 16px;
+          height: auto !important;
+        }
+
+        .tel {
+          padding: 20px 25px 20px 0;
+          height: auto !important;
+        }
+      }
+    </style>
+</head>
+<body>
+<table width="100%" bgcolor="#FCFCFC" cellpadding="0" cellspacing="0" border="0"
+       id="background_table"
+       style="font-family: 'Mazzard', 'helveticaneue' , 'helvetica' , 'arial' , sans-serif">
+    <tbody>
+    <tr>
+        <td class="no_padding">
+
+            <table width="600" cellpadding="0" cellspacing="0" border="0" align="center"
+                   class="body_table">
+                <tbody>
+                <tr bgcolor="#F0F1F2">
+                    <td width="50%" height="100" class="logo">
+                        <img
+                            src="https://storage.yandexcloud.net/strana-development-dev/email_logo.png">
+                    </td>
+
+                    <td width="50%" height="100" class="tel">
+                        +7 495 021-20-62
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+
+            <table width="600" cellpadding="0" cellspacing="0" border="0" align="center"
+                   class="body_table">
+                <tbody>
+                <tr width="50%">
+                    <td class="heading">
+                        Ваше бронирование
+                    </td>
+                </tr>
+                <tr width="100%">
+                    <td class="code">
+                        TSM150
+                    </td>
+                </tr>
+                <tr width="100%">
+                    <td class="text_with_border">
+                        <div style="border-bottom: 1px solid #ccd3da;
+                                padding-bottom: 10px;">
+                            {{ booking.property.rooms }}-комнатная, {{ booking.property.area|round(1) }}
+                            м2
+                        </div>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+
+            <table width="600" cellpadding="0" cellspacing="0" border="0" align="center"
+                   class="body_table">
+                <tbody>
+                <tr>
+                    <td width="50%" class="column left_text first">Жилой комплекс</td>
+                    <td width="50%" class="column purple">{{ booking.project.name }}</td>
+                </tr>
+                <tr>
+                    <td width="50%" class="column left_text">Дом и этаж</td>
+                    <td width="50%" class="column right_text">{{ booking.building.name }},
+                        {{ booking.floor.number }} эт.
+                    </td>
+                </tr>
+                <tr>
+                    <td width="50%" class="column left_text">№ квартиры</td>
+                    <td width="50%" class="column right_text">{{ booking.property.number }}</td>
+                </tr>
+                <tr>
+                    <td width="50%" class="column left_text">Срок сдачи</td>
+                    <td width="50%" class="column right_text">
+                        {{ booking.building.ready_quarter|replace("1", "I")|replace("2",
+                        "II")|replace("3", "III")|replace("4", "IV") }} кв.
+                        {{ booking.building.built_year }}
+                    </td>
+                </tr>
+
+                <tr>
+                    <td width="50%" class="column left_text">Площадь</td>
+                    <td width="50%" class="column right_text">{{ booking.property.area|round(1) }}
+                        м2
+                    </td>
+                </tr>
+                <tr>
+
+                    <td width="50%" class="column left_text">
+                        {% if booking.property.discount %}
+                        <span class="cross">{{ booking.property.original_price }}</span>
+                        <span class="discount">- {{ booking.property.discount }}</span>
+                        {% endif %}
+                    </td>
+
+                </tr>
+                <tr>
+                    <td width="50%" colspan="2" class="column price">{{ booking.property.price }} ₽
+                    </td>
+                </tr>
+                <tr width="50%" class="column">
+                    <td class="padding-img no_padding" colspan="2">
+                        {% if booking.property.plan_png %}
+                        <div align="center">
+                            <img width="300" src="{{ booking.property.plan_png['aws'] }}">
+                        </div>
+                        {% elif booking.property.plan %}
+                        <div align="center">
+                            <img width="300" src="{{ booking.property.plan['proxy'] }}">
+                        </div>
+                        {% endif %}
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+            <table width="600" cellpadding="0" cellspacing="0" border="0" align="center"
+                   class="body_table">
+                <tbody>
+                <tr>
+                    <td width="100%" class="text_with_border">
+                        <div style="border-bottom: 1px solid #ccd3da;
+                              padding-bottom: 10px;">
+                            Условия бронирования
+                        </div>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+            <table width="600" cellpadding="0" cellspacing="0" border="0" align="center"
+                   class="body_table">
+                <tbody>
+                <tr>
+                    <td width="50%" class="column left_text">Срок бронирования</td>
+                    <td width="50%" class="column right_text">
+                        {{ booking.booking_period }} дней до {{ booking.until.strftime("%d.%m.%Y") }}
+                    </td>
+                </tr>
+                <tr>
+                    <td width="50%" class="column left_text">Стоимость бронирования</td>
+                    <td width="50%" class="column right_text">{{ booking.payment_amount }} ₽</td>
+                </tr>
+                </tbody>
+            </table>
+            <table width="600" cellpadding="0" cellspacing="0" border="0" align="center"
+                   class="body_table">
+                <tbody>
+                <tr align="center" colspan="2">
+                    <td class="padding">
+                        <a href="https://lk.strana.com/reservations" class="button" target='_blank'>Перейти
+                            в личный кабинет</a>
+                    </td>
+
+                </tr>
+                </tbody>
+            </table>
+
+            <table width="600" height="255" cellpadding="0" cellspacing="0" border="0"
+                   align="center" class="body_table" bgcolor=" #011529">
+                <tbody>
+                <tr align="center">
+                    <td width="600" class="without_left_padding" colspan="2">
+                        <a href="https://strana.com" class="strana_text"> strana.com</a>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="footer_text" width="300">
+                        <div style="padding-bottom: 12px;">Скачайте наше приложение</div>
+                        <div class="download-links">
+                            <a href="https://apps.apple.com/ru/app/%D1%81%D1%82%D1%80%D0%B0%D0%BD%D0%B0/id1534717460"><img
+                                src="https://storage.yandexcloud.net/strana-development-dev/email_appStore.png"></a>
+                            <a href="https://play.google.com/store/apps/details?id=com.mintrocket.strana_development"><img
+                                src="https://storage.yandexcloud.net/strana-development-dev/email_googlePlay.png"></a>
+                            <a href="https://appgallery.huawei.com/#/app/C103444111"><img
+                                src="https://storage.yandexcloud.net/strana-development-dev/email_appGallery.png"></a>
+                        </div>
+
+                    </td>
+                    <td class="footer_text_right" width="300">
+                        Любая информация, представленная на данном сайте, носит исключительно
+                        информационный характер, не является публичной офертой, определяемой
+                        положениями статьи 437 ГК РФ.
+                    </td>
+                </tr>
+                <tr>
+                    <td class="footer_text" width="300">
+                        &copy; 2008 - 2021. «Страна Девелопмент»
+                    </td>
+                    <td width="300" class="images">
+                        <div align="right" class="social-links">
+                            <table>
+                                <tr>
+                                    <td valign="top" class="no_padding"
+                                        style="vertical-align: top;">
+                                        <a href="https://www.instagram.com/strana_com"><img
+                                            src="https://storage.yandexcloud.net/strana-development-dev/email_instagram.png"
+                                            width="24" height="24"></a>
+                                        <a href="https://www.youtube.com/c/%D0%A1%D0%A2%D0%A0%D0%90%D0%9D%D0%90%D0%94%D0%B5%D0%B2%D0%B5%D0%BB%D0%BE%D0%BF%D0%BC%D0%B5%D0%BD%D1%82"><img
+                                            src="https://storage.yandexcloud.net/strana-development-dev/email_youtube.png"
+                                            width="24" height="24"></a>
+                                        <a href="https://vk.com/strana_com"><img
+                                            src="https://storage.yandexcloud.net/strana-development-dev/email_vk.png"
+                                            width="24" height="24"></a>
+                                        <a href="https://www.facebook.com/stranacom"><img
+                                            src="https://storage.yandexcloud.net/strana-development-dev/email_facebook.png"
+                                            width="24" height="24"></a>
+                                        <a href="https://ok.ru/stranacom"><img
+                                            src="https://storage.yandexcloud.net/strana-development-dev/email_ok.png"
+                                            width="24" height="24"></a>
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </td>
+    </tr>
+    </tbody>
+</table>
+</body>
+</html>

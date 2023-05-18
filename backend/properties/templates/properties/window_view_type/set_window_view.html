@@ -1,0 +1,14 @@
+{% extends "admin/base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+  <div>
+    <h1>{{ doc }}</h1>
+    <form action="{{ url_action }}" method="POST" enctype="multipart/form-data">
+        {{ form.as_p }}
+        {% csrf_token %}
+        <input type="submit" value="Установить вид из окна">
+    </form>
+  </div>
+<br/>
+
+{% endblock %}

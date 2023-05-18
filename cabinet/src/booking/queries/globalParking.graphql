@@ -1,0 +1,42 @@
+query detailParking {
+    globalParking(id: "%s") {
+        id
+        article
+        plan
+        planPng
+        price
+        originalPrice
+        area
+        action
+        type
+        status
+        number
+        project {
+            id
+            name
+            slug
+            amocrmName
+            amocrmEnum
+            amocrmOrganization
+            amoPipelineId
+            amoResponsibleUserId
+            city {
+                slug
+            }
+        }
+        building {
+            id
+            name
+            readyQuarter
+            builtYear
+            bookingActive
+            bookingPeriod
+            bookingPrice
+            totalFloor
+        }
+        floor {
+            id
+            number
+        }
+    }
+}

@@ -1,0 +1,183 @@
+<% if [ "$ENVIRONMENT" = "production" ]; then -%>
+    <% if [ "$TLS_MODE" != "off" ]; then -%>
+    server {
+        server_name <%= $DEFAULT_SITE_HOST %>;
+
+        listen 80;
+
+        return 301 https://$host$request_uri;
+    }
+    <% fi; -%>
+    server {
+        server_name <%= $DEFAULT_SITE_HOST %>;
+
+        <% if [ "$TLS_MODE" != "off" ]; then -%>
+            listen 443 ssl http2;
+            include ssl_params;
+        <% else -%>
+            listen 80;
+        <% fi -%>
+
+        location / {
+            include portal_backend_config;
+        }
+    }
+<% fi -%>
+
+<% if [ "$TLS_MODE" != "off" ]; then -%>
+    server {
+        server_name <%= $SITE_HOST %>;
+
+        listen 80;
+
+        return 301 https://$host$request_uri;
+    }
+<% fi; -%>
+
+
+server {
+    server_name <%= $SITE_HOST %>;
+    set $lk_site_host <%= $LK_SITE_HOST %>;
+
+    <% if [ "$TLS_MODE" != "off" ]; then -%>
+        listen 443 ssl http2;
+        include ssl_params;
+    <% else -%>
+        listen 80;
+    <% fi -%>
+
+    if ($host ~ ^www\.(?<domain>.+)$) {
+        return  301 https://$domain$request_uri;
+    }
+
+    # Перенаправляем ссылку авторизации с strana.com/login на strana.com/?login
+    location /login/ {
+        return 307 https://$host/?login;
+    }
+    location /login {
+        return 307 https://$host/?login;
+    }
+
+    sendfile on;
+    tcp_nodelay on;
+    tcp_nopush on;
+    gzip on;
+    gzip_disable "msie6";
+    gzip_min_length 1000;
+    gzip_types text/plain text/css application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript application/javascript;
+    http2_push_preload on;
+    client_max_body_size 21M;
+    merge_slashes off;
+    error_page 497 https://$host:$server_port$request_uri;
+    error_page 502 /error502/error502.html;
+    location /error502/ {
+        root /etc/nginx/;
+    }
+    <% if [ "$ENVIRONMENT" = "production" ]; then -%>
+        location /s/ {
+            alias /var/www/static/;
+            expires 365d;
+        }
+
+        location /n/ {
+            alias /var/www/nuxt/;
+            expires 365d;
+        }
+        location /ftp/ {
+            alias /var/www/ftp-data/;
+            expires 365d;
+        }
+    <% else -%>
+        location /s/ {
+            include portal_backend_config;
+        }
+    <% fi; -%>
+
+    location /graphql/ {
+        include portal_backend_config;
+    }
+
+    location /api/ {
+        include portal_backend_config;
+    }
+
+    location /admin/ {
+        client_max_body_size 250M;
+        include portal_backend_config;
+    }
+
+    location /flower/ {
+        set $flower http://flower:5555;
+        proxy_pass $flower;
+        proxy_set_header Host $host;
+        proxy_redirect off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+
+    location /sitemap.xml {
+        include portal_backend_config;
+    }
+
+    location /robots.txt {
+        include portal_backend_config;
+    }
+
+    location /feed/ {
+        include portal_backend_config;
+    }
+    location /file/ {
+        include portal_backend_config;
+    }
+
+    location ~ ^/pdf/(.*)$ {
+        proxy_pass "http://pdf.idacloud.ru/pdf/$scheme://$host/$1?$args";
+    }
+
+    # Перенаправляем в ЛК вебхуки АмоСРМ, относящиеся к онлайн-покупке
+    location ~ ^/api/booking/amocrm/(access_deal|date_deal|deal_success)/$ {
+        return 307 https://$lk_site_host/api/booking/amocrm/$1;
+    }
+
+    # Перенаправляем в ЛК вебхук АмоСРМ, относящийся к быстрой сделке
+    location ~ ^/booking-fast/amo/$ {
+        return 307 https://$lk_site_host/api/booking-fast/amo/;
+    }
+
+    <% if [ "$ENVIRONMENT" = "production" ]; then -%>
+	    location @frontend {
+            rewrite (.*)//+(.*) $1/$2 permanent;
+            rewrite ^([^.\?]*[^/])$ $1/ permanent;
+	        proxy_pass http://frontend:3000;
+	        proxy_set_header Host $server_name;
+	        proxy_set_header X-Real-IP $remote_addr;
+	        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+	        proxy_set_header X-Forwarded-Host $x_forwarded_host;
+	        proxy_set_header X-Forwarded-Port $server_port;
+	        proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_connect_timeout 120s;
+            proxy_read_timeout 120s;
+            proxy_send_timeout 120s;
+	    }
+
+        location ~ ^/flats/$ {
+            proxy_cache_valid any 1m;
+            root /var/www/local_static/;
+	        try_files $uri @frontend;
+        }
+	    location / {
+	        root /var/www/local_static/;
+	        try_files $uri @frontend;
+	    }
+
+        if ($redirected_url != "none") {
+	        rewrite ^ $redirected_url permanent;
+	    }
+    <% else -%>
+        location / {
+	        root /var/www/local_static/;
+        }
+    <% fi; -%>
+
+}

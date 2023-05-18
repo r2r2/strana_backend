@@ -1,0 +1,58 @@
+<div class="block js-sc">
+  {% include 'django/forms/widgets/textarea.html' with widget=widget.subwidgets.0 %}
+  {% include 'django/forms/widgets/hidden.html' with widget=widget.subwidgets.1 %}
+  {% include 'django/forms/widgets/hidden.html' with widget=widget.subwidgets.2 %}
+  {% include 'django/forms/widgets/hidden.html' with widget=widget.subwidgets.3 %}
+{#  <textarea type="text" cols="80" rows="7" style="resize: none;" class="js-sc-i"></textarea>#}
+
+  <div class="sc js-sc">
+    <div class="sc__output">
+      <div class="sc__action _active js-sc-tag">Тег</div>
+      <div class="sc__action  js-sc-points">Точки</div>
+    </div>
+    {% if widget.subwidgets.1.value %}
+      <div class="sc__wrapper  js-sc-wrapper">
+        <img src="{{ widget.subwidgets.1.value }}" alt="" class="sc__image">
+        <svg class="sc__svg  js-sc-svg"
+             viewBox="0 0 {{ widget.subwidgets.2.value }} {{ widget.subwidgets.3.value }}">
+          {% if widget.subwidgets.0.value %}
+            <polygon class="js-sc-polygon" points="{{ widget.subwidgets.0.value }}"></polygon>
+          {% else %}
+            <polygon class="js-sc-polygon"></polygon>
+          {% endif %}
+        </svg>
+      </div>
+    {% endif %}
+
+    <div class="sc__controls">
+      <div class="sc__action js-sc-undo">
+        <svg viewBox="0 0 488 488">
+          <g>
+            <path d="M0,226.1c0,4,1.8,7.8,4.9,10.4l215.4,178.2c4.1,3.3,9.6,4,14.4,1.8s7.8-7,7.8-12.2V311c87.1,0.3,147.2,6.5,220.2,135.2
+                    c2.4,4.3,6.9,6.8,11.7,6.8c1.1,0,2.3-0.1,3.4-0.4c6-1.6,10.1-7,10.1-13.1c0-3.4,0-7,0-10.8c0.3-46.7,0.6-117.3-31.6-176.9
+                    C418.9,182.7,347,145.8,242.4,142V48.4c0-5.2-3-10-7.7-12.2s-10.3-1.5-14.3,1.8L4.9,215.6C1.8,218.2,0,222.1,0,226.1z M34.8,226.1
+                    L215.5,77v78.2c0,7.4,6,13.4,13.4,13.5c102.7,0.9,169.3,32.4,203.7,96c21.7,40.1,26.9,87.5,28.1,127.2
+                    c-29.9-43.5-60.2-71.2-95.2-87.5C325,285.5,283.3,284,228.9,284c-3.5,0-7,1.5-9.5,4c-2.6,2.5-4,5.9-4,9.5v78.1L34.8,226.1z"/>
+          </g>
+        </svg>
+      </div>
+      <div class="sc__action  js-sc-refresh">
+        <svg viewBox="0 0 489.711 489.711">
+          <g>
+            <path d="M112.156,97.111c72.3-65.4,180.5-66.4,253.8-6.7l-58.1,2.2c-7.5,0.3-13.3,6.5-13,14c0.3,7.3,6.3,13,13.5,13
+                      c0.2,0,0.3,0,0.5,0l89.2-3.3c7.3-0.3,13-6.2,13-13.5v-1c0-0.2,0-0.3,0-0.5v-0.1l0,0l-3.3-88.2c-0.3-7.5-6.6-13.3-14-13
+                      c-7.5,0.3-13.3,6.5-13,14l2.1,55.3c-36.3-29.7-81-46.9-128.8-49.3c-59.2-3-116.1,17.3-160,57.1c-60.4,54.7-86,137.9-66.8,217.1
+                      c1.5,6.2,7,10.3,13.1,10.3c1.1,0,2.1-0.1,3.2-0.4c7.2-1.8,11.7-9.1,9.9-16.3C36.656,218.211,59.056,145.111,112.156,97.111z"/>
+            <path d="M462.456,195.511c-1.8-7.2-9.1-11.7-16.3-9.9c-7.2,1.8-11.7,9.1-9.9,16.3c16.9,69.6-5.6,142.7-58.7,190.7
+                      c-37.3,33.7-84.1,50.3-130.7,50.3c-44.5,0-88.9-15.1-124.7-44.9l58.8-5.3c7.4-0.7,12.9-7.2,12.2-14.7s-7.2-12.9-14.7-12.2l-88.9,8
+                      c-7.4,0.7-12.9,7.2-12.2,14.7l8,88.9c0.6,7,6.5,12.3,13.4,12.3c0.4,0,0.8,0,1.2-0.1c7.4-0.7,12.9-7.2,12.2-14.7l-4.8-54.1
+                      c36.3,29.4,80.8,46.5,128.3,48.9c3.8,0.2,7.6,0.3,11.3,0.3c55.1,0,107.5-20.2,148.7-57.4
+                      C456.056,357.911,481.656,274.811,462.456,195.511z"/>
+          </g>
+
+        </svg>
+      </div>
+    </div>
+  </div>
+
+</div>

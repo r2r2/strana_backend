@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Бронирование по сделке успешно оплачено. Квартира забронирована за клиентом.</title>
+  </head>
+  <body>
+    <div>ФИО Клиента: {{ booking.user.full_name }}</div>
+    <br />
+    <div>
+        Сделка: {{ booking.id }} (<a href="https://broker.stranadev.com/deals/{{ booking.id }}">ссылка на сделку</a>)
+    </div>
+    <br />
+    <div>Сумма бронирования: {{ booking.payment_amount }}</div>
+    <br />
+    <div>Дата окончания бронирования: {{ booking.until }}</div>
+  </body>
+</html>

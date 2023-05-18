@@ -1,0 +1,53 @@
+{% load l10n filters %}<?xml version="1.0" encoding="UTF-8"?>
+<feed>
+    <feed_version>2</feed_version>
+        {% for object in object_list %}
+        {# Общие поля #}
+            <object>
+        <ExternalId>{{ object.pk }}</ExternalId>
+        <Description>
+                  {% include 'feed/includes/description.xml' %}
+        </Description>
+        <Address>
+            {{ object.address }}
+        </Address>
+        <Phones>
+            <PhoneSchema>
+                <CountryCode>+7</CountryCode>
+                <Number>{{ feed.manager.phone }}</Number>
+            </PhoneSchema>
+        </Phones>
+        <Email>{{ feed.manager.email|feed_field:"email" }}</Email>
+
+        {# Поля для помещений общего назначения #}
+        <Category>freeAppointmentObjectSale</Category>
+        <TotalArea>{{ object.area }}</TotalArea>
+
+        <FloorNumber>{{ object.floor.number }}</FloorNumber>
+        <JKSchema>
+            <Id> {{ object.building.project.cian_id }}</Id>
+            <Name> {{ object.building.project.name }}</Name>
+            <House>
+                <Id>{{ object.building.cian_id }}</Id>
+            </House>
+        </JKSchema>
+
+        <Specialty>
+            <Types><String>flexiblePurpose</String></Types>
+        </Specialty>
+
+        <Building>
+            <FloorsCount>{{ object.building.total_floors }}</FloorsCount>
+        </Building>
+
+        <BargainTerms>
+            <Price>
+                {{ object.price }}
+            </Price>
+            <VatType>
+                included
+            </VatType>
+        </BargainTerms>
+            </object>
+{% endfor %}
+</feed>

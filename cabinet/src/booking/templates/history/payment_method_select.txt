@@ -1,0 +1,33 @@
+<p>Выбрал способ покупки
+{% if payment_method == "cash" %}
+ «Собственные средства»
+{% elif payment_method == "mortgage" %}
+ «Ипотека»
+{% elif payment_method == "installment_plan" %}
+ «Рассрочка»
+{% endif %}
+{% if instruments_count == 1 %}
+ с дополнительным инструментом в виде
+{%     if maternal_capital %}
+ материнского капитала
+{%     elif housing_certificate %}
+ жилищного сертификата
+{%     elif government_loan %}
+ государственного займа
+{%     endif %}
+{% elif instruments_count == 2 %}
+ с дополнительными инструментами в виде
+{%     if not maternal_capital %}
+ жилищного сертификата и государственного займа
+{%     elif not housing_certificate %}
+ материнского капитала и государственного займа
+{%     elif not government_loan %}
+ материнского капитала и жилищного сертификата
+{%     endif %}
+{% elif instruments_count == 3 %}
+ с дополнительными инструментами в виде материнского капитала, жилищного сертификата и государственного займа
+{% endif %}
+.</p>
+{%- if bank_name -%}
+ <p>Отправил данные для связи с ипотечным банковским специалистом.</p><ul><li><i>Название банка:</i> {{ bank_name }}</li></ul>
+{%- endif -%}

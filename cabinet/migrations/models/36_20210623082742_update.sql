@@ -1,0 +1,30 @@
+-- upgrade --
+ALTER TABLE "users_user" DROP COLUMN "is_decremented";
+ALTER TABLE "users_user" DROP COLUMN "commission";
+ALTER TABLE "booking_booking" ADD "agency_id" INT;
+ALTER TABLE "booking_booking" ADD "commission" DECIMAL(5,2);
+ALTER TABLE "booking_booking" ADD "commission_value" BIGINT;
+ALTER TABLE "booking_booking" ADD "decrement_reason" VARCHAR(300);
+ALTER TABLE "booking_booking" ADD "agent_id" INT;
+ALTER TABLE "booking_booking" ADD "start_commission" DECIMAL(5,2);
+ALTER TABLE "booking_booking" ADD "decremented" BOOL NOT NULL  DEFAULT False;
+ALTER TABLE "notifications_notification" ADD "agency_id" INT;
+ALTER TABLE "notifications_notification" ADD "created" TIMESTAMPTZ;
+ALTER TABLE "booking_booking" ADD CONSTRAINT "fk_booking__users_us_9bc9f9fa" FOREIGN KEY ("agent_id") REFERENCES "users_user" ("id") ON DELETE CASCADE;
+ALTER TABLE "booking_booking" ADD CONSTRAINT "fk_booking__agencies_31e4c56a" FOREIGN KEY ("agency_id") REFERENCES "agencies_agency" ("id") ON DELETE CASCADE;
+ALTER TABLE "notifications_notification" ADD CONSTRAINT "fk_notifica_agencies_0d0c1f6f" FOREIGN KEY ("agency_id") REFERENCES "agencies_agency" ("id") ON DELETE CASCADE;
+-- downgrade --
+ALTER TABLE "notifications_notification" DROP CONSTRAINT "fk_notifica_agencies_0d0c1f6f";
+ALTER TABLE "booking_booking" DROP CONSTRAINT "fk_booking__agencies_31e4c56a";
+ALTER TABLE "booking_booking" DROP CONSTRAINT "fk_booking__users_us_9bc9f9fa";
+ALTER TABLE "users_user" ADD "is_decremented" BOOL NOT NULL  DEFAULT False;
+ALTER TABLE "users_user" ADD "commission" DECIMAL(5,2);
+ALTER TABLE "booking_booking" DROP COLUMN "agency_id";
+ALTER TABLE "booking_booking" DROP COLUMN "commission";
+ALTER TABLE "booking_booking" DROP COLUMN "commission_value";
+ALTER TABLE "booking_booking" DROP COLUMN "decrement_reason";
+ALTER TABLE "booking_booking" DROP COLUMN "agent_id";
+ALTER TABLE "booking_booking" DROP COLUMN "start_commission";
+ALTER TABLE "booking_booking" DROP COLUMN "decremented";
+ALTER TABLE "notifications_notification" DROP COLUMN "agency_id";
+ALTER TABLE "notifications_notification" DROP COLUMN "created";

@@ -1,0 +1,39 @@
+build-cabinet:
+  stage: build
+  script:
+    - TAG=${CI_COMMIT_REF_SLUG} docker-compose -f docker-compose.yml -f docker-compose.production.yml pull cabinet || true
+    - TAG=${CI_COMMIT_SHA} CACHE_FROM_TAG=${CI_COMMIT_REF_SLUG} docker-compose -f docker-compose.yml -f docker-compose.production.yml build --build-arg PYTHON_CABINET=${PYTHON_CABINET} cabinet
+    - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml push cabinet
+  only:
+    refs:
+      - development
+      - master
+      - pre-production
+    changes:
+      - cabinet/**/*
+      - gitlab/backend.yml
+      - .gitlab-ci.yml
+      - docker-compose.yml
+      - docker-compose.production.yml
+  tags:
+    - docker
+
+build-admin:
+  stage: build
+  script:
+    - TAG=${CI_COMMIT_REF_SLUG} docker-compose -f docker-compose.yml -f docker-compose.production.yml pull admin || true
+    - TAG=${CI_COMMIT_SHA} CACHE_FROM_TAG=${CI_COMMIT_REF_SLUG} docker-compose -f docker-compose.yml -f docker-compose.production.yml build --build-arg PYTHON_ADMIN=${PYTHON_ADMIN} admin
+    - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml push admin
+  only:
+    refs:
+      - development
+      - master
+      - pre-production
+    changes:
+      - admin/**/*
+      - gitlab/backend.yml
+      - .gitlab-ci.yml
+      - docker-compose.yml
+      - docker-compose.production.yml
+  tags:
+    - docker

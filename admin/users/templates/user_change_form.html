@@ -1,0 +1,9 @@
+{% extends 'admin/change_form.html' %}
+
+{% block submit_buttons_bottom %}
+    {{ block.super }}
+    <div class="submit-row">
+            <input type="submit" value="Экспорт в АМО (перед экспортом необходимо сохранение изменений)"
+                   name="_make-unique">
+    </div>
+{% endblock %}
