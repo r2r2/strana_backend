@@ -7,6 +7,7 @@ from common.amocrm.constants import AmoContactQueryWith, AmoLeadQueryWith
 from common.amocrm.exceptions import AmoContactIncorrectPhoneFormatError
 from common.amocrm.types import AmoContact, AmoCustomField, AmoLead
 from common.utils import parse_phone
+from common.utils import partition_list
 from pytz import timezone
 from src.booking.exceptions import BookingRequestValidationError
 from src.booking.services import ImportBookingsService
@@ -30,6 +31,7 @@ class CreateContactService(BaseUserService):
         self,
         user_repo: Type[UserRepo],
         amocrm_class: Type[AmoCRM],
+        amocrm_config: dict[Any, Any],
         orm_class: Optional[Type[UserORM]] = None,
         import_bookings_service: Optional[ImportBookingsService] = None,
         orm_config: Optional[dict[str, Any]] = None,
@@ -41,6 +43,7 @@ class CreateContactService(BaseUserService):
 
         self.amocrm_class: Type[AmoCRM] = amocrm_class
         self.import_bookings_service: ImportBookingsService = import_bookings_service
+        self.partition_limit: int = amocrm_config["partition_limit"]
 
         self.orm_class: Union[Type[UserORM], None] = orm_class
         self.orm_config: Union[dict[str, Any], None] = copy(orm_config)
@@ -134,13 +137,14 @@ class CreateContactService(BaseUserService):
         else:
             # Проверка каждой заявки контакта на главенство
             for local_amocrm_id, contact_data in contacts_leads_mapping.items():
-                for lead_id in contact_data["leads"]:
-                    lead: Optional[AmoLead] = await amocrm.fetch_lead(
-                        lead_id=lead_id,
-                        query_with=[AmoLeadQueryWith.contacts],
+
+                amo_leads = []
+                for amo_lead_ids in partition_list(contact_data["leads"], self.partition_limit):
+                    amo_leads.extend(
+                        await amocrm.fetch_leads(lead_ids=amo_lead_ids, query_with=[AmoLeadQueryWith.contacts])
                     )
-                    if not lead:
-                        continue
+
+                for lead in amo_leads:
                     for contact in lead.embedded.contacts:
                         if contact.is_main and contact == local_amocrm_id:
                             contact_data["is_main"]: bool = True
@@ -179,7 +183,7 @@ class CreateContactService(BaseUserService):
 
     def fetch_amocrm_data(self, contact: AmoContact, with_personal: bool = True) -> dict:
         """fetch_amocrm_data"""
-        name, patronymic, surname = self._get_personal_names(contact)
+        surname, name, patronymic = self._get_personal_names(contact)
         phone, email, passport_series, passport_number, birth_date, tags = self._get_custom_fields(contact)
         data: dict[str, Any] = dict(
             name=name,
@@ -209,10 +213,10 @@ class CreateContactService(BaseUserService):
         elif len(name_components) == 1:
             name = name_components[0]
         elif len(name_components) == 2:
-            name, patronymic = name_components
+            surname, name = name_components
         else:
-            name, patronymic, surname = name_components
-        return name, patronymic, surname
+            surname, name, patronymic = name_components
+        return surname, name, patronymic
 
     def _get_custom_fields(
             self,

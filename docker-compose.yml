@@ -114,7 +114,10 @@ x-app_environment: &app_environment
     - LK_USER_INTERESTS_TASK_TIME_BACKEND
     - KONTUR_TALK_SPACE
     - KONTUR_TALK_SECRET
+    - SENSEI_PID
+    - SENSEI_SECRET
 
+    
 services:
   cabinet:
     container_name: cabinet
@@ -123,9 +126,9 @@ services:
       context: ./cabinet
     <<: *app_environment
     logging:
-      driver: "fluentd"
+      driver: "journald"
       options:
-        fluentd-address: localhost:24224
+        #fluentd-address: localhost:24224
         tag: cabinet
     networks:
       - strana
@@ -137,9 +140,9 @@ services:
       context: ./admin
     <<: *app_environment
     logging:
-      driver: "fluentd"
+      driver: "journald"
       options:
-        fluentd-address: localhost:24224
+        #fluentd-address: localhost:24224
         tag: admin
     networks:
       - strana
@@ -167,9 +170,9 @@ services:
       - redis
     <<: *app_environment
     logging:
-      driver: "fluentd"
+      driver: "journald"
       options:
-        fluentd-address: localhost:24224
+        #fluentd-address: localhost:24224
         tag: tasks
     networks:
       - strana

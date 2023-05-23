@@ -38,6 +38,7 @@ class CreateMeetingCase(BaseMeetingCase):
         user: User = await self.user_repo.retrieve(filters=dict(id=user_id))
         if not user:
             raise UserNotFoundError
+        property_type: str = payload.property_type
 
         meeting_data: dict = dict(
             city_id=payload.city_id,
@@ -45,6 +46,7 @@ class CreateMeetingCase(BaseMeetingCase):
             type=payload.type,
             topic=payload.topic,
             date=payload.date,
+            property_type=property_type,
         )
 
         prefetch_fields: list[str] = ["project", "city"]
@@ -53,11 +55,11 @@ class CreateMeetingCase(BaseMeetingCase):
 
         amo_data: dict = dict(
             tags=self.lk_client_tag,
-            property_type=created_meeting.property_type,
-            user_amocrm_id = user.amocrm_id,
+            property_type=property_type,
+            user_amocrm_id=user.amocrm_id,
             contact_ids=[user.amocrm_id],
             creator_user_id=user.id,
-            property_id=self.amocrm_class.property_type_field_values.get(created_meeting.property_type).get("enum_id")
+            property_id=self.amocrm_class.property_type_field_values.get(property_type).get("enum_id")
         )
         booking_data: dict = dict(
             active=True,

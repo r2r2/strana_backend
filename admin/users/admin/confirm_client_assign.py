@@ -7,13 +7,21 @@ from users.models import ConfirmClientAssign
 class ConfirmClientAssignAdmin(ModelAdmin):
     list_display = (
         "id",
-        "__str__",
+        "client",
+        "agent",
         "agency",
         "assigned_at",
         "assign_confirmed_at",
         "unassigned_at",
     )
-    list_filter = ("__str__", "agency", "assigned_at", "assign_confirmed_at", "unassigned_at")
+    list_filter = (
+        "client",
+        "agent",
+        "agency",
+        "assigned_at",
+        "assign_confirmed_at",
+        "unassigned_at",
+    )
     search_fields = (
         "agent__name",
         "agent__surname",

@@ -15,6 +15,7 @@ class RequestCreateMeetingModel(BaseMeetingModel):
     type: str
     topic: str
     date: datetime
+    property_type: str
 
 
 class _ResponseCity(BaseMeetingModel):

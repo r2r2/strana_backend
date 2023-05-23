@@ -1,10 +1,7 @@
-import datetime
-from typing import Any, Type
-import zlib
+from typing import Any
 
+from config import lk_admin_config
 from ..entities import BaseAgencyCase
-from ..exceptions import AgencyNotFoundError
-from ..repos import Agency, AgencyRepo
 
 
 class SuperuserAgenciesFillDataCase(BaseAgencyCase):
@@ -14,24 +11,15 @@ class SuperuserAgenciesFillDataCase(BaseAgencyCase):
 
     def __init__(
         self,
-        agency_repo: Type[AgencyRepo],
-        update_company_service: Any,
+        export_agency_in_amo_task: Any,
     ) -> None:
-        self.agency_repo: AgencyRepo = agency_repo()
-        self.update_company_service: Any = update_company_service
+        self.export_agency_in_amo_task: Any = export_agency_in_amo_task
 
-    async def __call__(
+    def __call__(
         self,
         agency_id: int,
-        data: int,
-    ) -> Agency:
-        agency: Agency = await self.agency_repo.retrieve(filters=dict(id=agency_id))
-        if not agency:
-            raise AgencyNotFoundError
+        data: str,
+    ) -> None:
 
-        hash_date = zlib.crc32(bytes(str(datetime.datetime.now().date()), 'utf-8'))
-
-        if agency.amocrm_id and data == hash_date:
-            await self.update_company_service(agency_id=agency.id)
-
-        return agency
+        if data == lk_admin_config["admin_export_key"]:
+            self.export_agency_in_amo_task.delay(agency_id=agency_id)

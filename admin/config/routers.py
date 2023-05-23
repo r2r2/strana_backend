@@ -56,6 +56,7 @@ cabinet_models: list = [
     users_models.UserNotificationMute,
     users_models.RealIpUsers,
     users_models.FakeUserPhone,
+    users_models.ConfirmClientAssign,
     caution_models.Caution,
     caution_models.CautionMute,
     agreements.models.DocTemplate,

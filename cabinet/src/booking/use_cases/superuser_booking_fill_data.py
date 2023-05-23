@@ -1,10 +1,7 @@
-import datetime
-from typing import Any, Type
-import zlib
+from typing import Any
 
+from config import lk_admin_config
 from ..entities import BaseBookingCase
-from ..exceptions import BookingNotFoundError
-from ..repos import BookingRepo, Booking
 
 
 class SuperuserBookingFillDataCase(BaseBookingCase):
@@ -14,27 +11,16 @@ class SuperuserBookingFillDataCase(BaseBookingCase):
 
     def __init__(
         self,
-        booking_repo: Type[BookingRepo],
-        update_booking_service: Any,
+        export_booking_in_amo_task: Any,
     ) -> None:
-        self.booking_repo: BookingRepo = booking_repo()
-        self.update_booking_service: Any = update_booking_service
+        self.export_booking_in_amo_task: Any = export_booking_in_amo_task
 
-    async def __call__(
+    def __call__(
         self,
         booking_id: int,
-        data: int,
-    ) -> Booking:
-        booking: Booking = await self.booking_repo.retrieve(
-            filters=dict(id=booking_id),
-            related_fields=["project", "user", "property", "agency", "agent"]
-        )
-        if not booking:
-            raise BookingNotFoundError
+        data: str,
+    ) -> None:
 
-        hash_date = zlib.crc32(bytes(str(datetime.datetime.now().date()), 'utf-8'))
+        if data == lk_admin_config["admin_export_key"]:
+            self.export_booking_in_amo_task.delay(booking_id=booking_id)
 
-        if booking.amocrm_id and data == hash_date:
-            await self.update_booking_service(booking=booking)
-
-        return booking

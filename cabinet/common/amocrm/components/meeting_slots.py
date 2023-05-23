@@ -1,3 +1,4 @@
+from collections import defaultdict
 from datetime import datetime
 from typing import Any
 from urllib.parse import urlencode
@@ -26,18 +27,19 @@ class AmoCRMAvailableMeetingSlots:
             if response.status == 200:
                 return self._transform_response(await response.json())
 
-    def _transform_response(self, response: dict[str: Any]) -> list[dict[str: Any]]:
+    def _transform_response(self, response: dict[str, Any]) -> list[dict[str, Any]]:
         """
         Преобразование ответа от API в удобный для фронта формат
         """
-        transformed_data = []
+        grouped_data = defaultdict(list)
+
         for item in response['data']:
-            date_time_obj = datetime.strptime(item['time'], '%Y-%m-%dT%H:%M:%S')
-            date = date_time_obj.date().isoformat()
-            time = {'time': date_time_obj.time().isoformat(), 'count': item['count']}
-            date_obj = next((obj for obj in transformed_data if obj['date'] == date), None)
-            if date_obj:
-                date_obj['times'].append(time)
-            else:
-                transformed_data.append({'date': date, 'times': [time]})
+            date_time_obj = datetime.fromisoformat(item['time'])
+            date_ = date_time_obj.date().isoformat()
+            time = date_time_obj.time().isoformat()
+
+            grouped_data[date_].append(time)
+
+        transformed_data = [{'date': date_, 'times': times} for date_, times in grouped_data.items()]
+
         return transformed_data

@@ -82,16 +82,19 @@ class CheckClientInterestService(BaseUserService):
                         updated_property = updated_properies.get(user_interest.property.global_id)
 
                     # проверяем изменение цены (скидку) и сохраняем данные для отправки по почте клиенту
-                    if price_difference := user_interest.interest_final_price - updated_property.final_price:
+                    if not user_interest.interest_final_price:
                         property_changed = True
-                        if price_difference > 0:
-                            await self._add_property_in_properties_data(
-                                updated_property,
-                                properties_data_with_offer_and_discount_info,
-                                discount=self._get_price_info(price_difference),
-                                special_offers=None,
-                                only_free_flat=True,
-                            )
+                    else:
+                        if price_difference := user_interest.interest_final_price - updated_property.final_price:
+                            property_changed = True
+                            if price_difference > 0:
+                                await self._add_property_in_properties_data(
+                                    updated_property,
+                                    properties_data_with_offer_and_discount_info,
+                                    discount=self._get_price_info(price_difference),
+                                    special_offers=None,
+                                    only_free_flat=True,
+                                )
 
                     # проверяем изменение акций и сохраняем данные для отправки по почте клиенту
                     if user_interest.interest_special_offers != updated_property.special_offers:

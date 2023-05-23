@@ -20,6 +20,8 @@ from src.represes import repos as represes_repos
 from src.represes import use_cases
 from src.users import constants as users_constants
 from src.users import use_cases as users_cases
+from src.users import services as user_services
+from src.users import repos as users_repos
 
 router = APIRouter(prefix="/represes", tags=["Representatives"])
 
@@ -56,6 +58,9 @@ async def process_register_view(
     create_organization_service: CreateOrganizationService = (
         CreateOrganizationService(**resources)
     )
+    check_user_unique_service: user_services.UserCheckUniqueService = user_services.UserCheckUniqueService(
+        user_repo=users_repos.UserRepo,
+    )
     process_register: use_cases.ProcessRegisterCase = use_cases.ProcessRegisterCase(
         admin_repo=admins_repos.AdminRepo,
         agency_repo=agencies_repos.AgencyRepo,
@@ -68,7 +73,8 @@ async def process_register_view(
         agent_repo=agent_repos.AgentRepo,
         create_contact_service=create_contact_service,
         create_organization_service=create_organization_service,
-        bind_contact_to_company=bind_contact_to_company
+        bind_contact_to_company=bind_contact_to_company,
+        check_user_unique_service=check_user_unique_service,
     )
     return await process_register(
         payload=payload,
@@ -123,27 +129,6 @@ async def resend_confirm_letter_view(
         **resources
     )
     return await resend_letter(repres_id)
-
-
-@router.post(
-    "/email_reset",
-    status_code=HTTPStatus.NO_CONTENT,
-    summary="Смена пароля через почту"
-)
-async def email_reset_view(payload: models.RequestEmailResetModel = Body(...)):
-    """
-    Ссылка для сброса пароля через почту
-    Используется для кнопки "забыли пароль"
-    """
-    resources: dict[str, Any] = dict(
-        site_config=site_config,
-        email_class=email.EmailService,
-        repres_repo=represes_repos.RepresRepo,
-        user_type=users_constants.UserType.REPRES,
-        token_creator=security.create_email_token,
-    )
-    email_reset: use_cases.EmailResetCase = use_cases.EmailResetCase(**resources)
-    return await email_reset(payload=payload)
 
 
 @router.get("/reset_password",

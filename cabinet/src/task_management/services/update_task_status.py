@@ -53,7 +53,7 @@ class UpdateTaskInstanceStatusService(BaseTaskService):
             # Поэтому проверяем, что статус задачи относится к нужной цепочке заданий
             if task_instance.status.slug in slug_values:
                 task_amocrmid: Optional[int] = None
-                if task_instance.status.slug == PackageOfDocumentsSlug.CHECK.value:
+                if status_slug == PackageOfDocumentsSlug.CHECK.value:
                     task_amocrmid = await self._send_sensei_request(amocrm_id=booking.amocrm_id)
 
                 data: dict[str, Any] = dict(
@@ -95,10 +95,12 @@ class UpdateTaskInstanceStatusService(BaseTaskService):
         if not amocrm_id:
             return
         async with self.sensei() as sensei:
+            self.logger.info(f'Sending request to SenseiAPI: {amocrm_id}')
             response = await sensei.process_start(
                 process_id=sensei.SENSEI_PID,
                 amocrm_id=amocrm_id,
             )
+            self.logger.info(f'SenseiAPI response: {response}')
             try:
                 return response.get('data')[0].get('instance_data').get('id')
             except (AttributeError, IndexError, TypeError) as exc:

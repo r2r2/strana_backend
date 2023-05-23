@@ -133,6 +133,19 @@ class AmoCRMWebhookCase(BaseBookingCase, BookingLogMixin):
             )
             return None
 
+        filters: dict[str, Any] = dict(booking_id=booking.id)
+        meeting = self.meeting_repo.retrieve(filters=filters)
+        if not meeting and webhook_lead.custom_fields.get(self.amocrm_class.meeting_type_field_id,
+                                                         CustomFieldValue()).value:
+            meeting_data: dict = dict(
+                city_id=webhook_lead.custom_fields.get(self.amocrm_class.city_field_id, CustomFieldValue()).value,
+                project_id=webhook_lead.custom_fields.get(self.amocrm_class.project_field_id, CustomFieldValue()).value,
+                type=webhook_lead.custom_fields.get(self.amocrm_class.meeting_type_field_id, CustomFieldValue()).value,
+                # topic=..., не нашел поле в AmoCRM
+                # date=..., не нашел поле в AmoCRM
+            )
+            await self.meeting_repo.create(data=meeting_data)
+
         has_property: bool = False
         stages_valid = self._is_stage_valid(amocrm_substage=amocrm_substage)
         if webhook_lead.custom_fields.get(self.amocrm_class.property_field_id, CustomFieldValue()).value:
@@ -182,6 +195,9 @@ class AmoCRMWebhookCase(BaseBookingCase, BookingLogMixin):
             if meeting and amocrm_substage == BookingSubstages.MEETING:
                 meeting_data = dict(status=MeetingStatus.START)
                 await self.meeting_update(meeting=meeting, data=meeting_data)
+            elif meeting and booking.amocrm_substage == BookingSubstages.MEETING:
+                meeting_data = dict(status=MeetingStatus.FINISH)
+                await self.meeting_update(meeting=meeting, data=meeting_data)
             booking: Booking = await self.booking_update(booking=booking, data=data)
             await self.create_task_instance(booking_ids=[booking.id])
             await self.send_sms_to_msk_client(booking=booking)
@@ -207,8 +223,9 @@ class AmoCRMWebhookCase(BaseBookingCase, BookingLogMixin):
 
         return True
 
+    @staticmethod
     def _parse_data(
-        self, data: dict[str, Any]
+        data: dict[str, Any]
     ) -> WebhookLead:
         """
         parse webhook data
@@ -294,7 +311,7 @@ class AmoCRMWebhookCase(BaseBookingCase, BookingLogMixin):
                              35065584, 29096401, 21197641, 37592316, 39006300, 33900082,
                              40127307, 42477867, 57272669, 55950765, 50814933, 36204954,
                              29096398, 21189712, 46323048, 36829821, 33900079, 39006294] \
-            and booking.is_agent_assigned():
+                and booking.is_agent_assigned():
             return
         status: Optional[AmocrmStatus] = await self.statuses_repo.retrieve(
             filters=dict(id=new_status_id)

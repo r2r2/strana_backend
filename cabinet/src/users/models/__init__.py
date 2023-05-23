@@ -35,7 +35,7 @@ from .change_phone import RequestChangePhoneModel, ResponseChangePhoneModel
 from .client_retrieve import (RequestAgentsUsersRetrieveModel,
                               ResponseClientRetrieveModel)
 from .client_unassign import ResponseUnassignClient, ResponseUnAssigned
-from .clients_assign import RequestAssignClient, ResponseAssignClient, ConfirmClientAssign, ResponseUnassignText
+from .clients_assign import RequestAssignClient, ResponseAssignClient, ResponseUnassignText
 from .clients_list import ResponseClientsListModel
 from .common_user_data import CurrentUserData
 from .confirm_email import RequestConfirmEmailModel, ResponseConfirmEmailModel
@@ -81,7 +81,9 @@ from .validate_code import RequestValidateCodeModel, ResponseValidateCodeModel
 from .admin_checks_history import AdminHistoryCheckModel, ResponseAdminHistoryCheckListModel, HistoryCheckSearchFilters
 from .admin_checks_history_specs import AdminHistoryCheckSpecs
 from .booking_users_lookup import ResponseBookingUsersLookupModel
+from .users_check_unique_in_base import RequestUserCheckUnique, ResponseUserCheckUnique
 from .bookings_specs import ResponseBookingSpecs
 from .bookings_facets import ResponseBookingFacets
 from .clients_specs import ResponseClientSpecs
 from .clients_facets import ResponseClientFacets
+from .email_reset import RequestEmailResetModel, ResponseEmailResetModel

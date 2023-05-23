@@ -2,7 +2,6 @@ from .get_me import RequestGetMeModel, ResponseGetMeModel, ResponseProfileModel
 from .change_email import RequestChangeEmailModel, ResponseChangeEmailModel
 from .change_phone import RequestChangePhoneModel, ResponseChangePhoneModel
 from .confirm_phone import ResponseConfirmPhoneModel, RequestConfirmPhoneModel
-from .email_reset import RequestEmailResetModel, ResponseEmailResetModel
 from .change_password import RequestChangePasswordModel, ResponseChangePasswordModel
 from .reset_password import RequestResetPasswordModel, ResponseResetPasswordModel
 from .confirm_email import RequestConfirmEmailModel, ResponseConfirmEmailModel

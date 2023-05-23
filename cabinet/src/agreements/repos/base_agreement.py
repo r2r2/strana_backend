@@ -17,7 +17,7 @@ class BaseAgreement(Model, TimeBasedMixin):
         model_name="models.AgreementStatus", description="Статус", on_delete=fields.CASCADE, null=True,
     )
     agency: fields.ForeignKeyRelation[Agency] = fields.ForeignKeyField(
-        model_name="models.Agency", description='Агенство', on_delete=fields.CASCADE
+        model_name="models.Agency", description='Агентство', on_delete=fields.CASCADE
     )
     booking: fields.ForeignKeyRelation[Booking] = fields.ForeignKeyField(
         model_name="models.Booking", description='Бронь', on_delete=fields.CASCADE,

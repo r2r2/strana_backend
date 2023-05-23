@@ -47,6 +47,7 @@ class ResponseGetMeModel(ResponseUserInfoBaseModel):
     is_approved: bool = Field(..., alias="isApproved")
     is_contracted: bool = Field(..., alias="isContracted")
     type: Optional[users_constants.UserType.serializer]
+    agency: Optional[_AgencyRetrieveModel]
 
     class Config:
         orm_mode = True

@@ -109,6 +109,7 @@ async def validate_code_view(
         amocrm_class=amocrm.AmoCRM,
         user_repo=users_repos.UserRepo,
         import_bookings_service=import_bookings_service,
+        amocrm_config=amocrm_config,
     )
     create_amocrm_contact_service: user_services.CreateContactService = user_services.CreateContactService(
         **resources,
@@ -198,6 +199,7 @@ async def process_logout_view(request: Request, response: Response):
         session=request.session,
         session_config=session_config,
         response=response,
+        request=request,
     )
     process_logout: use_cases.ProcessLogoutCase = use_cases.ProcessLogoutCase(**resources)
     await process_logout()
@@ -537,6 +539,7 @@ async def unassign_client_from_agent(
         sms_class=messages.SmsService,
         hasher=security.get_hasher,
         email_recipients=email_recipients_config,
+        confirm_client_assign_repo=users_repos.ConfirmClientAssignRepo,
     )
     use_case: use_cases.UnassignCase = use_cases.UnassignCase(**resources)
     return await use_case(token=token, data=data)
@@ -622,6 +625,7 @@ async def represes_users_check_view(
         user_repo=users_repos.UserRepo,
         check_repo=users_repos.CheckRepo,
         agent_repo=agents_repos.AgentRepo,
+        amocrm_config=amocrm_config,
     )
     check_unique_service: user_services.CheckUniqueService = user_services.CheckUniqueService(**resources)
     resources: dict[str, Any] = dict(
@@ -657,6 +661,7 @@ async def represes_users_check_view_v2(
         check_repo=users_repos.CheckRepo,
         agent_repo=agents_repos.AgentRepo,
         check_term_repo=users_repos.CheckTermRepo,
+        amocrm_config=amocrm_config,
     )
     check_unique_service: user_services.CheckUniqueServiceV2 = user_services.CheckUniqueServiceV2(**resources)
     resources: dict[str, Any] = dict(
@@ -857,6 +862,7 @@ async def agents_users_check_view(
         check_repo=users_repos.CheckRepo,
         agent_repo=agents_repos.AgentRepo,
         history_check_repo=users_repos.CheckHistoryRepo,
+        amocrm_config=amocrm_config,
     )
     check_unique_service: user_services.CheckUniqueService = user_services.CheckUniqueService(**resources)
     resources: dict[str, Any] = dict(
@@ -887,6 +893,7 @@ async def agents_users_check_view_v2(
         check_repo=users_repos.CheckRepo,
         agent_repo=agents_repos.AgentRepo,
         check_term_repo=users_repos.CheckTermRepo,
+        amocrm_config=amocrm_config,
     )
     check_unique_service: user_services.CheckUniqueServiceV2 = user_services.CheckUniqueServiceV2(**resources)
     resources: dict[str, Any] = dict(
@@ -1034,6 +1041,7 @@ async def assign_client_to_agent(
         site_config=site_config,
         request=request,
         create_task_instance_service=create_task_instance_service,
+        confirm_client_assign_repo=users_repos.ConfirmClientAssignRepo,
     )
     use_case: use_cases.AssignClientCase = use_cases.AssignClientCase(**resources)
     return await use_case(payload=payload, agent_id=agent_id)
@@ -1045,17 +1053,17 @@ async def assign_client_to_agent(
     dependencies=[Depends(dependencies.DeletedUserCheck())],
 )
 async def confirm_assign_client(
-    payload: models.ConfirmClientAssign = Body(...),
     user_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.CLIENT)),
 ):
     """Подтвердить закрепление клиента за агентом"""
     resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
+        confirm_client_assign_repo=users_repos.ConfirmClientAssignRepo,
     )
     use_case: use_cases.ConfirmAssignClientCase = use_cases.ConfirmAssignClientCase(
         **resources
     )
-    await use_case(payload=payload, user_id=user_id)
+    await use_case(user_id=user_id)
 
 
 @router.get(
@@ -1278,19 +1286,58 @@ async def admins_resolve_user_dispute(
     return await resolve_user_dispute(user_id, payload)
 
 
+@router.post(
+    "/check_user_contacts",
+    status_code=HTTPStatus.OK,
+    response_model=models.ResponseUserCheckUnique,
+)
+async def check_user_contacts(
+    payload: models.RequestUserCheckUnique = Body(...)
+):
+    """
+    Проверка уникальности пользователя в базе по телефону и почте и валидация телефона и почты пользователя.
+    """
+    check_user_unique_service: user_services.UserCheckUniqueService = user_services.UserCheckUniqueService(
+        user_repo=users_repos.UserRepo,
+    )
+    check_user_contact_case: use_cases.UserCheckUniqueCase = use_cases.UserCheckUniqueCase(
+        check_user_unique_service=check_user_unique_service
+    )
+    return await check_user_contact_case(payload=payload)
+
+
 @router.patch(
     "/superuser/fill/{user_id}",
     status_code=HTTPStatus.OK,
 )
-async def superuser_users_fill_data_view(
+def superuser_users_fill_data_view(
     user_id: int = Path(...),
-    data: int = Query(...),
+    data: str = Query(...),
 ):
     """
     Обновление данные пользователя в АмоСРМ после изменения в админке брокера.
     """
     superuser_user_fill_data_case: use_cases.SuperuserUserFillDataCase = use_cases.SuperuserUserFillDataCase(
-        user_repo=users_repos.UserRepo,
-        update_user_service=user_services.UpdateContactService(amocrm_class=amocrm.AmoCRM),
+        export_user_in_amo_task=users_tasks.export_user_in_amo,
     )
-    return await superuser_user_fill_data_case(user_id=user_id, data=data)
+    return superuser_user_fill_data_case(user_id=user_id, data=data)
+
+
+@router.post(
+    "/reset_password",
+    status_code=HTTPStatus.NO_CONTENT,
+    summary="Смена пароля через почту"
+)
+async def email_reset_view(payload: models.RequestEmailResetModel = Body(...)):
+    """
+    Ссылка для сброса пароля через почту.
+    Используется для кнопки "забыли пароль" для агентов, представителей и админов.
+    """
+    resources: dict[str, Any] = dict(
+        site_config=site_config,
+        email_class=email.EmailService,
+        user_repo=users_repos.UserRepo,
+        token_creator=security.create_email_token,
+    )
+    email_reset: use_cases.EmailResetCase = use_cases.EmailResetCase(**resources)
+    return await email_reset(payload=payload)

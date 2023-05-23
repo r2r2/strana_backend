@@ -92,19 +92,6 @@ class AgentIncorrectPhoneForamtError(BaseAgentException):
     reason: str = "agent_incorrect_phone_format"
 
 
-class NotUniqueRepresError(BaseAgentException):
-    status: int = HTTPStatus.BAD_REQUEST
-    reason: str = "not_unique_agent"
-
-
-class NotUniquePhoneAgentError(NotUniqueRepresError):
-    message: str = "Простите данный номер телефона закреплен за другим {}, вы не можете его использовать."
-
-
-class NotUniqueEmailAgentError(NotUniqueRepresError):
-    message: str = "Простите данная почта закреплена за другим {}, вы не можете её использовать."
-
-
 class QuestionNotFoundError(BaseAgentException):
     message: str = "Вопрос не найден."
     status: int = HTTPStatus.NOT_FOUND

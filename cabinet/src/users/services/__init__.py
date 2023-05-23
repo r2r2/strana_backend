@@ -9,4 +9,5 @@ from .check_client_interests import CheckClientInterestService
 from .clean_users import CleanUsersService
 from .fake_send_code import FakeSendCodeService
 from .clean_logs import CleanLogsService
+from .check_unique_in_base import UserCheckUniqueService
 from .update_contact_in_amo import UpdateContactService

@@ -6,6 +6,7 @@ from typing import Any, Optional, Type, Union
 from common.amocrm import AmoCRM
 from common.amocrm.constants import AmoContactQueryWith, AmoLeadQueryWith
 from common.amocrm.types import AmoContact, AmoLead
+from common.utils import partition_list
 
 from ..constants import UserStatus, UserType
 from ..entities import BaseUserService
@@ -26,6 +27,7 @@ class CheckClientService(BaseUserService):
         check_repo: Type[CheckRepo],
         amocrm_class: Type[AmoCRM],
         agent_repo: Type[UserAgentRepo],
+        amocrm_config: dict[Any, Any],
         orm_class: Optional[Type[UserORM]] = None,
         orm_config: Optional[dict[str, Any]] = None,
     ) -> None:
@@ -35,6 +37,7 @@ class CheckClientService(BaseUserService):
         )
         self.check_repo: CheckRepo = check_repo()
         self.agent_repo: UserAgentRepo = agent_repo()
+        self.partition_limit: int = amocrm_config["partition_limit"]
 
         self.booking_substages: Any = booking_substages
         self.amocrm_class: Type[AmoCRM] = amocrm_class
@@ -67,14 +70,15 @@ class CheckClientService(BaseUserService):
                 if not contact:
                     await self.user_update(user=user, data=dict(is_deleted=True))
                     continue
+
                 leads_ids: list[int] = [lead.id for lead in contact.embedded.leads]
-                for lead_id in leads_ids:
-                    lead: Optional[AmoLead] = await amocrm.fetch_lead(
-                        lead_id=lead_id,
-                        query_with=[AmoLeadQueryWith.contacts],
+                amo_leads = []
+                for amo_lead_ids in partition_list(leads_ids, self.partition_limit):
+                    amo_leads.extend(
+                        await amocrm.fetch_leads(lead_ids=amo_lead_ids, query_with=[AmoLeadQueryWith.contacts])
                     )
-                    if not lead:
-                        continue
+
+                for lead in amo_leads:
                     amocrm_substage: Optional[str] = None
                     if lead.status_id in amocrm.tmn_import_status_ids:
                         amocrm_substage: str = amocrm.tmn_substages.get(lead.status_id)

@@ -1,26 +1,29 @@
+import asyncio
 import datetime
 import json
-from asyncio import Task
 from typing import Type, Callable, Any, Optional, Tuple
 from base64 import b64decode, b64encode
 from urllib import parse
 
 import structlog
 from pydantic import BaseModel
+from pytz import UTC
 
 from common.amocrm import AmoCRM
 from common.amocrm.constants import AmoElementTypes, AmoTaskTypes
 from common.email import EmailService
 from common.handlers.exceptions import get_exc_info
 from config import site_config
+from src.agencies.repos import Agency
 from src.agents.exceptions import AgentNotFoundError
 from src.agents.types import AgentEmail, AgentSms
 from src.booking.repos import BookingRepo
 from src.users.constants import UserType
 from src.users.entities import BaseUserCase
-from src.users.exceptions import UserMissMatchError, UserAgentMismatchError, UserNotFoundError
+from src.users.exceptions import UserMissMatchError, UserAgentMismatchError, UserNotFoundError, \
+    ConfirmClientAssignNotFoundError
 from src.users.models import ResponseUnAssigned, ResponseUnassignClient
-from src.users.repos import UserRepo, User
+from src.users.repos import UserRepo, User, ConfirmClientAssignRepo, ConfirmClientAssign
 from src.users.types import UserHasher
 from src.admins.repos import AdminRepo
 
@@ -135,6 +138,7 @@ class UnassignCase(BaseUserCase):
             user_repo: Type[UserRepo],
             admin_repo: Type[AdminRepo],
             booking_repo: Type[BookingRepo],
+            confirm_client_assign_repo: Type[ConfirmClientAssignRepo],
             email_class: Type[AgentEmail],
             amocrm_class: Type[AmoCRM],
             sms_class: Type[AgentSms],
@@ -145,6 +149,7 @@ class UnassignCase(BaseUserCase):
         self.user_repo: UserRepo = user_repo()
         self.admin_repo = admin_repo()
         self.booking_repo: BookingRepo = booking_repo()
+        self.confirm_client_assign_repo: ConfirmClientAssignRepo = confirm_client_assign_repo()
         self.email_class: Type[AgentEmail] = email_class
         self.amocrm_class: Type[AmoCRM] = amocrm_class
         self.sms_class: Type[AgentSms] = sms_class
@@ -165,12 +170,18 @@ class UnassignCase(BaseUserCase):
         filters = dict(type=UserType.ADMIN, receive_admin_emails=True)
         admins = await self.admin_repo.list(filters=filters)
 
-        await self._send_manager_email(
+        await asyncio.gather(
+            self._send_manager_email(
                 recipients=[admin.email for admin in admins],
                 client_name=client.full_name,
                 agent_name=agent.full_name
+            ),
+            self._set_unassigned_time(
+                client=client,
+                agent=agent,
+                agency=agent.agency,
+            )
         )
-
         return ResponseUnassignClient.from_orm(client)
 
     def _verify_data(self, data: str, token: str):
@@ -218,12 +229,15 @@ class UnassignCase(BaseUserCase):
         @return:
         """
         filters = dict(id=user_data.agent_id, type=UserType.AGENT)
-        agent: User = await self.user_repo.retrieve(filters=filters)
+        agent: User = await self.user_repo.retrieve(
+            filters=filters,
+            related_fields=['agency']
+        )
         if not agent:
             raise AgentNotFoundError
-        return await self.user_repo.retrieve(filters=filters)
+        return agent
 
-    async def _send_manager_email(self, recipients: list[str], **context) -> Task:
+    async def _send_manager_email(self, recipients: list[str], **context) -> asyncio.Task:
         """
         Уведомляем менеджера страны о закреплении клиента.
         @param recipients: list[str]
@@ -251,3 +265,22 @@ class UnassignCase(BaseUserCase):
                 complete_till=int(complete_till_datetime.timestamp()),
                 responsible_user_id=self.responsible_manager_amocrm_id
             )
+
+    async def _set_unassigned_time(self, client: User, agent: User, agency: Agency) -> None:
+        """
+        Устанавливаем время открепления клиента от агента.
+        @param client: User
+        @param agent: User
+        @param agency: Agency
+        @return: None
+        """
+        confirm_client: ConfirmClientAssign = await self.confirm_client_assign_repo.retrieve(
+            filters=dict(client=client, agent=agent, agency=agency)
+        )
+        if not confirm_client:
+            raise ConfirmClientAssignNotFoundError
+
+        data: dict[str, Any] = dict(
+            unassigned_at=datetime.datetime.now(tz=UTC)
+        )
+        await self.confirm_client_assign_repo.update(model=confirm_client, data=data)

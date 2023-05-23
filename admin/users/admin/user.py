@@ -4,15 +4,11 @@ from json import dumps
 
 from requests import post
 from django.http import HttpResponse
-from django.contrib.admin import ModelAdmin, SimpleListFilter, StackedInline, register
-from django.urls import reverse
-from django.http import HttpResponseRedirect
-from django.contrib.admin.utils import quote
+from django.contrib.admin import ModelAdmin, SimpleListFilter, StackedInline, register, TabularInline
 
 from common.loggers.models import BaseLogInline
 from booking.models import Booking
-from users.models import CabinetUser, UserLog, UserRole
-from agencies.utils import export_in_amo
+from users.models import CabinetUser, UserLog, UserRole, ConfirmClientAssign
 
 
 class BookingInline(StackedInline):
@@ -23,6 +19,16 @@ class BookingInline(StackedInline):
 
 class UserLogInline(BaseLogInline):
     model = UserLog
+
+
+class ConfirmClientAssignInline(TabularInline):
+    model = ConfirmClientAssign
+    extra = 0
+
+    readonly_fields = ['comment']
+    fields = ['comment']
+
+    fk_name = 'client'
 
 
 class RoleFilter(SimpleListFilter):
@@ -69,8 +75,7 @@ class TypeFilter(SimpleListFilter):
 
 @register(CabinetUser)
 class CabinetUserAdmin(ModelAdmin):
-    change_form_template = "user_change_form.html"
-    # inlines = (BookingInline, UserLogInline, )
+    inlines = (BookingInline, UserLogInline, ConfirmClientAssignInline,)
     list_display = ("__str__", "full_name", "email", "type", "role", "amocrm_id", "agency_city", "project_city")
     search_fields = ("phone", "email", "booking_user__amocrm_id", "amocrm_id", 'booking_user__id')
     actions = ("adminify", "export_csv")
@@ -136,19 +141,6 @@ class CabinetUserAdmin(ModelAdmin):
             writer.writerow(row)
 
         return response
-
-    def response_change(self, request, obj):
-        if "_make-unique" in request.POST:
-            export_in_amo(instanse_type="users", pk=obj.id)
-            self.message_user(request, 'Пользователь экспортирован в АмоСРМ')
-            opts = obj._meta
-            obj_url = reverse(
-                "admin:%s_%s_change" % (opts.app_label, opts.model_name),
-                args=(quote(obj.pk),),
-                current_app=self.admin_site.name,
-            )
-            return HttpResponseRedirect(obj_url)
-        return super().response_change(request, obj)
 
 
 @register(UserRole)

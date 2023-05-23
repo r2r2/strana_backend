@@ -1,3 +1,4 @@
+import asyncio
 from copy import copy
 from typing import Any, Optional
 
@@ -59,10 +60,7 @@ class CreateTaskInstanceService(BaseTaskService):
             for booking in bookings:
                 # Тут определяем, что нужно создать задачу
                 if booking.amocrm_status and (booking.amocrm_status in task_chain.booking_substage):
-                    await self.process_use_case(
-                        booking=booking,
-                        task_chain=task_chain,
-                    )
+                    asyncio.create_task(self.process_use_case(booking=booking, task_chain=task_chain))
 
     async def process_use_case(self, booking: Booking, task_chain: TaskChain) -> None:
         """

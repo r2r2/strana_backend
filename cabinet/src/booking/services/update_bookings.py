@@ -221,7 +221,9 @@ class UpdateBookingsService:
             data.pop("commission")
             data.pop("commission_value")
 
-        if final_payment_amount := final_payment_amount or price_with_sale:
+        if (final_payment_amount or price_with_sale) and (
+                not booking.final_payment_amount or (booking.final_payment_amount and final_payment_amount)
+        ):
             data["final_payment_amount"] = final_payment_amount
         if amocrm_stage and booking.amocrm_stage != amocrm_stage:
             data["amocrm_stage"] = amocrm_stage

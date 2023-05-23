@@ -1,11 +1,7 @@
-import datetime
-from typing import Any, Type
-import zlib
+from typing import Any
 
-
+from config import lk_admin_config
 from ..entities import BaseUserCase
-from ..exceptions import UserNotFoundError
-from ..repos import UserRepo, User
 
 
 class SuperuserUserFillDataCase(BaseUserCase):
@@ -15,28 +11,15 @@ class SuperuserUserFillDataCase(BaseUserCase):
 
     def __init__(
         self,
-        user_repo: Type[UserRepo],
-        update_user_service: Any,
+        export_user_in_amo_task: Any,
     ) -> None:
-        self.user_repo: UserRepo = user_repo()
-        self.update_user_service: Any = update_user_service
+        self.export_user_in_amo_task = export_user_in_amo_task
 
-    async def __call__(
+    def __call__(
         self,
         user_id: int,
-        data: int,
-    ) -> User:
-        user: User = await self.user_repo.retrieve(
-            filters=dict(id=user_id),
-            related_fields=["agency"]
-        )
-        if not user:
-            raise UserNotFoundError
+        data: str,
+    ) -> None:
 
-        hash_date = zlib.crc32(bytes(str(datetime.datetime.now().date()), 'utf-8'))
-
-        if user.amocrm_id and data == hash_date:
-
-            await self.update_user_service(user=user)
-
-        return user
+        if data == lk_admin_config["admin_export_key"]:
+            self.export_user_in_amo_task.delay(user_id=user_id)

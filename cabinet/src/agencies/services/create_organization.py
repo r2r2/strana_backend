@@ -1,6 +1,8 @@
 from copy import copy
 from datetime import datetime
 from typing import Any, Optional, Type, Union
+
+import structlog
 from pytz import timezone
 
 from common.amocrm.components import CompanyUpdateParams
@@ -47,6 +49,7 @@ class CreateOrganizationService(BaseAgencyService):
             self.amocrm_class.signatory_patronymic_field_id: "signatory_patronymic",
             self.amocrm_class.signatory_registry_number_field_id: "signatory_registry_number",
         }
+        self.logger = structlog.get_logger(__name__)
 
     async def __call__(
         self,
@@ -54,21 +57,31 @@ class CreateOrganizationService(BaseAgencyService):
         agency_id: Optional[int] = None,
         agency: Optional[Agency] = None,
     ) -> tuple[int, list[Any]]:
+        self.logger.info("Создание организации в AmoCRM:")
         if not agency:
             filters: dict[str, Any] = dict(id=agency_id)
             agency: Agency = await self.agency_repo.retrieve(filters=filters)
         if not inn:
             inn: str = agency.inn
+        self.logger.info(f"Agency inn: {agency}")
+        self.logger.info("Получение данных из AmoCRM")
         async with await self.amocrm_class() as amocrm:
             companies: list[AmoCompany] = await amocrm.fetch_companies(agency_inn=inn)
+            self.logger.info(f"Companies: {companies}")
             if len(companies) == 0:
                 amocrm_id, tags, additional = await self._no_companies_case(
                     agency_name=agency.name, amocrm=amocrm, agency_inn=inn
                 )
+                self.logger.info("No companies case")
+                self.logger.info(f"AmoCRM id: {amocrm_id}")
             elif len(companies) == 1:
                 amocrm_id, tags, additional = await self._one_company_case(company=companies[0])
+                self.logger.info("One company case")
+                self.logger.info(f"AmoCRM id: {amocrm_id}")
             else:
                 amocrm_id, tags, additional = await self._some_companies_case(companies=companies)
+                self.logger.info("Some companies case")
+                self.logger.info(f"AmoCRM id: {amocrm_id}")
             amocrm_id, tags = await self._update_company_data(
                 agency_id=amocrm_id,
                 agency_name=agency.name,
@@ -78,7 +91,10 @@ class CreateOrganizationService(BaseAgencyService):
             )
         data: dict[str, Any] = dict(amocrm_id=amocrm_id, tags=tags, is_imported=True)
         data.update(additional)
-        await self.agency_update(agency=agency, data=data)
+        self.logger.info(f"Data for update company: {data}")
+        agency: Agency = await self.agency_update(agency=agency, data=data)
+        await agency.refresh_from_db(fields=["amocrm_id"])
+        self.logger.info(f"Agency AmoCRM id after update: {agency.amocrm_id}")
         return amocrm_id, tags
 
     @staticmethod

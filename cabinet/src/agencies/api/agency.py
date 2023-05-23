@@ -23,6 +23,7 @@ from src.users import constants as users_constants
 from src.users import repos as users_repos
 from src.agreements import filters as agreement_filters
 from src.agreements import repos as agreements_repos
+from src.agencies import tasks as agency_tasks
 
 
 router = APIRouter(prefix="/agencies", tags=["Agencies"])
@@ -1015,20 +1016,14 @@ async def get_agreements_view(
     "/superuser/fill/{agency_id}",
     status_code=HTTPStatus.OK,
 )
-async def superuser_agencies_fill_data_view(
+def superuser_agencies_fill_data_view(
     agency_id: int = Path(...),
-    data: int = Query(...),
+    data: str = Query(...),
 ):
     """
     Обновление данные агентства в АмоСРМ после изменения в админке брокера.
     """
-    resources: dict[str, Any] = dict(
-        amocrm_class=amocrm.AmoCRM,
-        agency_repo=agencies_repos.AgencyRepo,
-    )
     superuser_agency_fill_data_case: use_cases.SuperuserAgenciesFillDataCase = use_cases.SuperuserAgenciesFillDataCase(
-        agency_repo=agencies_repos.AgencyRepo,
-        update_company_service=agencies_services.UpdateOrganizationService(**resources),
+        export_agency_in_amo_task=agency_tasks.export_agency_in_amo,
     )
-    return await superuser_agency_fill_data_case(agency_id=agency_id, data=data)
-
+    return superuser_agency_fill_data_case(agency_id=agency_id, data=data)

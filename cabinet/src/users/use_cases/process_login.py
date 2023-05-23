@@ -66,12 +66,9 @@ class ProcessLoginCase(BaseProcessLoginCase):
         data: dict[str, Any] = payload.dict()
         email: str = data["email"]
         password: str = data["password"]
-        admin_query = self.user_repo.retrieve(dict(email__iexact=email,
-                                                   type=users_constants.UserType.ADMIN))
-        repres_query = self.user_repo.retrieve(dict(email__iexact=email,
-                                                    type=users_constants.UserType.REPRES))
-        agent_query = self.user_repo.retrieve(dict(email__iexact=email,
-                                                   type=users_constants.UserType.AGENT))
+        admin_query = self.user_repo.retrieve(filters=dict(email__iexact=email, type=users_constants.UserType.ADMIN))
+        repres_query = self.user_repo.retrieve(filters=dict(email__iexact=email, type=users_constants.UserType.REPRES))
+        agent_query = self.user_repo.retrieve(filters=dict(email__iexact=email, type=users_constants.UserType.AGENT))
 
         user: User = await admin_query or await repres_query or await agent_query
         if not user:
@@ -105,6 +102,7 @@ class ProcessLoginCase(BaseProcessLoginCase):
             self.session[self.auth_key]: dict[str, str] = token
             await self.session.insert()
         await self._import_amocrm_hook(user)
+        token["is_fired"] = user.is_fired
         return token
 
     async def _remove_change_password_permission(self) -> bool:

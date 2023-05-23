@@ -34,8 +34,10 @@ class UpdateOrganizationService(BaseAgencyService):
     ) -> None:
         filters: dict[str, Any] = dict(id=agency_id)
         agency: Agency = await self.agency_repo.retrieve(filters=filters)
-        async with await self.amocrm_class() as amocrm:
-            await self._update_company_data(agency, amocrm)
+
+        if agency and agency.amocrm_id:
+            async with await self.amocrm_class() as amocrm:
+                await self._update_company_data(agency, amocrm)
 
     @staticmethod
     async def _update_company_data(agency: Agency, amocrm: AgencyAmoCRM):

@@ -228,6 +228,15 @@ class User(Model):
             full_name += f"{self.patronymic}"
         return full_name
 
+    @property
+    def is_fired(self) -> Optional[bool]:
+        """
+        Агент уволен
+        """
+        if self.type != UserType.AGENT:
+            return None
+        return self.agency_id is None
+
     class Meta:
         table = "users_user"
         unique_together = (

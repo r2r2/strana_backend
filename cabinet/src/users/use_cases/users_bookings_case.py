@@ -10,6 +10,7 @@ from ..entities import BaseUserCase
 from ..mixins import CurrentUserDataMixin
 from ..repos import CheckRepo, UserRepo
 from ..types import UserBookingRepo, UserPagination
+from ...task_management.repos import TaskInstance
 from ...task_management.utils import build_task_data
 
 
@@ -75,11 +76,7 @@ class UsersBookingsCase(BaseUserCase, CurrentUserDataMixin):
         )
 
         for booking in bookings:
-            booking.tasks = []
-            if booking.task_instances:
-                # todo: refactor to get max status from db with annotations
-                task_instance = [max(booking.task_instances, key=lambda x: x.status.priority)]
-                booking.tasks = build_task_data(task_instances=task_instance, booking_status=booking.amocrm_status)
+            booking.tasks = await self._get_booking_tasks(booking=booking)
 
             if booking.project and booking.amocrm_status:
                 statuses = await self.amocrm_status_repo.list(
@@ -144,3 +141,17 @@ class UsersBookingsCase(BaseUserCase, CurrentUserDataMixin):
         ]
 
         return [self.booking_repo.q_builder(or_filters=or_filters)]
+
+    async def _get_booking_tasks(self, booking: Booking) -> list[TaskInstance]:
+        """Get booking tasks"""
+        tasks = []
+        # берем все таски, которые видны в текущем статусе букинга
+        task_instances: list[TaskInstance] = [
+            task for task in booking.task_instances if booking.amocrm_status in task.status.tasks_chain.task_visibility
+        ]
+        if task_instances:
+            # берем таску с наивысшим приоритетом,
+            # наивысшим будет приоритет с наименьшим значением ¯_(ツ)_/¯
+            highest_priority_task = min(task_instances, key=lambda x: x.status.priority)
+            tasks = build_task_data(task_instances=[highest_priority_task], booking_status=booking.amocrm_status)
+        return tasks

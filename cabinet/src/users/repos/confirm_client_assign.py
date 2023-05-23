@@ -37,6 +37,7 @@ class ConfirmClientAssign(Model):
         description="Дата и время подтверждения закрепления", null=True
     )
     unassigned_at: datetime = fields.DatetimeField(description="Дата и время отказа от агента", null=True)
+    comment: str = fields.TextField(description="Комментарий", null=True)
 
     def __str__(self):
         return f"{self.client} закреплен за {self.agent}"

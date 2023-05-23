@@ -37,10 +37,8 @@ class SendUploadDocumentsCase(BaseAgentCase):
         if not upload_documents:
             raise UploadDocumentsNotFoundError
 
-        asyncio.create_task(
-            self.update_task_instance_status_service(
-                booking_id=booking_id, status_slug=PackageOfDocumentsSlug.CHECK.value
-            )
+        await self.update_task_instance_status_service(
+            booking_id=booking_id, status_slug=PackageOfDocumentsSlug.CHECK.value
         )
 
         amo_notes: str = "Список загруженных файлов:" + "".join(

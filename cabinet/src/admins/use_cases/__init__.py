@@ -2,7 +2,6 @@ from .process_register import ProcessRegisterCase
 from .process_login import ProcessLoginCase
 from .session_token import SessionTokenCase
 from .confirm_email import ConfirmEmailCase
-from .email_reset import EmailResetCase
 from .get_me import GetMeCase
 from .process_logout import ProcessLogoutCase
 from .reset_available import ResetAvailableCase

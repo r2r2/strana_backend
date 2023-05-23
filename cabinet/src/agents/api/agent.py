@@ -4,6 +4,7 @@ from uuid import UUID
 
 from common import (amocrm, dependencies, email, messages, paginations, redis,
                     security, utils)
+from common.amocrm import tasks as amocrm_tasks
 from config import auth_config, redis_config, session_config, site_config
 from fastapi import (APIRouter, Body, Depends, File, Path, Query, Request,
                      Response, UploadFile)
@@ -24,6 +25,7 @@ from src.users import constants as users_constants
 from src.users import repos as users_repos
 from src.users import use_cases as users_cases
 from src.users.filters import BookingUserFilter
+from src.users import services as user_services
 
 router = APIRouter(prefix="/agents", tags=["Agents"])
 
@@ -44,6 +46,9 @@ async def process_register_view(payload: models.RequestProcessRegisterModel = Bo
         amocrm_class=amocrm.AmoCRM,
         agent_repo=agents_repos.AgentRepo,
     )
+    check_user_unique_service: user_services.UserCheckUniqueService = user_services.UserCheckUniqueService(
+        user_repo=users_repos.UserRepo,
+    )
     resources: dict[str, Any] = dict(
         site_config=site_config,
         hasher=security.get_hasher,
@@ -56,6 +61,7 @@ async def process_register_view(payload: models.RequestProcessRegisterModel = Bo
         create_contact_service=create_contact_service,
         ensure_broker_tag_service=ensure_broker_tag_service,
         bind_contact_company_task=amocrm.tasks.bind_contact_to_company,
+        check_user_unique_service=check_user_unique_service,
     )
     process_register: use_cases.ProcessRegisterCase = use_cases.ProcessRegisterCase(**resources)
     return await process_register(payload=payload)
@@ -118,27 +124,6 @@ async def confirm_phone_view(
     )
     confirm_phone: use_cases.ConfirmPhoneCase = use_cases.ConfirmPhoneCase(**resources)
     return RedirectResponse(url=await confirm_phone(token=token, phone_token=phone_token))
-
-
-@router.post(
-    "/email_reset",
-    status_code=HTTPStatus.NO_CONTENT,
-    summary="Смена пароля через почту"
-)
-async def email_reset_view(payload: models.RequestEmailResetModel = Body(...)):
-    """
-    Ссылка для сброса пароля через почту
-    Используется для кнопки "забыли пароль"
-    """
-    resources: dict[str, Any] = dict(
-        site_config=site_config,
-        email_class=email.EmailService,
-        agent_repo=agents_repos.AgentRepo,
-        user_type=users_constants.UserType.AGENT,
-        token_creator=security.create_email_token,
-    )
-    email_reset: use_cases.EmailResetCase = use_cases.EmailResetCase(**resources)
-    return await email_reset(payload=payload)
 
 
 @router.get("/reset_password", status_code=HTTPStatus.PERMANENT_REDIRECT)

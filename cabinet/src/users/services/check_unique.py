@@ -7,6 +7,7 @@ from typing import Any, Callable, Optional, Type, Union
 from common.amocrm import AmoCRM
 from common.amocrm.constants import AmoContactQueryWith, BaseLeadSalesStatuses
 from common.amocrm.types import AmoContact, AmoCustomField, AmoLead
+from common.utils import partition_list
 from pytz import UTC
 
 from ..constants import UserStatus, UserType
@@ -27,6 +28,7 @@ class CheckUniqueService(BaseUserService):
         history_check_repo: Type[CheckHistoryRepo],
         amocrm_class: Type[AmoCRM],
         agent_repo: Type[UserAgentRepo],
+        amocrm_config: dict[Any, Any],
         orm_class: Optional[Type[UserORM]] = None,
         orm_config: Optional[dict[str, Any]] = None,
     ) -> None:
@@ -34,6 +36,7 @@ class CheckUniqueService(BaseUserService):
         self.check_repo: CheckRepo = check_repo()
         self.agent_repo: UserAgentRepo = agent_repo()
         self.history_check_repo: CheckHistoryRepo = history_check_repo()
+        self.partition_limit: int = amocrm_config["partition_limit"]
 
         self.amocrm_class: Type[AmoCRM] = amocrm_class
 
@@ -148,10 +151,12 @@ class CheckUniqueService(BaseUserService):
     async def _check_contact_leads(self, amocrm: AmoCRM, leads: list[int]) -> bool:
         """check contact leads"""
         suits: list[bool] = []
-        for lead_id in leads:
-            lead: Optional[AmoLead] = await amocrm.fetch_lead(lead_id=lead_id)
-            if not lead:
-                continue
+
+        amo_leads = []
+        for amo_lead_ids in partition_list(leads, self.partition_limit):
+            amo_leads.extend(await amocrm.fetch_leads(lead_ids=amo_lead_ids))
+
+        for lead in amo_leads:
             suits.append(self._check_lead_status(lead))
         return all(suits)
 

@@ -43,8 +43,8 @@ class ResponseAssignClient(BaseModel):
         orm_mode = True
 
 
-class ConfirmClientAssign(BaseModel):
-    is_assigned: bool = Field(..., description='Все верно!/Это ошибка')
+class ResponseUnassignText(BaseModel):
+    text: str = Field(..., description='Текст для страницы открепления клиента')
 
     class Config:
         orm_mode = True

@@ -24,6 +24,9 @@ class MeetingPropertyType(Choices):
     Тип помещения
     """
     FLAT: str = "flat", "Квартира"
+    PARKING: str = "parking", "Паркинг"
+    PANTRY: str = "pantry", "Кладовая"
+    COMMERCIAL: str = "commercial", "Коммерция"
 
 
 class MeetingTopicType(Choices):

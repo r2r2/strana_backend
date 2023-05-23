@@ -178,7 +178,44 @@ class UserIncorrectPhoneForamtError(BaseUserException):
     status: int = HTTPStatus.UNPROCESSABLE_ENTITY
     reason: str = "user_incorrect_phone_format"
 
+
 class UserAgentHasNoAgency(BaseUserException):
-    message: str = "Отсутствует агенство у агента."
+    message: str = "Отсутствует агентство у агента."
     status: int = HTTPStatus.FORBIDDEN
     reason: str = "user_has_no agency"
+
+
+class NotUniquePhoneUser(BaseUserException):
+    message: str = "Простите, данный номер телефона закреплен за другим {}, вы не можете его использовать."
+    status: int = HTTPStatus.BAD_REQUEST
+    reason: str = "phone_is_already_used"
+
+
+class NotUniqueEmailUser(BaseUserException):
+    message: str = "Простите, данная почта закреплена за другим {}, вы не можете её использовать."
+    status: int = HTTPStatus.BAD_REQUEST
+    reason: str = "email_is_already_used"
+
+
+class NotUniqueEmaiAndPhoneUser(BaseUserException):
+    message: str = "Простите, данная почта и телефон закреплены за другим {}, вы не можете их использовать."
+    status: int = HTTPStatus.BAD_REQUEST
+    reason: str = "email_and_phone_is_already_used"
+
+
+class UserIncorrectPhoneFormat(BaseUserException):
+    message: str = "Некорректный номер телефона"
+    status: int = HTTPStatus.BAD_REQUEST
+    reason: str = "user_incorrect_phone_format"
+
+
+class UserIncorrectEmailFormat(BaseUserException):
+    message: str = "Некорректный почтовый ящик"
+    status: int = HTTPStatus.BAD_REQUEST
+    reason: str = "user_incorrect_email_format"
+
+
+class ConfirmClientAssignNotFoundError(BaseUserException):
+    message: str = "Запрашиваемая проверка не найдена."
+    status: int = HTTPStatus.NOT_FOUND
+    reason: str = "confirm_client_assign_not_found"

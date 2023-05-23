@@ -3,12 +3,8 @@ import urllib.parse
 
 import requests
 from django.contrib import admin
-from django.urls import reverse
-from django.http import HttpResponseRedirect
-from django.contrib.admin.utils import quote
 
 from common.loggers.models import BaseLogInline
-from agencies.utils import export_in_amo
 from .exceptions import InvalidURLException, ConnectCabinetError
 from .models import Booking, BookingHelpText, BookingLog
 
@@ -19,7 +15,6 @@ class BookingLogInline(BaseLogInline):
 
 @admin.register(Booking)
 class BookingAdmin(admin.ModelAdmin):
-    change_form_template = "booking_change_form.html"
     inlines = (BookingLogInline, )
     search_fields = (
         "amocrm_id__icontains",
@@ -65,19 +60,6 @@ class BookingAdmin(admin.ModelAdmin):
                 requests.post(url)
             except requests.exceptions.ConnectionError as e:
                 raise ConnectCabinetError(f"Can't connect to cabinet: {e}")
-
-    def response_change(self, request, obj):
-        if "_make-unique" in request.POST:
-            export_in_amo(instanse_type="users", pk=obj.id)
-            self.message_user(request, 'Бронирование экспортировано в АмоСРМ')
-            opts = obj._meta
-            obj_url = reverse(
-                "admin:%s_%s_change" % (opts.app_label, opts.model_name),
-                args=(quote(obj.pk),),
-                current_app=self.admin_site.name,
-            )
-            return HttpResponseRedirect(obj_url)
-        return super().response_change(request, obj)
 
 
 @admin.register(BookingHelpText)

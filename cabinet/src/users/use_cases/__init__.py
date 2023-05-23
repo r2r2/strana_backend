@@ -51,6 +51,8 @@ from .users_list_case import UsersListCase
 from .users_uninterest import UsersUninterestCase, UsersUninterestGlobalIdCase
 from .validate_code import ValidateCodeCase
 from .superuser_user_fill_data import SuperuserUserFillDataCase
+from .users_check_unique_in_base import UserCheckUniqueCase
 from .update_last_activity import UpdateLastActivityCase
+from .email_reset import EmailResetCase
 from .client_confirm_assign import ConfirmAssignClientCase
 from .client_unassign_text import UnassignTextCase

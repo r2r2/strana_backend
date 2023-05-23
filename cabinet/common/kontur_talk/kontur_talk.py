@@ -76,7 +76,7 @@ class KonturTalkAPI:
             allowAnonymous=allow_anonymous
         )
 
-    async def create_room(self, room_name: str, meeting_id: int):
+    async def create_room(self, room_name: str, meeting_id: int) -> str:
         data = self._payload_put_room(enable_lobby=True)
         response: CommonResponse = await self._request_put(data=data, query=dict(), endpoint=f"rooms/{room_name}")
         if response.status != 200:
@@ -84,11 +84,11 @@ class KonturTalkAPI:
         meeting: Meeting = await self.meeting_repo.retrieve(filters=dict(id=meeting_id))
         update_data = dict(meeting_link=self._url + room_name)
         await self.meeting_repo.update(model=meeting, data=update_data)
-        return room_name
+        return f"{self._url}{room_name}"
 
-    async def open_room(self, room_name: str):
+    async def open_room(self, room_name: str) -> str:
         data = self._payload_put_room()
         response: CommonResponse = await self._request_put(data=data, query=dict(), endpoint=f"rooms/{room_name}")
         if response.status != 200:
             raise BaseKonturTalkRequestException()
-        return room_name
+        return f"{self._url}{room_name}"

@@ -278,8 +278,8 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
             tags=tags,
             should_be_deactivated_by_timer=should_be_deactivated_by_timer,
             profitbase_booked=True,
-            created_source=BookingCreatedSources.AMOCRM,
-            active=True
+            created_source=BookingCreatedSources.FAST_BOOKING,
+            active=True,
         )
 
         booking: Booking = await self.booking_repo.create(booking_data)

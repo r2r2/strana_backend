@@ -486,6 +486,7 @@ class BazisSettings(BaseSettings):
 class LKAdminSettins(BaseSettings):
     url: str = Field('lk.localhost', env='LK_SITE_HOST')
     token: str = Field('artw:artw123', env='LK_ADMIN_TOKEN')
+    admin_export_key: str = Field('default_key', env='EXPORT_CABINET_KEY')
 
     class Config:
         env_file = ".env"

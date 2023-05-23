@@ -76,5 +76,7 @@ class UserBookingRetrieveCase(BaseBookingCase):
 
         status = await self.check_repo.list(filters=dict(user_id=booking.user.id), ordering="-requested").first()
         booking.user.status = status
-        booking.tasks = build_task_data(booking.task_instances, booking_status=booking.amocrm_status)  # type: ignore
+
+        task_instances = sorted(booking.task_instances, key=lambda x: x.status.priority)
+        booking.tasks = build_task_data(task_instances, booking_status=booking.amocrm_status)  # type: ignore
         return booking

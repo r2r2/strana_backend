@@ -3,6 +3,8 @@ from http import HTTPStatus
 from typing import Any, Literal, Optional, cast
 from urllib.parse import parse_qs, unquote
 
+import structlog
+
 from common import (amocrm, dependencies, email, files, messages, profitbase,
                     requests, sberbank, security, utils)
 from common.amocrm import repos as amocrm_repos
@@ -31,6 +33,7 @@ from src.properties import services as property_services
 from src.properties.services import CheckProfitbasePropertyService
 from src.task_management import repos as task_management_repos
 from src.task_management import services as task_management_services
+from src.task_management import use_cases as task_management_use_cases
 from src.users import constants as users_constants
 from src.users import repos as users_repos
 from starlette.requests import ClientDisconnect
@@ -365,13 +368,49 @@ async def amocrm_webhook_deal_success_view(request: Request):
     await amocrm_webhook_deal_success(payload=payload)
 
 
+@router.post("/amocrm/documents_check", status_code=HTTPStatus.OK)
+async def amocrm_webhook_change_status(request: Request) -> None:
+    """
+    Вебхук от АМО для обновления статуса задания
+    """
+    logger = structlog.get_logger("amocrm_webhook_change_status")
+    try:
+        payload: bytes = await request.body()
+        logger.info(f"Received payload from AMO: {payload}")
+    except ClientDisconnect:
+        return
+    data: dict[str, Any] = parse_qs(unquote(payload.decode("utf-8")))
+    logger.info(f"Decoded payload from AMO: {data}")
+
+    resources: dict[str, Any] = dict(
+        task_instance_repo=task_management_repos.TaskInstanceRepo,
+        task_status_repo=task_management_repos.TaskStatusRepo,
+        booking_repo=booking_repos.BookingRepo,
+    )
+    update_task_instance_status_service = task_management_services.UpdateTaskInstanceStatusService(
+        **resources
+    )
+
+    resources: dict[str, Any] = dict(
+        booking_repo=booking_repos.BookingRepo,
+        update_task_instance_status_service=update_task_instance_status_service,
+    )
+    update_task = task_management_use_cases.AmoCRMWebhookUpdateTaskInstanceCase(**resources)
+    await update_task(data=data)
+
+
 @router.post("/amocrm/notify_contact")
 async def amocrm_webhook_notify_view(request: Request):
     """Вебхук для оповещения контакта"""
     try:
+        import json
         payload = await request.body()
-        data: dict[str, Any] = parse_qs(unquote(payload.decode("utf-8")))
+        print(f"{payload=}")
+        # data: dict[str, Any] = parse_qs(unquote(payload.decode("utf-8")))
+        data: dict[str, Any] = json.loads(payload)
+        print(f"{data=}")
         amocrm_id_list = data.get("amocrm_id")
+        print(f"{amocrm_id_list=}")
         if not amocrm_id_list:
             return
     except ClientDisconnect:
@@ -381,6 +420,9 @@ async def amocrm_webhook_notify_view(request: Request):
     resources = dict(
         amocrm_class=amocrm.AmoCRM,
         sms_class=messages.SmsService,
+        booking_repo=booking_repos.BookingRepo,
+        site_config=site_config,
+        token_creator=security.create_access_token,
     )
     notify_case: use_cases.AmoCRMSmsWebhookCase = use_cases.AmoCRMSmsWebhookCase(**resources)
 
@@ -439,6 +481,7 @@ async def amocrm_webhook_view(request: Request, background_tasks: BackgroundTask
         amocrm_class=amocrm.AmoCRM,
         user_repo=users_repos.UserRepo,
         import_bookings_service=import_bookings_service,
+        amocrm_config=amocrm_config,
     )
     create_amocrm_contact_service: CreateContactService = CreateContactService(
         **resources
@@ -1037,19 +1080,14 @@ async def escrow_upload_view(
     "/superuser/fill/{booking_id}",
     status_code=HTTPStatus.OK,
 )
-async def superuser_bookings_fill_data_view(
+def superuser_bookings_fill_data_view(
     booking_id: int = Path(...),
-    data: int = Query(...),
+    data: str = Query(...),
 ):
     """
     Обновление сделок в АмоСРМ после изменения в админке брокера.
     """
-    resources: dict[str, Any] = dict(
-        amocrm_class=amocrm.AmoCRM,
-        create_amocrm_log_task=tasks.create_amocrm_log_task,
-    )
     superuser_booking_fill_data_case: use_cases.SuperuserBookingFillDataCase = use_cases.SuperuserBookingFillDataCase(
-        booking_repo=booking_repos.BookingRepo,
-        update_booking_service=booking_services.UpdateAmoBookingService(**resources),
+        export_booking_in_amo_task=tasks.export_booking_in_amo,
     )
-    return await superuser_booking_fill_data_case(booking_id=booking_id, data=data)
+    return superuser_booking_fill_data_case(booking_id=booking_id, data=data)

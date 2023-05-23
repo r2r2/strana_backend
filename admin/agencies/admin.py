@@ -1,12 +1,8 @@
 from common.loggers.models import BaseLogInline
 from django.contrib import admin
 from django.utils.html import mark_safe
-from django.urls import reverse
-from django.http import HttpResponseRedirect
-from django.contrib.admin.utils import quote
 
 from .models import Agency, AgencyAct, AgencyAgreement, AgencyLog, AgencyAdditionalAgreement
-from .utils import export_in_amo
 
 
 class AgencyLogInline(BaseLogInline):
@@ -15,7 +11,6 @@ class AgencyLogInline(BaseLogInline):
 
 @admin.register(Agency)
 class AgencyAdmin(admin.ModelAdmin):
-    change_form_template = "agency_change_form.html"
     readonly_fields = ("created_at",)
     list_display = (
         "name",
@@ -24,19 +19,6 @@ class AgencyAdmin(admin.ModelAdmin):
         "created_at",
     )
     inlines = (AgencyLogInline, )
-
-    def response_change(self, request, obj):
-        if "_make-unique" in request.POST:
-            export_in_amo(instanse_type="users", pk=obj.id)
-            self.message_user(request, 'Агентство экспортировано в АмоСРМ')
-            opts = obj._meta
-            obj_url = reverse(
-                "admin:%s_%s_change" % (opts.app_label, opts.model_name),
-                args=(quote(obj.pk),),
-                current_app=self.admin_site.name,
-            )
-            return HttpResponseRedirect(obj_url)
-        return super().response_change(request, obj)
 
 
 @admin.register(AgencyAct)

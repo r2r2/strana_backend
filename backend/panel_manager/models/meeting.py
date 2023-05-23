@@ -30,8 +30,8 @@ class Meeting(models.Model):
     datetime_start = models.DateTimeField("Начало встречи", blank=True, null=True)
     datetime_end = models.DateTimeField("Конеч встречи", blank=True, null=True)
 
-    agent_company = models.CharField("Агенство", max_length=200, blank=True)
-    agent_fio = models.CharField("Агенство ФИО", max_length=300, blank=True)
+    agent_company = models.CharField("Агентство", max_length=200, blank=True)
+    agent_fio = models.CharField("Агентство ФИО", max_length=300, blank=True)
 
     comment = models.TextField("Комментарий к встрече", blank=True)
 

@@ -43,11 +43,16 @@ class BulkUpdateMixin(BaseMixin):
     """
     Bulk Update Mixin
     """
-    async def bulk_update(self, data: dict[str, Any], filters: dict[str, Any]) -> None:
+    async def bulk_update(
+        self, data: dict[str, Any], filters: dict[str, Any], exclude_filters: dict[str, Any] = None
+    ) -> None:
         """
         Обновление пачки бронирований
         """
-        qs: QuerySet[Model] = self.model.select_for_update().filter(**filters)
+        if not exclude_filters:
+            qs: QuerySet[Model] = self.model.select_for_update().filter(**filters)
+        else:
+            qs: QuerySet[Model] = self.model.select_for_update().filter(**filters).exclude(**exclude_filters)
         await qs.update(**data)
 
 

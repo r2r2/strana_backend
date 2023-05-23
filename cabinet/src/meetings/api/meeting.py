@@ -1,6 +1,6 @@
 from typing import Any
 
-from fastapi import APIRouter, status, Depends, Query, Body, Response
+from fastapi import APIRouter, status, Depends, Query, Body, Response, Request
 
 from common.amocrm.components import AmoCRMAvailableMeetingSlots
 from src.meetings import repos as meeting_repos
@@ -105,3 +105,15 @@ async def meeting_delete_view(meeting_id: int):
     delete_meeting: use_cases.DeleteMeetingCase = use_cases.DeleteMeetingCase(**resources)
     await delete_meeting(meeting_id=meeting_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/confirm", status_code=status.HTTP_201_CREATED)
+async def meeting_confirm_webhook(payload: models.RequestConfirmMeetingModel = Body(...)):
+    """
+    Вебхук подтверждения встречи для AMOCRM
+    """
+    resources: dict[str, Any] = dict(meeting_repo=meeting_repos.MeetingRepo)
+    confirm_meeting: use_cases.ConfirmMeetingCase = use_cases.ConfirmMeetingCase(**resources)
+    await confirm_meeting(date=payload.date, meeting_id=payload.amocrm_id)
+    return Response(status_code=status.HTTP_201_CREATED)
+

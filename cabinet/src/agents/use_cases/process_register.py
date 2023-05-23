@@ -9,13 +9,14 @@ from src.users.constants import UserType
 from celery.local import PromiseProxy
 
 from ..repos import AgentRepo, User
-from ..entities import BaseAgentCase, BaseAgentException
+from ..entities import BaseAgentCase
 from ..models import RequestProcessRegisterModel
-from ..exceptions import AgentNoAgencyError, NotUniqueEmailAgentError, NotUniquePhoneAgentError
+from ..exceptions import AgentNoAgencyError
 from ..types import AgentEmail, AgentHasher, AgentAgencyRepo
 from ..services import CreateContactService, EnsureBrokerTagService
 from ...agencies.repos import Agency
 from src.users.loggers.wrappers import user_changes_logger
+from src.users.services import UserCheckUniqueService
 
 
 class ProcessRegisterCase(BaseAgentCase):
@@ -41,6 +42,7 @@ class ProcessRegisterCase(BaseAgentCase):
         bind_contact_company_task: PromiseProxy,
         create_contact_service: CreateContactService,
         ensure_broker_tag_service: EnsureBrokerTagService,
+        check_user_unique_service: UserCheckUniqueService,
         logger=structlog.getLogger(__name__),
     ) -> None:
         self.hasher: AgentHasher = hasher()
@@ -57,6 +59,7 @@ class ProcessRegisterCase(BaseAgentCase):
 
         self.create_contact_service: CreateContactService = create_contact_service
         self.ensure_broker_tag_service: EnsureBrokerTagService = ensure_broker_tag_service
+        self.check_user_unique_service: UserCheckUniqueService = check_user_unique_service
 
         self.user_type: str = user_type
         self.email_class: Type[AgentEmail] = email_class
@@ -90,7 +93,7 @@ class ProcessRegisterCase(BaseAgentCase):
         deleted_agent = await self.agent_repo.retrieve(filters=filters, q_filters=q_filters)
         if deleted_agent is not None:
             await self.agent_delete(deleted_agent)
-        await self._check_user_unique(payload)
+        await self.check_user_unique_service(payload)
 
         extra_data: dict[str, Any] = dict(
             duty_type=None,
@@ -146,35 +149,3 @@ class ProcessRegisterCase(BaseAgentCase):
         self.import_clients_task.delay(agent_id=agent.id)
         self.bind_contact_company_task.delay(
             agent_amocrm_id=amocrm_id, agency_amocrm_id=agency.amocrm_id)
-
-    async def _check_user_unique(self, payload: RequestProcessRegisterModel) -> None:
-        """Рейзит ошибку, если пользователь уже есть"""
-        checking_fields = {
-            "email": payload.email,
-            "phone": payload.phone
-        }
-        exceptions = (
-            NotUniqueEmailAgentError(),
-            NotUniquePhoneAgentError()
-        )
-
-        for items, exception in zip(checking_fields.items(), exceptions):
-            field_filter, value = items
-            existing_user: Optional[User] = await self.agent_repo.retrieve(filters={field_filter: value})
-            if existing_user:
-                raise self._format_exception(exception, existing_user.type)
-
-    @staticmethod
-    def _format_exception(exception: BaseAgentException, user_type: str):
-        """Добавляет необходимый тип пользователя в сообщение ошибки"""
-        if user_type == UserType.AGENT:
-            exception.message = exception.message.format("агентом")
-        elif user_type == UserType.CLIENT:
-            exception.message = exception.message.format("клиентом")
-        elif user_type == UserType.REPRES:
-            exception.message = exception.message.format("агентством")
-        elif user_type == UserType.ADMIN:
-            exception.message = exception.message.format("администратором")
-        elif user_type == UserType.MANAGER:
-            exception.message = exception.message.format("менеджером")
-        return exception

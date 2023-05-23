@@ -70,6 +70,7 @@ def create_amocrm_contact_task(user_id: int, phone: str) -> None:
         amocrm_class=amocrm.AmoCRM,
         user_repo=users_repos.UserRepo,
         import_bookings_service=import_bookings_service,
+        amocrm_config=amocrm_config,
     )
     create_contact: services.CreateContactService = services.CreateContactService(**resources)
     loop: Any = get_event_loop()
@@ -90,6 +91,7 @@ def check_client_unique_task(user_id: int, agent_id: int, check_id: int, phone: 
         user_repo=users_repos.UserRepo,
         check_repo=users_repos.CheckRepo,
         agent_repo=agents_repos.AgentRepo,
+        amocrm_config=amocrm_config,
     )
     check_unique: services.CheckUniqueService = services.CheckUniqueService(**resources)
     loop: Any = get_event_loop()
@@ -109,6 +111,7 @@ def change_client_agent_task(user_id: int, agent_id: int) -> None:
     resources: dict[str, Any] = dict(
         orm_class=Tortoise,
         orm_config=tortoise_config,
+        amocrm_config=amocrm_config,
         amocrm_class=amocrm.AmoCRM,
         user_repo=users_repos.UserRepo,
         agent_repo=agents_repos.AgentRepo,
@@ -134,6 +137,7 @@ def check_client_task_periodic() -> None:
         check_repo=users_repos.CheckRepo,
         agent_repo=agents_repos.AgentRepo,
         booking_substages=booking_constants.BookingSubstages,
+        amocrm_config=amocrm_config,
     )
     check_client: services.CheckClientService = services.CheckClientService(**resources)
     loop: Any = get_event_loop()
@@ -150,6 +154,7 @@ async def update_user_data_task(user_id: int) -> None:
         orm_config=tortoise_config,
         amocrm_class=amocrm.AmoCRM,
         user_repo=users_repos.UserRepo,
+        amocrm_config=amocrm_config,
     )
     update_user: services.UpdateUsersService = services.UpdateUsersService(**resources)
     await update_user(user_id=user_id)
@@ -236,3 +241,19 @@ def periodic_logs_clean() -> None:
     clean_logs: services.CleanLogsService = services.CleanLogsService(**resources)
     loop: Any = get_event_loop()
     loop.run_until_complete(celery.sentry_catch(celery.init_orm(clean_logs))(days))
+
+
+@celery.app.task
+def export_user_in_amo(user_id: int) -> None:
+    """
+    Экспорт пользователя в амо.
+    """
+    resources: dict[str, Any] = dict(
+        orm_class=Tortoise,
+        orm_config=tortoise_config,
+        amocrm_class=amocrm.AmoCRM,
+        user_repo=users_repos.UserRepo,
+    )
+    export_user_in_amo: services.UpdateContactService = services.UpdateContactService(**resources)
+    loop: Any = get_event_loop()
+    loop.run_until_complete(celery.sentry_catch(celery.init_orm(export_user_in_amo))(user_id=user_id))

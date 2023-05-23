@@ -17,11 +17,11 @@ from src.admins.repos import AdminRepo
 from src.agents.repos import AgentRepo
 
 from ..repos import RepresRepo, User
-from ..entities import BaseRepresCase, BaseRepresException
+from ..entities import BaseRepresCase
 from ..models import RequestProcessRegisterModel, RepresRegisterModel, AgencyRegisterModel
-from ..exceptions import NotUniqueEmailRepresError, NotUniquePhoneRepresError
 from src.users.loggers.wrappers import user_changes_logger
 from src.agencies.loggers.wrappers import agency_changes_logger
+from src.users.services import UserCheckUniqueService
 
 
 class ProcessRegisterCase(BaseRepresCase):
@@ -47,6 +47,7 @@ class ProcessRegisterCase(BaseRepresCase):
         create_contact_service: Union[Callable, PromiseProxy],
         create_organization_service: Union[Callable, PromiseProxy],
         bind_contact_to_company: Union[Callable, PromiseProxy],
+        check_user_unique_service: UserCheckUniqueService,
         logger: Optional[Any] = structlog.getLogger(__name__)
 
     ) -> None:
@@ -76,6 +77,7 @@ class ProcessRegisterCase(BaseRepresCase):
         self.site_host: str = site_config["site_host"]
         self.create_contact_service = create_contact_service
         self.create_organization_service = create_organization_service
+        self.check_user_unique_service: UserCheckUniqueService = check_user_unique_service
         self.bind_contact_to_company = bind_contact_to_company
         self.logger = logger
 
@@ -179,7 +181,7 @@ class ProcessRegisterCase(BaseRepresCase):
             raise AgencyDataTakenError
 
         # Проверка на то, что репреза с таким email или phone нет в БД
-        await self._check_user_unique(payload.repres)
+        await self.check_user_unique_service(payload.repres)
 
     async def amocrm_hook(self, agency: Agency, repres: User):
         """Create amocrm company and contact webhook."""
@@ -204,36 +206,3 @@ class ProcessRegisterCase(BaseRepresCase):
             agency_amocrm_id=agency.amocrm_id
         )
         self.logger.warning(f"AMO link started to create with Agency ({agency.amocrm_id}) and Repres ({repres.amocrm_id})")
-
-    async def _check_user_unique(self, payload: RepresRegisterModel) -> None:
-        """Рейзит ошибку, если пользователь уже есть"""
-        checking_fields = {
-            "email": payload.email,
-            "phone": payload.phone
-        }
-        exceptions = (
-            NotUniqueEmailRepresError(),
-            NotUniquePhoneRepresError()
-        )
-
-        for items, exception in zip(checking_fields.items(), exceptions):
-            field_filter, value = items
-            user_exists: Optional[User] = await self.agent_repo.retrieve(filters={field_filter: value})
-            if user_exists:
-                raise self._format_exception(exception, user_exists.type)
-
-    @staticmethod
-    def _format_exception(exception: BaseRepresException, user_type: str):
-        """Добавляет необходимый тип пользователя в сообщение ошибки"""
-        if user_type == UserType.AGENT:
-            exception.message = exception.message.format("агентом")
-        elif user_type == UserType.CLIENT:
-            exception.message = exception.message.format("клиентом")
-        elif user_type == UserType.REPRES:
-            exception.message = exception.message.format("агентством")
-        elif user_type == UserType.ADMIN:
-            exception.message = exception.message.format("администратором")
-        elif user_type == UserType.MANAGER:
-            exception.message = exception.message.format("менеджером")
-        return exception
-

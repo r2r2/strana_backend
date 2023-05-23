@@ -7,5 +7,4 @@ from .reset_available import RequestResetAvailableModel, ResponseResetAvailableM
 from .reset_password import RequestResetPasswordModel, ResponseResetPasswordModel
 from .set_password import RequestSetPasswordModel, ResponseSetPasswordModel
 from .process_logout import RequestProcessLogoutModel, ResponseProcessLogoutModel
-from .email_reset import RequestEmailResetModel, ResponseEmailResetModel
 from .change_password import RequestChangePasswordModel, ResponseChangePasswordModel

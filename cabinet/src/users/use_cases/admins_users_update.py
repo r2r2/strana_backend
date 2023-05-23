@@ -1,16 +1,25 @@
 from typing import Any, Optional, Type, Union
+from enum import IntEnum
 
 from src.booking.loggers.wrappers import booking_changes_logger
 
-from ..constants import UserStatus, UserType
+from ..constants import UserType
 from ..entities import BaseUserCase
-from ..exceptions import (CheckNotUniqueError, UserNoAgencyError,
+from ..exceptions import (UserNoAgencyError,
                           UserNoAgentError, UserNotFoundError)
 from ..loggers.wrappers import user_changes_logger
 from ..models import RequestAdminsUsersUpdateModel
-from ..repos import Check, CheckRepo, User, UserRepo
+from ..repos import CheckRepo, User, UserRepo
 from ..types import (UserAgency, UserAgencyRepo, UserAgentRepo, UserBooking,
                      UserBookingRepo)
+
+
+class LeadStatuses(IntEnum):
+    """
+     Статусы закрытых сделок в амо.
+    """
+    REALIZED: int = 142  # Успешно реализовано
+    UNREALIZED: int = 143  # Закрыто и не реализовано
 
 
 class AdminsUsersUpdateCase(BaseUserCase):
@@ -49,15 +58,6 @@ class AdminsUsersUpdateCase(BaseUserCase):
         user: User = await self.user_repo.retrieve(filters=filters)
         if not user:
             raise UserNotFoundError
-        filters: dict[str, Any] = dict(
-            user_id=user.id,
-            agent_id=user.agent_id,
-            status=UserStatus.UNIQUE,
-            agency_id=user.agency_id,
-        )
-        check: Check = await self.check_repo.retrieve(filters=filters)
-        if not check:
-            raise CheckNotUniqueError
 
         agent: Optional[User] = None
         agency: Optional[UserAgency] = None
@@ -84,20 +84,17 @@ class AdminsUsersUpdateCase(BaseUserCase):
             bound_data: dict[str, Any] = {}
 
         if bound_data:
-            await self.check_repo.update(check, data=bound_data)
-            filters: dict[str, Any] = dict(
-                user_id=user.id, agent_id=agent.id, status__not=UserStatus.UNIQUE
-            )
-            dummy_checks: list[Check] = await self.check_repo.list(filters=filters)
-            for check in dummy_checks:
-                await self.check_repo.delete(check)
             filters: dict[str, Any] = dict(
                 user_id=user.id, agent_id=user.agent_id, agency_id=user.agency_id
             )
-            bookings: list[UserBooking] = await self.booking_repo.list(filters=filters)
+            bookings: list[UserBooking] = await self.booking_repo.list(filters=filters).exclude(
+                amocrm_status_id=LeadStatuses.REALIZED,
+            ).exclude(
+                amocrm_status_id=LeadStatuses.UNREALIZED,
+            )
+
             for booking in bookings:
-                data: dict[str, Any] = dict(**bound_data, comission=booking.start_commission)
-                await self.booking_update(booking=booking, data=data)
+                await self.booking_update(booking=booking, data=bound_data)
 
         user: User = await self.user_update(user=user, data=u_data)
 

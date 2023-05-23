@@ -26,6 +26,7 @@ class ResponseProcessLoginModel(BaseUserModel):
     role: Optional[str]
     type: Optional[str]
     token: Optional[str]
+    is_fired: Optional[bool]
 
     class Config:
         orm_mode = True

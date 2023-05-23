@@ -20,8 +20,8 @@ def get_middlewares() -> list[tuple[object, dict[str, Any]]]:
     middlewares.append((CatchExceptionsMiddleware, {}))
     middlewares.append((TrustedHostMiddleware, trusted_config))
     middlewares.append((CORSMiddleware, cors_config))
-    middlewares.append((SessionTimeoutMiddleware, session_config))
     middlewares.append((SessionMiddleware, session_config))
+    # middlewares.append((SessionTimeoutMiddleware, session_config))
     middlewares.append((SafePathMiddleware, {}))
     middlewares.append((LoggerMiddleware, {}))
 

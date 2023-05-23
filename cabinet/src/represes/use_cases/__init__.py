@@ -1,6 +1,5 @@
 from .process_register import ProcessRegisterCase
 from .confirm_email import ConfirmEmailCase
-from .email_reset import EmailResetCase
 from .reset_password import ResetPasswordCase
 from .reset_available import ResetAvailableCase
 from .set_password import SetPasswordCase

@@ -13,9 +13,10 @@ from pytz import UTC
 from fastapi import Request
 
 from common.amocrm import AmoCRM
-from common.amocrm.constants import AmoContactQueryWith
+from common.amocrm.constants import AmoContactQueryWith, AmoCompanyEntityType, AmoLeadQueryWith
 from common.amocrm.repos import AmoStatusesRepo
 from common.amocrm.types import AmoContact, AmoLead
+from common.amocrm.models import Entity
 from common.backend.models import AmocrmStatus
 from common.email import EmailService
 from common.utils import partition_list
@@ -30,7 +31,7 @@ from src.users.constants import UserStatus, UserType
 from src.users.entities import BaseUserCase
 from src.users.exceptions import CheckNotFoundError, UserAlreadyBoundError, UserEmailTakenError, UserNotUnique
 from src.users.models import RequestAssignClient, ResponseAssignClient
-from src.users.repos import Check, CheckRepo, User, UserRepo
+from src.users.repos import Check, CheckRepo, User, UserRepo, ConfirmClientAssignRepo
 from src.users.types import UserHasher
 from ..loggers.wrappers import user_changes_logger
 from ...notifications.exceptions import SMSTemplateNotFoundError
@@ -63,6 +64,7 @@ class AssignClientCase(BaseUserCase):
         booking_repo: Type[BookingRepo],
         amo_statuses_repo: Type[AmoStatusesRepo],
         template_repo: Type[AssignClientTemplateRepo],
+        confirm_client_assign_repo: Type[ConfirmClientAssignRepo],
         email_class: Type[AgentEmail],
         amocrm_class: Type[AmoCRM],
         sms_class: Type[AgentSms],
@@ -79,6 +81,7 @@ class AssignClientCase(BaseUserCase):
         self.booking_repo: BookingRepo = booking_repo()
         self.amo_statuses_repo: AmoStatusesRepo = amo_statuses_repo()
         self.template_repo: AssignClientTemplateRepo = template_repo()
+        self.confirm_client_assign_repo: ConfirmClientAssignRepo = confirm_client_assign_repo()
         self.email_class: Type[AgentEmail] = email_class
         self.amocrm_class: Type[AmoCRM] = amocrm_class
         self.sms_class: Type[AgentSms] = sms_class
@@ -105,8 +108,8 @@ class AssignClientCase(BaseUserCase):
         self.booking_bulk_update: Callable = booking_changes_logger(
             self.booking_repo.bulk_update, self, content="Обновляем все активные сделки клиента, закрепляем за агентом",
         )
-        self.booking_update_or_create: Callable = booking_changes_logger(
-            self.booking_repo.update_or_create, self, content="Создание или обновление бронирования из сделок Амо",
+        self.booking_update: Callable = booking_changes_logger(
+            self.booking_repo.update, self, content="Обновление бронирования из сделок Амо",
         )
 
     async def __call__(self, payload: RequestAssignClient, agent_id: int) -> ResponseAssignClient:
@@ -135,15 +138,15 @@ class AssignClientCase(BaseUserCase):
             agent_name = agent.full_name
 
         client = await self._update_client_data(client=client, agent=agent, payload=payload)
-
-        await self._notify_client_sms(
-            client_id=client.id,
-            un_assignation_link=un_assignation_link,
-            agent_name=agent_name,
-        )
-
-        await self._send_email(
-            recipients=[client.email], agent_name=agent_name, unassign_link=unquote(un_assignation_link)
+        await asyncio.gather(
+            self._notify_client_sms(
+                client_id=client.id,
+                un_assignation_link=un_assignation_link,
+                agent_name=agent_name,
+            ),
+            self._send_email(
+                recipients=[client.email], agent_name=agent_name, unassign_link=unquote(un_assignation_link)
+            )
         )
 
         if payload.assignation_comment:
@@ -171,7 +174,7 @@ class AssignClientCase(BaseUserCase):
             contact_leads: list[AmoLead] = await self._fetch_contact_leads(amocrm, contact=contact)
             await self._import_amo_leads(client=client, agent=agent, active_projects=payload.active_projects,
                                          leads=contact_leads)
-            await self._update_amocrm_leads(amocrm, leads=contact_leads, agent=agent)
+            await self._update_amocrm_leads(amocrm, leads=contact_leads, agent=agent, user=client)
             await self._update_booking_data(client=client, agent=agent)
             not_created_projects: list[Project] = await self._find_not_created_projects(client=client,
                                                                                         agent_id=agent.id,
@@ -267,7 +270,7 @@ class AssignClientCase(BaseUserCase):
             return []
         leads = []
         for lead_ids in partition_list(big_lead_ids, self.partition_limit):
-            leads.extend(await amocrm.fetch_leads(lead_ids=lead_ids))
+            leads.extend(await amocrm.fetch_leads(lead_ids=lead_ids, query_with=[AmoLeadQueryWith.contacts]))
         return leads
 
     async def _update_client_data(self, agent: User, client: User, payload: RequestAssignClient) -> User:
@@ -287,7 +290,23 @@ class AssignClientCase(BaseUserCase):
         client: User = await self.client_assign(
             client, data=dict(**payload.user_data, **data)
         )
+        asyncio.create_task(
+            self._set_assigned_time(client=client, agent=agent)
+        )
         return client
+
+    async def _set_assigned_time(self, client: User, agent: User) -> None:
+        """
+        Установить время привязки клиента к агенту
+        @param client: User
+        @param agent: User
+        """
+        data: dict[str, Any] = dict(
+            client=client,
+            agent=agent,
+            agency=agent.agency,
+        )
+        await self.confirm_client_assign_repo.create(data=data)
 
     async def _get_project_from_payload(self, payload: RequestAssignClient) -> Optional[Project]:
         """
@@ -350,8 +369,18 @@ class AssignClientCase(BaseUserCase):
                 amocrm_status_id=lead.status_id,
                 amocrm_status=status,
             )
-            booking = await self.booking_update_or_create(data=data, filters=dict(amocrm_id=lead.id))
-            await booking.refresh_from_db(fields=["id"])
+
+            booking = await self.booking_repo.retrieve(filters=dict(amocrm_id=lead.id))
+            if booking:
+                if booking.amocrm_substage and not amocrm_substage:
+                    data.pop("amocrm_substage")
+                if booking.amocrm_status_id and not lead.status_id:
+                    data.pop("amocrm_status_id")
+                booking = await self.booking_update(booking=booking, data=data)
+            else:
+                data.update(amocrm_id=lead.id)
+                booking = await self.booking_create(data=data)
+
             await self._create_task_instance([booking.id])
 
     async def _find_not_created_projects(
@@ -451,32 +480,59 @@ class AssignClientCase(BaseUserCase):
         @param agent: User
         """
         filters: dict[str, Any] = dict(user_id=client.id, active=True)
+        exclude_filters: dict[str, Any] = dict(amocrm_status_id=LeadStatuses.REALIZED)
         data = dict(
             agent_id=agent.id,
             agency_id=agent.agency.id,
-            active=True
+            active=True,
         )
-        await self.booking_bulk_update(filters=filters, data=data)
-        bookings: list[Booking] = await self.booking_repo.list(filters=filters)
+        await self.booking_bulk_update(filters=filters, exclude_filters=exclude_filters, data=data)
+        bookings: list[Booking] = await self.booking_repo.list(filters=filters).exclude(
+            amocrm_status_id=LeadStatuses.REALIZED
+        )
         if bookings:
             await self._create_task_instance([booking.id for booking in bookings])
 
-    async def _update_amocrm_leads(self, amocrm: AmoCRM, leads: list[AmoLead], agent: User):
+    async def _update_amocrm_leads(self, amocrm: AmoCRM, leads: list[AmoLead], agent: User, user: User):
         """
         @param leads: list[AmoLead]. Список сделок амоцрм.
         """
-        for lead in leads:
-            if lead.status_id in (LeadStatuses.REALIZED, LeadStatuses.UNREALIZED):
-                continue
+        # получаем все сделки клиента, кроме закрытых и реализованных
+        active_leads = [
+            lead for lead in leads if lead.status_id not in (
+                LeadStatuses.REALIZED,
+                LeadStatuses.UNREALIZED
+            )
+        ]
+        active_leads_ids: list[int] = [lead.id for lead in active_leads]
 
-            amo_data = dict(
-                company=agent.agency.amocrm_id,
-                lead_id=lead.id,
-                contacts=[agent.amocrm_id],
-            )
-            await asyncio.create_task(
-                amocrm.update_lead(**amo_data)
-            )
+        # находим amocrm_id всех старых агентов и старых агентств в сделках клиента в амо
+        old_agents = set()
+        old_companies = set()
+        for lead in active_leads:
+            for contact in lead.embedded.contacts:
+                if contact.id != user.amocrm_id:
+                    old_agents.add(contact.id)
+            if lead.embedded.companies:
+                old_companies.add(lead.embedded.companies[0].id)
+
+        # формируем для всех сущностей агентов и агентств модели
+        old_agent_entities: Entity = Entity(ids=old_agents, type=AmoCompanyEntityType.contacts)
+        old_agency_entities: Entity = Entity(ids=old_companies, type=AmoCompanyEntityType.companies)
+        agent_entities: Entity = Entity(ids=[agent.amocrm_id], type=AmoCompanyEntityType.contacts)
+        agency_entities: Entity = Entity(ids=[agent.agency.amocrm_id], type=AmoCompanyEntityType.companies)
+
+        # отвязываем старое агентство и старых агентов от всех активных сделок клиента в амо
+        await amocrm.leads_unlink_entities(
+            lead_ids=active_leads_ids,
+            entities=[old_agent_entities, old_agency_entities],
+        )
+
+        # привязываем новое агентство и нового агента ко всем активным сделкам клиента в амо
+        await amocrm.leads_link_entities(
+            lead_ids=active_leads_ids,
+            entities=[agent_entities, agency_entities],
+        )
 
     async def _notify_client_sms(
         self,

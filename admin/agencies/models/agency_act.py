@@ -18,8 +18,8 @@ class AgencyAct(BaseAgreement):
         "agencies.Agency",
         models.CASCADE,
         related_name='acts',
-        verbose_name='Агенство',
-        help_text='Агенство'
+        verbose_name='Агентство',
+        help_text='Агентство'
     )
     project = models.ForeignKey(
         "projects.Project",

@@ -21,6 +21,7 @@ from ..leads.payment_method import (AmoCRMPaymentMethod,
 from ..types import AmoCustomField, AmoCustomFieldValue, AmoLead, AmoTag
 from ..types.lead import AmoLeadCompany, AmoLeadContact, AmoLeadEmbedded
 from .decorators import user_tag_test_wrapper
+from ..models import Entity
 
 
 class AmoCRMLeads(AmoCRMInterface, ABC):
@@ -115,6 +116,9 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
     assign_agency_status_field_id: int = 828940
     booking_until_datetime_field_id: int = 643043
 
+    # ID полей для встреч
+    meeting_type_field_id = 815568
+
     # ID Тегов
     fast_booking_tag_id: int = 748608
     dev_booking_tag_id: int = 708334
@@ -143,6 +147,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         "commercial": {"enum_id": 1311059, "value": "Коммерция"},
         "commercial_apartment": {"enum_id": 1324118, "value": "Апартаменты"},
         "apartment": {"enum_id": 1324118, "value": "Апартаменты"},
+        "pantry": {"enum_id": 1331542, "value": "Кладовка"},
     }
     property_str_type_reverse_values: dict[str, str] = {
         "Квартира": "FLAT",
@@ -593,7 +598,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
     async def update_lead_v4(
         self,
         *,
-        lead_id,
+        lead_id: int,
         price: Optional[int] = None,
         city_slug: Optional[str] = None,
         status_id: Optional[int] = None,
@@ -609,6 +614,107 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         project_amocrm_organization: Optional[str] = None,
     ):
         route: str = f"/leads/{lead_id}"
+        custom_fields = []
+
+        # Город
+        if city_slug is not None:
+            custom_fields.append(
+                dict(
+                    field_id=self.city_field_id,
+                    values=[self.city_field_values.get(city_slug, {})]
+                )
+            )
+
+        # Проект
+        if project_amocrm_name is not None:
+            custom_fields.append(
+                dict(
+                    field_id=self.project_field_id,
+                    values=[dict(value=project_amocrm_name, enum_id=project_amocrm_enum)],
+                )
+            )
+
+        # Объект недвижимости
+        if property_id is not None:
+            custom_fields.append(
+                dict(
+                    field_id=self.property_field_id,
+                    values=[dict(value=property_id)],
+                )
+            )
+
+        # Тип объекта недвижимости
+        if property_type is not None:
+            custom_fields.append(
+                dict(
+                    field_id=self.property_type_field_id,
+                    values=[dict(**self.property_type_field_values.get(property_type, {}))],
+                )
+            )
+
+        # Тип бронирования
+        if booking_type_id is not None:
+            custom_fields.append(
+                dict(
+                    field_id=self.booking_type_field_id,
+                    values=[dict(enum_id=booking_type_id)],
+                )
+            )
+
+        # Размер скидки/акции
+        if booking_discount is not None:
+            custom_fields.append(
+                dict(
+                    field_id=self.booking_discounts_and_promotions,
+                    values=[dict(value=int(booking_discount))],
+                )
+            )
+
+        # Стоимость с учетом скидки
+        if price_with_sales is not None:
+            custom_fields.append(
+                dict(
+                    field_id=self.property_price_with_sale_field_id,
+                    values=[dict(value=int(price_with_sales))]
+                )
+            )
+
+        payload = dict(custom_fields_values=custom_fields)
+
+        if price:
+            payload.update(price=price)
+        if status_id:
+            payload.update(status_id=status_id)
+        if project_amocrm_responsible_user_id:
+            payload.update(responsible_user_id=int(project_amocrm_responsible_user_id))
+        if project_amocrm_organization:
+            payload.update(project_amocrm_organization=project_amocrm_organization)
+        if project_amocrm_pipeline_id:
+            payload.update(pipeline_id=int(project_amocrm_pipeline_id))
+        self.logger.debug(f"Payload lead v4: {payload}")
+        response: CommonResponse = await self._request_patch_v4(route=route, payload=payload)
+
+        return response.data if response else []
+
+    async def update_leads_v4(
+        self,
+        *,
+        lead_ids: list[int],
+        price: Optional[int] = None,
+        city_slug: Optional[str] = None,
+        status_id: Optional[int] = None,
+        property_id: Optional[int] = None,
+        property_type: Optional[str] = None,
+        booking_type_id: Optional[int] = None,
+        booking_discount: Optional[int] = None,
+        price_with_sales: Optional[int] = None,
+        project_amocrm_name: Optional[str] = None,
+        project_amocrm_enum: Optional[int] = None,
+        project_amocrm_pipeline_id: Optional[int] = None,
+        project_amocrm_responsible_user_id: Optional[int] = None,
+        project_amocrm_organization: Optional[str] = None,
+    ):
+        route: str = f"/leads"
         custom_fields = []
 
         # Город
@@ -674,23 +780,28 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
                 )
             )
 
-        payload = dict(custom_fields_values=custom_fields)
+        payload = []
+        for lead_id in lead_ids:
+            lead_payload = dict(
+                id=lead_id,
+                custom_fields_values=custom_fields,
+            )
+            if price:
+                lead_payload.update(price=price)
+            if status_id:
+                lead_payload.update(status_id=status_id)
+            if project_amocrm_responsible_user_id:
+                lead_payload.update(responsible_user_id=int(project_amocrm_responsible_user_id))
+            if project_amocrm_organization:
+                lead_payload.update(project_amocrm_organization=project_amocrm_organization)
+            if project_amocrm_pipeline_id:
+                lead_payload.update(pipeline_id=int(project_amocrm_pipeline_id))
+            payload.append(lead_payload)
 
-        if price:
-            payload.update(price=price)
-        if status_id:
-            payload.update(status_id=status_id)
-        if project_amocrm_responsible_user_id:
-            payload.update(responsible_user_id=int(project_amocrm_responsible_user_id))
-        if project_amocrm_organization:
-            payload.update(project_amocrm_organization=project_amocrm_organization)
-        if project_amocrm_pipeline_id:
-            payload.update(pipeline_id=int(project_amocrm_pipeline_id))
-        self.logger.debug(f"Payload lead v4: {payload}")
+        self.logger.debug(f"Payload leads v4: {payload}")
         response: CommonResponse = await self._request_patch_v4(route=route, payload=payload)
 
         return response.data if response else []
-
 
     async def update_lead(
         self,
@@ -1032,3 +1143,87 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
                        f"Exception: {err}")
             self.logger.error(message)
             raise AmocrmHookError(reason=message) from err
+
+    async def lead_link_entities(
+        self,
+        lead_id: int,
+        entities: list[Entity],
+    ) -> list[Any]:
+        """
+        Привязка сущностей к сделке
+        """
+        route: str = f"/leads/{lead_id}/link"
+        payload = []
+        for entity in entities:
+            payload.extend([
+                dict(
+                    to_entity_id=entity_id,
+                    to_entity_type=entity.type,
+                ) for entity_id in entity.ids
+            ])
+
+        await self._request_post_v4(route=route, payload=payload)
+
+    async def leads_link_entities(
+        self,
+        lead_ids: list[int],
+        entities: list[Entity],
+    ) -> list[Any]:
+        """
+        Привязка сущностей к нескольким сделкам
+        """
+        route: str = f"/leads/link"
+        payload = []
+        for lead_id in lead_ids:
+            for entity in entities:
+                payload.extend([
+                    dict(
+                        entity_id=lead_id,
+                        to_entity_id=entity_id,
+                        to_entity_type=entity.type,
+                    ) for entity_id in entity.ids
+                ])
+
+        await self._request_post_v4(route=route, payload=payload)
+
+    async def lead_unlink_entities(
+        self,
+        lead_id: int,
+        entities: list[Entity],
+    ) -> None:
+        """
+        Отвязка сущностей от сделки
+        """
+        route: str = f"/leads/{lead_id}/unlink"
+        payload = []
+        for entity in entities:
+            payload.extend([
+                dict(
+                    to_entity_id=entity_id,
+                    to_entity_type=entity.type,
+                ) for entity_id in entity.ids
+            ])
+
+        await self._request_post_v4(route=route, payload=payload)
+
+    async def leads_unlink_entities(
+        self,
+        lead_ids: list[int],
+        entities: list[Entity],
+    ) -> None:
+        """
+        Отвязка сущностей от нескольких сделок
+        """
+        route: str = f"/leads/unlink"
+        payload = []
+        for lead_id in lead_ids:
+            for entity in entities:
+                payload.extend([
+                    dict(
+                        entity_id=lead_id,
+                        to_entity_id=entity_id,
+                        to_entity_type=entity.type,
+                    ) for entity_id in entity.ids
+                ])
+
+        await self._request_post_v4(route=route, payload=payload)

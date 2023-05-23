@@ -135,7 +135,8 @@ class SessionTimeoutMiddleware(BaseHTTPMiddleware):
                     "ok": False,
                 },
             )
-            response.delete_cookie(key=self.key)
+            for cookie in request.cookies:
+                response.delete_cookie(key=cookie)
             return response
         else:
             # Update session timestamp and continue processing the request

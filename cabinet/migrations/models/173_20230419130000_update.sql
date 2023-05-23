@@ -36,6 +36,26 @@ CREATE TABLE IF NOT EXISTS "notifications_assignclient" (
 
 ALTER TABLE users_user ADD COLUMN IF NOT EXISTS sms_send BOOLEAN NOT NULL DEFAULT FALSE;
 
+CREATE TABLE IF NOT EXISTS "users_confirm_client_assign" (
+    "id" SERIAL NOT NULL PRIMARY KEY,
+    "assigned_at" TIMESTAMPTZ NOT NULL  DEFAULT CURRENT_TIMESTAMP,
+    "assign_confirmed_at" TIMESTAMPTZ,
+    "unassigned_at" TIMESTAMPTZ,
+    "agency_id" INT REFERENCES "agencies_agency" ("id") ON DELETE SET NULL,
+    "agent_id" INT REFERENCES "users_user" ("id") ON DELETE SET NULL,
+    "client_id" INT REFERENCES "users_user" ("id") ON DELETE SET NULL,
+    "comment" TEXT
+);
+COMMENT ON COLUMN "users_confirm_client_assign"."id" IS 'ID';
+COMMENT ON COLUMN "users_confirm_client_assign"."assigned_at" IS 'Дата и время закрепления';
+COMMENT ON COLUMN "users_confirm_client_assign"."assign_confirmed_at" IS 'Дата и время подтверждения закрепления';
+COMMENT ON COLUMN "users_confirm_client_assign"."unassigned_at" IS 'Дата и время отказа от агента';
+COMMENT ON COLUMN "users_confirm_client_assign"."agency_id" IS 'Агентство';
+COMMENT ON COLUMN "users_confirm_client_assign"."agent_id" IS 'Агент';
+COMMENT ON COLUMN "users_confirm_client_assign"."client_id" IS 'Клиент';
+COMMENT ON COLUMN "users_confirm_client_assign"."comment" IS 'Комментарий';
+COMMENT ON TABLE "users_confirm_client_assign" IS 'Модель подтверждения закрепления клиента за агентом';
+
 -- downgrade --
 ALTER TABLE projects_project ADD COLUMN IF NOT EXISTS city VARCHAR(100) NULL;
 
@@ -48,3 +68,4 @@ ALTER TABLE projects_project DROP CONSTRAINT IF EXISTS fk_projects_project_city_
 ALTER TABLE projects_project DROP COLUMN IF EXISTS city_id;
 DROP TABLE IF EXISTS "notifications_assignclient";
 ALTER TABLE users_user DROP COLUMN IF EXISTS sms_send;
+DROP TABLE IF EXISTS "users_confirm_client_assign";

@@ -12,7 +12,7 @@ from src.notifications.exceptions import SMSTemplateNotFoundError
 from src.notifications.repos import AssignClientTemplateRepo, AssignClientTemplate
 from src.users.entities import BaseUserService
 from src.users.exceptions import UserNotFoundError
-from src.users.repos import UserRepo, User
+from src.users.repos import UserRepo
 from src.users.types import UserHasher
 
 
@@ -44,29 +44,32 @@ class SendSmsToMskClientService(BaseUserService):
         if self.orm_config:
             self.orm_config.pop("generate_schemas", None)
 
-    async def __call__(self, booking_id: int, sms_slug: str) -> None:
+    async def __call__(self, booking_id: int, sms_slug: str) -> bool:
         booking: Booking = await self.booking_repo.retrieve(
             filters=dict(id=booking_id),
             prefetch_fields=["user", "agent"],
         )
 
-        client: User = await self.user_repo.retrieve(
-            filters=dict(id=booking.user.id, sms_send=False),
-            related_fields=[
-                "interested_project",
-                "interested_project__city",
-            ],
-        )
-        if not client or not client.interested_project:
-            raise UserNotFoundError
-
-        agent: User = await self.user_repo.retrieve(
-            filters=dict(id=booking.agent.id),
-        )
-        if not agent:
+        user_retrieve_tasks = [
+            self.user_repo.retrieve(
+                filters=dict(id=booking.user.id, sms_send=False),
+                related_fields=[
+                    "interested_project",
+                    "interested_project__city",
+                ],
+            ),
+            self.user_repo.retrieve(
+                filters=dict(id=booking.agent.id),
+            ),
+        ]
+        client, agent = await asyncio.gather(*user_retrieve_tasks)
+        if (not client or not client.interested_project) or not agent:
             raise UserNotFoundError
 
         city: City = client.interested_project.city
+        if city.slug != "moskva":
+            #  Отправляем смс только клиентам из Москвы
+            return False
 
         template: AssignClientTemplate = await self.template_repo.retrieve(
             filters=dict(city=city, sms__sms_event_slug=sms_slug, sms__is_active=True)
@@ -86,6 +89,7 @@ class SendSmsToMskClientService(BaseUserService):
             self.user_repo.update(model=client, data=dict(sms_send=True)),
         ]
         await asyncio.gather(*asyncio_tasks)
+        return True
 
     async def _send_sms(self, phone: str, unassign_link: str, agent_name: str, sms_template: str):
         """

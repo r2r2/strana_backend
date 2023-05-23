@@ -41,7 +41,6 @@ class FastAcceptContractCase(BaseBookingCase, BookingLogMixin):
             amocrm_substage=BookingSubstages.BOOKING,
             profitbase_booked=True,
             contract_accepted=payload.contract_accepted,
-            created_source=BookingCreatedSources.FAST_BOOKING
         )
         booking: Booking = await self.booking_update(booking=booking, data=data)
 

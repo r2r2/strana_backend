@@ -5,7 +5,6 @@ from .process_register import (
     ResponseProcessRegisterModel,
 )
 from .confirm_email import RequestConfirmEmailModel, ResponseConfirmEmailModel
-from .email_reset import RequestEmailResetModel, ResponseEmailResetModel
 from .reset_password import RequestResetPasswordModel, ResponseResetPasswordModel
 from .change_password import RequestChangePasswordModel, ResponseChangePasswordModel
 from .reset_available import RequestResetAvailableModel, ResponseResetAvailableModel

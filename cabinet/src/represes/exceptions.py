@@ -84,16 +84,3 @@ class RepresWasDeletedError(BaseRepresException):
     message: str = "Представитель был удален"
     status: int = HTTPStatus.BAD_REQUEST
     reason: str = "repres_was_deleted"
-
-
-class NotUniqueRepresError(BaseRepresException):
-    status: int = HTTPStatus.BAD_REQUEST
-    reason: str = "not_unique_repres"
-
-
-class NotUniquePhoneRepresError(NotUniqueRepresError):
-    message: str = "Простите данный номер телефона закреплен за другим {}, вы не можете его использовать."
-
-
-class NotUniqueEmailRepresError(NotUniqueRepresError):
-    message: str = "Простите данная почта закреплена за другим {}, вы не можете её использовать."

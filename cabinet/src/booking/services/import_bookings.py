@@ -263,8 +263,6 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
         if not stages_valid:
             booking_active = False
 
-        filters: dict[str, Any] = dict(amocrm_id=booking_amocrm_id)
-
         data: dict[str, Any] = dict(
             user=user,
             floor=booking_property.floor,
@@ -298,7 +296,24 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
             lead_contacts.intersection(set(agent.amocrm_id for agent in agents)) and user.agent_id
         ):
             data.update(dict(agent_id=user.agent_id, agency_id=user.agency_id))
-        await self.booking_repo.update_or_create(filters=filters, data=data)
+
+        filters: dict[str, Any] = dict(amocrm_id=booking_amocrm_id)
+        booking = await self.booking_repo.retrieve(filters=filters)
+        if booking:
+            if booking.until and not booking_until:
+                data.pop("until")
+            if booking.payment_amount and not booking_payment_amount:
+                data.pop("payment_amount")
+            if booking.amocrm_substage and not booking_substage:
+                data.pop("amocrm_substage")
+            if booking.amocrm_status_id and not lead.status_id:
+                data.pop("amocrm_status_id")
+            if booking.final_payment_amount and not booking_final_payment_amount:
+                data.pop("final_payment_amount")
+            await self.booking_repo.update(model=booking, data=data)
+        else:
+            data.update(amocrm_id=lead.id)
+            await self.booking_repo.create(data=data)
 
     @staticmethod
     def _is_stage_valid(amocrm_substage: str) -> bool:

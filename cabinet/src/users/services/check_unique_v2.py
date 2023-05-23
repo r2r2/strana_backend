@@ -7,6 +7,7 @@ import structlog
 from common.amocrm import AmoCRM
 from common.amocrm.constants import AmoContactQueryWith
 from common.amocrm.types import AmoContact, AmoLead
+from common.utils import partition_list
 from pytz import UTC
 
 from ..constants import UserStatus, UserType
@@ -34,6 +35,7 @@ class CheckUniqueServiceV2(BaseUserService):
         check_term_repo: Type[CheckTermRepo],
         amocrm_class: Type[AmoCRM],
         agent_repo: Type[UserAgentRepo],
+        amocrm_config: dict[Any, Any],
         orm_class: Optional[Type[UserORM]] = None,
         orm_config: Optional[dict[str, Any]] = None,
     ) -> None:
@@ -41,6 +43,7 @@ class CheckUniqueServiceV2(BaseUserService):
         self.check_repo: CheckRepo = check_repo()
         self.agent_repo: UserAgentRepo = agent_repo()
         self.check_term_repo: CheckTermRepo = check_term_repo()
+        self.partition_limit: int = amocrm_config["partition_limit"]
 
         self.amocrm_class: Type[AmoCRM] = amocrm_class
 
@@ -136,10 +139,12 @@ class CheckUniqueServiceV2(BaseUserService):
         Если хотя бы одна сделка не уникальна - пропускаем все сделки, возвращаем False
         """
         is_unique: UserStatus = UserStatus.UNIQUE
-        for lead_id in leads:
-            lead: Optional[AmoLead] = await amocrm.fetch_lead(lead_id=lead_id)
-            if not lead:
-                continue
+
+        amo_leads = []
+        for amo_lead_ids in partition_list(leads, self.partition_limit):
+            amo_leads.extend(await amocrm.fetch_leads(lead_ids=amo_lead_ids))
+
+        for lead in amo_leads:
             is_unique: UserStatus = await self._check_lead_status(lead)
             if is_unique in [UserStatus.NOT_UNIQUE, UserStatus.CAN_DISPUTE]:
                 return is_unique

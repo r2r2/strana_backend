@@ -50,22 +50,6 @@ async def confirm_email_view(
     return RedirectResponse(url=await confirm_email(token=token, email_token=email_token))
 
 
-@router.post("/email_reset", status_code=HTTPStatus.NO_CONTENT)
-async def email_reset_view(payload: models.RequestEmailResetModel = Body(...)):
-    """
-    Ссылка для сброса пароля
-    """
-    resources: dict[str, Any] = dict(
-        site_config=site_config,
-        email_class=email.EmailService,
-        admin_repo=admins_repos.AdminRepo,
-        user_type=users_constants.UserType.ADMIN,
-        token_creator=security.create_email_token,
-    )
-    email_reset: use_cases.EmailResetCase = use_cases.EmailResetCase(**resources)
-    return await email_reset(payload=payload)
-
-
 @router.get("/reset_password", status_code=HTTPStatus.PERMANENT_REDIRECT)
 async def reset_password_view(
     request: Request, token: str = Query(..., alias="q"), discard_token: str = Query(..., alias="p")

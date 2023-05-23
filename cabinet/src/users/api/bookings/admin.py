@@ -73,7 +73,7 @@ async def admins_bookings_lookup_view(
     "/admin/bookings",
     status_code=HTTPStatus.OK,
     response_model=models.ResponseBookingsUsersListModel,
-    # dependencies=[Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.ADMIN))],
+    dependencies=[Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.ADMIN))],
 )
 async def admins_bookings_list_view(
     init_filters: dict[str, Any] = Depends(filters.BookingUserFilter.filterize),
@@ -103,41 +103,46 @@ async def admins_booking_retrieve_view(
     booking_id: int = Path(...),
 ):
     from fastapi import HTTPException
+    from datetime import datetime, timedelta
+    from pytz import UTC
+    from tortoise import Tortoise
+    from config import tortoise_config
     from src.task_management import repos as task_management_repos
-    from src.task_management import services as task_management_services
-    from src.task_management.constants import PaidBookingSlug
-    from src.agencies import repos as agencies_repos
-    from common.amocrm import AmoCRM
-    from src.agencies.services import CreateOrganizationService
+    from src.task_management import services
+    from src.task_management.constants import PackageOfDocumentsSlug
+    from common import amocrm
+    from src.questionnaire import repos as questionnaire_repos
+    # from src.agents import use_cases
+
 
     # resources: dict[str, Any] = dict(
-    #     amocrm_class=AmoCRM, agency_repo=agencies_repos.AgencyRepo
+    #     orm_class=Tortoise,
+    #     orm_config=tortoise_config,
+    #     task_instance_repo=task_management_repos.TaskInstanceRepo,
+    #     task_status_repo=task_management_repos.TaskStatusRepo,
+    #     booking_repo=booking_repos.BookingRepo,
     # )
-    # create_organization_service: CreateOrganizationService = (
-    #     CreateOrganizationService(**resources)
+    # update_status_service: services.UpdateTaskInstanceStatusService = services.UpdateTaskInstanceStatusService(
+    #     **resources
     # )
-    # await create_organization_service(agency_id=257)
+    # status_slug = PackageOfDocumentsSlug.CHECK.value
+    # await update_status_service(booking_id=booking_id, status_slug=status_slug)
+
+    # resources: dict[str, Any] = dict(
+    #     booking_repo=booking_repos.BookingRepo,
+    #     upload_document_repo=questionnaire_repos.QuestionnaireUploadDocumentRepo,
+    #     amocrm_class=amocrm.AmoCRM,
+    #     update_task_instance_status_service=update_status_service,
+    # )
+    # send_upload_documents: use_cases.SendUploadDocumentsCase = use_cases.SendUploadDocumentsCase(**resources)
+    # await send_upload_documents(booking_id=booking_id)
+    # booking = await booking_repos.BookingRepo().retrieve(
+    #     filters=dict(id=6490),
+    #     related_fields=['user']
+    # )
+    # print(f'{(booking.expires - datetime.now(tz=UTC) - timedelta(seconds=10)).seconds=}')
     #
-    # resources: dict[str, Any] = dict(
-    #     task_instance_repo=task_management_repos.TaskInstanceRepo,
-    #     task_status_repo=task_management_repos.TaskStatusRepo,
-    #     task_chain_repo=task_management_repos.TaskChainRepo,
-    #     booking_repo=booking_repos.BookingRepo,
-    # )
-    # create_task_instance_service = task_management_services.CreateTaskInstanceService(
-    #     **resources
-    # )
-    # await create_task_instance_service(booking_ids=[booking_id])
-    # resources: dict[str, Any] = dict(
-    #     task_instance_repo=task_management_repos.TaskInstanceRepo,
-    #     task_status_repo=task_management_repos.TaskStatusRepo,
-    #     booking_repo=booking_repos.BookingRepo,
-    # )
-    # update_task_instance_status_service = task_management_services.UpdateTaskInstanceStatusService(
-    #     **resources
-    # )
-    # await update_task_instance_status_service(booking_id=booking_id, status_slug=PaidBookingSlug.RE_BOOKING.value)
-    raise HTTPException(status_code=418, detail="I'm a teapot")
+    # raise HTTPException(status_code=HTTPStatus.IM_A_TEAPOT, detail="I'm a teapot")
     """
     Карточка бронирования для админа
     """

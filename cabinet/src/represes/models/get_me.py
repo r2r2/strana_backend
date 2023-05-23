@@ -36,6 +36,10 @@ class ResponseUserInfoBaseModel(BaseRepresModel):
     name: Optional[str]
     surname: Optional[str]
     patronymic: Optional[str]
+    agency: Optional[_AgencyRetrieveModel]
+
+    class Config:
+        orm_mode = True
 
 
 class ResponseGetMeModel(BaseRepresModel):

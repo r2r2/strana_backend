@@ -1,8 +1,8 @@
 from pydantic import EmailStr
-from ..entities import BaseAgentModel
+from ..entities import BaseUserModel
 
 
-class RequestEmailResetModel(BaseAgentModel):
+class RequestEmailResetModel(BaseUserModel):
     """
     Модель запроса письма сброса пароля
     """
@@ -13,7 +13,7 @@ class RequestEmailResetModel(BaseAgentModel):
         orm_mode = True
 
 
-class ResponseEmailResetModel(BaseAgentModel):
+class ResponseEmailResetModel(BaseUserModel):
     """
     Модель ответа письма сброса пароля
     """

@@ -68,7 +68,7 @@ class UpdatePersonalCase(BaseUserCase):
                 user_email=user.email,
                 user_id=user.amocrm_id,
                 user_birth_date=user.birth_date,
-                user_name=f"{user.name} {user.patronymic} {user.surname}",
+                user_name=f"{user.surname} {user.name} {user.patronymic}",
                 user_passport=f"{user.passport_series} {user.passport_number}",
             )
             await amocrm.update_contact(**contact_options)
