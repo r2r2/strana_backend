@@ -76,7 +76,7 @@ class CabinetUser(models.Model):
     agent = models.ForeignKey("self", models.DO_NOTHING, blank=True, null=True)
     work_start = models.DateField(blank=True, null=True)
     interested_project = models.ForeignKey(
-        "projects.Project", models.DO_NOTHING, blank=True, null=True
+        "projects.Project", models.DO_NOTHING, blank=True, null=True, verbose_name="Интересующий проект"
     )
     interested_type = models.CharField(max_length=20, blank=True, null=True)
     is_brokers_client = models.BooleanField()
@@ -87,7 +87,7 @@ class CabinetUser(models.Model):
         help_text="При отмеченном флаге, если пользователь имеет роль 'Администратор', он будет получать письма администратора на указанный Email"
     )
     sms_send = models.BooleanField(verbose_name="СМС отправлено", default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
     auth_first_at = models.DateTimeField(verbose_name="Дата первой авторизации", blank=True, null=True)
     interested_sub = models.BooleanField(verbose_name="Подписка на избранное", default=False)
     assignation_comment = models.TextField(verbose_name="Комментарий при закреплении клиента", null=True, blank=True)

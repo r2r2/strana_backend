@@ -7,10 +7,10 @@ from ..models import AmocrmAction
 @admin.register(AmocrmAction)
 class ActionsAdmin(admin.ModelAdmin):
     list_display = ("name", "slug", "role",)
-    filter_horizontal = ("statuses",)
+    filter_horizontal = ("group_statuses",)
 
     def formfield_for_manytomany(self, db_field, request, **kwargs):
-        if db_field.name == "statuses":
+        if db_field.name == "group_statuses":
             kwargs['widget'] = FilteredSelectMultiple(
                 db_field.verbose_name, is_stacked=False
             )

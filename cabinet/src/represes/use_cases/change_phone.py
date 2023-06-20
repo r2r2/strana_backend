@@ -1,6 +1,8 @@
 from asyncio import Task
 from secrets import token_urlsafe
-from typing import Type, Callable, Union, Any
+from typing import Any, Callable, Type, Union
+
+from src.notifications.services import GetSmsTemplateService
 
 from ..entities import BaseRepresCase
 from ..repos import RepresRepo, User
@@ -12,7 +14,7 @@ class ChangePhoneCase(BaseRepresCase):
     Смена телефона
     """
 
-    template: str = "Для подтверждения номера телефона перейдите по ссылке {confirm_link} . "
+    sms_event_slug = "repres_change_phone_old"
     link: str = "https://{}/confirm/represes/confirm_phone?q={}&p={}"
 
     fail_link: str = "https://{}/account/represes"
@@ -26,12 +28,14 @@ class ChangePhoneCase(BaseRepresCase):
         sms_class: Type[RepresRepo],
         token_creator: Callable[[int], str],
         token_decoder: Callable[[str], Union[int, None]],
+        get_sms_template_service: GetSmsTemplateService,
     ) -> None:
         self.repres_repo: RepresRepo = repres_repo()
 
         self.sms_class: Type[RepresRepo] = sms_class
         self.token_creator: Callable[[int], str] = token_creator
         self.token_decoder: Callable[[str], Union[int, None]] = token_decoder
+        self.get_sms_template_service: GetSmsTemplateService = get_sms_template_service
 
         self.user_type: str = user_type
         self.lk_site_host: str = site_config["lk_site_host"]
@@ -66,8 +70,20 @@ class ChangePhoneCase(BaseRepresCase):
         return link
 
     async def _send_sms(self, repres: User, token: str) -> Task:
-        confirm_link: str = self.link.format(self.lk_site_host, token, repres.change_phone_token)
-        message: str = self.template.format(confirm_link=confirm_link)
-        sms_options: dict[str, Any] = dict(phone=repres.phone, message=message)
-        sms_service: RepresSms = self.sms_class(**sms_options)
-        return sms_service.as_task()
+        sms_notification_template = await self.get_sms_template_service(
+            sms_event_slug=self.sms_event_slug,
+        )
+
+        if sms_notification_template and sms_notification_template.is_active:
+            confirm_link: str = self.link.format(self.lk_site_host, token, repres.change_phone_token)
+            message: str = sms_notification_template.template_text.format(
+                confirm_link=confirm_link,
+            )
+            sms_options: dict[str, Any] = dict(
+                phone=repres.phone,
+                message=message,
+                k_type=sms_notification_template.lk_type.value,
+                sms_event_slug=sms_notification_template.sms_event_slug,
+            )
+            sms_service: RepresSms = self.sms_class(**sms_options)
+            return sms_service.as_task()

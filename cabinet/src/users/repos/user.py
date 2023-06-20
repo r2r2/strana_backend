@@ -200,6 +200,7 @@ class User(Model):
 
     users_checks: fields.ReverseRelation["Check"]
     bookings: fields.ReverseRelation["Booking"]
+    users_pinning_status: fields.ReverseRelation["UserPinningStatus"]
     agent_confirm_client_assign: fields.ReverseRelation["ConfirmClientAssign"]
     client_confirm_client_assign: fields.ReverseRelation["ConfirmClientAssign"]
     agency_id: Optional[int]
@@ -226,7 +227,7 @@ class User(Model):
         full_name: str = f"{self.surname} {self.name} "
         if self.patronymic:
             full_name += f"{self.patronymic}"
-        return full_name
+        return full_name.strip()
 
     @property
     def is_fired(self) -> Optional[bool]:

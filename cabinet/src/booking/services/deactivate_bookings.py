@@ -41,6 +41,8 @@ class DeactivateBookingsService(BaseBookingsService):
             stages_valid=stages_valid,
             amocrm_id=booking.amocrm_id,
         )
+        if self.check_pinning is not None:
+            self.check_pinning.as_task(user_id=booking.user_id)
 
     async def _backend_unbooking(self, booking: Booking) -> bool:
         """

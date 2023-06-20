@@ -1,8 +1,8 @@
 from datetime import datetime, date
 from decimal import Decimal
-from typing import Optional, Literal, Awaitable
+from typing import Optional, Literal, Awaitable, Any
 
-from pydantic import validator, constr
+from pydantic import validator, constr, root_validator
 
 from common.files.models import FileCategoryListModel
 
@@ -12,6 +12,7 @@ from src.agencies.models import AgencyRetrieveModel
 from ..constants import (
     BookingStages,
     BookingSubstages,
+    BookingCreatedSources,
     MaritalStatus,
     PaymentMethods,
     RelationStatus,
@@ -27,7 +28,13 @@ class _BookingProjectRetrieveModel(BaseBookingModel):
 
     name: Optional[str]
     slug: Optional[str]
-    city: Optional[str]
+    city: Optional[Any]
+
+    @root_validator
+    def validate_city(cls, values: dict[str, Any]) -> dict[str, Any]:
+        city = values.pop('city', None)
+        values['city'] = city.slug if city else None
+        return values
 
     class Config:
         orm_mode = True
@@ -159,6 +166,7 @@ class ResponseBookingRetrieveModel(BaseBookingModel):
     mortgage_request_id: Optional[int]
     ddu_id: Optional[int]
     signing_date: Optional[date]
+    created_source: Optional[BookingCreatedSources.serializer]
 
     files: Optional[list[FileCategoryListModel]]
 

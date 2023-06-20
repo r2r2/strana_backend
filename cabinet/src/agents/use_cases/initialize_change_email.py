@@ -6,12 +6,15 @@ from ..types import AgentEmail
 from ..repos import AgentRepo, User
 from ..models import RequestInitializeChangeEmail
 from ..exceptions import AgentNotFoundError, AgentEmailTakenError
+from src.notifications.services import GetEmailTemplateService
 
 
 class InitializeChangeEmailCase(BaseProceedEmailChanges):
     """
     Обновление почты агентом
     """
+
+    mail_event_slug: str = "agent_change_email"
 
     def __init__(
         self,
@@ -20,12 +23,14 @@ class InitializeChangeEmailCase(BaseProceedEmailChanges):
         site_config: dict[str, Any],
         email_class: Type[AgentEmail],
         token_creator: Callable[[int], str],
+        get_email_template_service: GetEmailTemplateService,
     ) -> None:
         self.agent_repo: AgentRepo = agent_repo()
         self.user_type: str = user_type
         self.email_class: Type[AgentEmail] = email_class
         self.token_creator: Callable[[int], str] = token_creator
         self.site_host: str = site_config["site_host"]
+        self.get_email_template_service: GetEmailTemplateService = get_email_template_service
 
     async def __call__(self, agent_id: int, payload: RequestInitializeChangeEmail) -> User:
         email = payload.email

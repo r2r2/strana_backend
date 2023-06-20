@@ -7,10 +7,10 @@ from src.booking.constants import BookingSubstages
 from src.amocrm.repos import AmocrmStatusRepo, AmocrmStatus
 from src.users.repos import UserRepo, User
 from src.users.exceptions import UserNotFoundError
+from ..constants import MeetingTopicType
 from ..repos import Meeting, MeetingRepo
 from ..entities import BaseMeetingCase
 from ..models import RequestCreateMeetingModel
-from ..constants import MeetingType
 
 
 class CreateMeetingCase(BaseMeetingCase):
@@ -44,12 +44,12 @@ class CreateMeetingCase(BaseMeetingCase):
             city_id=payload.city_id,
             project_id=payload.project_id,
             type=payload.type,
-            topic=payload.topic,
+            topic=MeetingTopicType.BUY,
             date=payload.date,
             property_type=property_type,
         )
 
-        prefetch_fields: list[str] = ["project", "city"]
+        prefetch_fields: list[str] = ["project", "project__city", "city"]
         created_meeting: Meeting = await self.meeting_repo.create(data=meeting_data)
         await created_meeting.fetch_related(*prefetch_fields)
 
@@ -67,20 +67,19 @@ class CreateMeetingCase(BaseMeetingCase):
         )
 
         if project := created_meeting.project:
-            amo_pipeline_id: int = project.amo_pipeline_id if payload.type == MeetingType.ONLINE else self.amocrm_class.showtime_pipeline_id
             amocrm_status: AmocrmStatus = await self.amocrm_status_repo.retrieve(
                 filters=dict(
-                    pipeline_id=amo_pipeline_id,
+                    pipeline_id=project.amo_pipeline_id,
                     name__icontains="Назначить встречу"
                 )
             )
             project_data: dict = dict(
                 status_id=amocrm_status.id,
-                city_slug=project.city,
+                city_slug=project.city.slug,
                 project_amocrm_name=project.amocrm_name,
                 project_amocrm_enum=project.amocrm_enum,
                 project_amocrm_organization=project.amocrm_organization,
-                project_amocrm_pipeline_id=amo_pipeline_id,
+                project_amocrm_pipeline_id=project.amo_pipeline_id,
                 project_amocrm_responsible_user_id=project.amo_responsible_user_id,
             )
             amo_data.update(project_data)
@@ -91,7 +90,16 @@ class CreateMeetingCase(BaseMeetingCase):
             )
         async with await self.amocrm_class() as amocrm:
             lead: list[AmoLead] = await amocrm.create_lead(**amo_data)
-            booking_data.update(amocrm_id=lead[0].id)
+            booking_data.update(
+                amocrm_id=lead[0].id,
+                user_id=user.id,
+            )
+
+            amo_notes: str = f"Время встречи: {created_meeting.date.strftime('%Y-%m-%d %H:%M')}"
+            await amocrm.send_lead_note(
+                lead_id=lead[0].id,
+                message=amo_notes,
+            )
 
         booking: Booking = await self.booking_repo.create(data=booking_data)
         await self.meeting_repo.update(model=created_meeting, data=dict(booking_id=booking.id))

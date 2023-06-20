@@ -22,8 +22,7 @@ def amocrm_sms_maintenance(amocrm_sms_webhook):
 
     @wraps(amocrm_sms_webhook)
     async def wrapper_sms(self, amocrm_id: int):
-        logger.info(
-            f" AMOCRM sms maintenance PAYLOAD: payload={amocrm_id} ")
+        logger.info(f" AMOCRM sms maintenance PAYLOAD: payload={amocrm_id} ")
         amocrm_class = AmoCRM
         async with await amocrm_class() as amocrm:
             webhook_lead: Optional[AmoLead] = await amocrm.fetch_lead(lead_id=amocrm_id,
@@ -32,7 +31,7 @@ def amocrm_sms_maintenance(amocrm_sms_webhook):
             logger.info(
                 f"[{datetime.now(tz=pytz.UTC)}] AMOCRM sms maintenance lead_id NOT FOUND: lead_id={webhook_lead} ")
             raise BookingNotFoundError
-        tags = webhook_lead.embedded.tags
+        tags = [tag.id for tag in webhook_lead.embedded.tags]
         logger.info(f"[{datetime.now(tz=pytz.UTC)}] AMOCRM sms maintenance: amocrm_id={amocrm_id} tags={tags}")
         if maintenance_settings["environment"] == EnvTypes.DEV:
             if AmoCRM.fast_booking_tag_id in tags and AmoCRM.dev_booking_tag_id not in tags:

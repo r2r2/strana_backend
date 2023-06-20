@@ -101,6 +101,7 @@ class _BookingListModel(BaseBookingModel):
     amocrm_stage: Optional[BookingStages.serializer]
     amocrm_substage: Optional[BookingSubstages.serializer]
     final_payment_amount: Optional[Decimal]
+    payment_amount: Optional[Decimal]
 
     agent: Optional[AgentRetrieveModel]
     agency: Optional[AgencyRetrieveModel]

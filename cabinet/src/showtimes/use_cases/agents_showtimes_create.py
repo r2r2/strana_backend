@@ -10,6 +10,7 @@ from ..models import RequestAgentsShowtimesCreateModel
 from ..repos import ShowTimeRepo, ShowTime
 from ..services import CreateShowTimeService
 from ..types import ShowTimeUserRepo, ShowTimeUser, ShowTimeEmail, ShowTimeAgentRepo, ShowTimeProject, ShowTimeProjectRepo
+from src.notifications.services import GetEmailTemplateService
 
 
 class AgentsShowtimesCreateCase(BaseShowTimeCase):
@@ -19,7 +20,7 @@ class AgentsShowtimesCreateCase(BaseShowTimeCase):
     eduard_email: str = "eduard.yarkaev@strana.com"
     regina_email: str = "regina.ramazanova@strana.com"
 
-    template: str = "/app/src/showtimes/templates/showtime_email.html"
+    mail_event_slug = "showtime"
 
     def __init__(
         self,
@@ -29,7 +30,8 @@ class AgentsShowtimesCreateCase(BaseShowTimeCase):
         showtime_repo: Type[ShowTimeRepo],
         project_repo: Type[ShowTimeProjectRepo],
         agent_repo: Type[ShowTimeAgentRepo],
-        create_showtime_service: CreateShowTimeService
+        create_showtime_service: CreateShowTimeService,
+        get_email_template_service: GetEmailTemplateService,
     ):
         self.user_repo: ShowTimeUserRepo = user_repo()
         self.agent_repo: ShowTimeAgentRepo = agent_repo()
@@ -39,6 +41,7 @@ class AgentsShowtimesCreateCase(BaseShowTimeCase):
         self.user_types: Any = user_types
         self.email_class: ShowTimeEmail = email_class
         self.create_showtime_service: CreateShowTimeService = create_showtime_service
+        self.get_email_template_service = get_email_template_service
 
     async def __call__(self, agent_id: int, payload: RequestAgentsShowtimesCreateModel) -> ShowTime:
         data: dict[str, Any] = payload.dict()
@@ -74,35 +77,56 @@ class AgentsShowtimesCreateCase(BaseShowTimeCase):
     async def _send_client_email(
         self, client: ShowTimeUser, agent: ShowTimeUser, date: datetime, project: ShowTimeProject
     ) -> Task:
-        email_options: dict[str, Any] = dict(
-            topic="Запись на показ",
-            template=self.template,
+        email_notification_template = await self.get_email_template_service(
+            mail_event_slug=self.mail_event_slug,
             context=dict(content=None, agent=agent, date=date, project=project),
-            recipients=[client.email],
         )
-        email_service: ShowTimeEmail = self.email_class(**email_options)
-        return email_service.as_task()
+
+        if email_notification_template and email_notification_template.is_active:
+            email_options: dict[str, Any] = dict(
+                topic=email_notification_template.template_topic,
+                content=email_notification_template.content,
+                recipients=[client.email],
+                lk_type=email_notification_template.lk_type.value,
+                mail_event_slug=email_notification_template.mail_event_slug,
+            )
+            email_service: ShowTimeEmail = self.email_class(**email_options)
+            return email_service.as_task()
 
     async def _send_agent_email(
         self, client: ShowTimeUser, agent: ShowTimeUser, date: datetime, project: ShowTimeProject
     ) -> Task:
-        email_options: dict[str, Any] = dict(
-            topic="Запись на показ",
-            template=self.template,
+        email_notification_template = await self.get_email_template_service(
+            mail_event_slug=self.mail_event_slug,
             context=dict(content=None, client=client, date=date, project=project),
-            recipients=[agent.email],
         )
-        email_service: ShowTimeEmail = self.email_class(**email_options)
-        return email_service.as_task()
+
+        if email_notification_template and email_notification_template.is_active:
+            email_options: dict[str, Any] = dict(
+                topic=email_notification_template.template_topic,
+                content=email_notification_template.content,
+                recipients=[agent.email],
+                lk_type=email_notification_template.lk_type.value,
+                mail_event_slug=email_notification_template.mail_event_slug,
+            )
+            email_service: ShowTimeEmail = self.email_class(**email_options)
+            return email_service.as_task()
 
     async def _send_strana_emails(
         self, client: ShowTimeUser, agent: ShowTimeUser, date: datetime, project: ShowTimeProject
     ) -> Task:
-        email_options: dict[str, Any] = dict(
-            topic="Запись на показ",
-            template=self.template,
+        email_notification_template = await self.get_email_template_service(
+            mail_event_slug=self.mail_event_slug,
             context=dict(content=None, client=client, agent=agent, date=date, project=project),
-            recipients=[self.eduard_email, self.regina_email],
         )
-        email_service: ShowTimeEmail = self.email_class(**email_options)
-        return email_service.as_task()
+
+        if email_notification_template and email_notification_template.is_active:
+            email_options: dict[str, Any] = dict(
+                topic=email_notification_template.template_topic,
+                content=email_notification_template.content,
+                recipients=[self.eduard_email, self.regina_email],
+                lk_type=email_notification_template.lk_type.value,
+                mail_event_slug=email_notification_template.mail_event_slug,
+            )
+            email_service: ShowTimeEmail = self.email_class(**email_options)
+            return email_service.as_task()

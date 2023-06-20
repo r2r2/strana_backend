@@ -83,7 +83,7 @@ class ActivateBookingService(BaseBookingService, BookingLogMixin):
     async def __call__(self, booking: Booking, amocrm_substage: str) -> Booking:
         booking: Booking = await self.booking_repo.retrieve(
             filters=dict(id=booking.id),
-            related_fields=["property", "project", "user"]
+            related_fields=["property", "project", "project__city", "user"]
         )
         data: dict[str] = dict(active=True, should_be_deactivated_by_timer=True)
         booking = await self.booking_update(booking, data=data)
@@ -146,7 +146,7 @@ class ActivateBookingService(BaseBookingService, BookingLogMixin):
                 lead_options: dict[str, Any] = dict(
                     status=BookingSubstages.BOOKING,
                     lead_id=booking.amocrm_id,
-                    city_slug=booking.project.city,
+                    city_slug=booking.project.city.slug,
                 )
                 data: list[Any] = await amocrm.update_lead(**lead_options)
                 lead_id: int = data[0]["id"]
@@ -161,7 +161,7 @@ class ActivateBookingService(BaseBookingService, BookingLogMixin):
                 lead_options: dict[str, Any] = dict(
                     status=BookingSubstages.START,
                     tags=booking.tags,
-                    city_slug=booking.project.city,
+                    city_slug=booking.project.city.slug,
                     property_type=booking.property.type.value.lower(),
                     user_amocrm_id=booking.user.amocrm_id,
                     project_amocrm_name=booking.project.amocrm_name,
@@ -184,7 +184,7 @@ class ActivateBookingService(BaseBookingService, BookingLogMixin):
                 )
                 self.create_amocrm_log_task.delay(note_data=note_data)
                 lead_options: dict[str, Any] = dict(
-                    status=BookingSubstages.BOOKING, lead_id=lead_id, city_slug=booking.project.city
+                    status=BookingSubstages.BOOKING, lead_id=lead_id, city_slug=booking.project.city.slug
                 )
                 data: list[Any] = await amocrm.update_lead(**lead_options)
                 lead_id: int = data[0]["id"]

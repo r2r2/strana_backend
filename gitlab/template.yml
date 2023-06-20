@@ -1,0 +1,43 @@
+.docker_login_template:
+  before_script:
+    - docker login $CI_REGISTRY -u'strana-registry-token' -p$REGISTRY_TOKEN
+
+.before_script_configure_ssh_development:
+  - '[[ ! -d /root/.ssh ]] && mkdir /root/.ssh && chmod 700 /root/.ssh'
+  - '[[ -f /.dockerenv ]] && echo -e "Host *\\n\\tStrictHostKeyChecking no\\n\\n" > ~/.ssh/config'
+  - 'which ssh-agent || ( apk --update add openssh-client )'
+  - echo "$SSH_DEPLOY_KEY_SBER_DEV" | tr -d '\r' > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+  - eval "$(ssh-agent -s)"
+  - ssh-add /root/.ssh/id_rsa
+  - ssh-keyscan -p22 -t rsa 141.101.201.168 >> /root/.ssh/known_hosts
+  - chmod 644 ~/.ssh/known_hosts
+
+.before_script_configure_ssh_pre_production:
+  - '[[ ! -d /root/.ssh ]] && mkdir /root/.ssh && chmod 700 /root/.ssh'
+  - '[[ -f /.dockerenv ]] && echo -e "Host *\\n\\tStrictHostKeyChecking no\\n\\n" > ~/.ssh/config'
+  - 'which ssh-agent || ( apk --update add openssh-client )'
+  - echo "$SSH_DEPLOY_KEY_SBER_DEV" | tr -d '\r' > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+  - eval "$(ssh-agent -s)"
+  - ssh-add /root/.ssh/id_rsa
+  - ssh-keyscan -p22 -t rsa 141.101.201.167 >> /root/.ssh/known_hosts
+  - chmod 644 ~/.ssh/known_hosts
+
+.before_script_configure_ssh_production_yandex:
+  - '[[ ! -d /root/.ssh ]] && mkdir /root/.ssh && chmod 700 /root/.ssh'
+  - '[[ -f /.dockerenv ]] && echo -e "Host *\\n\\tStrictHostKeyChecking no\\n\\n" > ~/.ssh/config'
+  - 'which ssh-agent || ( apk --update add openssh-client )'
+  - echo "$SSH_PRIVATE_KEY_FRONT_PROD" | tr -d '\r' > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+  - eval "$(ssh-agent -s)"
+  - ssh-add /root/.ssh/id_rsa
+  - ssh-keyscan -p22 -t rsa 51.250.40.140 >> /root/.ssh/known_hosts
+  - chmod 644 ~/.ssh/known_hosts
+
+.before_script_configure_ssh_production_sber:
+  - '[[ ! -d /root/.ssh ]] && mkdir /root/.ssh && chmod 700 /root/.ssh'
+  - '[[ -f /.dockerenv ]] && echo -e "Host *\\n\\tStrictHostKeyChecking no\\n\\n" > ~/.ssh/config'
+  - 'which ssh-agent || ( apk --update add openssh-client )'
+  - echo "$SSH_PRIVATE_KEY_FRONT_PROD" | tr -d '\r' > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+  - eval "$(ssh-agent -s)"
+  - ssh-add /root/.ssh/id_rsa
+  - ssh-keyscan -p22 -t rsa 141.101.201.120 >> /root/.ssh/known_hosts
+  - chmod 644 ~/.ssh/known_hosts

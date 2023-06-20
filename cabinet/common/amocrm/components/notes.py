@@ -2,6 +2,8 @@ from abc import ABC
 from datetime import datetime
 from typing import Any
 
+import structlog
+
 from common.amocrm.components.interface import AmoCRMInterface
 from pytz import UTC
 
@@ -12,7 +14,7 @@ class AmoCRMNotes(AmoCRMInterface, ABC):
     """
     AmoCRM notes integration
     """
-
+    logger = structlog.get_logger(__name__)
     element_types_mapping: dict[str, int] = {
         "task": 4,
         "lead": 2,
@@ -65,16 +67,13 @@ class AmoCRMNotes(AmoCRMInterface, ABC):
         payload = [dict(note_type="common", params=dict(text=message))]
         response: CommonResponse = await self._request_post_v4(route=route, payload=payload)
         if response.data:
-            data: list[Any] = response.data["_embedded"]["notes"]
-        else:
-            data: list[Any] = []
-        return data
+            self.logger.info(f"Lead note sent: {response.data}")
 
     async def send_contact_note(
         self,
         contact_id: int,
         message: str,
-    ):
+    ) -> None:
         """
         Добавление комментария при закреплении клиента
         """
@@ -82,7 +81,4 @@ class AmoCRMNotes(AmoCRMInterface, ABC):
         payload = [dict(note_type="common", params=dict(text=message))]
         response: CommonResponse = await self._request_post_v4(route=route, payload=payload)
         if response.data:
-            data: list[Any] = response.data["_embedded"]["notes"]
-        else:
-            data: list[Any] = []
-        return data
+            self.logger.info(f"Contact note sent: {response.data}")

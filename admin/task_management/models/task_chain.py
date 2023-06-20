@@ -9,6 +9,7 @@ class TaskChain(BaseTaskManagementModel):
     """
 
     name: str = models.CharField(max_length=100, verbose_name='Название')
+    sensei_pid: int = models.IntegerField(verbose_name='ID процесса в Sensei', null=True, blank=True)
     booking_substage: models.ManyToManyField = models.ManyToManyField(
         to='amocrm.AmocrmStatus',
         verbose_name='Статус сделки',

@@ -6,7 +6,7 @@ from tortoise import Tortoise
 from common import amocrm, profitbase, requests, utils, email, messages, security
 from common.amocrm import repos as amo_repos
 from common.backend import repos as backend_repos
-from config import amocrm_config, backend_config, celery, tortoise_config
+from config import amocrm_config, backend_config, celery, tortoise_config, site_config
 from src.agents import repos as agents_repos
 from src.booking import loggers
 from src.booking import repos as booking_repos
@@ -22,7 +22,10 @@ from src.task_management import repos as task_management_repos
 from src.task_management import services as task_management_services
 from src.users import constants as users_constants
 from src.users import repos as users_repos
+from src.users import services as user_services
 from src.amocrm.repos import AmocrmStatusRepo
+from src.notifications import services as notification_services
+from src.notifications import repos as notification_repos
 
 
 @celery.app.task
@@ -73,6 +76,10 @@ def check_booking_task(booking_id: int, status: Optional[str] = None) -> None:
     update_task_instance_status_service = task_management_services.UpdateTaskInstanceStatusService(
         **resources
     )
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notification_repos.EmailTemplateRepo,
+        )
     resources: dict[str, Any] = dict(
         orm_class=Tortoise,
         orm_config=tortoise_config,
@@ -87,6 +94,7 @@ def check_booking_task(booking_id: int, status: Optional[str] = None) -> None:
         create_booking_log_task=create_booking_log_task,
         update_task_instance_status_service=update_task_instance_status_service,
         email_class=email.EmailService,
+        get_email_template_service=get_email_template_service,
     )
     check_booking: services.CheckBookingService = services.CheckBookingService(**resources)
     loop: Any = get_event_loop()
@@ -135,6 +143,15 @@ def import_bookings_task(user_id: int) -> None:
         backend_sections_repo=backend_repos.BackendSectionsRepo,
     )
     resources: dict[str, Any] = dict(
+        amocrm_class=amocrm.AmoCRM,
+        user_repo=users_repos.UserRepo,
+        check_pinning_repo=users_repos.PinningStatusRepo,
+        user_pinning_repo=users_repos.UserPinningStatusRepo,
+        amocrm_config=amocrm_config,
+    )
+    check_pinning: user_services.CheckPinningStatusService = user_services.CheckPinningStatusService(**resources)
+
+    resources: dict[str, Any] = dict(
         orm_class=Tortoise,
         orm_config=tortoise_config,
         amocrm_class=amocrm.AmoCRM,
@@ -153,6 +170,7 @@ def import_bookings_task(user_id: int) -> None:
         import_property_service=import_property_service,
         statuses_repo=amo_repos.AmoStatusesRepo,
         amocrm_config=amocrm_config,
+        check_pinning=check_pinning,
     )
     import_bookings_service = services.ImportBookingsService(**resources)
     loop: Any = get_event_loop()
@@ -166,6 +184,15 @@ def update_bookings_task() -> None:
     """
     Обновление существующих бронирований
     """
+    resources: dict[str, Any] = dict(
+        amocrm_class=amocrm.AmoCRM,
+        user_repo=users_repos.UserRepo,
+        check_pinning_repo=users_repos.PinningStatusRepo,
+        user_pinning_repo=users_repos.UserPinningStatusRepo,
+        amocrm_config=amocrm_config,
+    )
+    check_pinning: user_services.CheckPinningStatusService = user_services.CheckPinningStatusService(**resources)
+
     resources: dict[str, Any] = dict(
         orm_class=Tortoise,
         orm_config=tortoise_config,
@@ -181,6 +208,7 @@ def update_bookings_task() -> None:
         property_repo=properties_repos.PropertyRepo,
         statuses_repo=amo_repos.AmoStatusesRepo,
         cities_repo=cities_repos.CityRepo,
+        check_pinning=check_pinning,
     )
     update_bookings: services.UpdateBookingsService = services.UpdateBookingsService(**resources)
     loop: Any = get_event_loop()
@@ -192,10 +220,20 @@ async def deactivate_bookings_task(booking_data: dict) -> None:
     Деактивация бронирования
     """
     resources: dict[str, Any] = dict(
+        amocrm_class=amocrm.AmoCRM,
+        user_repo=users_repos.UserRepo,
+        check_pinning_repo=users_repos.PinningStatusRepo,
+        user_pinning_repo=users_repos.UserPinningStatusRepo,
+        amocrm_config=amocrm_config,
+    )
+    check_pinning: user_services.CheckPinningStatusService = user_services.CheckPinningStatusService(**resources)
+
+    resources: dict[str, Any] = dict(
         booking_repo=booking_repos.BookingRepo,
         property_repo=properties_repos.PropertyRepo,
         request_class=requests.GraphQLRequest,
-        webhook_request_repo=booking_repos.WebhookRequestRepo
+        webhook_request_repo=booking_repos.WebhookRequestRepo,
+        check_pinning=check_pinning,
     )
     update_bookings: services.DeactivateBookingsService = services.DeactivateBookingsService(**resources)
     await update_bookings(**booking_data)
@@ -206,10 +244,20 @@ async def activate_bookings_task(booking_data: dict) -> None:
     Активация бронирования
     """
     resources: dict[str, Any] = dict(
+        amocrm_class=amocrm.AmoCRM,
+        user_repo=users_repos.UserRepo,
+        check_pinning_repo=users_repos.PinningStatusRepo,
+        user_pinning_repo=users_repos.UserPinningStatusRepo,
+        amocrm_config=amocrm_config,
+    )
+    check_pinning: user_services.CheckPinningStatusService = user_services.CheckPinningStatusService(**resources)
+
+    resources: dict[str, Any] = dict(
         booking_repo=booking_repos.BookingRepo,
         property_repo=properties_repos.PropertyRepo,
         request_class=requests.GraphQLRequest,
-        webhook_request_repo=booking_repos.WebhookRequestRepo
+        webhook_request_repo=booking_repos.WebhookRequestRepo,
+        check_pinning=check_pinning,
     )
     update_bookings: services.ActivateBookingsService = services.ActivateBookingsService(**resources)
     await update_bookings(**booking_data)
@@ -263,6 +311,7 @@ def send_sms_to_msk_client_task(booking_id: int, sms_slug: str) -> None:
         template_repo=notifications_repos.AssignClientTemplateRepo,
         sms_class=messages.SmsService,
         hasher=security.get_hasher,
+        site_config=site_config,
     )
     send_sms_to_msk_client: services.SendSmsToMskClientService = services.SendSmsToMskClientService(
         **resources

@@ -12,7 +12,12 @@ class AmocrmGroupStatus(Model):
     id: int = fields.IntField(description='ID', pk=True)
     name: str = fields.CharField(max_length=150, description='Имя группирующего статуса', null=True)
     sort: int = fields.IntField(description='Приоритет', default=0)
+    color: str = fields.CharField(max_length=40, description='Цвет', null=True)
+    is_final: bool = fields.BooleanField(description="Завершающий статус", default=False)
+    show_reservation_date: bool = fields.BooleanField(description="Выводить дату резерва", default=False)
+    show_booking_date: bool = fields.BooleanField(description="Выводить дату брони", default=False)
 
+    amocrm_actions: fields.ManyToManyRelation["AmocrmAction"]
     statuses: fields.ReverseRelation["AmocrmStatus"]
 
     def __repr__(self):

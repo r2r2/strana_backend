@@ -21,6 +21,8 @@ from src.users import repos as users_repos
 from src.agencies import repos as agencies_repos
 from src.users import services
 from tortoise import Tortoise
+from src.notifications import services as notification_services
+from src.notifications import repos as notification_repos
 
 
 @celery.app.task
@@ -193,6 +195,10 @@ def check_user_interests() -> None:
         backend_sections_repo=backend_repos.BackendSectionsRepo,
         backend_special_offers_repo=backend_repos.BackendSpecialOfferRepo,
     )
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notification_repos.EmailTemplateRepo,
+        )
     resources: dict[str, Any] = dict(
         email_class=email.EmailService,
         user_repo=users_repos.UserRepo,
@@ -202,6 +208,7 @@ def check_user_interests() -> None:
         import_property_service=import_property_service,
         property_repo=properties_repos.PropertyRepo,
         token_creator=security.create_access_token,
+        get_email_template_service=get_email_template_service,
     )
     check_client_interests: services.CheckClientInterestService = services.CheckClientInterestService(**resources)
     loop: Any = get_event_loop()

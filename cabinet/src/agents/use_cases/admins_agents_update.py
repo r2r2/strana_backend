@@ -7,12 +7,16 @@ from ..repos import AgentRepo, User
 from ..models import RequestAdminsAgentsUpdateModel
 from ..exceptions import AgentNotFoundError, AgentPhoneTakenError, AgentEmailTakenError
 from src.users.loggers.wrappers import user_changes_logger
+from src.notifications.services import GetEmailTemplateService, GetSmsTemplateService
 
 
 class AdminsAgentsUpdateCase(BaseProceedPhoneChanges, BaseProceedEmailChanges):
     """
     Обновление агента администратором
     """
+
+    sms_event_slug = "agent_change_phone"
+    mail_event_slug: str = "agent_change_email"
 
     def __init__(
         self,
@@ -22,6 +26,8 @@ class AdminsAgentsUpdateCase(BaseProceedPhoneChanges, BaseProceedEmailChanges):
         site_config: dict[str, Any],
         email_class: Type[AgentEmail],
         token_creator: Callable[[int], str],
+        get_email_template_service: GetEmailTemplateService,
+        get_sms_template_service: GetSmsTemplateService,
     ) -> None:
         self.agent_repo: AgentRepo = agent_repo()
         self.agent_update = user_changes_logger(
@@ -32,6 +38,8 @@ class AdminsAgentsUpdateCase(BaseProceedPhoneChanges, BaseProceedEmailChanges):
         self.sms_class: Type[AgentSms] = sms_class
         self.email_class: Type[AgentEmail] = email_class
         self.token_creator: Callable[[int], str] = token_creator
+        self.get_email_template_service: GetEmailTemplateService = get_email_template_service
+        self.get_sms_template_service: GetSmsTemplateService = get_sms_template_service
 
         self.site_host: str = site_config["site_host"]
 

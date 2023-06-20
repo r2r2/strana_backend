@@ -2,8 +2,9 @@ from typing import Type, Callable, Coroutine, Any, Optional
 
 from aiohttp import ClientSession, TCPConnector
 
-from config import kontur_talk_config, maintenance_settings
 from src.meetings.repos import MeetingRepo, Meeting
+from config import kontur_talk_config, maintenance_settings
+from .decorators import kontur_logged
 from .exceptions import BaseKonturTalkRequestException
 from ..requests import CommonRequest, CommonResponse
 
@@ -44,6 +45,7 @@ class KonturTalkAPI:
             timeout=300,
         )
 
+    @kontur_logged
     async def _request_put(self, data: dict[str, Any], query: dict[str, Any], endpoint: str) -> CommonResponse:
         request_options: dict[str, Any] = self._put_options(data, query, endpoint)
         request_put: Callable[..., Coroutine] = self._request_class(**request_options)

@@ -6,7 +6,7 @@ from common.amocrm.components import AmoCRMAvailableMeetingSlots
 from src.meetings import repos as meeting_repos
 from src.meetings import models, use_cases
 from src.users import repos as user_repo
-from src.users import constants as user_constants
+from src.users import constants as users_constants
 from src.booking import repos as booking_repos
 from src.amocrm import repos as amocrm_repos
 from common import dependencies, paginations, amocrm
@@ -24,13 +24,18 @@ router = APIRouter(prefix="/meetings", tags=["Meeting"])
 async def meeting_list_view(
     statuses: list[str] = Query([], description="Фильтр по статусам", alias='status'),
     pagination: paginations.PagePagination = Depends(dependencies.Pagination()),
+    user_id: int = Depends(
+        dependencies.CurrentUserId(user_type=users_constants.UserType.CLIENT)
+    ),
 ):
     """
     Список встреч
     """
-    resources: dict[str, Any] = dict(meeting_repo=meeting_repos.MeetingRepo)
+    resources: dict[str, Any] = dict(
+        meeting_repo=meeting_repos.MeetingRepo,
+    )
     meetings_list: use_cases.MeetingsListCase = use_cases.MeetingsListCase(**resources)
-    return await meetings_list(statuses=statuses, pagination=pagination)
+    return await meetings_list(statuses=statuses, user_id=user_id, pagination=pagination)
 
 
 @router.get(
@@ -57,7 +62,7 @@ async def available_meeting_slots(
     response_model=models.ResponseCreatedMeetingModel,
 )
 async def meeting_create_view(
-    user_id=Depends(dependencies.CurrentUserId(user_type=user_constants.UserType.CLIENT)),
+    user_id=Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.CLIENT)),
     payload: models.RequestCreateMeetingModel = Body(...),
 ):
     """
@@ -75,7 +80,7 @@ async def meeting_create_view(
 
 
 @router.patch(
-    "{meeting_id}",
+    "/{meeting_id}",
     status_code=status.HTTP_200_OK,
     response_model=models.ResponseUpdateMeetingModel,
     dependencies=[Depends(dependencies.DeletedUserCheck())],
@@ -87,13 +92,18 @@ async def meeting_update_view(
     """
     Изменение встречи
     """
-    resources: dict[str, Any] = dict(meeting_repo=meeting_repos.MeetingRepo)
+    resources: dict[str, Any] = dict(
+        meeting_repo=meeting_repos.MeetingRepo,
+        booking_repo=booking_repos.BookingRepo,
+        amocrm_status_repo=amocrm_repos.AmocrmStatusRepo,
+        amocrm_class=amocrm.AmoCRM,
+    )
     update_meeting: use_cases.UpdateMeetingCase = use_cases.UpdateMeetingCase(**resources)
     return await update_meeting(meeting_id=meeting_id, payload=payload)
 
 
 @router.delete(
-    "{meeting_id}",
+    "/{meeting_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(dependencies.DeletedUserCheck())],
 )
@@ -105,15 +115,3 @@ async def meeting_delete_view(meeting_id: int):
     delete_meeting: use_cases.DeleteMeetingCase = use_cases.DeleteMeetingCase(**resources)
     await delete_meeting(meeting_id=meeting_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@router.post("/confirm", status_code=status.HTTP_201_CREATED)
-async def meeting_confirm_webhook(payload: models.RequestConfirmMeetingModel = Body(...)):
-    """
-    Вебхук подтверждения встречи для AMOCRM
-    """
-    resources: dict[str, Any] = dict(meeting_repo=meeting_repos.MeetingRepo)
-    confirm_meeting: use_cases.ConfirmMeetingCase = use_cases.ConfirmMeetingCase(**resources)
-    await confirm_meeting(date=payload.date, meeting_id=payload.amocrm_id)
-    return Response(status_code=status.HTTP_201_CREATED)
-

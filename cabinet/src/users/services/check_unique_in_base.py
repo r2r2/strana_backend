@@ -1,4 +1,5 @@
 from typing import Type, Optional, Any
+from enum import Enum
 
 from src.users.constants import UserType
 
@@ -8,10 +9,26 @@ from ..entities import BaseUserService
 from ..models import RequestUserCheckUnique
 
 
+class UserMatchType(str, Enum):
+    """
+    Тип пользователя со склонением
+    """
+    ADMIN: str = "админом"
+    AGENT: str = "агентом"
+    CLIENT: str = "клиентом"
+    REPRES: str = "агентством"
+    MANAGER: str = "менеджером"
+
+
 class UserCheckUniqueService(BaseUserService):
     """
     Сервис проверки уникальности пользователя в базе по телефону и почте.
     """
+
+    mail_and_phone_match_message: str = "Простите, данная почта закреплена за другим {mail_match_user_type}, " \
+                                        "телефон закреплен за другим {phone_match_user_type}, вы не можете их использовать."
+    mail_match_message: str = "Простите, данная почта закреплена за другим {}, вы не можете её использовать."
+    phone_match_message: str = "Простите, данный номер телефона закреплен за другим {}, вы не можете его использовать."
 
     def __init__(
         self,
@@ -36,33 +53,48 @@ class UserCheckUniqueService(BaseUserService):
             NotUniqueEmailUser,
         )
 
-        raised_exeptions = []
+        raised_exceptions = []
         for filters, exception in zip(filters, exceptions):
             user: Optional[User] = await self.user_repo.retrieve(filters=filters)
             if user:
-                exception_data = (exception, user.type)
-                raised_exeptions.append(exception_data)
-        if len(raised_exeptions) > 1:
-            user_type = raised_exeptions[0][1]
-            raise self._format_exception(NotUniqueEmaiAndPhoneUser, user_type)
-        elif len(raised_exeptions) == 1:
-            exeption_data = raised_exeptions.pop()
-            raise self._format_exception(exception=exeption_data[0], user_type=exeption_data[1])
+                if user.type == UserType.AGENT:
+                    user_type = UserMatchType.AGENT
+                elif user.type == UserType.CLIENT:
+                    user_type = UserMatchType.CLIENT
+                elif user.type == UserType.REPRES:
+                    user_type = UserMatchType.REPRES
+                elif user.type == UserType.ADMIN:
+                    user_type = UserMatchType.ADMIN
+                else:
+                    user_type = UserMatchType.MANAGER
 
-    @staticmethod
-    def _format_exception(exception: Any, user_type: str):
+                exception_data = (exception, user_type)
+                raised_exceptions.append(exception_data)
+
+        if raised_exceptions:
+            raise self._format_exceptions(raised_exceptions)
+
+    def _format_exceptions(self, raised_exceptions: list[Any]):
         """
         Добавляет необходимый тип пользователя в сообщение ошибки.
         """
 
-        if user_type == UserType.AGENT:
-            exception.message = exception.message.format("агентом")
-        elif user_type == UserType.CLIENT:
-            exception.message = exception.message.format("клиентом")
-        elif user_type == UserType.REPRES:
-            exception.message = exception.message.format("агентством")
-        elif user_type == UserType.ADMIN:
-            exception.message = exception.message.format("администратором")
-        elif user_type == UserType.MANAGER:
-            exception.message = exception.message.format("менеджером")
+        if len(raised_exceptions) == 2:
+            exception = NotUniqueEmaiAndPhoneUser
+            phone_match_user_type = raised_exceptions[0][1]
+            mail_match_user_type = raised_exceptions[1][1]
+            message = self.mail_and_phone_match_message.format(
+                mail_match_user_type=mail_match_user_type,
+                phone_match_user_type=phone_match_user_type,
+            )
+            exception.message = message
+        else:
+            exception = raised_exceptions[0][0]
+            user_type = raised_exceptions[0][1]
+            if exception == NotUniqueEmailUser:
+                message = self.mail_match_message.format(user_type)
+            else:
+                message = self.phone_match_message.format(user_type)
+            exception.message = message
+
         return exception

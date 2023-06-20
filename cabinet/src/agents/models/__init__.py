@@ -59,3 +59,4 @@ from .initialze_changes import RequestInitializeChangePhone, RequestInitializeCh
 from .questionnaire_questions_list import QuestionsListResponse, CurrentAnswerRequest, FinishQuestionResultResponse
 from .questionnaire_questions_list import FinishQuestionRequest
 from .documents_blocks_list import DocumentBlockResponse, UploadFile
+from .signup_in_agency import RequestSignupInAgencyModel, ResponseSignupInAgencyModel

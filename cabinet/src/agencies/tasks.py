@@ -113,3 +113,28 @@ def export_agency_in_amo(agency_id: int) -> None:
     export_agency_in_amo: services.UpdateOrganizationService = services.UpdateOrganizationService(**resources)
     loop: Any = get_event_loop()
     loop.run_until_complete(celery.sentry_catch(celery.init_orm(export_agency_in_amo))(agency_id=agency_id))
+
+
+@celery.app.task
+def fire_agent_task(
+    agent_amocrm_id: int,
+    repres_amocrm_id: int,
+    agency_amocrm_id: int,
+) -> None:
+    """
+    Увольнение агента в AmoCRM.
+    """
+    resources: dict[str, Any] = dict(
+        amocrm_class=amocrm.AmoCRM,
+        orm_class=Tortoise,
+        orm_config=tortoise_config,
+    )
+    change_agent: services.FireAgentService = services.FireAgentService(**resources)
+    loop: Any = get_event_loop()
+    loop.run_until_complete(
+        celery.sentry_catch(celery.init_orm(change_agent))(
+            agent_amocrm_id=agent_amocrm_id,
+            repres_amocrm_id=repres_amocrm_id,
+            agency_amocrm_id=agency_amocrm_id,
+        )
+    )

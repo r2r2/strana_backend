@@ -37,3 +37,4 @@ from .upload_documents_blocks_list import UploadDocumentsBlocksListCase
 from .questionnaire_upload_document import QuestionareUploadDocumentCase
 from .questionnaire_send_upload_documents import SendUploadDocumentsCase
 from .questionnaire_delete_upload_documents import DeleteUploadDocumentsCase
+from .process_signup_in_agency import ProcessSignupInAgency

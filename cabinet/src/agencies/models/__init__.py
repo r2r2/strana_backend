@@ -32,3 +32,4 @@ from .repres_get_additional import (ResponseRepresAdditionalAgreement,
 from .admins_get_additional import (ResponseAdminsAdditionalAgreement,
                                    ResponseAdminsAdditionalAgreementList)
 from .admin_create_additional import RequestAgencyAdditionalAgreementListModel
+from .fire_agent_bookings_list import ResponseFireAgentBookingsListModel

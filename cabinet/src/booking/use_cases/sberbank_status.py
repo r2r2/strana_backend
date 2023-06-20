@@ -21,6 +21,7 @@ from ..services import HistoryService, ImportBookingsService
 from ..types import BookingAmoCRM, BookingEmail, BookingSberbank, BookingSms
 from ...task_management.constants import PaidBookingSlug
 from ...task_management.services import UpdateTaskInstanceStatusService
+from src.notifications.services import GetSmsTemplateService, GetEmailTemplateService
 
 
 class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
@@ -28,8 +29,9 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
     Статус оплаты сбербанка
     """
 
-    template: str = "src/booking/templates/success_booking.html"
-    agent_email_template: str = "src/booking/templates/success_booking_agent_notification.html"
+    sms_event_slug = "booking_sberbank_status"
+    mail_event_slug: str = "success_booking"
+    agent_mail_event_slug: str = "success_booking_agent_notification"
     _history_template = "src/booking/templates/history/sberbank_status_succeeded.txt"
 
     def __init__(
@@ -47,7 +49,9 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
         sberbank_class: Type[BookingSberbank],
         global_id_decoder: Callable[[str], tuple[str, Union[str, int]]],
         history_service: HistoryService,
-        import_bookings_service: ImportBookingsService
+        import_bookings_service: ImportBookingsService,
+        get_sms_template_service: GetSmsTemplateService,
+        get_email_template_service: GetEmailTemplateService,
     ) -> None:
         self.booking_repo: BookingRepo = booking_repo()
 
@@ -73,11 +77,16 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
                                                                                                      "| SBERBANK")
         self.booking_fail_logger = booking_changes_logger(self.booking_repo.update, self, content="Неуспешная | "
                                                                                                   "SBERBANK")
+        self.get_sms_template_service: GetSmsTemplateService = get_sms_template_service
+        self.get_email_template_service: GetEmailTemplateService = get_email_template_service
 
     async def __call__(self, kind: Literal["success", "fail"], secret: str, payment_id: str, *args, **kwargs) -> str:
         filters: dict[str, Any] = dict(payment_id=payment_id, active=True)
         booking: Booking = await self.booking_repo.retrieve(
-            filters=filters, related_fields=["user", "agent", "project", "property", "building", "floor"]
+            filters=filters,
+            related_fields=[
+                "user", "agent", "project", "project__city", "property", "building", "floor",
+            ]
         )
 
         if not booking:
@@ -153,7 +162,7 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
         Docs
         """
         status_options: dict[str, Any] = dict(
-            city=booking.project.city,
+            city=booking.project.city.slug,
             user_email=booking.user.email,
             user_phone=booking.user.phone,
             user_full_name=booking.user.full_name,
@@ -181,7 +190,7 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
             lead_options: dict[str, Any] = dict(
                 status=status,
                 lead_id=booking.amocrm_id,
-                city_slug=booking.project.city,
+                city_slug=booking.project.city.slug,
                 tags=booking.tags,
                 booking_end=booking.booking_period,
                 booking_price=int(booking.payment_amount),
@@ -196,39 +205,59 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
         """
         Docs
         """
-        email_options: dict[str, Any] = dict(
-            topic="Успешная оплата бронирования",
-            template=self.template,
+        email_notification_template = await self.get_email_template_service(
+            mail_event_slug=self.mail_event_slug,
             context=dict(booking=booking),
-            recipients=[self.site_email],
         )
-        email_service: Any = self.email_class(**email_options)
-        return email_service.as_task()
+
+        if email_notification_template and email_notification_template.is_active:
+            email_options: dict[str, Any] = dict(
+                topic=email_notification_template.template_topic,
+                content=email_notification_template.content,
+                recipients=[self.site_email],
+                lk_type=email_notification_template.lk_type.value,
+                mail_event_slug=email_notification_template.mail_event_slug,
+            )
+            email_service: Any = self.email_class(**email_options)
+            return email_service.as_task()
 
     async def _send_agent_email(self, booking: Booking) -> Task:
         """
         Уведомление агента об успешном бронировании по почте
         """
-        email_options: dict[str, Any] = dict(
-            topic=f"Бронирование {booking.id} оплачено",
-            template=self.agent_email_template,
+        email_notification_template = await self.get_email_template_service(
+            mail_event_slug=self.agent_mail_event_slug,
             context=dict(booking=booking),
-            recipients=[booking.agent.email],
         )
-        email_service: Any = self.email_class(**email_options)
-        return email_service.as_task()
+
+        if email_notification_template and email_notification_template.is_active:
+            email_options: dict[str, Any] = dict(
+                topic=email_notification_template.template_topic.format(booking_id=booking.id),
+                content=email_notification_template.content,
+                recipients=[booking.agent.email],
+                lk_type=email_notification_template.lk_type.value,
+                mail_event_slug=email_notification_template.mail_event_slug,
+            )
+            email_service: Any = self.email_class(**email_options)
+            return email_service.as_task()
 
     # @logged_action(content="УСПЕШНАЯ ОПЛАТА | SMS")
     async def _send_sms(self, booking: Booking) -> Task:
         """
         Docs
         """
-        sms_options: dict[str, Any] = dict(
-            phone=booking.user.phone,
-            message=f"Вы забронировали квартиру в ЖК {booking.project.name}",
+        sms_notification_template = await self.get_sms_template_service(
+            sms_event_slug=self.sms_event_slug,
         )
-        sms_service: Any = self.sms_class(**sms_options)
-        return sms_service.as_task()
+        if sms_notification_template and sms_notification_template.is_active:
+            sms_options: dict[str, Any] = dict(
+                phone=booking.user.phone,
+                message=sms_notification_template.template_text.format(project_name=booking.project.name),
+                lk_type=sms_notification_template.lk_type.value,
+                sms_event_slug=sms_notification_template.sms_event_slug,
+            )
+            sms_service: Any = self.sms_class(**sms_options)
+            return sms_service.as_task()
 
     async def update_task_instance_status(self, booking_id: int, status_slug: str) -> None:
         """

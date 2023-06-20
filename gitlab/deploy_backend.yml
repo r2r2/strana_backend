@@ -1,251 +1,51 @@
-.before_script_configure_ssh: &before_script_configure_ssh 
-  - '[[ ! -d /root/.ssh ]] && mkdir /root/.ssh && chmod 700 /root/.ssh'
-  - '[[ -f /.dockerenv ]] && echo -e "Host *\\n\\tStrictHostKeyChecking no\\n\\n" > ~/.ssh/config'
-  - 'which ssh-agent || ( apk --update add openssh-client )'
-  - echo "$SSH_PRIVATE_KEY_NEW_DEV" | tr -d '\r' > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
-  - eval "$(ssh-agent -s)"
-  - ssh-add /root/.ssh/id_rsa
-  - ssh-keyscan -p22 -t rsa 158.160.60.57 >> /root/.ssh/known_hosts
-  - chmod 644 ~/.ssh/known_hosts
-
-.before_script_configure_ssh_prod: &before_script_configure_ssh_prod
-  - '[[ ! -d /root/.ssh ]] && mkdir /root/.ssh && chmod 700 /root/.ssh'
-  - '[[ -f /.dockerenv ]] && echo -e "Host *\\n\\tStrictHostKeyChecking no\\n\\n" > ~/.ssh/config'
-  - 'which ssh-agent || ( apk --update add openssh-client )'
-  - echo "$SSH_PRIVATE_KEY_PROD" | tr -d '\r' > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
-  - eval "$(ssh-agent -s)"
-  - ssh-add /root/.ssh/id_rsa
-  - ssh-keyscan -p22 -t rsa 51.250.40.140 >> /root/.ssh/known_hosts
-  - chmod 644 ~/.ssh/known_hosts
-
-.before_script_configure_ssh_pre-production: &before_script_configure_ssh_pre-production
-  - '[[ ! -d /root/.ssh ]] && mkdir /root/.ssh && chmod 700 /root/.ssh'
-  - '[[ -f /.dockerenv ]] && echo -e "Host *\\n\\tStrictHostKeyChecking no\\n\\n" > ~/.ssh/config'
-  - 'which ssh-agent || ( apk --update add openssh-client )'
-  - echo "$SSH_PRIVATE_KEY_FRONT_STAGE" | tr -d '\r' > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
-  - eval "$(ssh-agent -s)"
-  - ssh-add /root/.ssh/id_rsa
-  - ssh-keyscan -p22 -t rsa 158.160.4.117 >> /root/.ssh/known_hosts
-  - chmod 644 ~/.ssh/known_hosts
-
-.before_script_docker_login: &before_script_docker_login
-  - docker login $CI_REGISTRY -u'strana-registry-token' -p$REGISTRY_TOKEN
-
-# --- DEV ---
-to_dev_cabinet:
-  stage: deploy
+# --- DEV SBER ---
+development:cabinet:
+  stage: deploy:development
   only:
     refs:
       - development
     changes:
-      - cabinet/**/*      
+      - cabinet/**/*
   variables:
-    DOCKER_HOST: ssh://$DEPLOY_USER_NEW_DEV@$DEPLOY_HOST_NEW_DEV
+    DOCKER_HOST: ssh://$DEPLOY_USER_SBER@$DEPLOY_HOST_DEV_SBER
   before_script:
-    - *before_script_configure_ssh
-    - *before_script_docker_login
+    - !reference [.before_script_configure_ssh_development]
+    - !reference [.docker_login_template,before_script]
     - cat $ENV_NEW_DEV_FULL_FILE > .env
   script:
     - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml pull cabinet || true
     - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml   --env-file .env up -d cabinet tasks
   tags:
-    - docker  
+    - docker-sber
   needs:
     - job: build-cabinet
 
-to_dev_admin:
-  stage: deploy
+development:admin:
+  stage: deploy:development
   only:
     refs:
       - development
     changes:
-      - admin/**/*      
+      - admin/**/*
   variables:
-    DOCKER_HOST: ssh://$DEPLOY_USER_NEW_DEV@$DEPLOY_HOST_NEW_DEV
+    DOCKER_HOST: ssh://$DEPLOY_USER_SBER@$DEPLOY_HOST_DEV_SBER
   before_script:
-    - *before_script_configure_ssh
-    - *before_script_docker_login
+    - !reference [.before_script_configure_ssh_development]
+    - !reference [.docker_login_template,before_script]
     - cat $ENV_NEW_DEV_FULL_FILE > .env
   script:
     - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml pull admin || true
     - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml   --env-file .env up -d admin redis
   tags:
-    - docker  
+    - docker-sber
   needs:
     - job: build-admin
 
-# --- PROD ---
 
-prod:nginx:
-  stage: deploy
-  only:
-    refs:
-      - master
-      - test-ci
-    changes:
-      - nginx/**/*
-  variables:
-    DOCKER_HOST: ssh://$DEPLOY_USER_PROD@$DEPLOY_HOST_PROD
-  before_script:
-    - *before_script_configure_ssh_prod
-    - *before_script_docker_login
-    - cat $ENV_PROD_FULL_FILE > .env
-  script:
-    - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml pull nginx || true
-    - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml --env-file .env up -d nginx
-  tags:
-    - docker
-  when: manual
-
-prod:backend:
-  stage: deploy
-  only:
-    refs:
-      - master
-      - test-ci
-    changes:
-      - backend/**/*
-  variables:
-    DOCKER_HOST: ssh://$DEPLOY_USER_PROD@$DEPLOY_HOST_PROD
-  before_script:
-    - *before_script_configure_ssh_prod
-    - *before_script_docker_login
-    - cat $ENV_PROD_FULL_FILE > .env
-  script:
-    - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml pull backend || true
-    - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml --env-file .env up -d db backend celery realty beat amo_tasks
-  tags:
-    - docker
-  when: manual
-
-prod:cabinet:
-  stage: deploy
-  only:
-    refs:
-      - master
-      - test-ci
-    changes:
-      - cabinet/**/*
-  variables:
-    DOCKER_HOST: ssh://$DEPLOY_USER_PROD@$DEPLOY_HOST_PROD
-  before_script:
-    - *before_script_configure_ssh_prod
-    - *before_script_docker_login
-    - cat $ENV_PROD_FULL_FILE > .env
-  script:
-    - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml pull cabinet || true
-    - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml   --env-file .env up -d cabinet tasks
-  tags:
-    - docker
-  when: manual
-
-prod:flower:
-  stage: deploy
-  only:
-    refs:
-      - master
-      - test-ci
-    changes:
-      - flower/**/*
-  variables:
-    DOCKER_HOST: ssh://$DEPLOY_USER_PROD@$DEPLOY_HOST_PROD
-  before_script:
-    - *before_script_configure_ssh_prod
-    - *before_script_docker_login
-    - cat $ENV_PROD_FULL_FILE > .env
-  script:
-    - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml pull flower || true
-    - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml --env-file .env up -d flower
-  tags:
-    - docker
-  when: manual
-
-prod:admin:
-  stage: deploy
-  only:
-    refs:
-      - master
-      - test-ci
-    changes:
-      - admin/**/*
-  variables:
-    DOCKER_HOST: ssh://$DEPLOY_USER_PROD@$DEPLOY_HOST_PROD
-  before_script:
-    - *before_script_configure_ssh_prod
-    - *before_script_docker_login
-    - cat $ENV_PROD_FULL_FILE > .env
-  script:
-    - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml pull admin || true
-    - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml   --env-file .env up -d admin
-  tags:
-    - docker
-  when: manual
-
-prod:imageproxy:
-  stage: deploy
-  only:
-    refs:
-      - master
-      - test-ci
-    changes:
-      - imageproxy/**/*
-  variables:
-    DOCKER_HOST: ssh://$DEPLOY_USER_PROD@$DEPLOY_HOST_PROD
-  before_script:
-    - *before_script_configure_ssh_prod
-    - *before_script_docker_login
-    - cat $ENV_PROD_FULL_FILE > .env
-  script:
-    - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml pull imageproxy || true
-    - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml --env-file .env up -d imageproxy
-  tags:
-    - docker
-  when: manual
-
-  # --- STAGE ---
-
-pre-production:nginx:
-  stage: deploy
-  only:
-    refs:
-      - pre-production
-    changes:
-      - nginx/**/*
-  variables:
-    DOCKER_HOST: ssh://$DEPLOY_USER_STAGE@$DEPLOY_HOST_STAGE
-  before_script:
-    - *before_script_configure_ssh_pre-production
-    - *before_script_docker_login
-    - cat $ENV_STAGE_FULL_FILE > .env
-  script:
-    - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml pull nginx || true
-    - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml --env-file .env up -d nginx
-  tags:
-    - docker
-  # when: manual
-
-pre-production:backend:
-  stage: deploy
-  only:
-    refs:
-      - pre-production
-    changes:
-      - backend/**/*
-  variables:
-    DOCKER_HOST: ssh://$DEPLOY_USER_STAGE@$DEPLOY_HOST_STAGE
-  before_script:
-    - *before_script_configure_ssh_pre-production
-    - *before_script_docker_login
-    - cat $ENV_STAGE_FULL_FILE > .env
-  script:
-    - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml pull backend || true
-    - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml --env-file .env up -d db backend celery realty beat amo_tasks
-  tags:
-    - docker
-  # when: manual
+# --- STAGE ---
 
 pre-production:cabinet:
-  stage: deploy
+  stage: deploy:pre-production
   only:
     refs:
       - pre-production
@@ -254,38 +54,17 @@ pre-production:cabinet:
   variables:
     DOCKER_HOST: ssh://$DEPLOY_USER_STAGE@$DEPLOY_HOST_STAGE
   before_script:
-    - *before_script_configure_ssh_pre-production
-    - *before_script_docker_login
+    - !reference [.before_script_configure_ssh_pre_production]
+    - !reference [.docker_login_template,before_script]
     - cat $ENV_STAGE_FULL_FILE > .env
   script:
     - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml pull cabinet || true
     - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml   --env-file .env up -d cabinet tasks
   tags:
-    - docker
-  # when: manual
-
-pre-production:flower:
-  stage: deploy
-  only:
-    refs:
-      - pre-production
-    changes:
-      - flower/**/*
-  variables:
-    DOCKER_HOST: ssh://$DEPLOY_USER_STAGE@$DEPLOY_HOST_STAGE
-  before_script:
-    - *before_script_configure_ssh_pre-production
-    - *before_script_docker_login
-    - cat $ENV_STAGE_FULL_FILE > .env
-  script:
-    - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml pull flower || true
-    - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml --env-file .env up -d flower
-  tags:
-    - docker
-  # when: manual
+    - docker-sber
 
 pre-production:admin:
-  stage: deploy
+  stage: deploy:pre-production
   only:
     refs:
       - pre-production
@@ -294,32 +73,99 @@ pre-production:admin:
   variables:
     DOCKER_HOST: ssh://$DEPLOY_USER_STAGE@$DEPLOY_HOST_STAGE
   before_script:
-    - *before_script_configure_ssh_pre-production
-    - *before_script_docker_login
+    - !reference [.before_script_configure_ssh_pre_production]
+    - !reference [.docker_login_template,before_script]
     - cat $ENV_STAGE_FULL_FILE > .env
   script:
     - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml pull admin || true
     - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml   --env-file .env up -d admin
   tags:
-    - docker
-  # when: manual
+    - docker-sber
 
-pre-production:imageproxy:
-  stage: deploy
+# --- PROD YANDEX---
+
+prod-yandex:cabinet:
+  stage: deploy:production-yandex
   only:
     refs:
-      - pre-production
+      - master
     changes:
-      - imageproxy/**/*
+      - cabinet/**/*
   variables:
-    DOCKER_HOST: ssh://$DEPLOY_USER_STAGE@$DEPLOY_HOST_STAGE
+    DOCKER_HOST: ssh://$DEPLOY_USER_PROD@$DEPLOY_HOST_PROD
   before_script:
-    - *before_script_configure_ssh_pre-production
-    - *before_script_docker_login
-    - cat $ENV_STAGE_FULL_FILE > .env
+    - !reference [.before_script_configure_ssh_production_yandex]
+    - !reference [.docker_login_template,before_script]
+    - cat $ENV_PROD_FULL_FILE > .env
   script:
-    - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml pull imageproxy || true
-    - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml --env-file .env up -d imageproxy
+    - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml pull cabinet || true
+    - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml   --env-file .env up -d cabinet tasks
   tags:
-    - docker
-  # when: manual
+    - docker-sber
+  when: manual
+
+
+prod-yandex:admin:
+  stage: deploy:production-yandex
+  only:
+    refs:
+      - master
+    changes:  
+      - admin/**/*
+  variables:
+    DOCKER_HOST: ssh://$DEPLOY_USER_PROD@$DEPLOY_HOST_PROD
+  before_script:
+    - !reference [.before_script_configure_ssh_production_yandex]
+    - !reference [.docker_login_template,before_script]
+    - cat $ENV_PROD_FULL_FILE > .env
+  script:
+    - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml pull admin || true
+    - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml   --env-file .env up -d admin
+  tags:
+    - docker-sber
+  when: manual
+
+# --- PROD SBER---
+
+prod-sber:cabinet:
+  stage: deploy:production-sber
+  only:
+    refs:
+      - master
+    changes:
+      - cabinet/**/*
+  variables:
+    DOCKER_HOST: ssh://$DEPLOY_USER_SBER@$DEPLOY_HOST_PROD_SBER
+  before_script:
+    - !reference [.before_script_configure_ssh_production_sber]
+    - !reference [.docker_login_template,before_script]
+    - cat $ENV_PROD_FULL_FILE > .env
+  script:
+    - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml pull cabinet || true
+    - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml   --env-file .env up -d cabinet tasks
+  tags:
+    - docker-sber
+  when: manual
+
+
+prod-sber:admin:
+  stage: deploy:production-sber
+  only:
+    refs:
+      - master
+    changes:
+      - admin/**/*
+  variables:
+    DOCKER_HOST: ssh://$DEPLOY_USER_SBER@$DEPLOY_HOST_PROD_SBER
+  before_script:
+    - !reference [.before_script_configure_ssh_production_sber]
+    - !reference [.docker_login_template,before_script]
+    - cat $ENV_PROD_FULL_FILE > .env
+  script:
+    - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml pull admin || true
+    - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml   --env-file .env up -d admin
+  tags:
+    - docker-sber
+  when: manual
+
+

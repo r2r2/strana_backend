@@ -12,6 +12,7 @@ from ..repos import NotificationMuteRepo, RealIpUsersRepo, User, UserRepo, FakeU
 from ..services.notification_condition import NotificationConditionService
 from ..services.fake_send_code import FakeSendCodeService
 from ..types import UserHasher, UserSms
+from src.notifications.services import GetSmsTemplateService
 
 notification_condition_service = NotificationConditionService(
         user_repo=UserRepo,
@@ -28,11 +29,14 @@ class SendCodeCase(BaseUserCase):
     Отправка кода
     """
 
+    sms_event_slug = "user_send_code"
+
     def __init__(
         self,
         update_user_data: Any,
         sms_class: Type[UserSms],
         user_repo: Type[UserRepo],
+        get_sms_template_service: GetSmsTemplateService,
         hasher: Callable[..., UserHasher],
         background_tasks: BackgroundTasks,
         code_generator: Callable[..., str],
@@ -49,6 +53,7 @@ class SendCodeCase(BaseUserCase):
         self.code_generator: Callable[..., str] = code_generator
         self.background_tasks: BackgroundTasks = background_tasks
         self.password_generator: Callable[..., str] = password_generator
+        self.get_sms_template_service: GetSmsTemplateService = get_sms_template_service
 
     @fake_send_code_service
     @notification_condition_service
@@ -65,10 +70,19 @@ class SendCodeCase(BaseUserCase):
         if user.amocrm_id:
             self.background_tasks.add_task(self.update_client_data, user.id)
 
-        sms_options: dict[str, Any] = dict(
-            phone=phone,
-            message=f"Код подтверждения: {data['code']}",
+        sms_notification_template = await self.get_sms_template_service(
+            sms_event_slug=self.sms_event_slug,
         )
-        self.sms_class(**sms_options).as_task()
+
+        if sms_notification_template and sms_notification_template.is_active:
+            sms_options: dict[str, Any] = dict(
+                message=sms_notification_template.template_text.format(
+                    code=data['code'],
+                ),
+                phone=phone,
+                lk_type=sms_notification_template.lk_type.value,
+                sms_event_slug=sms_notification_template.sms_event_slug,
+            )
+            self.sms_class(**sms_options).as_task()
 
         return user

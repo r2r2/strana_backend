@@ -56,7 +56,7 @@ class CheckParamsCase(BaseBookingCase, BookingLogMixin):
 
         filters: dict[str, Any] = dict(active=True, id=booking_id, user_id=user_id)
         booking: Booking = await self.booking_repo.retrieve(
-            filters=filters, related_fields=["user", "project", "property", "building"]
+            filters=filters, related_fields=["user", "project", "project__city", "property", "building"]
         )
 
         profitbase_id = base64.b64decode(booking.property.global_id).decode("utf-8").split(":")[-1]
@@ -130,7 +130,7 @@ class CheckParamsCase(BaseBookingCase, BookingLogMixin):
         filters: dict[str, Any] = dict(active=True, id=booking.id, user_id=user_id)
         booking: Booking = await self.booking_repo.retrieve(
             filters=filters,
-            related_fields=["project", "property", "floor", "building", "ddu", "agent", "agency"],
+            related_fields=["project", "project__city", "property", "floor", "building", "ddu", "agent", "agency"],
             prefetch_fields=["ddu__participants"],
         )
         return booking
@@ -139,7 +139,7 @@ class CheckParamsCase(BaseBookingCase, BookingLogMixin):
     async def _online_payment(self, booking: Booking) -> Union[dict[str, Any], str]:
         """online payment"""
         payment_options: dict[str, Any] = dict(
-            city=booking.project.city,
+            city=booking.project.city.slug,
             user_email=booking.user.email,
             user_phone=booking.user.phone,
             booking_order_id=booking.payment_id,

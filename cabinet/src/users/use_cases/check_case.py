@@ -3,7 +3,7 @@ from typing import Any, Awaitable, Callable, Optional, Type
 
 from pytz import UTC
 
-from ..constants import UserType
+from src.users.constants import UserType, UserStatus
 from ..entities import BaseUserCase
 from ..exceptions import UserMissMatchError
 from ..models import RequestUsersCheckModel
@@ -28,15 +28,21 @@ class UsersCheckCase(BaseUserCase):
         self.history_check_repo: CheckHistoryRepo = history_check_repo()
         self.check_unique_service: Callable[..., Awaitable] = check_unique_service
 
-    async def __call__(self,
-                       payload: RequestUsersCheckModel,
-                       agent_id: Optional[int] = None,
-                       agency_id: Optional[int] = None,
-                       user_id: Optional[int] = None) -> Check:
+        self.agent_pinned: bool = False
+        self.repres_pinned: bool = False
+
+    async def __call__(
+        self,
+        payload: RequestUsersCheckModel,
+        agent_id: Optional[int] = None,
+        agency_id: Optional[int] = None,
+        user_id: Optional[int] = None
+    ) -> Check:
         data: dict[str, Any] = payload.dict(exclude_unset=True)
         phone: str = data["phone"]
         filters: dict[str, Any] = dict(phone=phone, type=UserType.CLIENT)
         user: Optional[User] = await self.user_repo.retrieve(filters=filters)
+
         if payload.email and not user:
             email: str = data["email"]
             filters: dict[str, Any] = dict(email__iexact=email, type=UserType.CLIENT)
@@ -45,7 +51,11 @@ class UsersCheckCase(BaseUserCase):
                 raise UserMissMatchError
         if user:
             user_id = user.id
+            self.agent_pinned = True if agent_id and user.agent_id == int(agent_id) else False
+            self.repres_pinned = True if agency_id and user.agency_id == agency_id else False
+
             check: Check = await self._exist_user_check(user=user, phone=phone, agent_id=agent_id)
+
         else:
             check: Check = await self._not_exist_user_check(phone=phone)
         await check.refresh_from_db(fields=['status'])
@@ -93,10 +103,21 @@ class UsersCheckCase(BaseUserCase):
         return check
 
     async def __update_check_status(
-            self, phone: str, check: Check, user: Optional[User] = None, agent_id: Optional[int] = None):
+        self,
+        phone: str,
+        check: Check,
+        user: Optional[User] = None,
+        agent_id: Optional[int] = None,
+    ) -> None:
         """
         Обновляем статус для проверки (Check) в амо.
         Сервис check_unique_service обновляет check.status внутри вызова.
         """
+        if self.agent_pinned:
+            await self.check_repo.update(check, data={"status": UserStatus.AGENT_PINNED})
 
-        await self.check_unique_service(phone=phone, check=check, user=user, agent_id=agent_id)
+        elif self.repres_pinned:
+            await self.check_repo.update(check, data={"status": UserStatus.REPRES_PINNED})
+
+        else:
+            await self.check_unique_service(phone=phone, check=check, user=user, agent_id=agent_id)

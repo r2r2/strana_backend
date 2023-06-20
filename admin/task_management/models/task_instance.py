@@ -14,7 +14,6 @@ class TaskInstance(BaseTaskManagementModel):
         blank=True
     )
     task_amocrmid: str = models.CharField(max_length=255, verbose_name='AMOCRMID_задания', null=True, blank=True)
-    sensei_pid: int = models.IntegerField(verbose_name='ID процесса в Sensei', null=True, blank=True)
     status: models.ForeignKey = models.ForeignKey(
         'task_management.TaskStatus',
         on_delete=models.CASCADE,

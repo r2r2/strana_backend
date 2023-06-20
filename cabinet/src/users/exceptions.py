@@ -198,7 +198,8 @@ class NotUniqueEmailUser(BaseUserException):
 
 
 class NotUniqueEmaiAndPhoneUser(BaseUserException):
-    message: str = "Простите, данная почта и телефон закреплены за другим {}, вы не можете их использовать."
+    message: str = "Простите, данная почта закреплена за другим {mail_match_user_type}, телефон закреплен за другим " \
+                   "{phone_match_user_type}, вы не можете их использовать."
     status: int = HTTPStatus.BAD_REQUEST
     reason: str = "email_and_phone_is_already_used"
 

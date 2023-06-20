@@ -97,7 +97,7 @@ class AcceptContractCase(BaseBookingCase, BookingLogMixin):
             filters: dict[str, Any] = dict(active=True, id=booking.id, user_id=user_id)
             booking: Booking = await self.booking_repo.retrieve(
                 filters=filters,
-                related_fields=["project", "property", "floor", "building", "ddu", "agent", "agency"],
+                related_fields=["project", "project__city", "property", "floor", "building", "ddu", "agent", "agency"],
                 prefetch_fields=["ddu__participants"],
             )
             return booking
@@ -239,7 +239,7 @@ class AcceptContractCase(BaseBookingCase, BookingLogMixin):
         filters: dict[str, Any] = dict(active=True, id=booking.id, user_id=user_id)
         booking: Booking = await self.booking_repo.retrieve(
             filters=filters,
-            related_fields=["project", "property", "floor", "building", "ddu", "agent", "agency"],
+            related_fields=["project", "project__city", "property", "floor", "building", "ddu", "agent", "agency"],
             prefetch_fields=["ddu__participants"],
         )
         return booking

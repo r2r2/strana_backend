@@ -12,20 +12,22 @@ from fastapi.responses import RedirectResponse
 from src.admins import repos as admin_repos
 from src.agencies import repos as agencies_repos
 from src.agents import filters, models
-from src.agents import repos as agents_repos
 from src.agents import services
 from src.agents import tasks as agents_tasks
 from src.agents import use_cases
 from src.booking import constants as booking_constants
-from src.booking import repos as booking_repos
 from src.questionnaire import repos as questionnaire_repos
 from src.task_management import repos as task_management_repos
 from src.task_management import services as task_management_services
 from src.users import constants as users_constants
-from src.users import repos as users_repos
 from src.users import use_cases as users_cases
 from src.users.filters import BookingUserFilter
 from src.users import services as user_services
+from src.notifications import services as notification_services
+from src.notifications import repos as notification_repos
+from src.agents import repos as agents_repos
+from src.users import repos as users_repos
+from src.booking import repos as booking_repos
 
 router = APIRouter(prefix="/agents", tags=["Agents"])
 
@@ -46,6 +48,10 @@ async def process_register_view(payload: models.RequestProcessRegisterModel = Bo
         amocrm_class=amocrm.AmoCRM,
         agent_repo=agents_repos.AgentRepo,
     )
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notification_repos.EmailTemplateRepo,
+        )
     check_user_unique_service: user_services.UserCheckUniqueService = user_services.UserCheckUniqueService(
         user_repo=users_repos.UserRepo,
     )
@@ -60,8 +66,9 @@ async def process_register_view(payload: models.RequestProcessRegisterModel = Bo
         import_clients_task=agents_tasks.import_clients_task,
         create_contact_service=create_contact_service,
         ensure_broker_tag_service=ensure_broker_tag_service,
-        bind_contact_company_task=amocrm.tasks.bind_contact_to_company,
+        bind_contact_company_task=amocrm_tasks.bind_contact_to_company,
         check_user_unique_service=check_user_unique_service,
+        get_email_template_service=get_email_template_service,
     )
     process_register: use_cases.ProcessRegisterCase = use_cases.ProcessRegisterCase(**resources)
     return await process_register(payload=payload)
@@ -99,11 +106,16 @@ async def resend_confirm_letter_view(
 ):
     """Отправляет письмо подвтерждения на почту агенту."""
     # возможно, необходимо добавить cooldown-таймер
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notification_repos.EmailTemplateRepo,
+        )
     resources: dict[str, Any] = dict(
         site_config=site_config,
         email_class=email.EmailService,
         agent_repo=agents_repos.AgentRepo,
         token_creator=security.create_email_token,
+        get_email_template_service=get_email_template_service,
     )
     resend_letter: use_cases.AgentResendLetterCase = use_cases.AgentResendLetterCase(**resources)
     return await resend_letter(agent_id)
@@ -205,6 +217,10 @@ async def set_password_view(
     """
     Установка пароля для агентов созданных представителем
     """
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notification_repos.EmailTemplateRepo,
+        )
     resources: dict[str, Any] = dict(
         session=request.session,
         site_config=site_config,
@@ -214,6 +230,7 @@ async def set_password_view(
         agent_repo=agents_repos.AgentRepo,
         user_type=users_constants.UserType.AGENT,
         token_creator=security.create_email_token,
+        get_email_template_service=get_email_template_service,
     )
     set_password: use_cases.SetPasswordCase = use_cases.SetPasswordCase(**resources)
     return await set_password(payload=payload)
@@ -345,12 +362,17 @@ async def initialize_change_phone_view(
     payload: models.RequestInitializeChangePhone = Body(...)
 ):
     """Обновление телефона агентом"""
+    get_sms_template_service: notification_services.GetSmsTemplateService = \
+        notification_services.GetSmsTemplateService(
+            sms_template_repo=notification_repos.SmsTemplateRepo,
+        )
     resources: dict[str, Any] = dict(
         site_config=site_config,
         sms_class=messages.SmsService,
         agent_repo=agents_repos.AgentRepo,
         user_type=users_constants.UserType.AGENT,
         token_creator=security.create_email_token,
+        get_sms_template_service=get_sms_template_service,
     )
     change_phone: use_cases.InitializeChangePhoneCase = use_cases.InitializeChangePhoneCase(**resources)
     return await change_phone(agent_id=agent_id, payload=payload)
@@ -362,12 +384,17 @@ async def initialize_change_email_view(
     payload: models.RequestInitializeChangeEmail = Body(...)
 ):
     """Обновление почты агентом"""
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notification_repos.EmailTemplateRepo,
+        )
     resources: dict[str, Any] = dict(
         site_config=site_config,
         email_class=email.EmailService,
         agent_repo=agents_repos.AgentRepo,
         user_type=users_constants.UserType.AGENT,
         token_creator=security.create_email_token,
+        get_email_template_service=get_email_template_service,
     )
     change_email: use_cases.InitializeChangeEmailCase = use_cases.InitializeChangeEmailCase(**resources)
     return await change_email(agent_id=agent_id, payload=payload)
@@ -380,6 +407,10 @@ async def change_phone_view(
     """
     Служебный ендпоинт для подтверждения изменения телефона
     """
+    get_sms_template_service: notification_services.GetSmsTemplateService = \
+        notification_services.GetSmsTemplateService(
+            sms_template_repo=notification_repos.SmsTemplateRepo,
+        )
     resources: dict[str, Any] = dict(
         site_config=site_config,
         sms_class=messages.SmsService,
@@ -387,6 +418,7 @@ async def change_phone_view(
         user_type=users_constants.UserType.AGENT,
         token_creator=security.create_email_token,
         token_decoder=security.decode_email_token,
+        get_sms_template_service=get_sms_template_service,
     )
     change_phone: use_cases.ChangePhoneCase = use_cases.ChangePhoneCase(**resources)
     return RedirectResponse(
@@ -403,6 +435,10 @@ async def change_email_view(
     Служебный ендпоинт для подтверждения изменения почты
 
     """
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notification_repos.EmailTemplateRepo,
+        )
     resources: dict[str, Any] = dict(
         site_config=site_config,
         email_class=email.EmailService,
@@ -410,6 +446,7 @@ async def change_email_view(
         user_type=users_constants.UserType.AGENT,
         token_creator=security.create_email_token,
         token_decoder=security.decode_email_token,
+        get_email_template_service=get_email_template_service,
     )
     change_email: use_cases.ChangeEmailCase = use_cases.ChangeEmailCase(**resources)
     return RedirectResponse(
@@ -545,6 +582,10 @@ async def represes_agents_register_view(
         amocrm_class=amocrm.AmoCRM,
         agent_repo=agents_repos.AgentRepo,
     )
+    get_sms_template_service: notification_services.GetSmsTemplateService = \
+        notification_services.GetSmsTemplateService(
+            sms_template_repo=notification_repos.SmsTemplateRepo,
+        )
     represes_agents_register = use_cases.RepresesAgentsRegisterCase(
         hasher=security.get_hasher,
         sms_class=messages.SmsService,
@@ -554,6 +595,7 @@ async def represes_agents_register_view(
         password_generator=utils.generate_simple_password,
         import_clients_task=agents_tasks.import_clients_task,
         ensure_broker_tag_service=ensure_broker_tag_service,
+        get_sms_template_service=get_sms_template_service,
     )
     return await represes_agents_register(agency_id=agency_id, payload=payload)
 
@@ -583,6 +625,10 @@ async def represes_agents_approval_view(
         amocrm_class=amocrm.AmoCRM,
         agent_repo=agents_repos.AgentRepo,
     )
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notification_repos.EmailTemplateRepo,
+        )
     represes_agents_approval = use_cases.RepresesAgentsApprovalCase(
         site_config=site_config,
         email_class=email.EmailService,
@@ -591,6 +637,7 @@ async def represes_agents_approval_view(
         create_contact_service=create_contact_service,
         import_clients_task=agents_tasks.import_clients_task,
         ensure_broker_tag_service=ensure_broker_tag_service,
+        get_email_template_service=get_email_template_service,
     )
     return await represes_agents_approval(agent_id=agent_id, agency_id=agency_id, payload=payload)
 
@@ -743,6 +790,10 @@ async def admins_agents_register_view(
         amocrm_class=amocrm.AmoCRM,
         agent_repo=agents_repos.AgentRepo,
     )
+    get_sms_template_service: notification_services.GetSmsTemplateService = \
+        notification_services.GetSmsTemplateService(
+            sms_template_repo=notification_repos.SmsTemplateRepo,
+        )
     admins_agents_register = use_cases.AdminsAgentsRegisterCase(
         hasher=security.get_hasher,
         sms_class=messages.SmsService,
@@ -752,6 +803,7 @@ async def admins_agents_register_view(
         password_generator=utils.generate_simple_password,
         import_clients_task=agents_tasks.import_clients_task,
         ensure_broker_tag_service=ensure_broker_tag_service,
+        get_sms_template_service=get_sms_template_service,
     )
     return await admins_agents_register(payload=payload)
 
@@ -776,6 +828,10 @@ async def admins_agents_approval_view(
         amocrm_class=amocrm.AmoCRM,
         agent_repo=agents_repos.AgentRepo,
     )
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notification_repos.EmailTemplateRepo,
+        )
     admins_agents_approval = use_cases.AdminsAgentsApprovalCase(
         site_config=site_config,
         email_class=email.EmailService,
@@ -784,6 +840,7 @@ async def admins_agents_approval_view(
         create_contact_service=create_contact_service,
         import_clients_task=agents_tasks.import_clients_task,
         ensure_broker_tag_service=ensure_broker_tag_service,
+        get_email_template_service=get_email_template_service,
     )
     return await admins_agents_approval(agent_id=agent_id, payload=payload)
 
@@ -847,6 +904,14 @@ async def admins_agents_update_view(
     """
     Обновление агента администратором
     """
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notification_repos.EmailTemplateRepo,
+        )
+    get_sms_template_service: notification_services.GetSmsTemplateService = \
+        notification_services.GetSmsTemplateService(
+            sms_template_repo=notification_repos.SmsTemplateRepo,
+        )
     resources: dict[str, Any] = dict(
         site_config=site_config,
         sms_class=messages.SmsService,
@@ -854,6 +919,8 @@ async def admins_agents_update_view(
         agent_repo=agents_repos.AgentRepo,
         user_type=users_constants.UserType.AGENT,
         token_creator=security.create_email_token,
+        get_email_template_service=get_email_template_service,
+        get_sms_template_service=get_sms_template_service,
     )
     admins_agents_update: use_cases.AdminsAgentsUpdateCase = use_cases.AdminsAgentsUpdateCase(
         **resources
@@ -1027,3 +1094,42 @@ async def agents_delete_upload_documents(
     delete_upload_documents: use_cases.DeleteUploadDocumentsCase = use_cases.DeleteUploadDocumentsCase(**resources)
     await delete_upload_documents(upload_documents_ids=upload_documents_ids, agent_id=agent_id)
     return Response(status_code=HTTPStatus.NO_CONTENT)
+
+
+@router.post(
+    "/join_agency",
+    status_code=HTTPStatus.OK,
+    response_model=models.ResponseSignupInAgencyModel,
+)
+async def process_signup_in_agency(
+    payload: models.RequestSignupInAgencyModel = Body(...),
+    agent_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT)),
+):
+    """
+    Восстановление агента в новом агентстве.
+    """
+    create_contact_service = services.CreateContactService(
+        amocrm_class=amocrm.AmoCRM,
+        agent_repo=agents_repos.AgentRepo,
+        agency_repo=agencies_repos.AgencyRepo,
+    )
+    ensure_broker_tag_service = services.EnsureBrokerTagService(
+        amocrm_class=amocrm.AmoCRM,
+        agent_repo=agents_repos.AgentRepo,
+    )
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notification_repos.EmailTemplateRepo,
+        )
+    resources: dict[str, Any] = dict(
+        agent_repo=agents_repos.AgentRepo,
+        agency_repo=agencies_repos.AgencyRepo,
+        email_class=email.EmailService,
+        create_contact_service=create_contact_service,
+        ensure_broker_tag_service=ensure_broker_tag_service,
+        bind_contact_company_task=amocrm.tasks.bind_contact_to_company,
+        site_config=site_config,
+        get_email_template_service=get_email_template_service,
+    )
+    process_signup_in_agency: use_cases.ProcessSignupInAgency = use_cases.ProcessSignupInAgency(**resources)
+    return await process_signup_in_agency(agent_id=agent_id, payload=payload)

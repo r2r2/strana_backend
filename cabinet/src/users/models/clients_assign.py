@@ -26,7 +26,7 @@ class RequestAssignClient(BaseModel):
 
     @property
     def full_name(self):
-        return f'{self.name} {self.surname} {self.patronymic}'.strip()
+        return f'{self.surname} {self.name} {self.patronymic}'.strip()
 
     @property
     def user_data(self):
@@ -38,20 +38,6 @@ class ResponseAssignClient(BaseModel):
     agent_id: int
     agency_id: int
     client_id: int = Field(alias='id')
-
-    class Config:
-        orm_mode = True
-
-
-class ResponseUnassignText(BaseModel):
-    text: str = Field(..., description='Текст для страницы открепления клиента')
-
-    class Config:
-        orm_mode = True
-
-
-class ResponseUnassignText(BaseModel):
-    text: str = Field(..., description='Текст для страницы открепления клиента')
 
     class Config:
         orm_mode = True

@@ -3,10 +3,9 @@ from typing import Any
 from fastapi import (APIRouter, Body, Path, Depends)
 
 from common import dependencies
-from src.booking.repos import BookingRepo
+from config import amocrm_config
 from src.task_management.model import TaskInstanceUpdateSchema
 from src.task_management.repos import TaskInstanceRepo, TaskStatusRepo
-from src.task_management import services as task_management_services
 from src.task_management.use_cases import (
     UpdateTaskInstanceCase,
 )
@@ -51,47 +50,72 @@ async def create_task_instance_from_admin(
 
 
 @router.post(
-    "/create_tasks",
+    "/set_pinning",
     status_code=HTTPStatus.OK,
 )
-async def endpoint_to_delete():
+async def one_time_set_pinning():
     """
-    скрипт, который разово по всем сделкам пройдется и создаст задачу на платную бронь для всех сделок в фиксации за АН
-    https://youtrack.artw.ru/issue/strana_lk-1403
+    Одноразовый эндпоинт. Удалить после использования.
+    Установка Статуса закрепления для всех пользователей
     """
     import asyncio
-    from src.task_management.repos import TaskChainRepo, TaskChain
-    from src.booking.repos import Booking
+    import multiprocessing
+    from time import time
+    from common.amocrm import amocrm
+    from src.users import repos as users_repos
+    from src.users import services as users_services
+    from src.users import constants as users_constants
 
-    AMOCRMID = [
-        50284815,
-        51105825,
-        41481162,
-        57272745,
-        55950761,
-        51944400,
-        51489690
-    ]
-
-    bookings: list[Booking] = await BookingRepo().list(
-        filters=dict(amocrm_status_id__in=AMOCRMID)
-    )
+    RATE_LIMIT = 80  # requests per second
 
     resources: dict[str, Any] = dict(
-        booking_repo=BookingRepo,
-        task_instance_repo=TaskInstanceRepo,
-        task_chain_repo=TaskChainRepo,
-        task_status_repo=TaskStatusRepo,
+        amocrm_class=amocrm.AmoCRM,
+        user_repo=users_repos.UserRepo,
+        check_pinning_repo=users_repos.PinningStatusRepo,
+        user_pinning_repo=users_repos.UserPinningStatusRepo,
+        amocrm_config=amocrm_config,
     )
-    create_task_instance = task_management_services.CreateTaskInstanceService(
-        **resources
+    check_pinning: users_services.CheckPinningStatusService = users_services.CheckPinningStatusService(**resources)
+
+    batch_size = 100
+    concurrency_limit = multiprocessing.cpu_count() * 2
+
+    total_users_count = await users_repos.UserRepo().count(
+        filters=dict(type=users_constants.UserType.CLIENT, agent_id__isnull=False),
     )
-    task_chain: TaskChain = await TaskChainRepo().retrieve(
-        filters=dict(name__iexact="Зарезервировать квартиру")
-    )
-    tasks = []
-    for booking in bookings:
-        tasks.append(
-            create_task_instance.paid_booking_case(booking=booking, task_chain=task_chain)
+
+    print("++++Start Task++++")
+    print(f'Total users count: {total_users_count[0][0]}')
+
+    total_batches = (total_users_count[0][0] + batch_size - 1) // batch_size
+    semaphore = asyncio.Semaphore(concurrency_limit)
+
+    async def process_batch(offset: int):
+        start_time = time()
+        users_to_check_ids = await (
+            users_repos.User.all()
+            .filter(
+                type=users_constants.UserType.CLIENT,
+                agent_id__isnull=False,
+            )
+            .limit(batch_size)
+            .offset(offset=offset)
+            .only('id')
+            .values_list('id', flat=True)
         )
-    await asyncio.gather(*tasks)
+
+        for user_id in users_to_check_ids:
+            async with semaphore:
+                await check_pinning(user_id=user_id)
+                elapsed_time = time() - start_time
+                if elapsed_time < 1 / RATE_LIMIT:
+                    await asyncio.sleep(1 / RATE_LIMIT - elapsed_time)
+
+    process_tasks = []
+    for offset in range(0, total_batches * batch_size, batch_size):
+        process_tasks.append(asyncio.create_task(process_batch(offset=offset)))
+
+    print(f"{len(process_tasks)} tasks created")
+
+    await asyncio.gather(*process_tasks)
+    print("++++All Task Done++++")

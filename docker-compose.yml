@@ -117,7 +117,7 @@ x-app_environment: &app_environment
     - SENSEI_PID
     - SENSEI_SECRET
 
-    
+
 services:
   cabinet:
     container_name: cabinet

@@ -18,6 +18,8 @@ class BookingListCase(BaseBookingCase):
             active=True,
             user_id=user_id,
             property_id__isnull=False,
+            building_id__isnull=False,
+            project_id__isnull=False,
         )
 
         additional_filters: dict = self._get_additional_filters(statuses=statuses, init_filters=init_filters)

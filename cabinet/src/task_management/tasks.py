@@ -6,6 +6,7 @@ from tortoise import Tortoise
 from config import celery, tortoise_config
 from src.booking import repos as booking_repos
 from src.task_management import repos as task_management_repos
+from src.task_management import loggers
 from src.task_management import services
 
 
@@ -56,3 +57,20 @@ def update_task_instance_status_task(
             booking_id=booking_id, status_slug=status_slug, comment=comment,
         )
     )
+
+
+@celery.app.task
+def create_task_instance_log_task(log_data: dict[str, Any]) -> None:
+    """
+    Создание лога изменений инстанса задачи
+    """
+    resources: dict[str, Any] = dict(
+        task_instance_log_repo=task_management_repos.TaskInstanceLogRepo,
+        orm_class=Tortoise,
+        orm_config=tortoise_config,
+    )
+    create_log: loggers.CreateTaskInstanceLogLogger = loggers.CreateTaskInstanceLogLogger(
+        **resources
+    )
+    loop: Any = get_event_loop()
+    loop.run_until_complete(celery.sentry_catch(celery.init_orm(create_log))(log_data=log_data))

@@ -8,6 +8,7 @@ from ..repos import Agency, AgencyRepo
 from ..types import (AgencyEmail, AgencyFileDestroyer, AgencyFileProcessor,
                      AgencyRepresRepo, AgencySms, AgencyUser)
 from ..loggers.wrappers import agency_changes_logger
+from src.notifications.services import GetEmailTemplateService, GetSmsTemplateService
 
 
 class AdminsAgenciesUpdateCase(BaseAgencyCase):
@@ -15,11 +16,8 @@ class AdminsAgenciesUpdateCase(BaseAgencyCase):
     Обновление агентства администратором
     """
 
-    email_template: str = "src/agencies/templates/change_email.html"
-    message_template: str = (
-        "Для подтверждения смены номера телефона {old_phone} на {new_phone} перейдите по ссылке {update_link} . "
-        "После перехода по ссылке Ваш аккаунт будет неактивен до подтверждения номера телефона {new_phone} ."
-    )
+    mail_event_slug = "agency_update"
+    sms_event_slug = "agency_update"
     email_link: str = "https://{}/change/represes/change_email?q={}&p={}"
     phone_link: str = "https://{}/change/represes/change_phone?q={}&p={}"
 
@@ -33,6 +31,8 @@ class AdminsAgenciesUpdateCase(BaseAgencyCase):
         token_creator: Callable[[int], str],
         file_processor: Type[AgencyFileProcessor],
         file_destroyer: Type[AgencyFileDestroyer],
+        get_email_template_service: GetEmailTemplateService,
+        get_sms_template_service: GetSmsTemplateService,
     ) -> None:
         self.agency_repo: AgencyRepo = agency_repo()
         self.agency_update = agency_changes_logger(
@@ -45,6 +45,8 @@ class AdminsAgenciesUpdateCase(BaseAgencyCase):
         self.token_creator: Callable[[int], str] = token_creator
         self.file_processor: AgencyFileProcessor = file_processor
         self.file_destroyer: AgencyFileDestroyer = file_destroyer
+        self.get_email_template_service: GetEmailTemplateService = get_email_template_service
+        self.get_sms_template_service: GetSmsTemplateService = get_sms_template_service
 
         self.site_host: str = site_config["site_host"]
 
@@ -65,15 +67,25 @@ class AdminsAgenciesUpdateCase(BaseAgencyCase):
         """
         Отправка смс
         """
-        update_link: str = self.email_link.format(
-            self.site_host, token, maintainer.change_phone_token
+        sms_notification_template = await self.get_sms_template_service(
+            sms_event_slug=self.sms_event_slug,
         )
-        message: str = self.message_template.format(
-            new_phone=maintainer.change_phone, old_phone=maintainer.phone, update_link=update_link
-        )
-        sms_options: dict[str, Any] = dict(phone=maintainer.phone, message=message)
-        sms_service: AgencySms = self.sms_class(**sms_options)
-        return sms_service.as_task()
+
+        if sms_notification_template and sms_notification_template.is_active:
+            update_link: str = self.email_link.format(
+                self.site_host, token, maintainer.change_phone_token
+            )
+            message: str = sms_notification_template.template_text.format(
+                new_phone=maintainer.change_phone, old_phone=maintainer.phone, update_link=update_link
+            )
+            sms_options: dict[str, Any] = dict(
+                phone=maintainer.phone,
+                message=message,
+                lk_type=sms_notification_template.lk_type.value,
+                sms_event_slug=sms_notification_template.sms_event_slug,
+            )
+            sms_service: AgencySms = self.sms_class(**sms_options)
+            return sms_service.as_task()
 
     async def _send_email(self, maintainer: AgencyUser, token: str) -> Task:
         """
@@ -82,15 +94,22 @@ class AdminsAgenciesUpdateCase(BaseAgencyCase):
         update_link: str = self.email_link.format(
             self.site_host, token, maintainer.change_email_token
         )
-        email_options: dict[str, Any] = dict(
-            topic="Смена почты",
-            recipients=[maintainer.email],
-            template=self.email_template,
+        email_notification_template = await self.get_email_template_service(
+            mail_event_slug=self.mail_event_slug,
             context=dict(
                 update_link=update_link,
                 old_email=maintainer.email,
                 new_email=maintainer.change_email,
             ),
         )
-        email_service: AgencyEmail = self.email_class(**email_options)
-        return email_service.as_task()
+
+        if email_notification_template and email_notification_template.is_active:
+            email_options: dict[str, Any] = dict(
+                topic=email_notification_template.template_topic,
+                content=email_notification_template.content,
+                recipients=[maintainer.email],
+                lk_type=email_notification_template.lk_type.value,
+                mail_event_slug=email_notification_template.mail_event_slug,
+            )
+            email_service: AgencyEmail = self.email_class(**email_options)
+            return email_service.as_task()

@@ -18,21 +18,34 @@ class MeetingsListCase(BaseMeetingCase):
     ) -> None:
         self.meeting_repo: MeetingRepo = meeting_repo()
 
-    async def __call__(self, *, statuses: list[str], pagination: PagePagination) -> dict:
-        filters: dict = dict()
+    async def __call__(self, *, statuses: list[str], user_id: int, pagination: PagePagination) -> dict:
+        filters: dict = dict(booking__user_id=user_id)
         if statuses:
             filters.update(status__in=statuses)
 
-        meetings_qs: QuerySet = self.meeting_repo.list(filters=filters, start=pagination.start, end=pagination.end)
+        q_filters = [
+            self.meeting_repo.q_builder(
+                or_filters=[dict(booking__user_id=user_id), dict(booking__agent_id=user_id)]
+            )
+        ]
 
-        meetings: list[Meeting] = await meetings_qs
-        if not meetings:
-            raise MeetingsNotFoundError
+        meetings: list[Meeting] = await self.meeting_repo.list(
+            filters=filters,
+            q_filters=q_filters,
+            start=pagination.start,
+            end=pagination.end,
+            related_fields=["booking"],
+            ordering="date",
+        )
 
-        count: int = await meetings_qs.count()
+        counted = await self.meeting_repo.list(
+            filters=filters,
+            q_filters=q_filters,
+        ).count()
+
         data: dict = dict(
-            count=count,
+            count=counted,
             result=meetings,
-            page_info=pagination(count=count)
+            page_info=pagination(count=counted)
         )
         return data

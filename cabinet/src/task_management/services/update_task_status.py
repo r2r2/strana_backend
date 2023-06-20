@@ -11,6 +11,7 @@ from src.task_management.constants import PackageOfDocumentsSlug
 from src.task_management.helpers import Slugs
 from src.task_management.entities import BaseTaskService
 from src.task_management.exceptions import TaskStatusNotFoundError
+from src.task_management.loggers import task_instance_logger
 from src.task_management.repos import TaskInstanceRepo, TaskStatusRepo, TaskStatus
 
 
@@ -36,7 +37,8 @@ class UpdateTaskInstanceStatusService(BaseTaskService):
             self.orm_config.pop("generate_schemas", None)
 
         self.sensei: type[SenseiAPI] = SenseiAPI
-        self.logger = structlog.get_logger('errors')
+        self.logger = structlog.get_logger()
+        self.update_task = task_instance_logger(self.task_instance_repo.update, self, content="Обновление задачи")
 
     async def __call__(
         self,
@@ -44,8 +46,10 @@ class UpdateTaskInstanceStatusService(BaseTaskService):
         status_slug: str,
         comment: Optional[str] = None
     ) -> None:
+        self.logger.info("Обновление статуса задачи:")
         booking, task_status = await self._get_booking_and_task_status(booking_id, status_slug)
         task_instances: list[TaskInstance] = booking.task_instances  # type: ignore
+        self.logger.info(f"Найдено {len(task_instances)} задач(и) для сделки {booking}")
 
         slug_values: list[str] = Slugs.get_slug_values(status_slug)
         for task_instance in task_instances:
@@ -54,14 +58,19 @@ class UpdateTaskInstanceStatusService(BaseTaskService):
             if task_instance.status.slug in slug_values:
                 task_amocrmid: Optional[int] = None
                 if status_slug == PackageOfDocumentsSlug.CHECK.value:
-                    task_amocrmid = await self._send_sensei_request(amocrm_id=booking.amocrm_id)
+                    task_amocrmid = await self._send_sensei_request(
+                        sensei_pid=task_status.tasks_chain.sensei_pid,
+                        amocrm_id=booking.amocrm_id
+                    )
 
                 data: dict[str, Any] = dict(
                     status=task_status,
                     comment=comment or task_instance.comment,
                     task_amocrmid=task_amocrmid,
                 )
-                await self.task_instance_repo.update(task_instance, data=data)
+                self.logger.info(f"Обновление задачи {task_instance}: "
+                                 f"Данные: {data}")
+                await self.update_task(task_instance=task_instance, data=data)
                 # У сделки может быть только одна задача в цепочке задач, поэтому выходим из цикла
                 break
 
@@ -79,16 +88,18 @@ class UpdateTaskInstanceStatusService(BaseTaskService):
         )
         if not booking:
             raise BookingNotFoundError
+        self.logger.info(f"Бронирование: {booking}")
 
         task_status: TaskStatus = await self.task_status_repo.retrieve(
             filters=dict(slug=status_slug),
+            related_fields=["tasks_chain"]
         )
         if not task_status:
             raise TaskStatusNotFoundError
-
+        self.logger.info(f"Статус задачи: {task_status}")
         return booking, task_status
 
-    async def _send_sensei_request(self, amocrm_id: int = None) -> Optional[int]:
+    async def _send_sensei_request(self, sensei_pid: int, amocrm_id: int = None) -> Optional[int]:
         """
         Отправка запроса в сенсей
         """
@@ -97,7 +108,7 @@ class UpdateTaskInstanceStatusService(BaseTaskService):
         async with self.sensei() as sensei:
             self.logger.info(f'Sending request to SenseiAPI: {amocrm_id}')
             response = await sensei.process_start(
-                process_id=sensei.SENSEI_PID,
+                process_id=sensei_pid,
                 amocrm_id=amocrm_id,
             )
             self.logger.info(f'SenseiAPI response: {response}')

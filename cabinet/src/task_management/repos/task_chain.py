@@ -1,3 +1,5 @@
+from typing import Optional
+
 from tortoise import fields
 
 from common.orm.mixins import ReadWriteMixin
@@ -11,6 +13,7 @@ class TaskChain(BaseTaskModel):
 
     id: int = fields.IntField(description="ID", pk=True)
     name: str = fields.CharField(max_length=100, description="Название цепочки заданий")
+    sensei_pid: Optional[int] = fields.IntField(description="ID процесса в Sensei", null=True)
     booking_substage: fields.ManyToManyRelation["AmocrmStatus"] = fields.ManyToManyField(
         model_name="models.AmocrmStatus",
         related_name="taskchain_booking_substages",
@@ -34,7 +37,7 @@ class TaskChain(BaseTaskModel):
 
     task_statuses: fields.ReverseRelation["TaskStatus"]
 
-    def __repr__(self) -> str:
+    def __str__(self) -> str:
         return self.name
 
     class Meta:

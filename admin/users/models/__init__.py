@@ -6,4 +6,5 @@ from .user_log import UserLog
 from .users_checks_terms import (CabinetChecksTerms, CitiesThrough,
                                  PipelinesThrough, StatusesThrough)
 from .fake_user_phones import FakeUserPhone
+from .pinning_status import PinningStatus, PinningStatusCity, PinningStatusPipeline, PinningStatusStatus
 from .confirm_client_assign import ConfirmClientAssign

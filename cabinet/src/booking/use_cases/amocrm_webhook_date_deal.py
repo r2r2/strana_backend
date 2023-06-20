@@ -13,6 +13,7 @@ from ..repos import Booking, BookingRepo, WebhookRequestRepo
 from ..services import HistoryService, NotificationService
 from ..types import BookingEmail, BookingSms
 from ..loggers.wrappers import booking_changes_logger
+from src.notifications.services import GetSmsTemplateService, GetEmailTemplateService
 
 logger = structlog.getLogger('amocrm_date_deal_hook')
 
@@ -24,7 +25,8 @@ class AmoCRMWebhookDateDealCase(BaseBookingCase, BookingLogMixin):
     Также оповещаем клиента об этом.
     """
 
-    email_template = "src/booking/templates/amocrm_signing_date_set.html"
+    sms_event_slug = "booking_date_deal"
+    mail_event_slug = "amocrm_signing_date_set"
     _notification_template = "src/booking/templates/notifications/amocrm_webhook_date_deal.json"
     _history_template = "src/booking/templates/history/amocrm_webhook_date_deal.txt"
 
@@ -37,6 +39,8 @@ class AmoCRMWebhookDateDealCase(BaseBookingCase, BookingLogMixin):
         email_class: Type[BookingEmail],
         history_service: HistoryService,
         notification_service: NotificationService,
+        get_sms_template_service: GetSmsTemplateService,
+        get_email_template_service: GetEmailTemplateService,
     ) -> None:
         self.booking_repo: BookingRepo = booking_repo()
         self.webhook_request_repo: WebhookRequestRepo = webhook_request_repo()
@@ -47,6 +51,8 @@ class AmoCRMWebhookDateDealCase(BaseBookingCase, BookingLogMixin):
 
         self._history_service = history_service
         self._notification_service = notification_service
+        self.get_sms_template_service: GetSmsTemplateService = get_sms_template_service
+        self.get_email_template_service: GetEmailTemplateService = get_email_template_service
         self.booking_update = booking_changes_logger(self.booking_repo.update, self, content="Указана дата подписания "
                                                                                              "договора")
 
@@ -125,25 +131,35 @@ class AmoCRMWebhookDateDealCase(BaseBookingCase, BookingLogMixin):
             params={"signing_date": booking.signing_date.strftime("%d.%m.%Y")},
         )
 
-    def _send_email(self, booking: Booking) -> Task:
+    async def _send_email(self, booking: Booking) -> Task:
         """Уведомление по почте"""
-        email_options: dict[str, Any] = dict(
-            topic="Покупка квартиры.",
-            template=self.email_template,
+        email_notification_template = await self.get_email_template_service(
+            mail_event_slug=self.mail_event_slug,
             context=dict(booking=booking),
-            recipients=[booking.user.email],
         )
-        email_service: Any = self.email_class(**email_options)
-        return email_service.as_task()
 
-    def _send_sms(self, booking: Booking) -> Task:
+        if email_notification_template and email_notification_template.is_active:
+            email_options: dict[str, Any] = dict(
+                topic=email_notification_template.template_topic,
+                content=email_notification_template.content,
+                recipients=[booking.user.email],
+                lk_type=email_notification_template.lk_type.value,
+                mail_event_slug=email_notification_template.mail_event_slug,
+            )
+            email_service: Any = self.email_class(**email_options)
+            return email_service.as_task()
+
+    async def _send_sms(self, booking: Booking) -> Task:
         """СМС уведомление"""
-        message = (
-            "Покупка квартиры.\n\n"
-            "Дата подписания договора была назначена.\n\n"
-            "Подробности в личном кабинете:\n"
-            "www.strana.com/login"
+        sms_notification_template = await self.get_sms_template_service(
+            sms_event_slug=self.sms_event_slug,
         )
-        sms_options: dict[str, Any] = dict(phone=booking.user.phone, message=message)
-        sms_service: Any = self.sms_class(**sms_options)
-        return sms_service.as_task()
+        if sms_notification_template and sms_notification_template.is_active:
+            sms_options: dict[str, Any] = dict(
+                phone=booking.user.phone,
+                message=sms_notification_template.template_text,
+                lk_type=sms_notification_template.lk_type.value,
+                sms_event_slug=sms_notification_template.sms_event_slug,
+            )
+            sms_service: Any = self.sms_class(**sms_options)
+            return sms_service.as_task()

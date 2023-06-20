@@ -8,25 +8,28 @@ from ..repos import BookingRepo, Booking
 from ..exceptions import BookingAlreadyEmailedError, BookingUserInactiveError
 from ..decorators import logged_action
 from ..loggers.wrappers import booking_changes_logger
+from src.notifications.services import GetEmailTemplateService
 
 
 class SingleEmailCase(BaseBookingCase, BookingLogMixin):
     """
     Отправка одного письма брони
     """
-    template: str = "src/booking/templates/success_booking.html"
+    mail_event_slug = "success_booking"
 
     def __init__(
             self,
             create_booking_log_task: Any,
             booking_repo: Type[BookingRepo],
-            email_class: Type[BookingEmail]
+            email_class: Type[BookingEmail],
+            get_email_template_service: GetEmailTemplateService,
     ) -> None:
         self.booking_repo: BookingRepo = booking_repo()
 
         self.email_class: Type[BookingEmail] = email_class
         self.create_booking_log_task: Any = create_booking_log_task
         self.booking_update = booking_changes_logger(self.booking_repo.update, self, content="Успешная | EMAIL")
+        self.get_email_template_service: GetEmailTemplateService = get_email_template_service
 
     async def __call__(self, booking_id: int, user_id: int) -> Booking:
 
@@ -45,11 +48,18 @@ class SingleEmailCase(BaseBookingCase, BookingLogMixin):
 
     # @logged_action(content="УСПЕШНАЯ ОПЛАТА | EMAIL")
     async def _send_email(self, booking: Booking) -> Task:
-        email_options: dict[str, Any] = dict(
-            topic="Успешная оплата бронирования",
-            template=self.template,
+        email_notification_template = await self.get_email_template_service(
+            mail_event_slug=self.mail_event_slug,
             context=dict(booking=booking),
-            recipients=[booking.user.email],
         )
-        email_service: Any = self.email_class(**email_options)
-        return email_service.as_task()
+
+        if email_notification_template and email_notification_template.is_active:
+            email_options: dict[str, Any] = dict(
+                topic=email_notification_template.template_topic,
+                content=email_notification_template.content,
+                recipients=[booking.user.email],
+                lk_type=email_notification_template.lk_type.value,
+                mail_event_slug=email_notification_template.mail_event_slug,
+            )
+            email_service: Any = self.email_class(**email_options)
+            return email_service.as_task()

@@ -16,28 +16,27 @@ from src.booking.repos import Booking, BookingRepo
 from src.booking.types import BookingAmoCRM, BookingSms
 from src.users.repos import User
 from ..maintenance.amocrm_sms_note import amocrm_sms_note
+from src.notifications.services import GetSmsTemplateService
 
 
 class AmoCRMSmsWebhookCase(BaseBookingCase):
     """Вебхук для отправки смс главному контакту сделки"""
-    sms_message_template: str = """Онлайн-бронирование.
 
-         Для оплаты бронирования перейдите в личный кабинет.
-         {}
-
-         www.strana.com"""
+    sms_event_slug = "booking_amo_webhook"
     fast_booking_link_template: str = "https://{}/fast-booking/{}?token={}"
 
     def __init__(
         self,
         amocrm_class: Type[BookingAmoCRM],
         sms_class: Type[BookingSms],
+        get_sms_template_service: GetSmsTemplateService,
         booking_repo: Type[BookingRepo],
         site_config: dict[str, Any],
         token_creator: Callable[..., dict[str, str]],
     ):
         self.amocrm = amocrm_class
         self.sms_class = sms_class
+        self.get_sms_template_service: GetSmsTemplateService = get_sms_template_service
         self.booking_repo = booking_repo()
         self.site_host: str = site_config["site_host"]
         self.token_creator: Callable[..., dict[str, str]] = token_creator
@@ -47,8 +46,9 @@ class AmoCRMSmsWebhookCase(BaseBookingCase):
     async def __call__(self, amocrm_id: int) -> None:
         """Отправка смс"""
         booking: Optional[Booking] = await self.booking_repo.retrieve(
-            filters=dict(amocrm_id=amocrm_id)
-        ).only('id', 'user')
+            filters=dict(amocrm_id=amocrm_id),
+            related_fields=['user'],
+        )
         if not booking:
             raise BookingNotFoundError
 
@@ -101,10 +101,18 @@ class AmoCRMSmsWebhookCase(BaseBookingCase):
                     raise AmoContactIncorrectPhoneFormatError
                 return phone
 
-    def _send_sms(self, phone: str, booking: Booking, token: str) -> Task:
+    async def _send_sms(self, phone: str, booking: Booking, token: str) -> Task:
         """СМС уведомление"""
-        fast_booking_link: str = self.fast_booking_link_template.format(self.site_host, booking.id, token)
-        message: str = self.sms_message_template.format(fast_booking_link)
-        sms_options: dict[str, Any] = dict(phone=phone, message=message)
-        sms_service: Any = self.sms_class(**sms_options)
-        return sms_service.as_task()
+        sms_notification_template = await self.get_sms_template_service(
+            sms_event_slug=self.sms_event_slug,
+        )
+        if sms_notification_template and sms_notification_template.is_active:
+            fast_booking_link: str = self.fast_booking_link_template.format(self.site_host, booking.id, token)
+            sms_options: dict[str, Any] = dict(
+                phone=phone,
+                message=sms_notification_template.template_text.format(fast_booking_link=fast_booking_link),
+                lk_type=sms_notification_template.lk_type.value,
+                sms_event_slug=sms_notification_template.sms_event_slug,
+            )
+            sms_service: Any = self.sms_class(**sms_options)
+            return sms_service.as_task()

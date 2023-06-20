@@ -32,6 +32,7 @@ from ..services.generate_online_purchase_id import \
 from ..types import (BookingEmail, BookingFileProcessor, BookingSms,
                      ScannedPassportData)
 from ..validations import DDUUploadFileValidator
+from src.notifications.services import GetSmsTemplateService
 
 
 class DDUFiles(TypedDict):
@@ -82,8 +83,8 @@ class DDUCreateCase(BaseBookingCase):
     Оформление ДДУ
     """
 
+    sms_event_slug = "booking_ddu"
     ddu_upload_url_template = "https://{}/online-purchase?{}"
-    email_template = "src/booking/templates/ddu_created.html"
     _notification_template = "src/booking/templates/notifications/ddu_create.json"
     _history_template = "src/booking/templates/history/ddu_create.txt"
 
@@ -101,7 +102,8 @@ class DDUCreateCase(BaseBookingCase):
         ddu_data_from_participants_service: DDUDataFromParticipantsService,
         history_service: HistoryService,
         notification_service: NotificationService,
-        file_validator: Type[DDUUploadFileValidator]
+        file_validator: Type[DDUUploadFileValidator],
+        get_sms_template_service: GetSmsTemplateService,
     ) -> None:
         self.booking_repo: BookingRepo = booking_repo()
         self.ddu_repo: DDURepo = ddu_repo()
@@ -123,6 +125,7 @@ class DDUCreateCase(BaseBookingCase):
         self.booking_update = booking_changes_logger(
             self.booking_repo.update, self, content="Оформление ДДУ",
         )
+        self.get_sms_template_service: GetSmsTemplateService = get_sms_template_service
 
     async def __call__(
         self,
@@ -135,7 +138,7 @@ class DDUCreateCase(BaseBookingCase):
     ) -> Booking:
         filters: dict[str, Any] = dict(active=True, id=booking_id, user_id=user_id)
         booking: Booking = await self.booking_repo.retrieve(
-            filters=filters, related_fields=["user", "project"]
+            filters=filters, related_fields=["user", "project", "project__city"]
         )
         if not booking:
             raise BookingNotFoundError
@@ -195,7 +198,7 @@ class DDUCreateCase(BaseBookingCase):
 
         return await self.booking_repo.retrieve(
             filters=filters,
-            related_fields=["project", "property", "floor", "building", "ddu"],
+            related_fields=["project", "project__city", "property", "floor", "building", "ddu"],
             prefetch_fields=["ddu__participants"],
         )
 
@@ -208,17 +211,20 @@ class DDUCreateCase(BaseBookingCase):
             template=self._notification_template,
         )
 
-    def _send_sms(self, booking: Booking) -> Task:
+    async def _send_sms(self, booking: Booking) -> Task:
         """СМС уведовление"""
-        message = (
-            "Покупка квартиры.\n\n"
-            "Ваши данные для составления договора были отправлены.\n\n"
-            "Подробности в личном кабинете:\n"
-            "www.strana.com/login"
+        sms_notification_template = await self.get_sms_template_service(
+            sms_event_slug=self.sms_event_slug,
         )
-        sms_options: dict[str, Any] = dict(phone=booking.user.phone, message=message)
-        sms_service: Any = self.sms_class(**sms_options)
-        return sms_service.as_task()
+        if sms_notification_template and sms_notification_template.is_active:
+            sms_options: dict[str, Any] = dict(
+                phone=booking.user.phone,
+                message=sms_notification_template.template_text,
+                lk_type=sms_notification_template.lk_type.value,
+                sms_event_slug=sms_notification_template.sms_event_slug,
+            )
+            sms_service: Any = self.sms_class(**sms_options)
+            return sms_service.as_task()
 
     def _get_ddu_upload_url(self, booking_id: int, secret: str) -> str:
         """Получение ссылки для загрузки ДДУ юристом."""
@@ -458,7 +464,7 @@ class DDUCreateCase(BaseBookingCase):
                                          BookingSubstages.PAID_BOOKING,
                                          BookingSubstages.MORTGAGE_LEAD):
                 data_for_update["status"] = BookingSubstages.APPLY_FOR_A_MORTGAGE
-            data_for_update["city_slug"] = booking.project.city
+            data_for_update["city_slug"] = booking.project.city.slug
 
         note_text = self._get_note_text(ddu, ddu_participants)
 

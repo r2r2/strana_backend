@@ -2,13 +2,15 @@ import asyncio
 from copy import copy
 from typing import Any, Optional
 
-from common.sensei import SenseiAPI
+import structlog
+
 from src.booking.exceptions import BookingNotFoundError
 from src.booking.repos import Booking, BookingRepo
 from src.booking.types import BookingORM
 from src.task_management.constants import PaidBookingSlug, PackageOfDocumentsSlug
 from src.task_management.entities import BaseTaskService
 from src.task_management.exceptions import TaskChainNotFoundError, TaskStatusNotFoundError
+from src.task_management.loggers import task_instance_logger
 from src.task_management.repos import (TaskChain, TaskInstanceRepo,
                                        TaskStatusRepo, TaskChainRepo, TaskInstance, TaskStatus)
 
@@ -36,7 +38,8 @@ class CreateTaskInstanceService(BaseTaskService):
         if self.orm_config:
             self.orm_config.pop("generate_schemas", None)
 
-        self.sensei: type[SenseiAPI] = SenseiAPI
+        self.logger = structlog.get_logger(__name__)
+        self.create_task = task_instance_logger(self.task_instance_repo.create, self, content="Создание задачи")
 
         # Слаги статусов
         self.paid_booking_statuses: type[PaidBookingSlug] = PaidBookingSlug
@@ -55,11 +58,17 @@ class CreateTaskInstanceService(BaseTaskService):
         )
         if not task_chains:
             raise TaskChainNotFoundError
+        self.logger.info(
+            f"Бронирования и цепочки задач получены:\n"
+            f"Бронирования: {bookings}\n"
+            f"Цепочки задач: {[t.name for t in task_chains]}\n"
+        )
 
         for task_chain in task_chains:
             for booking in bookings:
                 # Тут определяем, что нужно создать задачу
                 if booking.amocrm_status and (booking.amocrm_status in task_chain.booking_substage):
+                    self.logger.info(f"Бронирование {booking} подходит для цепочки задач {task_chain}")
                     asyncio.create_task(self.process_use_case(booking=booking, task_chain=task_chain))
 
     async def process_use_case(self, booking: Booking, task_chain: TaskChain) -> None:
@@ -69,9 +78,11 @@ class CreateTaskInstanceService(BaseTaskService):
         """
         for status in task_chain.task_statuses:
             if status.slug == self.paid_booking_statuses.START.value:
+                self.logger.info(f"Кейс по платному бронированию для бронирования {booking}")
                 await self.paid_booking_case(booking=booking, task_chain=task_chain)
                 break
             elif status.slug == self.package_of_docs_statuses.START.value:
+                self.logger.info(f"Кейс по загрузке документов для бронирования {booking}")
                 await self.package_of_documents_case(booking=booking, task_chain=task_chain)
                 break
 
@@ -83,11 +94,7 @@ class CreateTaskInstanceService(BaseTaskService):
             filters: dict[str: str] = dict(slug=self.paid_booking_statuses.RE_BOOKING.value)
         else:
             filters: dict[str: str] = dict(slug=self.paid_booking_statuses.START.value)
-        task_status: TaskStatus = await self.task_status_repo.retrieve(
-            filters=filters,
-        )
-        if not task_status:
-            raise TaskStatusNotFoundError
+        task_status: TaskStatus = await self.get_task_status(filters=filters)
 
         if await self._is_task_not_in_this_chain(
             booking=booking,
@@ -104,11 +111,7 @@ class CreateTaskInstanceService(BaseTaskService):
         Создание задания для цепочки Загрузка документов
         """
         filters: dict[str: str] = dict(slug=self.package_of_docs_statuses.START.value)
-        task_status: TaskStatus = await self.task_status_repo.retrieve(
-            filters=filters,
-        )
-        if not task_status:
-            raise TaskStatusNotFoundError
+        task_status: TaskStatus = await self.get_task_status(filters=filters)
 
         if await self._is_task_not_in_this_chain(
             booking=booking,
@@ -120,6 +123,18 @@ class CreateTaskInstanceService(BaseTaskService):
                 task_status=task_status,
             )
 
+    async def get_task_status(self, filters: dict[str, Any]) -> TaskStatus:
+        """
+        Получение статуса задачи
+        """
+        task_status: TaskStatus = await self.task_status_repo.retrieve(
+            filters=filters,
+        )
+        if not task_status:
+            raise TaskStatusNotFoundError
+        self.logger.info(f"Статус задачи {task_status}")
+        return task_status
+
     async def _create_task_instance(
         self,
         booking: Booking,
@@ -129,13 +144,17 @@ class CreateTaskInstanceService(BaseTaskService):
         """
         Создание задания
         """
-        await self.task_instance_repo.create(
+        task: TaskInstance = await self.create_task(
             data=dict(
                 booking=booking,
                 status=task_status,
                 comment=comment,
-                sensei_pid=self.sensei.SENSEI_PID,
             )
+        )
+        self.logger.info(
+            f"Задача {task} создана"
+            f" для бронирования {booking}"
+            f" со статусом {task_status}"
         )
 
     async def _is_task_not_in_this_chain(
@@ -151,5 +170,7 @@ class CreateTaskInstanceService(BaseTaskService):
         )
         # If current TaskChain already have associated TaskInstance, do not need to create new one
         if task_instance:
+            self.logger.info(f"Задача {task_instance} уже есть в цепочке {task_chain}")
             return False
+        self.logger.info(f"Задачи в цепочке {task_chain} нет")
         return True

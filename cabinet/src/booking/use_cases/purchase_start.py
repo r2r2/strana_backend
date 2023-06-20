@@ -56,7 +56,7 @@ class PurchaseStartCase(BaseBookingCase, BookingLogMixin):
         filters: dict[str, Any] = dict(id=booking_id, user_id=user_id, active=True)
         booking: Booking = await self.booking_repo.retrieve(
             filters=filters,
-            related_fields=["project", "property", "floor", "building", "ddu"],
+            related_fields=["project", "project__city", "property", "floor", "building", "ddu"],
             prefetch_fields=["ddu__participants"],
         )
         if not booking:

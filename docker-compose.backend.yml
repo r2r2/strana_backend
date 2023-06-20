@@ -229,4 +229,3 @@ volumes:
 networks:
   strana:
     name: strana
-

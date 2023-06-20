@@ -132,3 +132,15 @@ class UploadDocumentInternalError(BaseAgentException):
     message: str = "Ошибка сервиса загрузки файлов"
     status: int = HTTPStatus.INTERNAL_SERVER_ERROR
     reason: str = "upload_service_internal_error"
+
+
+class AgentHasNoAgencyError(BaseAgentException):
+    message: str = "У агента нет агентства."
+    status: int = HTTPStatus.BAD_REQUEST
+    reason: str = "agent_has_no_agency_error"
+
+
+class AgentHasAgencyError(BaseAgentException):
+    message: str = "У агента уже есть агентство"
+    status: int = HTTPStatus.BAD_REQUEST
+    reason: str = "agent_has_agency_error"

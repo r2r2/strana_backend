@@ -1,4 +1,3 @@
 from .meeting import ResponseMeetingsListModel
 from .create_meeting import RequestCreateMeetingModel, ResponseCreatedMeetingModel
 from .update_meeting import RequestUpdateMeetingModel, ResponseUpdateMeetingModel
-from .confirm_meeting import RequestConfirmMeetingModel

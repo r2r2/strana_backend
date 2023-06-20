@@ -17,8 +17,8 @@ from src.booking import repos as booking_repos
 from src.booking import services as booking_services
 from src.booking import tasks as bookings_tasks
 from src.buildings import repos as buildings_repos
+from src.cities import repos as cities_repos
 from src.floors import repos as floors_repos
-from src.notifications import repos as notifications_repos
 from src.projects import repos as projects_repos
 from src.properties import repos as properties_repos
 from src.properties import services as property_services
@@ -32,6 +32,11 @@ from src.users import tasks as users_tasks
 from src.users import use_cases
 from tortoise import Tortoise
 from config import auth_config, session_config, site_config
+from src.main_page import repos as main_page_repos
+from src.main_page import use_cases as main_page_use_cases
+from src.notifications import services as notification_services
+from src.notifications import repos as notifications_repos
+
 
 router = APIRouter(prefix="/users", tags=["Users"])
 router_v2 = APIRouter(prefix="/v2/users", tags=["Users", "v2"])
@@ -46,6 +51,10 @@ async def send_code_view(
     """
     Отправка кода
     """
+    get_sms_template_service: notification_services.GetSmsTemplateService = \
+        notification_services.GetSmsTemplateService(
+            sms_template_repo=notifications_repos.SmsTemplateRepo,
+        )
     send_code: use_cases.SendCodeCase = use_cases.SendCodeCase(
         hasher=security.get_hasher,
         sms_class=messages.SmsService,
@@ -54,6 +63,7 @@ async def send_code_view(
         code_generator=utils.generate_code,
         password_generator=utils.generate_password,
         update_user_data=users_tasks.update_user_data_task,
+        get_sms_template_service=get_sms_template_service,
     )
     return await send_code(payload=payload, real_ip=x_real_ip)
 
@@ -82,6 +92,16 @@ async def validate_code_view(
         backend_floors_repo=backend_repos.BackendFloorsRepo,
         backend_sections_repo=backend_repos.BackendSectionsRepo,
     )
+
+    resources: dict[str, Any] = dict(
+        amocrm_class=amocrm.AmoCRM,
+        user_repo=users_repos.UserRepo,
+        check_pinning_repo=users_repos.PinningStatusRepo,
+        user_pinning_repo=users_repos.UserPinningStatusRepo,
+        amocrm_config=amocrm_config,
+    )
+    check_pinning: user_services.CheckPinningStatusService = user_services.CheckPinningStatusService(**resources)
+
     resources: dict[str, Any] = dict(
         orm_class=Tortoise,
         orm_config=tortoise_config,
@@ -101,6 +121,7 @@ async def validate_code_view(
         import_property_service=import_property_service,
         statuses_repo=amocrm_repos.AmoStatusesRepo,
         amocrm_config=amocrm_config,
+        check_pinning=check_pinning,
     )
     import_bookings_service: booking_services.ImportBookingsService = booking_services.ImportBookingsService(
         **resources,
@@ -138,12 +159,17 @@ async def update_personal_view(
     """
     Обновление персональных данных
     """
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notifications_repos.EmailTemplateRepo,
+        )
     resources: dict[str, Any] = dict(
         site_config=site_config,
         amocrm_class=amocrm.AmoCRM,
         user_repo=users_repos.UserRepo,
         email_class=email.EmailService,
         token_creator=security.create_email_token,
+        get_email_template_service=get_email_template_service,
     )
     update_personal: use_cases.UpdatePersonalCase = use_cases.UpdatePersonalCase(**resources)
     return await update_personal(payload=payload, user_id=user_id)
@@ -257,12 +283,17 @@ async def partial_update_view(
     """
     Частичное обновление
     """
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notifications_repos.EmailTemplateRepo,
+        )
     resources: dict[str, Any] = dict(
         site_config=site_config,
         amocrm_class=amocrm.AmoCRM,
         user_repo=users_repos.UserRepo,
         email_class=email.EmailService,
         token_creator=security.create_email_token,
+        get_email_template_service=get_email_template_service,
     )
     partial_update: use_cases.PartialUpdateCase = use_cases.PartialUpdateCase(**resources)
     return await partial_update(user_id=user_id, payload=payload)
@@ -516,6 +547,12 @@ async def unassigned_client_to_agent(
         user_repo=users_repos.UserRepo,
         hasher=security.get_hasher,
     )
+    get_agent_client_service = user_services.GetAgentClientFromQueryService(**resources)
+
+    resources: dict[str, Any] = dict(
+        get_agent_client_service=get_agent_client_service,
+        hasher=security.get_hasher,
+    )
     use_case: use_cases.UnAssignationCase = use_cases.UnAssignationCase(**resources)
     return await use_case(token=token, data=data)
 
@@ -532,30 +569,25 @@ async def unassign_client_from_agent(
     """Открепление клиента от агента"""
     resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
+        hasher=security.get_hasher,
+    )
+    get_agent_client_service = user_services.GetAgentClientFromQueryService(**resources)
+
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notifications_repos.EmailTemplateRepo,
+        )
+    resources: dict[str, Any] = dict(
         admin_repo=admins_repos.AdminRepo,
-        booking_repo=booking_repos.BookingRepo,
         email_class=email.EmailService,
         amocrm_class=amocrm.AmoCRM,
         sms_class=messages.SmsService,
-        hasher=security.get_hasher,
-        email_recipients=email_recipients_config,
         confirm_client_assign_repo=users_repos.ConfirmClientAssignRepo,
+        get_email_template_service=get_email_template_service,
+        get_agent_client_service=get_agent_client_service,
     )
     use_case: use_cases.UnassignCase = use_cases.UnassignCase(**resources)
     return await use_case(token=token, data=data)
-
-
-@router.get("/client/unassign/text", status_code=HTTPStatus.OK, response_model=models.ResponseUnassignText)
-async def unassign_client_from_agent_text(
-    user_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.CLIENT)),
-):
-    """Текст для страницы открепления клиента от агента"""
-    resources: dict[str, Any] = dict(
-        user_repo=users_repos.UserRepo,
-        assign_client_template_repo=notifications_repos.AssignClientTemplateRepo,
-    )
-    use_case: use_cases.UnassignTextCase = use_cases.UnassignTextCase(**resources)
-    return await use_case(user_id=user_id)
 
 
 @router.get(
@@ -918,6 +950,10 @@ async def agents_users_check_dispute_view(
     """
     Оспаривание результатов проверки
     """
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notifications_repos.EmailTemplateRepo,
+        )
     resources: dict = dict(
         check_repo=users_repos.CheckRepo,
         email_class=email.EmailService,
@@ -925,6 +961,7 @@ async def agents_users_check_dispute_view(
         user_repo=users_repos.UserRepo,
         admin_repo=admins_repos.AdminRepo,
         email_recipients=email_recipients_config,
+        get_email_template_service=get_email_template_service,
     )
 
     agents_users_check_dispute: use_cases = use_cases.CheckDisputeCase(**resources)
@@ -1026,6 +1063,69 @@ async def assign_client_to_agent(
     create_task_instance_service = task_management_services.CreateTaskInstanceService(
         **resources
     )
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notifications_repos.EmailTemplateRepo,
+        )
+
+    resources: dict[str, Any] = dict(
+        amocrm_class=amocrm.AmoCRM,
+        user_repo=users_repos.UserRepo,
+        check_pinning_repo=users_repos.PinningStatusRepo,
+        user_pinning_repo=users_repos.UserPinningStatusRepo,
+        amocrm_config=amocrm_config,
+    )
+    check_pinning: user_services.CheckPinningStatusService = user_services.CheckPinningStatusService(**resources)
+
+    resources: dict[str, Any] = dict(
+        user_repo=users_repos.UserRepo,
+        check_repo=users_repos.CheckRepo,
+        project_repo=projects_repos.ProjectRepo,
+        booking_repo=booking_repos.BookingRepo,
+        amo_statuses_repo=amocrm_repos.AmoStatusesRepo,
+        template_repo=notifications_repos.AssignClientTemplateRepo,
+        amocrm_config=amocrm_config,
+        email_class=email.EmailService,
+        amocrm_class=amocrm.AmoCRM,
+        sms_class=messages.SmsService,
+        hasher=security.get_hasher,
+        site_config=site_config,
+        request=request,
+        get_email_template_service=get_email_template_service,
+        create_task_instance_service=create_task_instance_service,
+        confirm_client_assign_repo=users_repos.ConfirmClientAssignRepo,
+        check_pinning=check_pinning,
+    )
+    use_case: use_cases.AssignClientCase = use_cases.AssignClientCase(**resources)
+    return await use_case(payload=payload, agent_id=agent_id)
+
+
+@router.post(
+    "/repres/assign_client",
+    status_code=HTTPStatus.OK,
+    dependencies=[Depends(dependencies.DeletedUserCheck())],
+    response_model=models.ResponseAssignClient,
+    response_model_by_alias=False
+)
+async def assign_client_to_repres(
+    repres_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.REPRES)),
+    payload: models.RequestAssignClient = Body(...),
+    request: Request = Request,
+):
+    """Закрепить клиента за представителем агентства"""
+    resources: dict[str, Any] = dict(
+        booking_repo=booking_repos.BookingRepo,
+        task_instance_repo=task_management_repos.TaskInstanceRepo,
+        task_chain_repo=task_management_repos.TaskChainRepo,
+        task_status_repo=task_management_repos.TaskStatusRepo,
+    )
+    create_task_instance_service = task_management_services.CreateTaskInstanceService(
+        **resources
+    )
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notifications_repos.EmailTemplateRepo,
+        )
     resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
         check_repo=users_repos.CheckRepo,
@@ -1042,28 +1142,35 @@ async def assign_client_to_agent(
         request=request,
         create_task_instance_service=create_task_instance_service,
         confirm_client_assign_repo=users_repos.ConfirmClientAssignRepo,
+        get_email_template_service=get_email_template_service,
     )
     use_case: use_cases.AssignClientCase = use_cases.AssignClientCase(**resources)
-    return await use_case(payload=payload, agent_id=agent_id)
+    return await use_case(payload=payload, repres_id=repres_id)
 
 
 @router.post(
-    "/agent/assign_client/confirm",
+    "/client/assign",
     status_code=HTTPStatus.OK,
     dependencies=[Depends(dependencies.DeletedUserCheck())],
 )
 async def confirm_assign_client(
-    user_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.CLIENT)),
+    token: str = Query(..., alias='t'), data: str = Query(..., alias='d')
 ):
     """Подтвердить закрепление клиента за агентом"""
     resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
+        hasher=security.get_hasher,
+    )
+    get_agent_client_service = user_services.GetAgentClientFromQueryService(**resources)
+
+    resources: dict[str, Any] = dict(
         confirm_client_assign_repo=users_repos.ConfirmClientAssignRepo,
+        get_agent_client_service=get_agent_client_service,
     )
     use_case: use_cases.ConfirmAssignClientCase = use_cases.ConfirmAssignClientCase(
         **resources
     )
-    await use_case(user_id=user_id)
+    await use_case(token=token, data=data)
 
 
 @router.get(
@@ -1226,11 +1333,18 @@ async def represes_users_rebound_view(
     Перепривязка пользователя представителем агентства
     """
     resources: dict[str, Any] = dict(
+        amocrm_config=amocrm_config,
+        amocrm_class=amocrm.AmoCRM,
+        user_repo=users_repos.UserRepo,
+        agent_repo=agents_repos.AgentRepo,
+    )
+    change_agent_service: user_services.ChangeAgentService = user_services.ChangeAgentService(**resources)
+    resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
         check_repo=users_repos.CheckRepo,
         agent_repo=agents_repos.AgentRepo,
         booking_repo=booking_repos.BookingRepo,
-        change_client_agent_task=users_tasks.change_client_agent_task,
+        change_agent_service=change_agent_service,
     )
     represes_users_rebound_case: use_cases.RepresesUsersReboundCase = (
         use_cases.RepresesUsersReboundCase(**resources)
@@ -1274,11 +1388,16 @@ async def admins_resolve_user_dispute(
     payload: models.RequestAdminsUserCheckDispute = Body(...)
 ):
     """Поставить статус проверки клиента администратором."""
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notifications_repos.EmailTemplateRepo,
+        )
     resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
         check_repo=users_repos.CheckRepo,
         email_class=email.EmailService,
         agent_repo=agents_repos.AgentRepo,
+        get_email_template_service=get_email_template_service,
     )
     resolve_user_dispute: use_cases.ResolveDisputeCase = use_cases.ResolveDisputeCase(
         **resources
@@ -1333,11 +1452,35 @@ async def email_reset_view(payload: models.RequestEmailResetModel = Body(...)):
     Ссылка для сброса пароля через почту.
     Используется для кнопки "забыли пароль" для агентов, представителей и админов.
     """
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notifications_repos.EmailTemplateRepo,
+        )
     resources: dict[str, Any] = dict(
         site_config=site_config,
         email_class=email.EmailService,
         user_repo=users_repos.UserRepo,
         token_creator=security.create_email_token,
+        get_email_template_service=get_email_template_service,
     )
     email_reset: use_cases.EmailResetCase = use_cases.EmailResetCase(**resources)
     return await email_reset(payload=payload)
+
+
+@router.post(
+    "/ticket",
+    status_code=HTTPStatus.CREATED,
+    dependencies=[Depends(dependencies.CurrentAnyTypeUserId())],
+)
+async def create_ticket(
+    payload: models.RequestCreateTicket = Body(...),
+):
+    """
+    Создание заявки.
+    """
+    resources: dict[str, Any] = dict(
+        ticket_repo=main_page_repos.TicketRepo,
+        city_repo=cities_repos.CityRepo,
+    )
+    create_ticket_case: main_page_use_cases.CreateTicketCase = main_page_use_cases.CreateTicketCase(**resources)
+    return await create_ticket_case(payload=payload)

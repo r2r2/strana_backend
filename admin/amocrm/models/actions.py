@@ -21,13 +21,13 @@ class AmocrmAction(models.Model):
         verbose_name='Код действия',
         help_text="Код действия определяет инициируемое на стороне front-end действие и задается только разработчиком"
     )
-    statuses = models.ManyToManyField(
+    group_statuses = models.ManyToManyField(
         null=True, blank=True,
-        verbose_name="Статусы по действиям",
-        to="amocrm.AmocrmStatus",
-        through="StatusActionThrough",
-        through_fields=("action", "status", ),
-        related_name="statuses"
+        verbose_name="Групповые статусы по действиям",
+        to="amocrm.AmocrmGroupStatus",
+        through="GroupStatusActionThrough",
+        through_fields=("action", "group_status"),
+        related_name="group_statuses"
     )
 
     def __str__(self):

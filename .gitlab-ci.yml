@@ -24,6 +24,17 @@ workflow:
         TOP_HOST: stranadev.com
         TOKEN_DADATA: ${TOKEN_DADATA}
         ENV_FILE: $ENV_NEW_DEV_FULL_FILE
+    - if: $CI_COMMIT_BRANCH == "pre-production"
+      variables:
+        SITE_REDIRECT_LK: lk.stranastage.com
+        LK_SITE_HOST: lk.stranastage.com
+        LK_REDIRECT: stranastage.com
+        DEPLOY_USER: bb-idaproject
+        DEPLOY_HOST: stranastage.com
+        TOP_HOST: stranastage.com
+        SSH_PRIVATE_KEY: ${SSH_PRIVATE_KEY_strana}
+        TOKEN_DADATA: ${TOKEN_DADATA}
+        ENV_FILE: $ENV_STAGE_FULL_FILE
     - if: $CI_COMMIT_BRANCH == "master"
       variables:
         SITE_REDIRECT_LK: lk.strana.com
@@ -35,23 +46,12 @@ workflow:
         SSH_PRIVATE_KEY: ${SSH_PRIVATE_KEY_strana}
         TOKEN_DADATA: ${TOKEN_DADATA}
         ENV_FILE: $ENV_PROD_FULL_FILE
-    - if: $CI_COMMIT_BRANCH == "pre-production"
-      variables:
-        SITE_REDIRECT_LK: lk.stage.strana.com
-        LK_SITE_HOST: lk.stage.strana.com
-        LK_REDIRECT: stage.strana.com
-        DEPLOY_USER: bb-idaproject
-        DEPLOY_HOST: stage.strana.com
-        TOP_HOST: stage.strana.com
-        SSH_PRIVATE_KEY: ${SSH_PRIVATE_KEY_strana}
-        TOKEN_DADATA: ${TOKEN_DADATA}
-        ENV_FILE: $ENV_STAGE_FULL_FILE
 services:
     - name: docker:20.10.6-dind
 
 
 before_script:
-  #-  - docker login $DOCKER_REGISTRY -u strana_token -p $strana_token 
+  #-  - docker login $DOCKER_REGISTRY -u strana_token -p $strana_token
   #- echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin DOCKER_REGISTRY
   - cat $ENV_DEV_FULL_FILE > .env
   - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
@@ -60,15 +60,14 @@ stages:
   - install_packages
   - build
   - test
-#  - release
-  - deploy
-  - deploy_prod
+  - deploy:development
+  - deploy:pre-production
+  - deploy:production-yandex
+  - deploy:production-sber
 
 include:
+  - local: '/gitlab/template.yml'
   - local: '/gitlab/install-packages.yml'
   - local: '/gitlab/backend.yml'
   - local: '/gitlab/test.yml'
-#  - local: '/gitlab/release.yml'
   - local: '/gitlab/deploy_backend.yml'
-
-

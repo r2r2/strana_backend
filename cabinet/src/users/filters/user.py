@@ -80,8 +80,8 @@ class UserFilter(BaseUserFilter):
 
     # ToDo if ordering[0] == "-": TypeError: 'NoneType' object is not subscriptable
     # если что, можно захардкодить cabinet/src/users/use_cases/clients/repres.py на 20 строке
-    work_start__gte: Optional[date] = Field(alias="work_period_start", description="Фильтр по дате начала")
-    work_end__lte: Optional[date] = Field(alias="work_period_finish", description="Фильтр по дате окончания")
+    work_start: Optional[date] = Field(alias="work_period_start", description="Фильтр по дате начала")
+    work_end: Optional[date] = Field(alias="work_period_finish", description="Фильтр по дате окончания")
 
     # bookings__amocrm_status__name__in: Optional[list] = Field(alias="status", description="Фильтр по статусу")
     bookings__project__slug__in: Optional[list] = Field(alias="project", description="Фильтр по проекту")

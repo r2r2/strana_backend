@@ -31,6 +31,7 @@ class SmsTemplate(models.Model):
         max_length=100,
         verbose_name="Слаг события отправки смс",
         help_text="Максимум 100 символов, для привязки к событию на беке",
+        unique=True,
     )
     is_active = models.BooleanField(
         verbose_name="Шаблон активен",

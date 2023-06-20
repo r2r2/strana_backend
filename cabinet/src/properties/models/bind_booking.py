@@ -16,3 +16,7 @@ class ResponseBindBookingPropertyModel(CamelCaseBaseModel):
     property_id: int
     expires: Optional[datetime]
     created: datetime
+
+
+class RequestUnbindBookingPropertyModel(CamelCaseBaseModel):
+    booking_id: int

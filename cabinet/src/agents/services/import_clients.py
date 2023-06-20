@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from pytz import UTC
 from src.users.constants import UserType
 from src.users.loggers.wrappers import user_changes_logger
+from src.notifications.services import GetEmailTemplateService
 
 from ...booking.constants import BookingSubstages
 from ...booking.loggers import booking_changes_logger
@@ -46,7 +47,7 @@ class ImportClientsService(BaseAgentService):
     Импорт клиентов из AmoCRM
     """
 
-    agent_email_template = 'src/users/templates/agent_unassign_client.html'
+    mail_event_slug = 'agent_unassign_client'
 
     def __init__(
         self,
@@ -61,11 +62,13 @@ class ImportClientsService(BaseAgentService):
         email_class: Type[EmailService],
         amocrm_config: dict[Any, Any],
         statuses_repo: Type[AmoStatusesRepo],
+        get_email_template_service: GetEmailTemplateService,
         logger: Optional[Any] = structlog.getLogger(__name__),
         orm_class: Optional[Type[AgentORM]] = None,
         orm_config: Optional[dict[str, Any]] = None,
     ) -> None:
         self.agent_repo: AgentRepo = agent_repo()
+        self.booking_repo: BookingRepo = booking_repo()
         self.agent_update_amocrm_id = user_changes_logger(
             self.agent_repo.update, self, content="Обновление amocrm_id агента из AmoCRM"
         )
@@ -82,9 +85,6 @@ class ImportClientsService(BaseAgentService):
         self.unbind_client = user_changes_logger(
             self.user_repo.update, self, content="Импорт клиентов из AmoCRM | Отвязка клиента от агента"
         )
-        self.booking_bulk_update = booking_changes_logger(
-            self.booking_repo.bulk_update, self, content="Обновляем все активные сделки клиента",
-        )
         self.check_repo: AgentCheckRepo = check_repo()
         self.booking_repo: BookingRepo = booking_repo()
         self.email_class = email_class
@@ -94,6 +94,7 @@ class ImportClientsService(BaseAgentService):
         self.amocrm_class: Type[AgentAmoCRM] = amocrm_class
         self.import_bookings_task: Any = import_bookings_task
         self.statuses_repo: AmoStatusesRepo = statuses_repo()
+        self.get_email_template_service: GetEmailTemplateService = get_email_template_service
 
         self.orm_class: Union[Type[AgentORM], None] = orm_class
         self.orm_config: Union[dict[str, Any], None] = copy(orm_config)
@@ -331,14 +332,21 @@ class ImportClientsService(BaseAgentService):
         @param context: Any (Контекст, который будет использоваться в шаблоне письма)
         @return: Task
         """
-        email_options: dict[str, Any] = dict(
-            topic="Отказ от закрепления клиента",
-            template=self.agent_email_template,
-            recipients=recipients,
-            context=context
+        email_notification_template = await self.get_email_template_service(
+            mail_event_slug=self.mail_event_slug,
+            context=context,
         )
-        email_service: EmailService = self.email_class(**email_options)
-        return email_service.as_task()
+
+        if email_notification_template and email_notification_template.is_active:
+            email_options: dict[str, Any] = dict(
+                topic=email_notification_template.template_topic,
+                content=email_notification_template.content,
+                recipients=recipients,
+                lk_type=email_notification_template.lk_type.value,
+                mail_event_slug=email_notification_template.mail_event_slug,
+            )
+            email_service: EmailService = self.email_class(**email_options)
+            return email_service.as_task()
 
     async def _proceed_changed_assign(self, client: User, agent: User):
         """change assign"""
@@ -379,7 +387,9 @@ class ImportClientsService(BaseAgentService):
             user_id=client.id,
             agent_id=client.agent_id
         )
-        bookings: list[Booking] = await self.booking_repo.list(filters=filters, prefetch_fields=['project'])
+        bookings: list[Booking] = await self.booking_repo.list(
+            filters=filters, prefetch_fields=['project', 'project__city']
+        )
 
         async with await self.amocrm_class() as amocrm:
             for booking in bookings:
@@ -387,7 +397,7 @@ class ImportClientsService(BaseAgentService):
                     lead_options: dict[str, Any] = dict(
                         status=BookingSubstages.UNREALIZED,
                         lead_id=booking.amocrm_id,
-                        city_slug=booking.project.city,
+                        city_slug=booking.project.city.slug,
                     )
                     await amocrm.update_lead(**lead_options)
 
@@ -405,26 +415,21 @@ class ImportClientsService(BaseAgentService):
         for client in lk_clients_list:
             if client.amocrm_id not in amocrm_clients_ids:
                 await self.unbind_client(client, data=dict(agent_id=None, agency_id=None))
-                await self._unbind_agent_from_bookings(client, agent)
+                await self._unbind_agent_from_bookings(agent, client)
 
     async def _unbind_agent_from_bookings(self, agent, client):
         """
         Открепляем агента от активных сделок клиента, делаем сделки неактивными и помечаем их как закрытые.
         """
         filters = dict(
-            agent__id=agent.id,
-            user__id=client.id,
-            is_active=True
-        )
-
-        amocrm_status = await self.statuses_repo.retrieve(
-            filters=dict(id=LeadStatuses.UNREALIZED)
+            agent_id=agent.id,
+            user_id=client.id,
+            active=True
         )
         data = dict(
             active=False,
             agent_id=None,
-            user_id=None,
-            amocrm_status_id=amocrm_status.id,
-            amocrm_status=amocrm_status
+            amocrm_status_id=LeadStatuses.UNREALIZED,
         )
-        await self.booking_bulk_update(filters=filters, data=data, prefetch_fields=["agent", "user"])
+
+        await self.booking_repo.bulk_update(filters=filters, data=data)

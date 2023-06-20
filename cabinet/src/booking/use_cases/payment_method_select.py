@@ -16,6 +16,7 @@ from ..models import BankContactInfoModel, RequestPaymentMethodSelectModel
 from ..repos import BankContactInfo, BankContactInfoRepo, Booking, BookingRepo
 from ..services import HistoryService, NotificationService
 from ..types import BookingEmail, BookingSms
+from src.notifications.services import GetSmsTemplateService, GetEmailTemplateService
 
 
 class PaymentMethodSelectCase(BaseBookingCase, BookingLogMixin):
@@ -32,8 +33,12 @@ class PaymentMethodSelectCase(BaseBookingCase, BookingLogMixin):
     заявка на ипотеку.
     """
 
-    email_template_mortgage_request: str = "src/booking/templates/mortgage_request_created.html"
-    email_template_bank_contact_info: str = "src/booking/templates/bank_contact_info_sent.html"
+    mortgage_sms_event_slug = "booking_mortgage_request"
+    bank_sms_event_slug = "booking_bank_contact_info"
+
+    mortgage_mail_event_slug: str = "booking_mortgage_request"
+    bank_mail_event_slug: str = "booking_bank_contact_info"
+
     _notification_template = "src/booking/templates/notifications/payment_method_select.json"
     _history_template = "src/booking/templates/history/payment_method_select.txt"
 
@@ -46,6 +51,8 @@ class PaymentMethodSelectCase(BaseBookingCase, BookingLogMixin):
         email_class: Type[BookingEmail],
         history_service: HistoryService,
         notification_service: NotificationService,
+        get_sms_template_service: GetSmsTemplateService,
+        get_email_template_service: GetEmailTemplateService,
     ) -> None:
         self.booking_repo: BookingRepo = booking_repo()
         self.bank_contact_info_repo: BankContactInfoRepo = bank_contact_info_repo()
@@ -58,6 +65,8 @@ class PaymentMethodSelectCase(BaseBookingCase, BookingLogMixin):
         self.booking_update = booking_changes_logger(
             self.booking_repo.update, self, content="Выбор способа покупки.",
         )
+        self.get_sms_template_service: GetSmsTemplateService = get_sms_template_service
+        self.get_email_template_service: GetEmailTemplateService = get_email_template_service
 
     async def __call__(
         self,
@@ -68,7 +77,7 @@ class PaymentMethodSelectCase(BaseBookingCase, BookingLogMixin):
         filters: dict[str, Any] = dict(active=True, id=booking_id, user_id=user_id)
         booking: Booking = await self.booking_repo.retrieve(
             filters=filters,
-            related_fields=["project", "property", "floor", "building", "ddu", "user"],
+            related_fields=["project", "project__city", "property", "floor", "building", "ddu", "user"],
             prefetch_fields=["ddu__participants"],
         )
 
@@ -191,62 +200,66 @@ class PaymentMethodSelectCase(BaseBookingCase, BookingLogMixin):
             params={"mortgage_request_created": mortgage_request_created},
         )
 
-    @staticmethod
-    def _get_bank_contact_info_sms_message() -> str:
+    async def _get_bank_contact_info_sms_message(self) -> str:
         """Текст смс при отправке клиентом данных для связи с банком."""
-        return (
-            "Покупка квартиры.\n\n"
-            "Данные банка, где одобрена ипотека находятся на проверке.\n\n"
-            "Подробности в личном кабинете:\n"
-            "www.strana.com/login"
+        return await self.get_sms_template_service(
+            sms_event_slug=self.bank_sms_event_slug,
         )
 
-    @staticmethod
-    def _get_mortgage_request_sms_message() -> str:
+    async def _get_mortgage_request_sms_message(self) -> str:
         """Текст смс при создании заявки на ипотеку."""
-        return (
-            "Покупка квартиры.\n\n"
-            "Заявка на ипотеку отправлена. Ожидайте ответа от банка.\n\n"
-            "Подробности в личном кабинете:\n"
-            "www.strana.com/login"
+        return await self.get_sms_template_service(
+            sms_event_slug=self.mortgage_sms_event_slug,
         )
 
-    def _send_sms(
+    async def _send_sms(
         self, booking: Booking, *, mortgage_request_created: bool, bank_contact_info_sent: bool
     ) -> Optional[Task]:
         """Отправка смс."""
         message: str
         if mortgage_request_created:
-            message = self._get_mortgage_request_sms_message()
+            sms_notification_template = await self._get_mortgage_request_sms_message()
         elif bank_contact_info_sent:
-            message = self._get_bank_contact_info_sms_message()
+            sms_notification_template = await self._get_bank_contact_info_sms_message()
         else:
             return None
 
-        sms_options: dict[str, Any] = dict(phone=booking.user.phone, message=message)
-        sms_service: Any = self.sms_class(**sms_options)
-        return sms_service.as_task()
+        if sms_notification_template and sms_notification_template.is_active:
+            sms_options: dict[str, Any] = dict(
+                phone=booking.user.phone,
+                message=sms_notification_template.template_text,
+                lk_type=sms_notification_template.lk_type.value,
+                sms_event_slug=sms_notification_template.sms_event_slug,
+            )
+            sms_service: Any = self.sms_class(**sms_options)
+            return sms_service.as_task()
 
-    def _send_email(
+    async def _send_email(
         self, booking: Booking, *, mortgage_request_created: bool, bank_contact_info_sent: bool
     ) -> Optional[Task]:
         """Отправка email."""
-        template: str
         if mortgage_request_created:
-            template = self.email_template_mortgage_request
+            mail_event_slug = self.mortgage_mail_event_slug
         elif bank_contact_info_sent:
-            template = self.email_template_bank_contact_info
+            mail_event_slug = self.bank_mail_event_slug
         else:
             return None
 
-        email_options: dict[str, Any] = dict(
-            topic="Покупка квартиры",
-            template=template,
+        email_notification_template = await self.get_email_template_service(
+            mail_event_slug=mail_event_slug,
             context=dict(booking=booking),
-            recipients=[booking.user.email],
         )
-        email_service: Any = self.email_class(**email_options)
-        return email_service.as_task()
+
+        if email_notification_template and email_notification_template.is_active:
+            email_options: dict[str, Any] = dict(
+                topic=email_notification_template.template_topic,
+                content=email_notification_template.content,
+                recipients=[booking.user.email],
+                lk_type=email_notification_template.lk_type.value,
+                mail_event_slug=email_notification_template.mail_event_slug,
+            )
+            email_service: Any = self.email_class(**email_options)
+            return email_service.as_task()
 
     # @logged_action(content="ВЫБОР СПОСОБА ПОКУПКИ | AMOCRM")
     async def _amocrm_hook(

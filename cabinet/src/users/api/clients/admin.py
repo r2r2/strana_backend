@@ -1,7 +1,8 @@
 from http import HTTPStatus
 from typing import Any, Callable, Coroutine
 
-from common import dependencies, paginations
+from common import dependencies, paginations, amocrm
+from config import amocrm_config
 from fastapi import Body, Depends, Path, Query
 from src.agencies import repos as agencies_repos
 from src.agents import repos as agents_repos
@@ -10,8 +11,8 @@ from src.properties import repos as properties_repos
 from src.users import constants as users_constants
 from src.users import filters, models
 from src.users import repos as users_repos
-from src.users import tasks as users_tasks
 from src.users import use_cases
+from src.users import services as user_services
 
 from ..user import router
 
@@ -85,6 +86,7 @@ async def admin_clients_view(
     resources: dict = dict(
         user_repo=users_repos.UserRepo,
         check_repo=users_repos.CheckRepo,
+        user_pinning_repo=users_repos.UserPinningStatusRepo,
     )
     clients_case: use_cases.AdminListClientsCase = use_cases.AdminListClientsCase(**resources)
     return await clients_case(init_filters=init_filters, pagination=pagination)
@@ -103,6 +105,7 @@ async def admins_users_retrieve_view(user_id: int = Path(...)):
     resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
         check_repo=users_repos.CheckRepo,
+        user_pinning_repo=users_repos.UserPinningStatusRepo,
     )
     admins_users_retrieve: use_cases.AdminsUsersRetrieveCase = use_cases.AdminsUsersRetrieveCase(
         **resources
@@ -145,12 +148,19 @@ async def admins_users_update(
     Обновление пользователя администратором
     """
     resources: dict[str, Any] = dict(
+        amocrm_config=amocrm_config,
+        amocrm_class=amocrm.AmoCRM,
+        user_repo=users_repos.UserRepo,
+        agent_repo=agents_repos.AgentRepo,
+    )
+    change_agent_service: user_services.ChangeAgentService = user_services.ChangeAgentService(**resources)
+    resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
         check_repo=users_repos.CheckRepo,
         agent_repo=agents_repos.AgentRepo,
         agency_repo=agencies_repos.AgencyRepo,
         booking_repo=booking_repos.BookingRepo,
-        change_client_agent_task=users_tasks.change_client_agent_task,
+        change_agent_service=change_agent_service,
     )
     admins_users_update_case: use_cases.AdminsUsersUpdateCase = use_cases.AdminsUsersUpdateCase(
         **resources

@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional
 
 from common.utils import parse_phone
-from pydantic import EmailStr, constr, validator
+from pydantic import EmailStr, constr, validator, Field
 
 from ..constants import UserStatus
 from ..entities import BaseUserModel
@@ -40,11 +40,12 @@ class ResponseUsersCheckModel(BaseUserModel):
     """
 
     id: Optional[int]
-    user_id: Optional[int]
-    agent_id: Optional[int]
-    agency_id: Optional[int]
+    user_id: Optional[int] = Field(alias='userId')
+    agent_id: Optional[int] = Field(alias='agentId')
+    agency_id: Optional[int] = Field(alias='agencyId')
     requested: Optional[datetime]
     status: Optional[UserStatus.serializer]
 
     class Config:
         orm_mode = True
+        allow_population_by_field_name = True

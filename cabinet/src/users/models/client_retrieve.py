@@ -7,7 +7,7 @@ from src.agencies.constants import AgencyType
 from src.booking import constants as booking_constants
 from src.properties.constants import PropertyTypes
 
-from ..constants import UserStatus
+from ..constants import UserStatus, UserPinningStatusType
 from ..entities import BaseCheckModel, BaseUserModel
 
 
@@ -222,6 +222,26 @@ class _StatusModel(BaseCheckModel):
         orm_mode = True
 
 
+class _PinningStatusModel(BaseUserModel):
+    status: Optional[UserPinningStatusType.serializer]
+    label: Optional[str]
+    value: Optional[str]
+
+    @method_field
+    def get_pinning_status(cls, values: dict[str, Any]) -> dict[str, Any]:
+        """set pinning status"""
+        if pinning_status := values.pop("status"):
+            values["label"] = pinning_status.label
+            values["value"] = pinning_status.value
+        else:
+            values["label"] = UserPinningStatusType.to_label(UserPinningStatusType.UNKNOWN)
+            values["value"] = UserPinningStatusType.to_value(UserPinningStatusType.UNKNOWN)
+        return values
+
+    class Config:
+        orm_mode = True
+
+
 class ResponseClientRetrieveModel(BaseUserModel):
     """
     Модель ответа детального пользователя агента
@@ -239,6 +259,7 @@ class ResponseClientRetrieveModel(BaseUserModel):
     work_start: Optional[date]
 
     status: Optional[_StatusModel]
+    pinning_status: Optional[_PinningStatusModel]
 
     agent: Optional[_AgentRetrieveModel]
     agency: Optional[_AgencyRetrieveModel]

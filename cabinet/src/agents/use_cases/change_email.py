@@ -6,6 +6,7 @@ from ..entities import BaseAgentCase
 from ..repos import AgentRepo, User
 from ..types import AgentEmail
 from src.users.loggers.wrappers import user_changes_logger
+from src.notifications.services import GetEmailTemplateService
 
 
 class ChangeEmailCase(BaseAgentCase):
@@ -13,7 +14,7 @@ class ChangeEmailCase(BaseAgentCase):
     Смена почты
     """
 
-    template: str = "src/agents/templates/confirm_email.html"
+    mail_event_slug: str = "agent_confirm_email"
     link: str = "https://{}/confirm/agents/confirm_email?q={}&p={}"
 
     fail_link: str = "https://{}/account/agents"
@@ -27,6 +28,7 @@ class ChangeEmailCase(BaseAgentCase):
         email_class: Type[AgentEmail],
         token_creator: Callable[[int], str],
         token_decoder: Callable[[str], Union[int, None]],
+        get_email_template_service: GetEmailTemplateService,
     ) -> None:
         self.agent_repo: AgentRepo = agent_repo()
         self.agent_update = user_changes_logger(
@@ -40,6 +42,7 @@ class ChangeEmailCase(BaseAgentCase):
         self.user_type: str = user_type
         self.lk_site_host: str = site_config["lk_site_host"]
         self.broker_site_host: str = site_config["broker_site_host"]
+        self.get_email_template_service: GetEmailTemplateService = get_email_template_service
 
     async def __call__(self, token: str, change_email_token: str) -> str:
         agent_id: Union[int, None] = self.token_decoder(token)
@@ -71,11 +74,18 @@ class ChangeEmailCase(BaseAgentCase):
 
     async def _send_email(self, agent: User, token: str) -> Task:
         confirm_link: str = self.link.format(self.lk_site_host, token, agent.email_token)
-        email_options: dict[str, Any] = dict(
-            topic="Подтверждение почты",
-            recipients=[agent.email],
-            template=self.template,
+        email_notification_template = await self.get_email_template_service(
+            mail_event_slug=self.mail_event_slug,
             context=dict(confirm_link=confirm_link),
         )
-        email_service: AgentEmail = self.email_class(**email_options)
-        return email_service.as_task()
+
+        if email_notification_template and email_notification_template.is_active:
+            email_options: dict[str, Any] = dict(
+                topic=email_notification_template.template_topic,
+                content=email_notification_template.content,
+                recipients=[agent.email],
+                lk_type=email_notification_template.lk_type.value,
+                mail_event_slug=email_notification_template.mail_event_slug,
+            )
+            email_service: AgentEmail = self.email_class(**email_options)
+            return email_service.as_task()

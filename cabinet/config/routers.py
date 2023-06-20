@@ -13,7 +13,7 @@ def get_routers() -> list[APIRouter]:
     from src.booking.api import booking_router, fast_booking_router
     from src.cautions.api import caution_router
     from src.documents.api import documents_router, escrow_router
-    from src.notifications.api import notifications_router
+    from src.notifications.api import notifications_router, templates_router
     from src.cautions.api import caution_router
     from src.task_management.api import task_management_router
     from src.pages.api import pages_router
@@ -42,6 +42,7 @@ def get_routers() -> list[APIRouter]:
     routers.append(agencies_router)
     routers.append(pages_router)
     routers.append(notifications_router)
+    routers.append(templates_router)
     routers.append(admins_router)
     routers.append(showtimes_router)
     routers.append(projects_router)

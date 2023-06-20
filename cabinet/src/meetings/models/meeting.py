@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Optional, Any
+from pydantic import validator
 
 from ..entities import BaseMeetingModel
 from ..constants import MeetingStatus, MeetingTopicType, MeetingPropertyType, MeetingType
@@ -21,6 +22,10 @@ class MeetingModel(BaseMeetingModel):
     type: MeetingType.serializer
     property_type: MeetingPropertyType.serializer
     date: datetime
+
+    @validator('date')
+    def validate_date(cls, date: datetime) -> str:
+        return date.strftime("%Y-%m-%dT%H:%M")
 
 
 class ResponseMeetingsListModel(BaseMeetingModel):

@@ -3,7 +3,7 @@ from datetime import datetime
 
 from tortoise import fields
 
-from common import cfields
+from common import cfields, orm
 from common.orm.mixins import CRUDMixin
 from ..entities import BaseMeetingDatabaseModel, BaseMeetingRepo
 from ..constants import MeetingStatus, MeetingType, MeetingPropertyType, MeetingTopicType
@@ -36,7 +36,7 @@ class Meeting(BaseMeetingDatabaseModel):
         null=True,
     )
     status: str = cfields.CharChoiceField(
-        max_length=20, choice_class=MeetingStatus, default=MeetingStatus.START, description="Статус"
+        max_length=20, choice_class=MeetingStatus, default=MeetingStatus.NOT_CONFIRM, description="Статус"
     )
     record_link: Optional[str] = fields.CharField(max_length=255, description="Ссылка на запись", null=True)
     meeting_link: Optional[str] = fields.CharField(max_length=255, description="Ссылка на встречу", null=True)
@@ -64,3 +64,4 @@ class MeetingRepo(BaseMeetingRepo, CRUDMixin):
     Репозиторий встречи
     """
     model = Meeting
+    q_builder: orm.QBuilder = orm.QBuilder(Meeting)

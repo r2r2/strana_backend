@@ -53,7 +53,7 @@ class SberbankLinkCase(BaseBookingCase, BookingLogMixin):
 
         filters: dict[str, Any] = dict(id=booking_id, user_id=user_id, active=True)
         booking: Booking = await self.booking_repo.retrieve(
-            filters=filters, related_fields=["user", "project", "property", "building"]
+            filters=filters, related_fields=["user", "project", "project__city", "property", "building"]
         )
 
         if not booking:
@@ -139,7 +139,7 @@ class SberbankLinkCase(BaseBookingCase, BookingLogMixin):
     async def _online_payment(self, booking: Booking) -> Union[dict[str, Any], str]:
         """online payment"""
         payment_options: dict[str, Any] = dict(
-            city=booking.project.city,
+            city=booking.project.city.slug,
             user_email=booking.user.email,
             user_phone=booking.user.phone,
             booking_order_id=booking.payment_id,

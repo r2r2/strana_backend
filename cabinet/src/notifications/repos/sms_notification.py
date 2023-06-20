@@ -26,7 +26,11 @@ class SmsTemplate(Model, TimeBasedMixin):
         null=True,
     )
     sms_event: str = fields.TextField(description="Описание назначения события отправки смс", null=True)
-    sms_event_slug: str = fields.TextField(description="Слаг события отправки смс", max_length=100)
+    sms_event_slug: str = fields.CharField(
+        description="Слаг события отправки смс",
+        max_length=100,
+        unique=True,
+    )
     is_active = fields.BooleanField(
         description="Шаблон активен",
         default=True,

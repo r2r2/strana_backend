@@ -9,22 +9,25 @@ from ..exceptions import UserNotFoundError, CheckNotFoundError
 from ..models import RequestAdminsUserCheckDispute
 from ..repos import UserRepo, CheckRepo, Check
 from ...agents.repos import AgentRepo
+from src.notifications.services import GetEmailTemplateService
 
 
 class ResolveDisputeCase(BaseCheckCase):
-    template: str = "src/users/templates/resolve_check_dispute.html"
+    mail_event_slug = "resolve_check_dispute"
 
     def __init__(
-            self,
-            user_repo: Type[UserRepo],
-            check_repo: Type[CheckRepo],
-            email_class: Type[EmailService],
-            agent_repo: Type[AgentRepo],
+        self,
+        user_repo: Type[UserRepo],
+        check_repo: Type[CheckRepo],
+        email_class: Type[EmailService],
+        agent_repo: Type[AgentRepo],
+        get_email_template_service: GetEmailTemplateService,
     ):
         self.user_repo = user_repo()
         self.check_repo = check_repo()
         self.email_class = email_class
         self.agent_repo = agent_repo()
+        self.get_email_template_service = get_email_template_service
 
     async def __call__(self, user_id: int, payload: RequestAdminsUserCheckDispute) -> Check:
         filters: dict[str:Any] = dict(id=user_id)
@@ -62,11 +65,18 @@ class ResolveDisputeCase(BaseCheckCase):
         return check
 
     async def _send_email(self, recipients: List[str], **context) -> Task:
-        email_options: dict[str, Any] = dict(
-            topic="Запрос на пересмотр статуса уникальности",
-            template=self.template,
-            recipients=recipients,
-            context=context
+        email_notification_template = await self.get_email_template_service(
+            mail_event_slug=self.mail_event_slug,
+            context=context,
         )
-        email_service: EmailService = self.email_class(**email_options)
-        return email_service.as_task()
+
+        if email_notification_template and email_notification_template.is_active:
+            email_options: dict[str, Any] = dict(
+                topic=email_notification_template.template_topic,
+                content=email_notification_template.content,
+                recipients=recipients,
+                lk_type=email_notification_template.lk_type.value,
+                mail_event_slug=email_notification_template.mail_event_slug,
+            )
+            email_service: EmailService = self.email_class(**email_options)
+            return email_service.as_task()

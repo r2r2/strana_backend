@@ -15,8 +15,8 @@ class MeetingType(Choices):
     """
     Тип встречи
     """
-    ONLINE: str = "online", "Онлайн"
-    OFFLINE: str = "offline", "Офлайн"
+    ONLINE: str = "kc", "Онлайн"
+    OFFLINE: str = "meet", "Офлайн"
 
 
 class MeetingPropertyType(Choices):
@@ -27,6 +27,7 @@ class MeetingPropertyType(Choices):
     PARKING: str = "parking", "Паркинг"
     PANTRY: str = "pantry", "Кладовая"
     COMMERCIAL: str = "commercial", "Коммерция"
+    APARTMENT: str = "apartment", "Апартаменты"
 
 
 class MeetingTopicType(Choices):

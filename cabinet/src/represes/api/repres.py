@@ -16,12 +16,19 @@ from src.agencies.services import CreateOrganizationService
 from src.agents import repos as agent_repos
 from src.represes.services import CreateContactService
 from src.represes import models
-from src.represes import repos as represes_repos
 from src.represes import use_cases
 from src.users import constants as users_constants
 from src.users import use_cases as users_cases
 from src.users import services as user_services
+from src.notifications import services as notification_services
+from src.notifications import repos as notification_repos
+from src.agencies import use_cases as agencies_use_cases
+from src.agencies import tasks as agency_tasks
+from src.agents import repos as agents_repos
 from src.users import repos as users_repos
+from src.booking import repos as booking_repos
+from src.represes import repos as represes_repos
+from src.agencies import models as agencies_models
 
 router = APIRouter(prefix="/represes", tags=["Representatives"])
 
@@ -58,6 +65,10 @@ async def process_register_view(
     create_organization_service: CreateOrganizationService = (
         CreateOrganizationService(**resources)
     )
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notification_repos.EmailTemplateRepo,
+        )
     check_user_unique_service: user_services.UserCheckUniqueService = user_services.UserCheckUniqueService(
         user_repo=users_repos.UserRepo,
     )
@@ -74,6 +85,7 @@ async def process_register_view(
         create_contact_service=create_contact_service,
         create_organization_service=create_organization_service,
         bind_contact_to_company=bind_contact_to_company,
+        get_email_template_service=get_email_template_service,
         check_user_unique_service=check_user_unique_service,
     )
     return await process_register(
@@ -119,11 +131,16 @@ async def resend_confirm_letter_view(
 ):
     """Отправляет письмо подтверждения на почту агенту."""
     # возможно, необходимо добавить cooldown-таймер
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notification_repos.EmailTemplateRepo,
+        )
     resources: dict[str, Any] = dict(
         site_config=site_config,
         email_class=email.EmailService,
         repres_repo=represes_repos.RepresRepo,
         token_creator=security.create_email_token,
+        get_email_template_service=get_email_template_service,
     )
     resend_letter: use_cases.RepresResendLetterCase = use_cases.RepresResendLetterCase(
         **resources
@@ -203,12 +220,17 @@ async def initialize_change_email_view(
     """
     Обновление почты представителем агентства
     """
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notification_repos.EmailTemplateRepo,
+        )
     resources: dict[str, Any] = dict(
         site_config=site_config,
         email_class=email.EmailService,
         repres_repo=represes_repos.RepresRepo,
         user_type=users_constants.UserType.REPRES,
         token_creator=security.create_email_token,
+        get_email_template_service=get_email_template_service,
     )
     change_email: use_cases.InitializeChangeEmailCase = use_cases.InitializeChangeEmailCase(**resources)
     return await change_email(repres_id=repres_id, payload=payload)
@@ -220,12 +242,17 @@ async def initialize_change_phone_view(
     payload: models.RequestInitializeChangePhone = Body(...)
 ):
     """Обновление телефона представителем агентства"""
+    get_sms_template_service: notification_services.GetSmsTemplateService = \
+        notification_services.GetSmsTemplateService(
+            sms_template_repo=notification_repos.SmsTemplateRepo,
+        )
     resources: dict[str, Any] = dict(
         site_config=site_config,
         sms_class=messages.SmsService,
         repres_repo=represes_repos.RepresRepo,
         user_type=users_constants.UserType.REPRES,
         token_creator=security.create_email_token,
+        get_sms_template_service=get_sms_template_service,
     )
     change_phone: use_cases.InitializeChangePhoneCase = use_cases.InitializeChangePhoneCase(**resources)
     return await change_phone(repres_id=repres_id, payload=payload)
@@ -239,6 +266,10 @@ async def set_password_view(request: Request, payload: models.RequestSetPassword
     """
     Установка пароля для созданных представителем
     """
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notification_repos.EmailTemplateRepo,
+        )
     resources: dict[str, Any] = dict(
         session=request.session,
         site_config=site_config,
@@ -248,6 +279,7 @@ async def set_password_view(request: Request, payload: models.RequestSetPassword
         repres_repo=represes_repos.RepresRepo,
         user_type=users_constants.UserType.REPRES,
         token_creator=security.create_email_token,
+        get_email_template_service=get_email_template_service,
     )
     set_password: use_cases.SetPasswordCase = use_cases.SetPasswordCase(**resources)
     return await set_password(payload=payload)
@@ -371,3 +403,39 @@ async def accept_contract_view(
     resources: dict[str, Any] = dict(repres_repo=represes_repos.RepresRepo)
     accept_contract: use_cases.AcceptContractCase = use_cases.AcceptContractCase(**resources)
     return await accept_contract(repres_id=repres_id, payload=payload)
+
+
+@router.patch(
+    "/fire_agent",
+    status_code=HTTPStatus.OK,
+    response_model=agencies_models.ResponseFireAgentBookingsListModel,
+    dependencies=[Depends(dependencies.DeletedUserCheck())],
+)
+async def repres_fire_agent(
+    agent_id: int = Query(...),
+    repres_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.REPRES)),
+):
+    """
+    Увольнение агента представителем агентства.
+    """
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notification_repos.EmailTemplateRepo,
+        )
+    resources: dict[str, Any] = dict(
+        user_repo=users_repos.UserRepo,
+        agent_repo=agents_repos.AgentRepo,
+        repres_repo=represes_repos.RepresRepo,
+        booking_repo=booking_repos.BookingRepo,
+        fire_agent_task=agency_tasks.fire_agent_task,
+        email_class=email.EmailService,
+        get_email_template_service=get_email_template_service,
+    )
+    repres_fire_agent_case: agencies_use_cases.FireAgentCase = (
+        agencies_use_cases.FireAgentCase(**resources)
+    )
+    return await repres_fire_agent_case(
+        agent_id=agent_id,
+        repres_id=repres_id,
+        role=users_constants.UserType.REPRES,
+    )

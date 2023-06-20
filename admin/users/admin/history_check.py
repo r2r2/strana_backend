@@ -1,10 +1,11 @@
 from collections import Counter
+from typing import Any
 
+from admincharts.admin import AdminChartMixin
 from django.contrib import admin
-from django.db.models import QuerySet
 from django.contrib.admin import register, SimpleListFilter
 from django.contrib.admin.views.main import ChangeList
-from admincharts.admin import AdminChartMixin
+from django.db.models.query import QuerySet
 
 from ..models import CheckHistory
 
@@ -25,12 +26,20 @@ class StatusCheckFilter(SimpleListFilter):
 
 @register(CheckHistory)
 class AdminCheckHistory(AdminChartMixin, admin.ModelAdmin):
-    list_chart_type = "bar" # вид статистики (bar, line)
+    list_chart_type = "bar"  # вид статистики (bar, line)
     list_chart_options = {"aspectRatio": 5}
 
-    list_display = ("status", "agent", "client", "client_phone", "agency", "created_at", "agency_city")
-    readonly_fields = ("status", "agent", "client", "agency", "client_phone", "created_at", "agency_city")
-    list_filter = (StatusCheckFilter, "agency__city")
+    list_display = (
+        "status", "agent", "client",
+        "client_phone", "agency", "created_at",
+        "agency_city", "client_interested_project",
+    )
+    readonly_fields = (
+        "status", "agent", "client",
+        "agency", "client_phone", "created_at",
+        "agency_city", "client_interested_project",
+    )
+    list_filter = (StatusCheckFilter, "agency__city", "client__interested_project")
     search_fields = (
         "client__phone__icontains",
         "client__surname__icontains",
@@ -47,15 +56,21 @@ class AdminCheckHistory(AdminChartMixin, admin.ModelAdmin):
 
     agency_city.short_description = "Город агентства"
 
+    def client_interested_project(self, obj: CheckHistory) -> str:
+        if obj.client and obj.client.interested_project:
+            return obj.client.interested_project.name
+        return "–"
+
+    client_interested_project.short_description = "Интересующий проект"
+
     def get_list_chart_data(self, queryset: QuerySet) -> dict:
         """
-        Графики
+        Get charts for agency cities and checks
         """
-
         checks: Counter = Counter([check.status for check in queryset])
         self._mapping_checks(checks)
 
-        result: dict = {
+        result: dict[str, Any] = {
             "datasets": [
                 {
                     "label": "Статистика проверок",

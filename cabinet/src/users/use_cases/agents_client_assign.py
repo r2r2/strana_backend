@@ -6,7 +6,7 @@ from base64 import b64encode
 from datetime import datetime
 from urllib.parse import unquote
 from enum import Enum
-from typing import Any, Callable, Optional, Tuple, Type, Union
+from typing import Any, Callable, Optional, Tuple, Type, Union, Awaitable
 
 import structlog
 from pytz import UTC
@@ -33,9 +33,10 @@ from src.users.exceptions import CheckNotFoundError, UserAlreadyBoundError, User
 from src.users.models import RequestAssignClient, ResponseAssignClient
 from src.users.repos import Check, CheckRepo, User, UserRepo, ConfirmClientAssignRepo
 from src.users.types import UserHasher
-from ..loggers.wrappers import user_changes_logger
-from ...notifications.exceptions import SMSTemplateNotFoundError
-from ...task_management.services import CreateTaskInstanceService
+from src.users.loggers.wrappers import user_changes_logger
+from src.notifications.services import GetEmailTemplateService
+from src.users.services import CheckPinningStatusService
+from src.task_management.services import CreateTaskInstanceService
 
 
 class LeadStatuses(int, Enum):
@@ -51,9 +52,10 @@ class AssignClientCase(BaseUserCase):
     Кейс для закрепления клиента за агентом
     """
 
-    email_template: str = 'src/users/templates/agent_assign_client.html'
     client_tag: list[str] = ['клиент']
     lk_broker_tag: list[str] = ['ЛК Брокера']
+    mail_event_slug = "assign_client"
+    previous_agent_email_slug = "previous_agent_email"
     sms_event_slug = "assign_client"
 
     def __init__(
@@ -73,6 +75,8 @@ class AssignClientCase(BaseUserCase):
         amocrm_config: dict[Any, Any],
         request: Request,
         site_config: dict,
+        get_email_template_service: GetEmailTemplateService,
+        check_pinning: CheckPinningStatusService,
         logger: Optional[Any] = structlog.getLogger(__name__),
     ):
         self.user_repo: UserRepo = user_repo()
@@ -85,7 +89,9 @@ class AssignClientCase(BaseUserCase):
         self.email_class: Type[AgentEmail] = email_class
         self.amocrm_class: Type[AmoCRM] = amocrm_class
         self.sms_class: Type[AgentSms] = sms_class
+        self.get_email_template_service: GetEmailTemplateService = get_email_template_service
         self.create_task_instance_service: CreateTaskInstanceService = create_task_instance_service
+        self.check_pinning: CheckPinningStatusService = check_pinning
         self.hasher: UserHasher = hasher()
         self.main_site_host = site_config['main_site_host']
         self.partition_limit: int = amocrm_config["partition_limit"]
@@ -112,9 +118,19 @@ class AssignClientCase(BaseUserCase):
             self.booking_repo.update, self, content="Обновление бронирования из сделок Амо",
         )
 
-    async def __call__(self, payload: RequestAssignClient, agent_id: int) -> ResponseAssignClient:
-        filters: dict[str: Any] = dict(type=UserType.AGENT, id=agent_id)
-        agent: User = await self.user_repo.retrieve(filters=filters, prefetch_fields=['agency'])
+    async def __call__(
+        self,
+        payload: RequestAssignClient,
+        agent_id: Optional[int] = None,
+        repres_id: Optional[int] = None,
+    ) -> ResponseAssignClient:
+        if agent_id:
+            filters: dict[str: Any] = dict(type=UserType.AGENT, id=agent_id)
+        else:
+            filters: dict[str: Any] = dict(type=UserType.REPRES, id=repres_id)
+
+        agency_realtor: User = await self.user_repo.retrieve(filters=filters, prefetch_fields=['agency'])
+
         client_id_filters: dict[str: Any] = dict(type=UserType.CLIENT, id=payload.user_id)
         client: User = await self.user_repo.retrieve(filters=client_id_filters)
         if not client:
@@ -125,33 +141,63 @@ class AssignClientCase(BaseUserCase):
 
         await asyncio.gather(
             self._check_email_exists(email=payload.email, client=client),
-            self._check_user_is_unique(check_id=payload.check_id, client_id=client.id, agent=agent),
-            self._check_user_already_assigned(agent_id=agent.id, client=client),
+            self._check_user_is_unique(
+                check_id=payload.check_id,
+                client_id=client.id,
+                agent=agency_realtor,
+            ),
+            self._check_user_already_assigned(
+                agent_id=agency_realtor.id,
+                client=client,
+            ),
         )
-        await self._amocrm_hook(payload=payload, client=client, agent=agent)
+        await self._amocrm_hook(payload=payload, client=client, agent=agency_realtor)
 
-        un_assignation_link = self.generate_unassign_link(agent_id=agent.id, client_id=client.id)
+        un_assignation_link = self.generate_unassign_link(
+            agent_id=agency_realtor.id,
+            client_id=client.id,
+        )
 
         if payload.agency_contact:
             agent_name = payload.agency_contact
         else:
-            agent_name = agent.full_name
+            agent_name = agency_realtor.full_name
 
-        client = await self._update_client_data(client=client, agent=agent, payload=payload)
-        await asyncio.gather(
+        notify_tasks: list[Awaitable] = []
+        if client.agent_id and (client.agent_id != agency_realtor.id):
+            # Именно смене агентов, т.е. когда 1 агент меняется на другого.
+            notify_tasks.append(
+                self._send_email(
+                    recipients=[agency_realtor.email],
+                    agent_name=agency_realtor.full_name,
+                    slug=self.previous_agent_email_slug,
+                ),
+            )
+
+        client = await self._update_client_data(
+            client=client,
+            agent=agency_realtor,
+            payload=payload,
+        )
+
+        notify_tasks += [
             self._notify_client_sms(
                 client_id=client.id,
                 un_assignation_link=un_assignation_link,
                 agent_name=agent_name,
             ),
             self._send_email(
-                recipients=[client.email], agent_name=agent_name, unassign_link=unquote(un_assignation_link)
-            )
-        )
+                recipients=[client.email],
+                agent_name=agent_name,
+                unassign_link=unquote(un_assignation_link),
+                slug=self.mail_event_slug,
+            ),
+        ]
+        await asyncio.gather(*notify_tasks)
 
         if payload.assignation_comment:
             async with await self.amocrm_class() as amocrm:
-                await amocrm.send_contact_note(contact_id=client.id, message=payload.assignation_comment)
+                await amocrm.send_contact_note(contact_id=client.amocrm_id, message=payload.assignation_comment)
         return ResponseAssignClient.from_orm(client)
 
     async def _amocrm_hook(self, payload: RequestAssignClient, client: User, agent: User) -> None:
@@ -244,16 +290,23 @@ class AssignClientCase(BaseUserCase):
         """
         amocrm_id = client.amocrm_id
         if not amocrm_id:
-            created_contact: list[dict] = await amocrm.create_contact(
-                user_phone=payload.phone,
-                user_email=payload.email,
-                user_name=payload.full_name,
-                first_name=payload.name,
-                last_name=payload.surname,
-                creator_user_id=agent_id,
-                tags=self.client_tag + self.lk_broker_tag
+            contacts: list[AmoContact] = await amocrm.fetch_contacts(
+                user_phone=client.phone,
+                query_with=[AmoContactQueryWith.leads],
             )
-            amocrm_id: int = created_contact[0].get('id')
+            if contacts:
+                amocrm_id: int = contacts[0].id
+            else:
+                created_contact: list[dict] = await amocrm.create_contact(
+                    user_phone=payload.phone,
+                    user_email=payload.email,
+                    user_name=payload.full_name,
+                    first_name=payload.name,
+                    last_name=payload.surname,
+                    creator_user_id=agent_id,
+                    tags=self.client_tag + self.lk_broker_tag
+                )
+                amocrm_id: int = created_contact[0].get('id')
         contact: AmoContact = await amocrm.fetch_contact(
             user_id=amocrm_id, query_with=[AmoContactQueryWith.leads]
         )
@@ -291,13 +344,13 @@ class AssignClientCase(BaseUserCase):
             client, data=dict(**payload.user_data, **data)
         )
         asyncio.create_task(
-            self._set_assigned_time(client=client, agent=agent)
+            self._set_assigned_time(client=client, agent=agent, comment=payload.assignation_comment)
         )
         return client
 
-    async def _set_assigned_time(self, client: User, agent: User) -> None:
+    async def _set_assigned_time(self, client: User, agent: User, comment: Optional[str] = None) -> None:
         """
-        Установить время привязки клиента к агенту
+        Установить время привязки/перепривязки клиента к агенту
         @param client: User
         @param agent: User
         """
@@ -305,6 +358,7 @@ class AssignClientCase(BaseUserCase):
             client=client,
             agent=agent,
             agency=agent.agency,
+            comment=comment,
         )
         await self.confirm_client_assign_repo.create(data=data)
 
@@ -372,13 +426,12 @@ class AssignClientCase(BaseUserCase):
 
             booking = await self.booking_repo.retrieve(filters=dict(amocrm_id=lead.id))
             if booking:
-                if booking.amocrm_substage and not amocrm_substage:
-                    data.pop("amocrm_substage")
-                if booking.amocrm_status_id and not lead.status_id:
-                    data.pop("amocrm_status_id")
                 booking = await self.booking_update(booking=booking, data=data)
             else:
-                data.update(amocrm_id=lead.id)
+                data.update(
+                    amocrm_id=lead.id,
+                    created_source=BookingCreatedSources.AMOCRM,
+                )
                 booking = await self.booking_create(data=data)
 
             await self._create_task_instance([booking.id])
@@ -397,12 +450,7 @@ class AssignClientCase(BaseUserCase):
         not_created_project_ids = set(payload.active_projects).difference(booking_projects)
         return await self.project_repo.list(
             filters=dict(id__in=not_created_project_ids),
-            prefetch_fields=[
-                dict(
-                    relation="city",
-                    queryset=City.all().only("slug"),
-                ),
-            ]
+            related_fields=["city"]
         )
 
     async def _create_requested_leads(
@@ -462,6 +510,7 @@ class AssignClientCase(BaseUserCase):
             booking = await self.booking_create(data=data)
             await booking.refresh_from_db(fields=["id"])
             await self._create_task_instance([booking.id])
+            self.check_pinning.as_task(user_id=client.id)
 
     async def _get_status_by_name(self, name: str, pipeline_id: Union[str, int]) -> Optional[AmocrmStatus]:
         """
@@ -564,10 +613,21 @@ class AssignClientCase(BaseUserCase):
             return
 
         template: AssignClientTemplate = await self.template_repo.retrieve(
-            filters=dict(city=city, sms__sms_event_slug=self.sms_event_slug, sms__is_active=True)
+            filters=dict(city=city, sms__sms_event_slug=self.sms_event_slug),
+            related_fields=["sms"],
         )
+        if template and not template.sms.is_active:
+            # Если шаблон есть, но смс не активно, то не отправляем смс
+            return
+
         if not template:
-            raise SMSTemplateNotFoundError
+            template: AssignClientTemplate = await self.template_repo.retrieve(
+                filters=dict(default=True, sms__is_active=True),
+                related_fields=["sms"],
+            )
+        if not template:
+            # Если нет активного шаблона, то не отправляем смс
+            return
 
         await self._send_sms(
             phone=client.phone,
@@ -577,21 +637,28 @@ class AssignClientCase(BaseUserCase):
         )
         await self.user_repo.update(model=client, data=dict(sms_send=True))
 
-    async def _send_email(self, recipients: list[str], **context) -> Task:
+    async def _send_email(self, recipients: list[str], slug, **context) -> Task:
         """
         Отправляем письмо клиенту.
         @param recipients: list[str]
         @param context: Any (Контекст, который будет использоваться в шаблоне письма)
         @return: Task
         """
-        email_options: dict[str, Any] = dict(
-            topic="Добро пожаловать в Страну!",
-            template=self.email_template,
-            recipients=recipients,
-            context=context
+        email_notification_template = await self.get_email_template_service(
+            mail_event_slug=slug,
+            context=context,
         )
-        email_service: EmailService = self.email_class(**email_options)
-        return email_service.as_task()
+
+        if email_notification_template and email_notification_template.is_active:
+            email_options: dict[str, Any] = dict(
+                topic=email_notification_template.template_topic,
+                content=email_notification_template.content,
+                recipients=recipients,
+                lk_type=email_notification_template.lk_type.value,
+                mail_event_slug=email_notification_template.mail_event_slug,
+            )
+            email_service: EmailService = self.email_class(**email_options)
+            return email_service.as_task()
 
     async def _send_sms(self, phone: str, unassign_link: str, agent_name: str, sms_template: str):
         """

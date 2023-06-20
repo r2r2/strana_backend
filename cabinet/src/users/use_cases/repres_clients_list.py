@@ -3,7 +3,7 @@ from typing import Any, List, Type, Union
 
 from src.booking.constants import BookingSubstages
 from src.users.entities import BaseUserCase
-from src.users.repos import CheckRepo, User, UserRepo
+from src.users.repos import CheckRepo, User, UserRepo, UserPinningStatusRepo
 from src.users.types import UserPagination
 from tortoise.query_utils import Q
 
@@ -16,10 +16,12 @@ class RepresListClientsCase(BaseUserCase):
     def __init__(
         self,
         user_repo: Type[UserRepo],
-        check_repo: Type[CheckRepo]
+        check_repo: Type[CheckRepo],
+        user_pinning_repo: Type[UserPinningStatusRepo],
     ):
         self.user_repo = user_repo()
         self.check_repo = check_repo()
+        self.user_pinning_repo = user_pinning_repo()
 
     async def __call__(
         self,
@@ -60,7 +62,10 @@ class RepresListClientsCase(BaseUserCase):
                 "bookings",
                 dict(relation="users_checks",
                      queryset=self.check_repo.list(ordering="-requested"),
-                     to_attr="statuses")
+                     to_attr="statuses"),
+                dict(relation="users_pinning_status",
+                     queryset=self.user_pinning_repo.list(),
+                     to_attr="pinning_statuses"),
             ],
         )
         counted: list[tuple[Union[int, str]]] = await self.user_repo.count(
@@ -70,6 +75,7 @@ class RepresListClientsCase(BaseUserCase):
         count = self._get_count(counted)
         for user in users:
             user.status = next(iter(user.statuses), None)
+            user.pinning_status = next(iter(user.pinning_statuses), None)
         data: dict[str, Any] = dict(count=count, result=users, page_info=pagination(count=count))
 
         return data

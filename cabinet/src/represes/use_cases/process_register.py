@@ -21,6 +21,7 @@ from ..entities import BaseRepresCase
 from ..models import RequestProcessRegisterModel, RepresRegisterModel, AgencyRegisterModel
 from src.users.loggers.wrappers import user_changes_logger
 from src.agencies.loggers.wrappers import agency_changes_logger
+from src.notifications.services import GetEmailTemplateService
 from src.users.services import UserCheckUniqueService
 
 
@@ -29,8 +30,8 @@ class ProcessRegisterCase(BaseRepresCase):
     Регистрация агентства вместе с руководителем
     """
 
-    template: str = "src/represes/templates/confirm_email.html"
-    admins_template = "src/agencies/templates/confirm_agency.html"
+    repres_mail_event_slug = "repres_confirm_email"
+    admin_mail_event_slug = "admin_confirm_agency"
     link: str = "https://{}/confirm/represes/confirm_email?q={}&p={}"
 
     def __init__(
@@ -47,8 +48,9 @@ class ProcessRegisterCase(BaseRepresCase):
         create_contact_service: Union[Callable, PromiseProxy],
         create_organization_service: Union[Callable, PromiseProxy],
         bind_contact_to_company: Union[Callable, PromiseProxy],
+        get_email_template_service: GetEmailTemplateService,
         check_user_unique_service: UserCheckUniqueService,
-        logger: Optional[Any] = structlog.getLogger(__name__)
+        logger: Optional[Any] = structlog.getLogger(__name__),
 
     ) -> None:
         self.hasher: CryptContext = hasher()
@@ -79,6 +81,7 @@ class ProcessRegisterCase(BaseRepresCase):
         self.create_organization_service = create_organization_service
         self.check_user_unique_service: UserCheckUniqueService = check_user_unique_service
         self.bind_contact_to_company = bind_contact_to_company
+        self.get_email_template_service: GetEmailTemplateService = get_email_template_service
         self.logger = logger
 
     async def __call__(
@@ -147,27 +150,42 @@ class ProcessRegisterCase(BaseRepresCase):
         Отправка письма представителю с просьбой подтверждения почты
         """
         confirm_link: str = self.link.format(self.site_host, token, repres.email_token)
-        email_options: dict[str, Any] = dict(
-            topic="Подтверждение почты",
-            template=self.template,
-            recipients=[repres.email],
+        email_notification_template = await self.get_email_template_service(
+            mail_event_slug=self.repres_mail_event_slug,
             context=dict(confirm_link=confirm_link),
         )
-        email_service = self.email_class(**email_options)
-        return email_service.as_task()
+
+        if email_notification_template and email_notification_template.is_active:
+            email_options: dict[str, Any] = dict(
+                topic=email_notification_template.template_topic,
+                content=email_notification_template.content,
+                recipients=[repres.email],
+                lk_type=email_notification_template.lk_type.value,
+                mail_event_slug=email_notification_template.mail_event_slug,
+            )
+            email_service = self.email_class(**email_options)
+            return email_service.as_task()
 
     async def _send_admins_email(self, agency: Agency) -> Task:
         """Отправка письма админам для подтверждения агентства."""
         filters = dict(type=UserType.ADMIN, receive_admin_emails=True)
         admins = await self.admin_repo.list(filters=filters)
-        email_options: dict[str, Any] = dict(
-            topic="Подтверждение агентства",
-            template=self.admins_template,
-            recipients=[admin.email for admin in admins],
+
+        email_notification_template = await self.get_email_template_service(
+            mail_event_slug=self.admin_mail_event_slug,
             context=dict(agency_name=agency.name),
         )
-        email_service = self.email_class(**email_options)
-        return email_service.as_task()
+
+        if email_notification_template and email_notification_template.is_active:
+            email_options: dict[str, Any] = dict(
+                topic=email_notification_template.template_topic,
+                content=email_notification_template.content,
+                recipients=[admin.email for admin in admins],
+                lk_type=email_notification_template.lk_type.value,
+                mail_event_slug=email_notification_template.mail_event_slug,
+            )
+            email_service = self.email_class(**email_options)
+            return email_service.as_task()
 
     async def _check_agent_and_agency_do_not_exist(
         self, payload: RequestProcessRegisterModel

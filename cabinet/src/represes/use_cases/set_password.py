@@ -15,6 +15,7 @@ from ..exceptions import (
     RepresPasswordTimeoutError,
     RepresChangePasswordError,
 )
+from src.notifications.services import GetEmailTemplateService
 
 
 class SetPasswordCase(BaseRepresCase):
@@ -22,7 +23,7 @@ class SetPasswordCase(BaseRepresCase):
     Установка пароля
     """
 
-    template: str = "src/represes/templates/confirm_email.html"
+    mail_event_slug = "repres_confirm_email"
     link: str = "https://{}/confirm/represes/confirm_email?q={}&p={}"
 
     def __init__(
@@ -35,6 +36,7 @@ class SetPasswordCase(BaseRepresCase):
         email_class: Type[RepresEmail],
         hasher: Callable[..., RepresHasher],
         token_creator: Callable[[int], str],
+        get_email_template_service: GetEmailTemplateService,
     ):
         self.hasher: RepresHasher = hasher()
         self.repres_repo: RepresRepo = repres_repo()
@@ -50,6 +52,8 @@ class SetPasswordCase(BaseRepresCase):
         self.site_host: str = site_config["site_host"]
         self.password_settable_key: str = session_config["password_settable_key"]
         self.password_reset_key: str = session_config["password_reset_key"]
+
+        self.get_email_template_service: GetEmailTemplateService = get_email_template_service
 
     async def __call__(self, payload: RequestSetPasswordModel) -> User:
         data: dict[str, Any] = payload.dict()
@@ -89,11 +93,18 @@ class SetPasswordCase(BaseRepresCase):
 
     async def _send_email(self, repres: User, token: str) -> Task:
         confirm_link: str = self.link.format(self.site_host, token, repres.email_token)
-        email_options: dict[str, Any] = dict(
-            topic="Подтверждение почты",
-            template=self.template,
-            recipients=[repres.email],
+        email_notification_template = await self.get_email_template_service(
+            mail_event_slug=self.repres_mail_event_slug,
             context=dict(confirm_link=confirm_link),
         )
-        email_service: RepresEmail = self.email_class(**email_options)
-        return email_service.as_task()
+
+        if email_notification_template and email_notification_template.is_active:
+            email_options: dict[str, Any] = dict(
+                topic=email_notification_template.template_topic,
+                content=email_notification_template.content,
+                recipients=[repres.email],
+                lk_type=email_notification_template.lk_type.value,
+                mail_event_slug=email_notification_template.mail_event_slug,
+            )
+            email_service: RepresEmail = self.email_class(**email_options)
+            return email_service.as_task()

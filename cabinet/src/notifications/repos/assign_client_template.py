@@ -11,7 +11,10 @@ class AssignClientTemplate(Model, TimeBasedMixin):
     Шаблон сообщений для закрепления клиента
     """
     id: int = fields.IntField(description="ID", pk=True)
+    title: str = fields.CharField(max_length=255, description="Название")
     text: str = fields.TextField(description="Текст открепления")
+    success_assign_text: str = fields.TextField(description="Текст страницы успешного закрепления", null=True)
+    success_unassign_text: str = fields.TextField(description="Текст страницы успешного открепления", null=True)
     default: bool = fields.BooleanField(description="По умолчанию", default=False)
     city: ForeignKeyRelation["City"] = fields.ForeignKeyField(
         model_name="models.City",

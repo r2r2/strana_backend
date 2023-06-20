@@ -74,7 +74,7 @@ class DeactivateExpiredBookingsService(BaseBookingService):
             should_be_deactivated_by_timer=True,
         )
         expired_bookings: list[Booking] = await self.booking_repo.list(
-            filters=filters, related_fields=["user", "project", "property", "building"]
+            filters=filters, related_fields=["user", "project", "project__city", "property", "building"]
         )
         for booking in expired_bookings:
             booking_data: dict[str, Any] = dict(
@@ -104,7 +104,7 @@ class DeactivateExpiredBookingsService(BaseBookingService):
             lead_options: dict[str, Any] = dict(
                 status=BookingSubstages.START,
                 lead_id=booking.amocrm_id,
-                city_slug=booking.project.city,
+                city_slug=booking.project.city.slug,
             )
             data: list[Any] = await amocrm.update_lead(**lead_options)
             lead_id: int = data[0]["id"]

@@ -30,3 +30,13 @@ class BaseProjectFilter(BaseFilter):
     """
     Базовый фильтр проекта
     """
+
+
+class BaseProjectException(Exception):
+    """
+    Базовая ошибка проекта
+    """
+
+    message: str
+    status: int
+    reason: str

@@ -17,6 +17,9 @@ from tips import models as tips_models
 from users import models as users_models
 from questionnaire import models as questionnaire_models
 from task_management import models as task_management_models
+from notification_templates import models as notification_templates_models
+from meetings import models as meetings_models
+from main_page import models as main_page_models
 
 
 cabinet_models: list = [
@@ -45,7 +48,7 @@ cabinet_models: list = [
     amocrm_models.AmocrmPipeline,
     amocrm_models.AmocrmStatus,
     amocrm_models.AmocrmAction,
-    amocrm_models.StatusActionThrough,
+    amocrm_models.GroupStatusActionThrough,
     users_models.CitiesThrough,
     users_models.PipelinesThrough,
     users_models.StatusesThrough,
@@ -56,6 +59,10 @@ cabinet_models: list = [
     users_models.UserNotificationMute,
     users_models.RealIpUsers,
     users_models.FakeUserPhone,
+    users_models.PinningStatus,
+    users_models.PinningStatusCity,
+    users_models.PinningStatusPipeline,
+    users_models.PinningStatusStatus,
     users_models.ConfirmClientAssign,
     caution_models.Caution,
     caution_models.CautionMute,
@@ -82,7 +89,16 @@ cabinet_models: list = [
     task_management_models.TaskChain,
     task_management_models.TaskChainStatusThrough,
     task_management_models.TaskChainTaskVisibilityStatusThrough,
+    task_management_models.TaskInstanceLog,
     amocrm_models.AmocrmGroupStatus,
+    notification_templates_models.TextBlock,
+    notification_templates_models.LogEmail,
+    notification_templates_models.LogSms,
+    notification_templates_models.EmailTemplate,
+    notification_templates_models.SmsTemplate,
+    notification_templates_models.AssignClientTemplate,
+    meetings_models.Meeting,
+    main_page_models.Ticket,
 ]
 
 

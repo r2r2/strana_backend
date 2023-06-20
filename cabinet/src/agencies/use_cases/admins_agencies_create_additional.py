@@ -12,13 +12,14 @@ from ..entities import BaseAgencyCase
 from ..models.admin_create_additional import RequestAgencyAdditionalAgreementModel
 from ..repos import Agency, AgencyRepo
 from ..types import AdditionalAgreementTemplateRepo, AgencyAdditionalAgreementRepo
+from src.notifications.services import GetEmailTemplateService
 
 
 class AdminAgenciesCreateAdditionalAgreementCase(BaseAgencyCase):
     """
     Создание дополнительного соглашения
     """
-    repres_email_template = "src/agencies/templates/create_new_additional_agreemets.html"
+    mail_event_slug = "create_additional_agreement"
     link = "https://{}/documents"
 
     def __init__(
@@ -27,11 +28,13 @@ class AdminAgenciesCreateAdditionalAgreementCase(BaseAgencyCase):
         agency_repo: Type[AgencyRepo],
         additional_agreement_template_repo: Type[AdditionalAgreementTemplateRepo],
         additional_agreement_repo: Type[AgencyAdditionalAgreementRepo],
+        get_email_template_service: GetEmailTemplateService,
     ) -> None:
         self._agency_repo: AgencyRepo = agency_repo()
         self._additional_agreement_template_repo: AdditionalAgreementTemplateRepo = additional_agreement_template_repo()
         self._additional_agreement_repo: Type[AgencyAdditionalAgreementRepo] = additional_agreement_repo()
         self.email_class: Type[AgentEmail] = email_class
+        self.get_email_template_service: GetEmailTemplateService = get_email_template_service
 
     async def __call__(
         self,
@@ -122,16 +125,22 @@ class AdminAgenciesCreateAdditionalAgreementCase(BaseAgencyCase):
         @param context: Any (Контекст, который будет использоваться в шаблоне письма)
         @return: Task
         """
-        project_names = context.get("project_names")
-        topic = ("Добрый день! Было сформировано новое дополнительное соглашение " +
-                f"к договорам по следующим проектам: {', '.join(project_names)}.")
-
-        email_options: dict[str, Any] = dict(
-            topic=topic,
-            template=self.repres_email_template,
-            recipients=recipients,
+        email_notification_template = await self.get_email_template_service(
+            mail_event_slug=self.mail_event_slug,
             context=context,
         )
-        email_service: EmailService = self.email_class(**email_options)
 
-        return email_service.as_task()
+        if email_notification_template and email_notification_template.is_active:
+            project_names = context.get("project_names")
+            topic = email_notification_template.template_topic.format(project_names=', '.join(project_names))
+
+            email_options: dict[str, Any] = dict(
+                topic=topic,
+                content=email_notification_template.content,
+                recipients=recipients,
+                lk_type=email_notification_template.lk_type.value,
+                mail_event_slug=email_notification_template.mail_event_slug,
+            )
+            email_service: EmailService = self.email_class(**email_options)
+
+            return email_service.as_task()

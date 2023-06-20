@@ -16,6 +16,7 @@ from ..types import AgentEmail, AgentHasher, AgentAgencyRepo
 from ..services import CreateContactService, EnsureBrokerTagService
 from ...agencies.repos import Agency
 from src.users.loggers.wrappers import user_changes_logger
+from src.notifications.services import GetEmailTemplateService
 from src.users.services import UserCheckUniqueService
 
 
@@ -24,8 +25,8 @@ class ProcessRegisterCase(BaseAgentCase):
     Регистрация
     """
 
-    agent_confirm_template: str = "src/agents/templates/confirm_email.html"
-    repres_notice_template: str = "src/agents/templates/repres_notify.html"
+    confirm_mail_event_slug: str = "agent_confirm_email"
+    notify_mail_event_slug: str = "repres_notify_email"
     confirm_link: str = "https://{}/confirm/agents/confirm_email?q={}&p={}"
     broker_link: str = "https://{}"
 
@@ -42,6 +43,7 @@ class ProcessRegisterCase(BaseAgentCase):
         bind_contact_company_task: PromiseProxy,
         create_contact_service: CreateContactService,
         ensure_broker_tag_service: EnsureBrokerTagService,
+        get_email_template_service: GetEmailTemplateService,
         check_user_unique_service: UserCheckUniqueService,
         logger=structlog.getLogger(__name__),
     ) -> None:
@@ -68,6 +70,8 @@ class ProcessRegisterCase(BaseAgentCase):
         self.site_host: str = site_config["site_host"]
         self.broker_site_host: str = site_config["broker_site_host"]
         self.logger = logger
+
+        self.get_email_template_service: GetEmailTemplateService = get_email_template_service
 
     async def __call__(self, payload: RequestProcessRegisterModel) -> User:
         data: dict[str, Any] = payload.dict()
@@ -115,32 +119,47 @@ class ProcessRegisterCase(BaseAgentCase):
 
     async def _send_confirm_email(self, agent: User, token: str) -> Task:
         confirm_link: str = self.confirm_link.format(self.site_host, token, agent.email_token)
-        email_options: dict[str, Any] = dict(
-            topic="Подтверждение почты",
-            template=self.agent_confirm_template,
-            recipients=[agent.email],
+        email_notification_template = await self.get_email_template_service(
+            mail_event_slug=self.confirm_mail_event_slug,
             context=dict(confirm_link=confirm_link),
         )
-        email_service: AgentEmail = self.email_class(**email_options)
-        return email_service.as_task()
+
+        if email_notification_template and email_notification_template.is_active:
+            email_options: dict[str, Any] = dict(
+                topic=email_notification_template.template_topic,
+                content=email_notification_template.content,
+                recipients=[agent.email],
+                lk_type=email_notification_template.lk_type.value,
+                mail_event_slug=email_notification_template.mail_event_slug,
+            )
+            email_service: AgentEmail = self.email_class(**email_options)
+            return email_service.as_task()
 
     async def _send_agency_email(self, agency: Agency, agent: User) -> Optional[Task]:
         if not agency.maintainer:
             self.logger.warning(f'Agency without maintainer: id<{agency.id}>')
             return
+
         context: dict[str: Any] = dict(
             url=self.broker_link.format(self.broker_site_host),
             agent=agent,
             agency=agency
         )
-        email_options: dict[str: Agency] = dict(
-            topic='В сервис кабинет брокера добавлен сотрудник',
-            template=self.repres_notice_template,
-            recipients=[agency.maintainer.email],
-            context=context
+        email_notification_template = await self.get_email_template_service(
+            mail_event_slug=self.notify_mail_event_slug,
+            context=context,
         )
-        email_service: AgentEmail = self.email_class(**email_options)
-        return email_service.as_task()
+
+        if email_notification_template and email_notification_template.is_active:
+            email_options: dict[str, Any] = dict(
+                topic=email_notification_template.template_topic,
+                content=email_notification_template.content,
+                recipients=[agency.maintainer.email],
+                lk_type=email_notification_template.lk_type.value,
+                mail_event_slug=email_notification_template.mail_event_slug,
+            )
+            email_service: AgentEmail = self.email_class(**email_options)
+            return email_service.as_task()
 
     async def _import_contacts(self, agent: User, agency: Agency):
         amocrm_id, tags = await self.create_contact_service(agent=agent)

@@ -72,10 +72,17 @@ class SendSmsToMskClientService(BaseUserService):
             return False
 
         template: AssignClientTemplate = await self.template_repo.retrieve(
-            filters=dict(city=city, sms__sms_event_slug=sms_slug, sms__is_active=True)
+            filters=dict(city=city, sms__sms_event_slug=sms_slug, sms__is_active=True),
+            related_fields=["sms"],
         )
         if not template:
-            raise SMSTemplateNotFoundError
+            template: AssignClientTemplate = await self.template_repo.retrieve(
+                filters=dict(default=True, sms__is_active=True),
+                related_fields=["sms"],
+            )
+        if not template:
+            # Если нет активного шаблона, то не отправляем смс
+            return False
 
         un_assignation_link = self.generate_unassign_link(agent_id=agent.id, client_id=client.id)
 

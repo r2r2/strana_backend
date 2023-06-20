@@ -35,6 +35,7 @@ import_module("common.amocrm.tasks")
 import_module("src.cities.tasks")
 import_module("src.amocrm.tasks")
 import_module("src.task_management.tasks")
+import_module("src.notifications.tasks")
 app.conf.task_queues = (Queue("tasks"),)
 app.control.add_consumer("tasks", reply=True, destination=["tasks@strana.com"])
 priority = Priority(steps=10)
@@ -54,6 +55,7 @@ app.conf.task_routes = {
     "src.cities.tasks.*": {"queue": "tasks", "task_default_priority": priority.low},
     "src.amocrm.tasks.*": {"queue": "tasks", "task_default_priority": priority.low},
     "src.task_management.tasks.*": {"queue": "tasks", "task_default_priority": priority.high},
+    "src.notifications.tasks.*": {"queue": "tasks", "task_default_priority": priority.low},
 }
 
 user_interest_task_time = celery_config["user_interest_task_time"]
@@ -136,6 +138,13 @@ app.conf.beat_schedule = {
     "periodic_logs_clean": {
         "schedule": crontab(minute=0, hour=0, day_of_month='*/1'),
         "task": "src.users.tasks.periodic_logs_clean",
+        "options": {
+            "priority": priority.low,
+        }
+    },
+    "periodic_notification_logs_clean": {
+        "schedule": crontab(minute=0, hour=0, day_of_month='*/1'),
+        "task": "src.notifications.tasks.periodic_notification_logs_clean",
         "options": {
             "priority": priority.low,
         }

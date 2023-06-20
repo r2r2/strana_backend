@@ -37,6 +37,8 @@ class UserStatus(mixins.Choices):
     DISPUTE: str = 'dispute', "Оспаривание статуса"
     CAN_DISPUTE: str = 'can_dispute', "Закреплен, но можно оспорить"
     ERROR: str = 'error', "Ошибка"
+    AGENT_PINNED: str = 'agent_pinned', "Закреплен за вами"
+    REPRES_PINNED: str = 'repres_pinned', "Закреплен за другим агентом вашего агентства"
 
 
 class UserStatusCheck(mixins.Choices):
@@ -78,3 +80,22 @@ class SlugType(mixins.Choices):
     """
     MANAGER: str = "manager", "Менеджер"
     MINE: str = "mine", "Мой"
+
+
+class UserPinningStatusType(mixins.Choices):
+    """
+    Статус закрепления пользователя
+    """
+    PINNED: str = "pinned", "Закреплен за вами"
+    NOT_PINNED: str = "not_pinned", "Не закреплен"
+    PARTIALLY_PINNED: str = "partially_pinned", "Закреплен за вами, но можно оспорить"
+    UNKNOWN: str = "unknown", "Неизвестно"
+
+
+class UserAssignSlug(str, Enum):
+    """
+    Тип Slug для страниц закрепления пользователя
+    """
+    CONFIRMED: str = "confirmed"
+    UNASSIGNED: str = "unassigned"
+    UNASSIGN: str = "unassign"

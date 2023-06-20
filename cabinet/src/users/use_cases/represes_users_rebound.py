@@ -2,6 +2,7 @@ from typing import Any, Type
 from enum import IntEnum
 
 from src.booking.loggers.wrappers import booking_changes_logger
+from src.users import services as user_services
 
 from ..entities import BaseUserCase
 from ..exceptions import UserNoAgentError, UserNotFoundError
@@ -28,16 +29,15 @@ class RepresesUsersReboundCase(BaseUserCase):
         self,
         user_repo: Type[UserRepo],
         check_repo: Type[CheckRepo],
-        change_client_agent_task: Any,
         agent_repo: Type[UserAgentRepo],
         booking_repo: Type[UserBookingRepo],
+        change_agent_service: user_services.ChangeAgentService,
     ) -> None:
         self.user_repo: UserRepo = user_repo()
         self.check_repo: CheckRepo = check_repo()
         self.agent_repo: UserAgentRepo = agent_repo()
         self.booking_repo: UserBookingRepo = booking_repo()
-
-        self.change_client_agent_task: Any = change_client_agent_task
+        self.change_agent_service: user_services.ChangeAgentService = change_agent_service
 
         self.user_reassign = user_changes_logger(
             self.user_repo.update, self, content="Перепривязка пользователя к представителю агентства"
@@ -79,5 +79,5 @@ class RepresesUsersReboundCase(BaseUserCase):
                 agency_id=agency_id,
             )
             await self.booking_update(booking=booking, data=data)
-        self.change_client_agent_task.delay(user_id=user_id, agent_id=to_agent_id)
+        self.change_agent_service.as_task(user_id=user_id, agent_id=to_agent_id)
         return user

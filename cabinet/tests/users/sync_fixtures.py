@@ -1,3 +1,5 @@
+import json
+from base64 import b64encode
 from typing import Type
 
 from pytz import UTC
@@ -118,3 +120,14 @@ def fake_user_authorization():
     jwt = token_creator("fake", 9864)
     authorization = f"{jwt['type'].capitalize()} {jwt['token']}"
     return authorization
+
+
+@fixture(scope="function")
+def user_token_query(user, agent, hasher) -> str:
+    data = json.dumps(dict(agent_id=agent.id, client_id=user.id))
+    b64_data = b64encode(data.encode()).decode()
+    b64_data = b64_data.replace("&", "%26")
+    token = hasher.hash(b64_data)
+    url_query = f"t={token}%26d={b64_data}"
+
+    return url_query

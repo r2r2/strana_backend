@@ -9,7 +9,7 @@ from src.properties.models import PropertyRetrieveModel
 from ...agencies.models import AgencyRetrieveModel
 from ...agents.models import AgentRetrieveModel
 from ...projects.models.projects_list import ProjectListModel
-from ..constants import UserStatus
+from ..constants import UserStatus, UserPinningStatusType
 from ..entities import BaseUserModel
 
 
@@ -49,6 +49,26 @@ class _StatusModel(BaseUserModel):
         orm_mode = True
 
 
+class _PinningStatusModel(BaseUserModel):
+    status: Optional[UserPinningStatusType.serializer]
+    label: Optional[str]
+    value: Optional[str]
+
+    @root_validator
+    def get_pinning_status(cls, values: dict[str, Any]) -> dict[str, Any]:
+        """set pinning status"""
+        if pinning_status := values.pop("status"):
+            values["label"] = pinning_status.label
+            values["value"] = pinning_status.value
+        else:
+            values["label"] = UserPinningStatusType.to_label(UserPinningStatusType.UNKNOWN)
+            values["value"] = UserPinningStatusType.to_value(UserPinningStatusType.UNKNOWN)
+        return values
+
+    class Config:
+        orm_mode = True
+
+
 class _BookingUserModel(BaseUserModel):
     id: int
     name: Optional[str]
@@ -59,6 +79,7 @@ class _BookingUserModel(BaseUserModel):
     work_end: Optional[date]
     work_start: Optional[date]
     status: Optional[_StatusModel]
+    pinning_status: Optional[_PinningStatusModel]
 
     class Config:
         orm_mode = True
@@ -73,8 +94,11 @@ class AmoCRMAction(BaseModel):
 
 class AmoCRMStatus(BaseModel):
     id: int
+    group_id: Optional[int]
     name: Optional[str]
     color: Optional[str]
+    show_reservation_date: Optional[bool]
+    show_booking_date: Optional[bool]
     steps_numbers: Optional[int]
     current_step: Optional[int]
     actions: Optional[list[AmoCRMAction]]

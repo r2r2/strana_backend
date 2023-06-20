@@ -18,14 +18,14 @@ class AmocrmAction(Model):
         null=True,
     )
     slug: str = fields.CharField(max_length=20, description='Код действия')
-    statuses: fields.ManyToManyRelation["AmocrmStatus"] = fields.ManyToManyField(
+    group_statuses: fields.ManyToManyRelation["GroupAmocrmStatus"] = fields.ManyToManyField(
         description="Управляющие действия сделок",
-        model_name="models.AmocrmStatus",
+        model_name="models.AmocrmGroupStatus",
         related_name="amocrm_actions",
         on_delete=fields.SET_NULL,
-        through="amocrm_actions_statuses",
+        through="amocrm_actions_group_statuses",
         backward_key="action_id",
-        forward_key="status_id"
+        forward_key="group_status_id"
     )
 
     def __repr__(self):
@@ -35,7 +35,7 @@ class AmocrmAction(Model):
         table = "amocrm_actions"
 
 
-class AmocrmActionRepo(BaseAmocrmRepo,ReadWriteMixin):
+class AmocrmActionRepo(BaseAmocrmRepo, ReadWriteMixin):
     """
     Репозиторий действий в сделках
     """

@@ -15,7 +15,6 @@ class TaskInstance(BaseTaskModel):
     id: int = fields.IntField(description="ID", pk=True)
     comment: str = fields.TextField(description="Комментарий администратора АМО", null=True)
     task_amocrmid: Optional[str] = fields.CharField(max_length=255, description="ID задачи в АМО", null=True)
-    sensei_pid: Optional[int] = fields.IntField(description="ID процесса в Sensei", null=True)
     status: fields.ForeignKeyRelation["TaskStatus"] = fields.ForeignKeyField(
         model_name="models.TaskStatus",
         related_name="task_instances",
@@ -29,7 +28,7 @@ class TaskInstance(BaseTaskModel):
         description="ID сущности, в которой будет выводиться задание",
     )
 
-    def __repr__(self) -> str:
+    def __str__(self) -> str:
         return f"TaskInstance id: {self.id}"
 
     class Meta:

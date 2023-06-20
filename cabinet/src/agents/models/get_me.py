@@ -48,6 +48,7 @@ class ResponseGetMeModel(ResponseUserInfoBaseModel):
     is_contracted: bool = Field(..., alias="isContracted")
     type: Optional[users_constants.UserType.serializer]
     agency: Optional[_AgencyRetrieveModel]
+    is_fired: Optional[bool] = Field(default=None, alias="isFired")
 
     class Config:
         orm_mode = True

@@ -23,8 +23,9 @@ from src.users import constants as users_constants
 from src.users import repos as users_repos
 from src.agreements import filters as agreement_filters
 from src.agreements import repos as agreements_repos
+from src.notifications import services as notification_services
+from src.notifications import repos as notification_repos
 from src.agencies import tasks as agency_tasks
-
 
 router = APIRouter(prefix="/agencies", tags=["Agencies"])
 
@@ -107,6 +108,10 @@ async def admins_agencies_register_view(
     create_organization_service: agencies_services.CreateOrganizationService = (
         agencies_services.CreateOrganizationService(**resources)
     )
+    get_sms_template_service: notification_services.GetSmsTemplateService = \
+        notification_services.GetSmsTemplateService(
+            sms_template_repo=notification_repos.SmsTemplateRepo,
+        )
     resources: dict[str, Any] = dict(
         hasher=security.get_hasher,
         sms_class=messages.SmsService,
@@ -117,6 +122,7 @@ async def admins_agencies_register_view(
         create_contact_service=create_contact_service,
         password_generator=utils.generate_simple_password,
         create_organization_service=create_organization_service,
+        get_sms_template_service=get_sms_template_service,
     )
     admins_agencies_register: use_cases.AdminsAgenciesRegisterCase = (
         use_cases.AdminsAgenciesRegisterCase(**resources)
@@ -180,12 +186,17 @@ async def admins_agencies_approval_view(
     create_organization_service: agencies_services.CreateOrganizationService = (
         agencies_services.CreateOrganizationService(**resources)
     )
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notification_repos.EmailTemplateRepo,
+        )
     resources: dict[str, Any] = dict(
         agency_repo=agencies_repos.AgencyRepo,
         repres_repo=represes_repos.RepresRepo,
         create_contact_service=create_contact_service,
         create_organization_service=create_organization_service,
         email_class=email.EmailService,
+        get_email_template_service=get_email_template_service,
     )
     admins_agencies_approval: use_cases.AdminsAgenciesApprovalCase = (
         use_cases.AdminsAgenciesApprovalCase(**resources)
@@ -229,6 +240,14 @@ async def admins_agencies_update_view(
     """
     Обновление агенства администратором
     """
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notification_repos.EmailTemplateRepo,
+        )
+    get_sms_template_service: notification_services.GetSmsTemplateService = \
+        notification_services.GetSmsTemplateService(
+            sms_template_repo=notification_repos.SmsTemplateRepo,
+        )
     resources: dict[str, Any] = dict(
         site_config=site_config,
         sms_class=messages.SmsService,
@@ -238,6 +257,8 @@ async def admins_agencies_update_view(
         agency_repo=agencies_repos.AgencyRepo,
         repres_repo=represes_repos.RepresRepo,
         token_creator=security.create_email_token,
+        get_email_template_service=get_email_template_service,
+        get_sms_template_service=get_sms_template_service,
     )
     admins_agencies_update: use_cases.AdminsAgenciesUpdateCase = use_cases.AdminsAgenciesUpdateCase(
         **resources
@@ -522,8 +543,6 @@ async def repres_agencies_create_agreement(
         booking_getdoc_statuses=booking_constants.GetDocStatus,
         agency_repo=agencies_repos.AgencyRepo,
         user_repo=users_repos.UserRepo,
-        file_processor=files.FileProcessor,
-        getdoc_class=getdoc.GetDoc,
         amocrm_class=amocrm.AmoCRM,
         project_repo=projects_repos.ProjectRepo,
         agreement_repo=agreement_repos.AgencyAgreementRepo,
@@ -634,7 +653,6 @@ async def admins_additional_list(
     """
     resources: dict[str, Any] = dict(
         additional_agreement_repo=agreement_repos.AgencyAdditionalAgreementRepo,
-
     )
     admin_additional_agreements_list_case = use_cases.ListAdminAdditionalAgreementsCase(**resources)
     return await admin_additional_agreements_list_case(
@@ -655,11 +673,16 @@ async def admin_agencies_create_additional_agreement(
     """
     Создание дополнительного соглашения
     """
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notification_repos.EmailTemplateRepo,
+        )
     resources: dict[str, Any] = dict(
         email_class=email.EmailService,
         agency_repo=agencies_repos.AgencyRepo,
         additional_agreement_template_repo=getdoc_repos.AdditionalAgreementTemplateRepo,
         additional_agreement_repo=agreement_repos.AgencyAdditionalAgreementRepo,
+        get_email_template_service=get_email_template_service,
     )
     create_additional_agreement_case = use_cases.AdminAgenciesCreateAdditionalAgreementCase(**resources)
     return await create_additional_agreement_case(comment=payload.comment, agencies=payload.agencies)
@@ -709,6 +732,52 @@ async def admins_agencies_additional_agreement_get_document(
     )
     additional_agreement_get_document_case = use_cases.AgenciesAdditionalAgreementGetDocCase(**resources)
     return await additional_agreement_get_document_case(additional_id=additional_id, admin_id=admin_id)
+
+
+@router.get(
+    "/admin/agreements/{agreement_id}/get_document",
+    status_code=HTTPStatus.OK,
+    response_model=models.ResponseRepresAgreement,
+)
+async def repres_agreement_get_document(
+    agreement_id: int = Path(...),
+    admin_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.ADMIN)),
+):
+    """
+    Формирование документа для скачивания из get_doc для представителей агентств
+    """
+    resources: dict[str, Any] = dict(
+        booking_getdoc_statuses=booking_constants.GetDocStatus,
+        file_processor=files.FileProcessor,
+        getdoc_class=getdoc.GetDoc,
+        agreement_repo=agreement_repos.AgencyAgreementRepo,
+        agent_repo=agents_repos.AgentRepo,
+    )
+    agreement_get_document_case = use_cases.AgreementGetDocCase(**resources)
+    return await agreement_get_document_case(agreement_id=agreement_id, admin_id=admin_id)
+
+
+@router.get(
+    "/repres/agreements/{agreement_id}/get_document",
+    status_code=HTTPStatus.OK,
+    response_model=models.ResponseRepresAgreement,
+)
+async def repres_agreement_get_document(
+    agreement_id: int = Path(...),
+    repres_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.REPRES)),
+):
+    """
+    Формирование документа для скачивания из get_doc для представителей агентств
+    """
+    resources: dict[str, Any] = dict(
+        booking_getdoc_statuses=booking_constants.GetDocStatus,
+        file_processor=files.FileProcessor,
+        getdoc_class=getdoc.GetDoc,
+        agreement_repo=agreement_repos.AgencyAgreementRepo,
+        agent_repo=agents_repos.AgentRepo,
+    )
+    agreement_get_document_case = use_cases.AgreementGetDocCase(**resources)
+    return await agreement_get_document_case(agreement_id=agreement_id, repres_id=repres_id)
 
 
 @router.get(
@@ -858,6 +927,29 @@ async def agents_agencies_additional_agreement_get_document(
     )
     additional_agreement_get_document_case = use_cases.AgenciesAdditionalAgreementGetDocCase(**resources)
     return await additional_agreement_get_document_case(additional_id=additional_id, agent_id=agent_id)
+
+
+@router.get(
+    "/agent/agreements/{agreement_id}/get_document",
+    status_code=HTTPStatus.OK,
+    response_model=models.ResponseRepresAgreement,
+)
+async def repres_agreement_get_document(
+    agreement_id: int = Path(...),
+    agent_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT)),
+):
+    """
+    Формирование документа для скачивания из get_doc для представителей агентств
+    """
+    resources: dict[str, Any] = dict(
+        booking_getdoc_statuses=booking_constants.GetDocStatus,
+        file_processor=files.FileProcessor,
+        getdoc_class=getdoc.GetDoc,
+        agreement_repo=agreement_repos.AgencyAgreementRepo,
+        agent_repo=agents_repos.AgentRepo,
+    )
+    agreement_get_document_case = use_cases.AgreementGetDocCase(**resources)
+    return await agreement_get_document_case(agreement_id=agreement_id, agent_id=agent_id)
 
 
 @router.get(
@@ -1027,3 +1119,36 @@ def superuser_agencies_fill_data_view(
         export_agency_in_amo_task=agency_tasks.export_agency_in_amo,
     )
     return superuser_agency_fill_data_case(agency_id=agency_id, data=data)
+
+
+@router.patch(
+    "/agent/fire",
+    status_code=HTTPStatus.OK,
+    dependencies=[Depends(dependencies.DeletedUserCheck())],
+)
+async def fire_agent(
+    agent_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT)),
+):
+    """
+    Самостоятельное увольнение агента.
+    """
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notification_repos.EmailTemplateRepo,
+        )
+    resources: dict[str, Any] = dict(
+        user_repo=users_repos.UserRepo,
+        agent_repo=agents_repos.AgentRepo,
+        repres_repo=represes_repos.RepresRepo,
+        booking_repo=booking_repos.BookingRepo,
+        fire_agent_task=agency_tasks.fire_agent_task,
+        email_class=email.EmailService,
+        get_email_template_service=get_email_template_service,
+    )
+    fire_agent_case: use_cases.FireAgentCase = (
+        use_cases.FireAgentCase(**resources)
+    )
+    return await fire_agent_case(
+        agent_id=agent_id,
+        role=users_constants.UserType.AGENT,
+    )

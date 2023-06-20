@@ -3,7 +3,7 @@ from typing import Any, Optional, Type, Union
 
 from tortoise.query_utils import Q
 
-from ...amocrm.repos import AmocrmStatusRepo
+from ...amocrm.repos import AmocrmGroupStatus
 from ...booking.repos import Booking
 from ..constants import UserType
 from ..entities import BaseUserCase
@@ -24,11 +24,11 @@ class UsersBookingsCase(BaseUserCase, CurrentUserDataMixin):
         user_repo: Type[UserRepo],
         check_repo: Type[CheckRepo],
         booking_repo: Type[UserBookingRepo],
-        amocrm_status_repo: Type[AmocrmStatusRepo],
+        amocrm_group_status_repo: Type[AmocrmGroupStatus],
         user_type: Union[UserType.AGENT, UserType.REPRES, UserType.ADMIN]
     ) -> None:
         self.user_repo: UserRepo = user_repo()
-        self.amocrm_status_repo: AmocrmStatusRepo = amocrm_status_repo()
+        self.amocrm_group_status_repo: AmocrmGroupStatus = amocrm_group_status_repo()
         self.check_repo: CheckRepo = check_repo()
         self.booking_repo: UserBookingRepo = booking_repo()
         self.user_type: Union[UserType.AGENT, UserType.REPRES, UserType.ADMIN] = user_type
@@ -49,6 +49,7 @@ class UsersBookingsCase(BaseUserCase, CurrentUserDataMixin):
             "agency",
             "user",
             "project",
+            "project__city",
             "building",
             "property",
             "property__floor",
@@ -79,13 +80,34 @@ class UsersBookingsCase(BaseUserCase, CurrentUserDataMixin):
             booking.tasks = await self._get_booking_tasks(booking=booking)
 
             if booking.project and booking.amocrm_status:
-                statuses = await self.amocrm_status_repo.list(
-                    filters=dict(pipeline_id=booking.project.amo_pipeline_id),
+                group_statuses: list[AmocrmGroupStatus] = await self.amocrm_group_status_repo.list(
+                    filters=dict(is_final=False),
                     ordering="sort",
                 )
-                booking.amocrm_status.steps_numbers = len(statuses) + 1
-                statuses.append(booking.amocrm_status)
-                booking.amocrm_status.current_step = statuses.index(booking.amocrm_status) + 1
+                final_group_statuses: list[AmocrmGroupStatus] = await self.amocrm_group_status_repo.list(
+                    filters=dict(is_final=True),
+                )
+                final_group_statuses_ids = [final_group_status.id for final_group_status in final_group_statuses]
+
+                booking_group_status = booking.amocrm_status.group_status
+                if not booking_group_status:
+                    booking_group_status_current_step = 1
+                elif booking_group_status.id in final_group_statuses_ids:
+                    booking_group_status_current_step = len(group_statuses) + 1
+                else:
+                    for number, group_status in enumerate(group_statuses):
+                        if booking_group_status.id == group_status.id:
+                            booking_group_status_current_step = number + 1
+
+                if booking_group_status:
+                    booking.amocrm_status.name = booking_group_status.name
+                    booking.amocrm_status.group_id = booking_group_status.id
+                    booking.amocrm_status.show_reservation_date = booking_group_status.show_reservation_date
+                    booking.amocrm_status.show_booking_date = booking_group_status.show_booking_date
+
+                booking.amocrm_status.color = booking_group_status.color if booking_group_status else None
+                booking.amocrm_status.steps_numbers = len(group_statuses) + 1
+                booking.amocrm_status.current_step = booking_group_status_current_step
 
         data: dict[str, Any] = dict(count=count, result=bookings, page_info=pagination(count=count))
         return data

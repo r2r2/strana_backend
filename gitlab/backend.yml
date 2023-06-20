@@ -16,7 +16,7 @@ build-cabinet:
       - docker-compose.yml
       - docker-compose.production.yml
   tags:
-    - docker
+    - docker-sber
 
 build-admin:
   stage: build
@@ -36,4 +36,4 @@ build-admin:
       - docker-compose.yml
       - docker-compose.production.yml
   tags:
-    - docker
+    - docker-sber

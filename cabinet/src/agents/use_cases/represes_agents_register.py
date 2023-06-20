@@ -9,6 +9,7 @@ from ..entities import BaseAgentCase
 from ..exceptions import AgentDataTakenError
 from ..models import RequestRepresesAgentsRegisterModel
 from ...users.loggers.wrappers import user_changes_logger
+from src.notifications.services import GetSmsTemplateService
 
 
 class RepresesAgentsRegisterCase(BaseAgentCase):
@@ -16,7 +17,7 @@ class RepresesAgentsRegisterCase(BaseAgentCase):
     Регистрация агента представителем агентства
     """
 
-    message_template = "Вы были зарегистрированы как агент. Email: {email} Пароль: {password} "
+    sms_event_slug = "repres_registration_agent"
 
     def __init__(
         self,
@@ -28,6 +29,7 @@ class RepresesAgentsRegisterCase(BaseAgentCase):
         create_contact_service: CreateContactService,
         ensure_broker_tag_service: EnsureBrokerTagService,
         import_clients_task: Any,
+        get_sms_template_service: GetSmsTemplateService,
     ) -> None:
         self.agent_repo: AgentRepo = agent_repo()
         self.agent_create = user_changes_logger(
@@ -44,6 +46,7 @@ class RepresesAgentsRegisterCase(BaseAgentCase):
         self.create_contact_service: CreateContactService = create_contact_service
         self.ensure_broker_tag_service: EnsureBrokerTagService = ensure_broker_tag_service
         self.import_clients_task: Any = import_clients_task
+        self.get_sms_template_service: GetSmsTemplateService = get_sms_template_service
 
     async def __call__(self, agency_id: int, payload: RequestRepresesAgentsRegisterModel) -> User:
         data: dict[str, Any] = payload.dict()
@@ -78,11 +81,19 @@ class RepresesAgentsRegisterCase(BaseAgentCase):
         )
         data.update(extra_data)
         agent: User = await self.agent_create(data=data)
-        sms_options: dict[str, Any] = dict(
-            phone=phone,
-            message=self.message_template.format(email=email, password=one_time_password),
+
+        sms_notification_template = await self.get_sms_template_service(
+            sms_event_slug=self.sms_event_slug,
         )
-        self.sms_class(**sms_options).as_task()
+        if sms_notification_template and sms_notification_template.is_active:
+            sms_options: dict[str, Any] = dict(
+                phone=phone,
+                message=sms_notification_template.template_text.format(email=email, password=one_time_password),
+                lk_type=sms_notification_template.lk_type.value,
+                sms_event_slug=sms_notification_template.sms_event_slug,
+            )
+            self.sms_class(**sms_options).as_task()
+
         _, tags = await self.create_contact_service(agent=agent)
         setattr(agent, "tags", tags)
         await self.ensure_broker_tag_service(agent=agent)

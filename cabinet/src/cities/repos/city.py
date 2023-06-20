@@ -14,6 +14,9 @@ class City(Model):
     projects: fields.ReverseRelation["Project"]
     assign_clients: fields.ReverseRelation["AssignClientTemplate"]
 
+    pinning_status_cities: fields.ManyToManyRelation["PinningStatus"]
+    tickets: fields.ManyToManyRelation["Ticket"]
+
     def __repr__(self):
         return self.name
 

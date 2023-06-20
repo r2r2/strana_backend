@@ -30,3 +30,5 @@ from .admin_list_agreements import AdminListAgreementsCase
 from .admins_agencies_create_additional import AdminAgenciesCreateAdditionalAgreementCase
 from .agencies_getdoc_additional_agreement import AgenciesAdditionalAgreementGetDocCase
 from .superuser_agencies_fill_data import SuperuserAgenciesFillDataCase
+from .fire_agent import FireAgentCase
+from .repres_agreement_getdoc import AgreementGetDocCase

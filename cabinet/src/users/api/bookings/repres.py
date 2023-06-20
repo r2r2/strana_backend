@@ -3,7 +3,7 @@ from typing import Any, Callable, Coroutine
 
 from common import dependencies, paginations
 from fastapi import Depends, Path, Query
-from src.amocrm.repos import AmocrmStatusRepo
+from src.amocrm.repos import AmocrmGroupStatusRepo
 from src.booking import repos as booking_repos
 from src.users import constants as users_constants
 from src.users import filters, models
@@ -101,7 +101,7 @@ async def repres_bookings_list_view(
         user_repo=users_repos.UserRepo,
         check_repo=users_repos.CheckRepo,
         booking_repo=booking_repos.BookingRepo,
-        amocrm_status_repo=AmocrmStatusRepo,
+        amocrm_group_status_repo=AmocrmGroupStatusRepo,
         user_type=users_constants.UserType.REPRES
     )
     repres_bookings_list: use_cases.UsersBookingsCase = use_cases.UsersBookingsCase(
@@ -124,9 +124,10 @@ async def repres_booking_retrieve_view(
     """
     resources: dict[str, Any] = dict(
         check_repo=users_repos.CheckRepo,
-        amocrm_status_repo=AmocrmStatusRepo,
+        amocrm_group_status_repo=AmocrmGroupStatusRepo,
         booking_repo=booking_repos.BookingRepo,
         agent_repo=agents_repos.AgentRepo,
+        user_pinning_repo=users_repos.UserPinningStatusRepo,
     )
     booking_retrieve: use_cases.UserBookingRetrieveCase = use_cases.UserBookingRetrieveCase(**resources)
     return await booking_retrieve(booking_id=booking_id, agency_id=agency_id)

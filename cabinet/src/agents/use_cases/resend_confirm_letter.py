@@ -5,11 +5,12 @@ from src.agents.entities import BaseAgentCase
 from src.agents.repos import AgentRepo
 from src.agents.types import AgentEmail
 from src.users.repos import User
+from src.notifications.services import GetEmailTemplateService
 
 
 class AgentResendLetterCase(BaseAgentCase):
 	"""Повторная отправка письма на подтверждение почты"""
-	agent_confirm_template: str = "src/agents/templates/confirm_email.html"
+	mail_event_slug: str = "agent_confirm_email"
 	confirm_link: str = "https://{}/confirm/agents/confirm_email?q={}&p={}"
 	
 	def __init__(
@@ -18,11 +19,13 @@ class AgentResendLetterCase(BaseAgentCase):
 			site_config: dict[str, Any],
 			token_creator: Callable[[int], str],
 			agent_repo: Type[AgentRepo],
+			get_email_template_service: GetEmailTemplateService,
 	):
 		self.email_class = email_class
 		self.site_host: str = site_config["site_host"]
 		self.token_creator: Callable[[int], str] = token_creator
 		self.agent_repo: AgentRepo = agent_repo()
+		self.get_email_template_service: GetEmailTemplateService = get_email_template_service
 	
 	async def __call__(self, agent_id: int) -> Any:
 		agent: User = await self.agent_repo.retrieve(filters=dict(id=agent_id))
@@ -32,11 +35,18 @@ class AgentResendLetterCase(BaseAgentCase):
 	async def _send_confirm_email(self, agent: User, token: str) -> Task:
 		# copied from precess_register
 		confirm_link: str = self.confirm_link.format(self.site_host, token, agent.email_token)
-		email_options: dict[str, Any] = dict(
-			topic="Подтверждение почты",
-			template=self.agent_confirm_template,
-			recipients=[agent.email],
+		email_notification_template = await self.get_email_template_service(
+			mail_event_slug=self.mail_event_slug,
 			context=dict(confirm_link=confirm_link),
 		)
-		email_service: AgentEmail = self.email_class(**email_options)
-		return email_service.as_task()
+
+		if email_notification_template and email_notification_template.is_active:
+			email_options: dict[str, Any] = dict(
+				topic=email_notification_template.template_topic,
+				content=email_notification_template.content,
+				recipients=[agent.email],
+				lk_type=email_notification_template.lk_type.value,
+				mail_event_slug=email_notification_template.mail_event_slug,
+			)
+			email_service: AgentEmail = self.email_class(**email_options)
+			return email_service.as_task()

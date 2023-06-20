@@ -35,6 +35,24 @@ class CurrentAnyTypeUserId(object):
         return user_id
 
 
+class CurrentOptionalUserIdWithoutRole(object):
+    """Необязательный ID текущего пользователя без указания роли"""
+
+    def __call__(self, authorization: Optional[str] = Header(None)) -> Optional[int]:
+        user_id: Optional[int] = None
+
+        if authorization:
+            scheme, token = authorization.split(" ")
+            if scheme == auth_config["type"]:
+                id, type, timestamp, _ = decode_access_token(token=token)
+                if id and type and timestamp:
+                    if datetime.now(tz=UTC) < datetime.fromtimestamp(
+                            timestamp, tz=UTC
+                    ):
+                        user_id = id
+        return user_id
+
+
 class CurrentUserId(object):
     """
     ID текущего пользователя

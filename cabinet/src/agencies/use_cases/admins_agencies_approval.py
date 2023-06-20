@@ -11,6 +11,7 @@ from ..services import CreateOrganizationService
 from ..types import AgencyCreateContactService, AgencyEmail, AgencyRepresRepo, AgencyUser
 from ..loggers.wrappers import agency_changes_logger
 from src.users.loggers.wrappers import user_changes_logger
+from src.notifications.services import GetEmailTemplateService
 
 
 class AdminsAgenciesApprovalCase(BaseAgencyCase):
@@ -18,7 +19,7 @@ class AdminsAgenciesApprovalCase(BaseAgencyCase):
     Одобрение агентства администратором
     """
 
-    template = "src/agencies/templates/agency_confirmed.html"
+    mail_event_slug = "confirm_agency"
     login_link = "https://{}/account/represes/login"
 
     def __init__(
@@ -28,6 +29,7 @@ class AdminsAgenciesApprovalCase(BaseAgencyCase):
         create_contact_service: AgencyCreateContactService,
         create_organization_service: CreateOrganizationService,
         email_class: Type[AgencyEmail],
+        get_email_template_service: GetEmailTemplateService,
     ) -> None:
         self.agency_repo: AgencyRepo = agency_repo()
         self.agency_update = agency_changes_logger(
@@ -40,6 +42,7 @@ class AdminsAgenciesApprovalCase(BaseAgencyCase):
 
         self.create_contact_service: AgencyCreateContactService = create_contact_service
         self.create_organization_service: CreateOrganizationService = create_organization_service
+        self.get_email_template_service: GetEmailTemplateService = get_email_template_service
 
         self.email_class: Type[AgencyEmail] = email_class
 
@@ -64,11 +67,18 @@ class AdminsAgenciesApprovalCase(BaseAgencyCase):
 
     async def _send_email(self, maintainer: AgencyUser) -> Task:
         login_link = self.login_link.format(site_config["broker_site_host"])
-        email_options: dict[str, Any] = dict(
-            topic="Подтверждение агентства",
-            template=self.template,
-            recipients=[maintainer.email],
+        email_notification_template = await self.get_email_template_service(
+            mail_event_slug=self.mail_event_slug,
             context=dict(login_link=login_link),
         )
-        email_service: AgencyEmail = self.email_class(**email_options)
-        return email_service.as_task()
+
+        if email_notification_template and email_notification_template.is_active:
+            email_options: dict[str, Any] = dict(
+                topic=email_notification_template.template_topic,
+                content=email_notification_template.content,
+                recipients=[maintainer.email],
+                lk_type=email_notification_template.lk_type.value,
+                mail_event_slug=email_notification_template.mail_event_slug,
+            )
+            email_service: AgencyEmail = self.email_class(**email_options)
+            return email_service.as_task()

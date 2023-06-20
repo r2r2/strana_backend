@@ -16,6 +16,7 @@ from common.utils import partition_list
 from pytz import UTC
 from src.agents.repos import AgentRepo
 from src.booking.loggers.wrappers import booking_changes_logger
+from src.booking.constants import BookingCreatedSources
 from src.buildings.repos import Building, BuildingRepo
 from src.floors.repos import FloorRepo
 from src.projects.repos import ProjectRepo
@@ -79,6 +80,7 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
         import_property_service: ImportPropertyService,
         amocrm_config: dict[Any, Any],
         global_id_encoder: Callable,
+        check_pinning: Optional[Any] = None,
         orm_class: Optional[BookingORM] = None,
         orm_config: Optional[dict[str, Any]] = None,
         create_booking_log_task: Optional[Any] = None,
@@ -94,6 +96,7 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
         self.building_repo: BuildingRepo = building_repo()
         self.statuses_repo: AmoStatusesRepo = statuses_repo()
         self.import_property_service: ImportPropertyService = import_property_service
+        self.check_pinning = check_pinning
         self.user_update = user_changes_logger(
             self.user_repo.update, self, content="Импорт бронирований из АМО"
         )
@@ -156,6 +159,8 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
 
         data: dict[str, Any] = dict(is_imported=True)
         await self.user_update(user=user, data=data)
+        if self.check_pinning is not None:
+            self.check_pinning.as_task(user_id=user.id)
         return True
 
     async def _update_lead(
@@ -263,6 +268,8 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
         if not stages_valid:
             booking_active = False
 
+        filters: dict[str, Any] = dict(amocrm_id=booking_amocrm_id)
+
         data: dict[str, Any] = dict(
             user=user,
             floor=booking_property.floor,
@@ -297,22 +304,14 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
         ):
             data.update(dict(agent_id=user.agent_id, agency_id=user.agency_id))
 
-        filters: dict[str, Any] = dict(amocrm_id=booking_amocrm_id)
         booking = await self.booking_repo.retrieve(filters=filters)
         if booking:
-            if booking.until and not booking_until:
-                data.pop("until")
-            if booking.payment_amount and not booking_payment_amount:
-                data.pop("payment_amount")
-            if booking.amocrm_substage and not booking_substage:
-                data.pop("amocrm_substage")
-            if booking.amocrm_status_id and not lead.status_id:
-                data.pop("amocrm_status_id")
-            if booking.final_payment_amount and not booking_final_payment_amount:
-                data.pop("final_payment_amount")
             await self.booking_repo.update(model=booking, data=data)
         else:
-            data.update(amocrm_id=lead.id)
+            data.update(
+                amocrm_id=lead.id,
+                created_source=BookingCreatedSources.AMOCRM,
+            )
             await self.booking_repo.create(data=data)
 
     @staticmethod
@@ -349,9 +348,9 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
         )
 
         filters: dict[str, Any] = dict(global_id=property_global_id)
-        data: dict[str, Any] = dict(premise=PremiseType.RESIDENTIAL, type=type)
+        data: dict[str, Any] = dict(premise=PremiseType.RESIDENTIAL, type=property_type.lower())
         if property_type != PropertyTypes.FLAT:
-            data: dict[str, Any] = dict(premise=PremiseType.NONRESIDENTIAL, type=type)
+            data: dict[str, Any] = dict(premise=PremiseType.NONRESIDENTIAL, type=property_type.lower())
         booking_property: Property = await self.property_repo.update_or_create(
             filters=filters, data=data)
         await self.import_property_service(property=booking_property)

@@ -35,7 +35,8 @@ class BookingSubstages(mixins.Choices, BaseLeadSalesStatuses):
     START: str = "start", "Заявка создана"
     ASSIGN_AGENT = "assign_agent", "Фиксация клиента за агентом"
     MAKE_APPOINTMENT = "make_appointment", "Назначить встречу"
-    MEETING = "meeting", "Идёт встреча"
+    MEETING = "meeting", "Встреча назначена"
+    MEETING_IN_PROGRESS = "meeting_in_progress", "Идёт встреча"
     MAKE_DECISION = 'make_decision', "Принимают решение"
     RE_MEETING = "re_meeting", "Повторная встреча"
 
@@ -75,7 +76,7 @@ class BookingCreatedSources(mixins.Choices):
     """
     Источники создания бронирования
     """
-    AMOCRM: str = "amocrm", "AMOCRM",
+    AMOCRM: str = "amocrm", "Импортирован из AMOCRM",
     LK: str = "lk_booking", "Бронирование через личный кабинет"
     LK_ASSIGN: str = "lk_booking_assign", "Закреплен в ЛК Брокера"
     FAST_BOOKING: str = "fast_booking", "Быстрое бронирование"
@@ -156,6 +157,7 @@ class BookingStagesMapping(object):
         BookingSubstages.ASSIGN_AGENT: BookingStages.START,
         BookingSubstages.MAKE_APPOINTMENT: BookingStages.START,
         BookingSubstages.MEETING: BookingStages.START,
+        BookingSubstages.MEETING_IN_PROGRESS: BookingStages.START,
         BookingSubstages.MAKE_DECISION: BookingStages.START,
         BookingSubstages.RE_MEETING: BookingStages.START,
         BookingSubstages.BOOKING: BookingStages.BOOKING,

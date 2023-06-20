@@ -2,6 +2,8 @@ from asyncio import Task
 from secrets import token_urlsafe
 from typing import Type, Callable, Union, Any
 
+from src.notifications.services import GetEmailTemplateService
+
 from ..entities import BaseRepresCase
 from ..repos import RepresRepo, User
 from ..types import RepresEmail
@@ -12,7 +14,7 @@ class ChangeEmailCase(BaseRepresCase):
     Смена почты
     """
 
-    template: str = "src/represes/templates/confirm_email.html"
+    mail_event_slug = "repres_confirm_email"
     link: str = "https://{}/confirm/represes/confirm_email?q={}&p={}"
 
     fail_link: str = "https://{}/account/represes"
@@ -24,6 +26,7 @@ class ChangeEmailCase(BaseRepresCase):
         repres_repo: Type[RepresRepo],
         site_config: dict[str, Any],
         email_class: Type[RepresEmail],
+        get_email_template_service: GetEmailTemplateService,
         token_creator: Callable[[int], str],
         token_decoder: Callable[[str], Union[int, None]],
     ) -> None:
@@ -36,6 +39,7 @@ class ChangeEmailCase(BaseRepresCase):
         self.user_type: str = user_type
         self.lk_site_host: str = site_config["lk_site_host"]
         self.broker_site_host: str = site_config["broker_site_host"]
+        self.get_email_template_service: GetEmailTemplateService = get_email_template_service
 
     async def __call__(self, token: str, change_email_token: str) -> str:
         repres_id: Union[int, None] = self.token_decoder(token)
@@ -67,11 +71,18 @@ class ChangeEmailCase(BaseRepresCase):
 
     async def _send_email(self, repres: User, token: str) -> Task:
         confirm_link: str = self.link.format(self.lk_site_host, token, repres.email_token)
-        email_options: dict[str, Any] = dict(
-            topic="Подтверждение почты",
-            recipients=[repres.email],
-            template=self.template,
+        email_notification_template = await self.get_email_template_service(
+            mail_event_slug=self.mail_event_slug,
             context=dict(confirm_link=confirm_link),
         )
-        email_service: RepresEmail = self.email_class(**email_options)
-        return email_service.as_task()
+
+        if email_notification_template and email_notification_template.is_active:
+            email_options: dict[str, Any] = dict(
+                topic=email_notification_template.template_topic,
+                content=email_notification_template.content,
+                recipients=[repres.email],
+                lk_type=email_notification_template.lk_type.value,
+                mail_event_slug=email_notification_template.mail_event_slug,
+            )
+            email_service: RepresEmail = self.email_class(**email_options)
+            return email_service.as_task()

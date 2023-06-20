@@ -35,7 +35,7 @@ from .change_phone import RequestChangePhoneModel, ResponseChangePhoneModel
 from .client_retrieve import (RequestAgentsUsersRetrieveModel,
                               ResponseClientRetrieveModel)
 from .client_unassign import ResponseUnassignClient, ResponseUnAssigned
-from .clients_assign import RequestAssignClient, ResponseAssignClient, ResponseUnassignText
+from .clients_assign import RequestAssignClient, ResponseAssignClient
 from .clients_list import ResponseClientsListModel
 from .common_user_data import CurrentUserData
 from .confirm_email import RequestConfirmEmailModel, ResponseConfirmEmailModel
@@ -87,3 +87,4 @@ from .bookings_facets import ResponseBookingFacets
 from .clients_specs import ResponseClientSpecs
 from .clients_facets import ResponseClientFacets
 from .email_reset import RequestEmailResetModel, ResponseEmailResetModel
+from .create_ticket import RequestCreateTicket

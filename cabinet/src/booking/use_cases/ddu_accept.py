@@ -13,6 +13,7 @@ from ..exceptions import BookingNotFoundError, BookingWrongStepError
 from ..repos import Booking, BookingRepo, DDURepo
 from ..services import HistoryService, NotificationService
 from ..types import BookingEmail, BookingSms
+from src.notifications.services import GetSmsTemplateService, GetEmailTemplateService
 
 
 class DDUAcceptCase(BaseBookingCase):
@@ -20,7 +21,8 @@ class DDUAcceptCase(BaseBookingCase):
     Подписание ДДУ
     """
 
-    email_template: str = "src/booking/templates/ddu_accepted.html"
+    sms_event_slug = "booking_ddu_accepted"
+    mail_event_slug: str = "booking_ddu_accepted"
     _notification_template = "src/booking/templates/notifications/ddu_accept.json"
     _history_template = "src/booking/templates/history/ddu_accept.txt"
 
@@ -35,6 +37,8 @@ class DDUAcceptCase(BaseBookingCase):
         email_class: Type[BookingEmail],
         history_service: HistoryService,
         notification_service: NotificationService,
+        get_sms_template_service: GetSmsTemplateService,
+        get_email_template_service: GetEmailTemplateService,
     ) -> None:
         self.booking_repo: BookingRepo = booking_repo()
         self.ddu_repo: DDURepo = ddu_repo()
@@ -47,6 +51,8 @@ class DDUAcceptCase(BaseBookingCase):
         self.booking_update = booking_changes_logger(
             self.booking_repo.update, self, content="Подписание ДДУ",
         )
+        self.get_sms_template_service: GetSmsTemplateService = get_sms_template_service
+        self.get_email_template_service: GetEmailTemplateService = get_email_template_service
 
     async def __call__(
         self,
@@ -56,7 +62,7 @@ class DDUAcceptCase(BaseBookingCase):
     ) -> Booking:
         booking: Booking = await self.booking_repo.retrieve(
             filters=dict(active=True, id=booking_id, user_id=user_id),
-            related_fields=["project", "property", "floor", "building", "ddu", "agent", "user"],
+            related_fields=["project", "project__city", "property", "floor", "building", "ddu", "agent", "user"],
             prefetch_fields=["ddu__participants"],
         )
         if not booking:
@@ -94,29 +100,38 @@ class DDUAcceptCase(BaseBookingCase):
             template=self._notification_template,
         )
 
-    def _send_email(self, booking: Booking) -> Task:
+    async def _send_email(self, booking: Booking) -> Task:
         """Уведомление по почте"""
-        email_options = dict(
-            topic="Покупка квартиры.",
-            template=self.email_template,
+        email_notification_template = await self.get_email_template_service(
+            mail_event_slug=self.mail_event_slug,
             context=dict(booking=booking),
-            recipients=[booking.user.email],
         )
-        email_service = self.email_class(**email_options)
-        return email_service.as_task()
 
-    def _send_sms(self, booking: Booking) -> Task:
+        if email_notification_template and email_notification_template.is_active:
+            email_options = dict(
+                topic=email_notification_template.template_topic,
+                content=email_notification_template.content,
+                recipients=[booking.user.email],
+                lk_type=email_notification_template.lk_type.value,
+                mail_event_slug=email_notification_template.mail_event_slug,
+            )
+            email_service = self.email_class(**email_options)
+            return email_service.as_task()
+
+    async def _send_sms(self, booking: Booking) -> Task:
         """СМС уведомление"""
-        message = (
-            "Покупка квартиры.\n\n"
-            "Договор по покупке подтверждён и ожидает регистрации. "
-            "Необходимо открыть эскроу счёт.\n\n"
-            "Подробности в личном кабинете:\n"
-            "www.strana.com/login"
+        sms_notification_template = await self.get_sms_template_service(
+            sms_event_slug=self.sms_event_slug,
         )
-        sms_options = dict(phone=booking.user.phone, message=message)
-        sms_service = self.sms_class(**sms_options)
-        return sms_service.as_task()
+        if sms_notification_template and sms_notification_template.is_active:
+            sms_options = dict(
+                phone=booking.user.phone,
+                message=sms_notification_template.template_text,
+                lk_type=sms_notification_template.lk_type.value,
+                sms_event_slug=sms_notification_template.sms_event_slug,
+            )
+            sms_service = self.sms_class(**sms_options)
+            return sms_service.as_task()
 
     async def _amocrm_hook(self, booking: Booking) -> None:
         """amocrm hook"""

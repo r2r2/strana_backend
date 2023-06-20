@@ -228,7 +228,7 @@ class DDUUpdateCase(BaseBookingCase):
 
         booking = await self.booking_repo.retrieve(
             filters=filters,
-            related_fields=["project", "property", "floor", "building", "ddu", "user"],
+            related_fields=["project", "project__city", "property", "floor", "building", "ddu", "user"],
             prefetch_fields=["ddu__participants"],
         )
         await self._amocrm_hook(booking, grouped_by_participants_diff_list)

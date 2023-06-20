@@ -15,19 +15,21 @@ from ..entities import BaseCheckCase
 from ..exceptions import CheckNotFoundError, UserNotFoundError
 from ..models import RequestAgentsUsersCheckDisputeModel
 from ..repos import Check, CheckRepo, User, UserRepo
+from src.notifications.services import GetEmailTemplateService
 
 
 class CheckDisputeCase(BaseCheckCase):
-    template: str = "src/users/templates/check_dispute.html"
+    mail_event_slug = "check_dispute"
 
     def __init__(
-            self,
-            check_repo: Type[CheckRepo],
-            email_class: Type[email.EmailService],
-            agent_repo: Type[AgentRepo],
-            user_repo: Type[UserRepo],
-            admin_repo: Type[AdminRepo],
-            email_recipients: dict,
+        self,
+        check_repo: Type[CheckRepo],
+        email_class: Type[email.EmailService],
+        agent_repo: Type[AgentRepo],
+        user_repo: Type[UserRepo],
+        admin_repo: Type[AdminRepo],
+        email_recipients: dict,
+        get_email_template_service: GetEmailTemplateService,
     ) -> None:
         self.check_repo = check_repo()
         self.email_class = email_class
@@ -36,6 +38,7 @@ class CheckDisputeCase(BaseCheckCase):
         self.admin_repo = admin_repo()
         self.strana_manager = email_recipients['strana_manager']
         self.lk_site_host = site_config['site_host']
+        self.get_email_template_service = get_email_template_service
 
     async def __call__(self, dispute_agent_id: int, payload: RequestAgentsUsersCheckDisputeModel) -> Check:
         data: dict[str:int] = payload.dict(exclude_unset=True)
@@ -82,14 +85,21 @@ class CheckDisputeCase(BaseCheckCase):
         """
         Отправка сообщения об оспаривании
         """
-        email_options: dict[str, Any] = dict(
-            topic="Проверка на уникальность оспорена",
-            template=self.template,
-            recipients=recipients,
-            context=context
+        email_notification_template = await self.get_email_template_service(
+            mail_event_slug=self.mail_event_slug,
+            context=context,
         )
-        email_service: email.EmailService = self.email_class(**email_options)
-        return email_service.as_task()
+
+        if email_notification_template and email_notification_template.is_active:
+            email_options: dict[str, Any] = dict(
+                topic=email_notification_template.template_topic,
+                content=email_notification_template.content,
+                recipients=recipients,
+                lk_type=email_notification_template.lk_type.value,
+                mail_event_slug=email_notification_template.mail_event_slug,
+            )
+            email_service: email.EmailService = self.email_class(**email_options)
+            return email_service.as_task()
 
     def _generate_dispute_link(self, dispute_id: int):
         return f"https://{self.lk_site_host}/admin/disputes/dispute/{dispute_id}/change/"

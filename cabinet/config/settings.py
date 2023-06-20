@@ -82,6 +82,10 @@ class DataBaseSettings(BaseSettings):
         ("questionnaire", "repos"),
         ("task_management", "repos"),
         ("meetings", "repos"),
+        ("text_blocks", "repos"),
+        ("email", "repos"),
+        ("messages", "repos"),
+        ("main_page", "repos"),
     ]
 
     class Config:
@@ -202,7 +206,6 @@ class AMOCrmSettings(BaseSettings):
 class SenseiSettings(BaseSettings):
     url: str = Field("https://api.sensei.plus")
     api_route: str = Field("/v1/")
-    sensei_pid: int = Field(40460, env="SENSEI_PID")
 
     secret: str = Field("secret", env="SENSEI_SECRET")
 
@@ -367,7 +370,10 @@ class TortoiseSettings(BaseSettings):
         if testing:
             modules = ["aerich.models"]
             for model in database.models:
-                modules.append(f"src.{model[0]}.{model[1]}")
+                if model[0] not in ("email", "messages"):
+                    modules.append(f"src.{model[0]}.{model[1]}")
+                else:
+                    modules.append(f"common.{model[0]}.{model[1]}")
 
             connections = {
                 "cabinet": {
@@ -390,7 +396,10 @@ class TortoiseSettings(BaseSettings):
         else:
             modules = []
             for model in database.models:
-                modules.append(f"src.{model[0]}.{model[1]}")
+                if model[0] not in ("email", "messages"):
+                    modules.append(f"src.{model[0]}.{model[1]}")
+                else:
+                    modules.append(f"common.{model[0]}.{model[1]}")
 
             connections = {
                 "cabinet": {
@@ -447,7 +456,10 @@ class AerichSettings(BaseSettings):
         connections = dict(default=db_url)
         apps = dict(models=dict(models=["aerich.models"]))
         for model in database.models:
-            apps["models"]["models"].append(f"src.{model[0]}.{model[1]}")
+            if model[0] not in ("email", "messages"):
+                apps["models"]["models"].append(f"src.{model[0]}.{model[1]}")
+            else:
+                apps["models"]["models"].append(f"common.{model[0]}.{model[1]}")
         return cls(connections=connections, apps=apps)
 
 
@@ -537,6 +549,7 @@ class FakeSendSms(BaseSettings):
 
 class LogsSettings(BaseSettings):
     logs_lifetime: int = Field(3, env="LOGS_LIFETIME")
+    logs_notification_lifetime: int = Field(14, env="LOGS_NOTIFICATION_LIFETIME")
 
     class Config:
         env_file = ".env"

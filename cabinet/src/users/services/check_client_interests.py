@@ -7,6 +7,7 @@ from config import site_config, aws_config
 from src.properties.constants import PropertyTypes, PropertyStatuses
 from src.properties.services import ImportPropertyService
 from src.properties.repos import Property, PropertyRepo
+from src.notifications.services import GetEmailTemplateService
 
 from ..entities import BaseUserService
 from ..repos import User
@@ -19,12 +20,10 @@ class CheckClientInterestService(BaseUserService):
     в объектах недвижимости (цена, статус, акции).
     """
 
-    interest_property_changes_topic = "Новые акции и скидки для выбранных квартир"
-    interest_property_status_changes_topic = "Изменение статуса выбранных квартир"
-    interest_property_changes_template = "src/users/templates/interest_property_changes.html"
-    interest_property_status_changes_template = "src/users/templates/interest_property_status_changes.html"
-    favorites_link = "https://lk.{}/favorites?token={}"
+    favorites_link = "https://{}/favorites?token={}"
     property_link = "https://{}/{}/flats/{}"
+    mail_event_slug_offer = "check_client_interest_offer"
+    mail_event_slug_status = "check_client_interest_status"
 
     def __init__(
         self,
@@ -32,7 +31,8 @@ class CheckClientInterestService(BaseUserService):
         interests_repo: Type[UserInterestedRepo],
         user_repo: Type[UserRepo],
         property_repo: Type[PropertyRepo],
-        import_property_service: ImportPropertyService,
+        import_property_service: Type[ImportPropertyService],
+        get_email_template_service: GetEmailTemplateService,
         token_creator: Callable[[int], dict[str, Any]],
         orm_class: Optional[Type[UserORM]] = None,
         orm_config: Optional[dict[str, Any]] = None,
@@ -42,6 +42,7 @@ class CheckClientInterestService(BaseUserService):
         self.email_class: Type[UserEmail] = email_class
         self.interests_repo: Type[UserInterestedRepo] = interests_repo()
         self.import_property_service: ImportPropertyService = import_property_service
+        self.get_email_template_service: GetEmailTemplateService = get_email_template_service
         self.token_creator: Callable[[int], dict[str, Any]] = token_creator
         self.orm_class: Union[Type[UserORM], None] = orm_class
         self.orm_config: Union[dict[str, Any], None] = copy(orm_config)
@@ -158,20 +159,18 @@ class CheckClientInterestService(BaseUserService):
                 if properties_data_with_offer_and_discount_info:
                     await self._send_email_to_user(
                         recipient=user.email,
-                        topic=self.interest_property_changes_topic,
-                        template=self.interest_property_changes_template,
                         properties_data=list(properties_data_with_offer_and_discount_info.values())[:5],
-                        favorites_link=self.favorites_link.format(site_config["main_site_host"], token),
+                        favorites_link=self.favorites_link.format(site_config["site_host"], token),
                         site_link=site_config["main_site_host"],
+                        mail_event_slug=self.mail_event_slug_offer,
                     )
                 if properties_data_with_status_info:
                     await self._send_email_to_user(
                         recipient=user.email,
-                        topic=self.interest_property_status_changes_topic,
-                        template=self.interest_property_status_changes_template,
                         properties_data=list(properties_data_with_status_info.values())[:5],
-                        favorites_link=self.favorites_link.format(site_config["main_site_host"], token),
+                        favorites_link=self.favorites_link.format(site_config["site_host"], token),
                         site_link=site_config["main_site_host"],
+                        mail_event_slug=self.mail_event_slug_status,
                     )
 
     async def _add_property_in_properties_data(
@@ -218,24 +217,28 @@ class CheckClientInterestService(BaseUserService):
     async def _send_email_to_user(
         self,
         recipient: str,
-        topic: str,
-        template: str,
-        **context
+        mail_event_slug: str,
+        **context,
     ) -> Task:
         """
         Отправляем письмо на почту клиенту с информацией по изменениям
         объектов недвижимости в избранном.
         """
-
-        email_options: dict[str, Any] = dict(
-            topic=topic,
-            template=template,
-            recipients=[recipient],
+        email_notification_template = await self.get_email_template_service(
+            mail_event_slug=mail_event_slug,
             context=context,
         )
-        email_service: EmailService = self.email_class(**email_options)
 
-        return email_service.as_task()
+        if email_notification_template and email_notification_template.is_active:
+            email_options: dict[str, Any] = dict(
+                topic=email_notification_template.template_topic,
+                content=email_notification_template.content,
+                recipients=[recipient],
+                lk_type=email_notification_template.lk_type.value,
+                mail_event_slug=email_notification_template.mail_event_slug,
+            )
+            email_service: EmailService = self.email_class(**email_options)
+            return email_service.as_task()
 
     def _get_rooms_info(
         self,

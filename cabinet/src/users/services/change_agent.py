@@ -1,6 +1,6 @@
 # pylint: disable=arguments-differ
-from copy import copy
-from typing import Any, Optional, Type, Union
+import asyncio
+from typing import Any, Optional, Type
 from enum import IntEnum
 
 from common.amocrm import AmoCRM
@@ -29,26 +29,16 @@ class ChangeAgentService(BaseUserService):
 
     def __init__(
         self,
-        booking_substages: Any,
         user_repo: Type[UserRepo],
         amocrm_class: Type[AmoCRM],
         agent_repo: Type[UserAgentRepo],
         amocrm_config: dict[Any, Any],
-        orm_class: Optional[Type[UserORM]] = None,
-        orm_config: Optional[dict[str, Any]] = None,
     ) -> None:
         self.user_repo: UserRepo = user_repo()
         self.agent_repo: UserAgentRepo = agent_repo()
-
-        self.booking_substages: Any = booking_substages
         self.amocrm_class: Type[AmoCRM] = amocrm_class
 
         self.partition_limit: int = amocrm_config["partition_limit"]
-
-        self.orm_class: Union[Type[UserORM], None] = orm_class
-        self.orm_config: Union[dict[str, Any], None] = copy(orm_config)
-        if self.orm_config:
-            self.orm_config.pop("generate_schemas", None)
 
     async def __call__(
         self,
@@ -109,3 +99,20 @@ class ChangeAgentService(BaseUserService):
                     lead_ids=active_leads_ids,
                     entities=[agent_entities, agency_entities],
                 )
+
+    def as_task(
+        self,
+        user: Optional[User] = None,
+        agent: Optional[User] = None,
+        user_id: Optional[int] = None,
+        agent_id: Optional[int] = None,
+    ) -> asyncio.Task:
+        """
+        Wrap into a task object
+        """
+        return asyncio.create_task(self(
+            user=user,
+            agent=agent,
+            user_id=user_id,
+            agent_id=agent_id,
+        ))

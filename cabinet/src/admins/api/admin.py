@@ -10,7 +10,15 @@ from src.admins import repos as admins_repos
 from src.admins import use_cases, models
 from src.users import constants as users_constants
 from src.users import use_cases as users_cases
-
+from src.notifications import services as notification_services
+from src.notifications import repos as notification_repos
+from src.agencies import use_cases as agencies_use_cases
+from src.agencies import tasks as agency_tasks
+from src.agents import repos as agents_repos
+from src.users import repos as users_repos
+from src.booking import repos as booking_repos
+from src.represes import repos as represes_repos
+from src.agencies import models as agencies_models
 
 router = APIRouter(prefix="/admins", tags=["Admins"])
 
@@ -22,12 +30,17 @@ async def process_register_view(payload: models.RequestProcessRegisterModel = Bo
     """
     Регистрация администратора
     """
+    get_sms_template_service: notification_services.GetSmsTemplateService = \
+        notification_services.GetSmsTemplateService(
+            sms_template_repo=notification_repos.SmsTemplateRepo,
+        )
     resources: dict[str, Any] = dict(
         hasher=security.get_hasher,
         sms_class=messages.SmsService,
         admin_repo=admins_repos.AdminRepo,
         user_type=users_constants.UserType.ADMIN,
         password_generator=utils.generate_simple_password,
+        get_sms_template_service=get_sms_template_service,
     )
     process_register: use_cases.ProcessRegisterCase = use_cases.ProcessRegisterCase(**resources)
     return await process_register(payload=payload)
@@ -181,3 +194,38 @@ async def process_logout_view(request: Request):
     resources: dict[str, Any] = dict(session=request.session, session_config=session_config)
     process_logout: use_cases.ProcessLogoutCase = use_cases.ProcessLogoutCase(**resources)
     return await process_logout()
+
+
+@router.patch(
+    "/fire_agent",
+    status_code=HTTPStatus.OK,
+    response_model=agencies_models.ResponseFireAgentBookingsListModel,
+    dependencies=[
+        Depends(dependencies.DeletedUserCheck()),
+        Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.ADMIN)),
+    ],
+)
+async def admin_fire_agent(agent_id: int = Query(...)):
+    """
+    Увольнение агента админом.
+    """
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notification_repos.EmailTemplateRepo,
+        )
+    resources: dict[str, Any] = dict(
+        user_repo=users_repos.UserRepo,
+        agent_repo=agents_repos.AgentRepo,
+        repres_repo=represes_repos.RepresRepo,
+        booking_repo=booking_repos.BookingRepo,
+        fire_agent_task=agency_tasks.fire_agent_task,
+        email_class=email.EmailService,
+        get_email_template_service=get_email_template_service,
+    )
+    admin_fire_agent_case: agencies_use_cases.FireAgentCase = (
+        agencies_use_cases.FireAgentCase(**resources)
+    )
+    return await admin_fire_agent_case(
+        agent_id=agent_id,
+        role=users_constants.UserType.ADMIN,
+    )

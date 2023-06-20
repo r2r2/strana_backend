@@ -36,8 +36,14 @@ from src.task_management import services as task_management_services
 from src.task_management import use_cases as task_management_use_cases
 from src.users import constants as users_constants
 from src.users import repos as users_repos
+from src.users import services as users_services
+from src.amocrm import repos as src_amocrm_repos
 from starlette.requests import ClientDisconnect
 from tortoise import Tortoise
+from common.kontur_talk.kontur_talk import KonturTalkAPI
+from src.meetings.repos import MeetingRepo
+from src.meetings.services import CreateRoomService
+from src.notifications import services as notification_services
 
 from ...agents.repos import AgentRepo
 from ...users.services import CreateContactService
@@ -92,6 +98,7 @@ async def booking_repeat_view(
     """
     Повторное бронирование
     """
+    print(f'{payload=}')
     resources: dict[str, Any] = dict(
         create_amocrm_log_task=tasks.create_amocrm_log_task,
         create_booking_log_task=tasks.create_booking_log_task,
@@ -254,7 +261,14 @@ async def sberbank_status_view(
     update_task_instance_status_service = task_management_services.UpdateTaskInstanceStatusService(
         **resources
     )
-
+    get_sms_template_service: notification_services.GetSmsTemplateService = \
+        notification_services.GetSmsTemplateService(
+            sms_template_repo=notifications_repos.SmsTemplateRepo,
+        )
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notifications_repos.EmailTemplateRepo,
+        )
     sberbank_status: use_cases.SberbankStatusCase = use_cases.SberbankStatusCase(
         site_config=site_config,
         amocrm_class=amocrm.AmoCRM,
@@ -270,6 +284,8 @@ async def sberbank_status_view(
         history_service=history_service,
         import_bookings_service=import_bookings_service,
         update_task_instance_status_service=update_task_instance_status_service,
+        get_sms_template_service=get_sms_template_service,
+        get_email_template_service=get_email_template_service,
     )
     return RedirectResponse(
         url=await sberbank_status(kind=kind, secret=secret, payment_id=payment_id)
@@ -300,6 +316,14 @@ async def amocrm_webhook_access_deal_view(request: Request):
     history_service = booking_services.HistoryService(
         booking_history_repo=booking_repos.BookingHistoryRepo,
     )
+    get_sms_template_service: notification_services.GetSmsTemplateService = \
+        notification_services.GetSmsTemplateService(
+            sms_template_repo=notifications_repos.SmsTemplateRepo,
+        )
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notifications_repos.EmailTemplateRepo,
+        )
     amocrm_webhook_access_deal = use_cases.AmoCRMWebhookAccessDealCase(
         booking_repo=booking_repos.BookingRepo,
         create_booking_log_task=tasks.create_booking_log_task,
@@ -308,6 +332,8 @@ async def amocrm_webhook_access_deal_view(request: Request):
         sms_class=messages.SmsService,
         history_service=history_service,
         notification_service=notification_service,
+        get_sms_template_service=get_sms_template_service,
+        get_email_template_service=get_email_template_service,
     )
     await amocrm_webhook_access_deal(payload=payload)
 
@@ -328,6 +354,14 @@ async def amocrm_webhook_date_deal_view(request: Request):
     history_service = booking_services.HistoryService(
         booking_history_repo=booking_repos.BookingHistoryRepo,
     )
+    get_sms_template_service: notification_services.GetSmsTemplateService = \
+        notification_services.GetSmsTemplateService(
+            sms_template_repo=notifications_repos.SmsTemplateRepo,
+        )
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notifications_repos.EmailTemplateRepo,
+        )
     amocrm_webhook_date_deal = use_cases.AmoCRMWebhookDateDealCase(
         booking_repo=booking_repos.BookingRepo,
         create_booking_log_task=tasks.create_booking_log_task,
@@ -336,6 +370,8 @@ async def amocrm_webhook_date_deal_view(request: Request):
         sms_class=messages.SmsService,
         history_service=history_service,
         notification_service=notification_service,
+        get_sms_template_service=get_sms_template_service,
+        get_email_template_service=get_email_template_service,
     )
     await amocrm_webhook_date_deal(payload=payload)
 
@@ -356,6 +392,14 @@ async def amocrm_webhook_deal_success_view(request: Request):
     history_service = booking_services.HistoryService(
         booking_history_repo=booking_repos.BookingHistoryRepo,
     )
+    get_sms_template_service: notification_services.GetSmsTemplateService = \
+        notification_services.GetSmsTemplateService(
+            sms_template_repo=notifications_repos.SmsTemplateRepo,
+        )
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notifications_repos.EmailTemplateRepo,
+        )
     amocrm_webhook_deal_success = use_cases.AmoCRMWebhookDealSuccessCase(
         booking_repo=booking_repos.BookingRepo,
         create_booking_log_task=tasks.create_booking_log_task,
@@ -364,6 +408,8 @@ async def amocrm_webhook_deal_success_view(request: Request):
         sms_class=messages.SmsService,
         history_service=history_service,
         notification_service=notification_service,
+        get_sms_template_service=get_sms_template_service,
+        get_email_template_service=get_email_template_service,
     )
     await amocrm_webhook_deal_success(payload=payload)
 
@@ -376,10 +422,9 @@ async def amocrm_webhook_change_status(request: Request) -> None:
     logger = structlog.get_logger("amocrm_webhook_change_status")
     try:
         payload: bytes = await request.body()
-        logger.info(f"Received payload from AMO: {payload}")
     except ClientDisconnect:
         return
-    data: dict[str, Any] = parse_qs(unquote(payload.decode("utf-8")))
+    data: dict[str, list[str]] = parse_qs(unquote(payload.decode("utf-8")))
     logger.info(f"Decoded payload from AMO: {data}")
 
     resources: dict[str, Any] = dict(
@@ -403,26 +448,26 @@ async def amocrm_webhook_change_status(request: Request) -> None:
 async def amocrm_webhook_notify_view(request: Request):
     """Вебхук для оповещения контакта"""
     try:
-        import json
         payload = await request.body()
-        print(f"{payload=}")
-        # data: dict[str, Any] = parse_qs(unquote(payload.decode("utf-8")))
-        data: dict[str, Any] = json.loads(payload)
-        print(f"{data=}")
+        data: dict[str, Any] = parse_qs(unquote(payload.decode("utf-8")))
         amocrm_id_list = data.get("amocrm_id")
-        print(f"{amocrm_id_list=}")
         if not amocrm_id_list:
             return
     except ClientDisconnect:
         return
     amocrm_id = int(amocrm_id_list[0])
     print(f"AMOCRM_ID: {amocrm_id}")
+    get_sms_template_service: notification_services.GetSmsTemplateService = \
+        notification_services.GetSmsTemplateService(
+            sms_template_repo=notifications_repos.SmsTemplateRepo,
+        )
     resources = dict(
         amocrm_class=amocrm.AmoCRM,
         sms_class=messages.SmsService,
         booking_repo=booking_repos.BookingRepo,
         site_config=site_config,
         token_creator=security.create_access_token,
+        get_sms_template_service=get_sms_template_service,
     )
     notify_case: use_cases.AmoCRMSmsWebhookCase = use_cases.AmoCRMSmsWebhookCase(**resources)
 
@@ -486,6 +531,14 @@ async def amocrm_webhook_view(request: Request, background_tasks: BackgroundTask
     create_amocrm_contact_service: CreateContactService = CreateContactService(
         **resources
     )
+    get_sms_template_service: notification_services.GetSmsTemplateService = \
+        notification_services.GetSmsTemplateService(
+            sms_template_repo=notifications_repos.SmsTemplateRepo,
+        )
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notifications_repos.EmailTemplateRepo,
+        )
     resources: dict[str, Any] = dict(
         backend_config=backend_config,
         booking_config=booking_config,
@@ -505,6 +558,8 @@ async def amocrm_webhook_view(request: Request, background_tasks: BackgroundTask
         create_booking_log_task=create_booking_log_task,
         global_id_encoder=utils.to_global_id,
         global_id_decoder=utils.from_global_id,
+        get_sms_template_service=get_sms_template_service,
+        get_email_template_service=get_email_template_service,
     )
     fast_booking_webhook_case: use_cases.FastBookingWebhookCase = use_cases.FastBookingWebhookCase(**resources)
 
@@ -518,6 +573,23 @@ async def amocrm_webhook_view(request: Request, background_tasks: BackgroundTask
         **resources
     )
 
+    kounter_talk_api = KonturTalkAPI(meeting_repo=MeetingRepo)
+    resources: dict[str, Any] = dict(
+        kounter_talk_api=kounter_talk_api,
+        meeting_repo=MeetingRepo,
+        amocrm_class=amocrm.AmoCRM,
+    )
+    create_meeting_room_service: CreateRoomService = CreateRoomService(**resources)
+
+    resources: dict[str, Any] = dict(
+        amocrm_class=amocrm.AmoCRM,
+        user_repo=users_repos.UserRepo,
+        check_pinning_repo=users_repos.PinningStatusRepo,
+        user_pinning_repo=users_repos.UserPinningStatusRepo,
+        amocrm_config=amocrm_config,
+    )
+    check_pinning: users_services.CheckPinningStatusService = users_services.CheckPinningStatusService(**resources)
+
     resources: dict[str, Any] = dict(
         amocrm_class=amocrm.AmoCRM,
         amocrm_config=amocrm_config,
@@ -525,6 +597,9 @@ async def amocrm_webhook_view(request: Request, background_tasks: BackgroundTask
         request_class=requests.GraphQLRequest,
         booking_repo=booking_repos.BookingRepo,
         meeting_repo=meeting_repos.MeetingRepo,
+        user_repo=users_repos.UserRepo,
+        project_repo=projects_repos.ProjectRepo,
+        amocrm_status_repo=src_amocrm_repos.AmocrmStatusRepo,
         statuses_repo=amocrm_repos.AmoStatusesRepo,
         property_repo=properties_repos.PropertyRepo,
         create_booking_log_task=create_booking_log_task,
@@ -532,6 +607,8 @@ async def amocrm_webhook_view(request: Request, background_tasks: BackgroundTask
         fast_booking_webhook_case=fast_booking_webhook_case,
         background_tasks=background_tasks,
         create_task_instance_service=create_task_instance_service,
+        create_meeting_room_service=create_meeting_room_service,
+        check_pinning=check_pinning,
     )
     amocrm_webhook: use_cases.AmoCRMWebhookCase = use_cases.AmoCRMWebhookCase(**resources)
     return await amocrm_webhook(secret=secret, payload=payload)
@@ -545,10 +622,15 @@ async def single_email_view(
     """
     Отправка письма по одному бронированию
     """
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notifications_repos.EmailTemplateRepo,
+        )
     resources: dict[str, Any] = dict(
         email_class=email.EmailService,
         booking_repo=booking_repos.BookingRepo,
         create_booking_log_task=tasks.create_booking_log_task,
+        get_email_template_service=get_email_template_service,
     )
     single_email: use_cases.SingleEmailCase = use_cases.SingleEmailCase(**resources)
     return await single_email(booking_id=booking_id, user_id=user_id)
@@ -561,10 +643,15 @@ async def mass_email_view(
     """
     Отправка писем по всем бронированиям
     """
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notifications_repos.EmailTemplateRepo,
+        )
     resources: dict[str, Any] = dict(
         email_class=email.EmailService,
         booking_repo=booking_repos.BookingRepo,
         create_booking_log_task=tasks.create_booking_log_task,
+        get_email_template_service=get_email_template_service,
     )
     mass_email: use_cases.MassEmailCase = use_cases.MassEmailCase(**resources)
     return await mass_email(user_id=user_id)
@@ -756,6 +843,14 @@ async def payment_method_select_view(
     history_service = booking_services.HistoryService(
         booking_history_repo=booking_repos.BookingHistoryRepo,
     )
+    get_sms_template_service: notification_services.GetSmsTemplateService = \
+        notification_services.GetSmsTemplateService(
+            sms_template_repo=notifications_repos.SmsTemplateRepo,
+        )
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notifications_repos.EmailTemplateRepo,
+        )
     payment_method_select = use_cases.PaymentMethodSelectCase(
         booking_repo=booking_repos.BookingRepo,
         bank_contact_info_repo=booking_repos.BankContactInfoRepo,
@@ -764,6 +859,8 @@ async def payment_method_select_view(
         email_class=email.EmailService,
         history_service=history_service,
         notification_service=notification_service,
+        get_sms_template_service=get_sms_template_service,
+        get_email_template_service=get_email_template_service,
     )
     return await payment_method_select(user_id=user_id, booking_id=booking_id, payload=payload)
 
@@ -872,6 +969,10 @@ async def ddu_create_view(
     history_service = booking_services.HistoryService(
         booking_history_repo=booking_repos.BookingHistoryRepo,
     )
+    get_sms_template_service: notification_services.GetSmsTemplateService = \
+        notification_services.GetSmsTemplateService(
+            sms_template_repo=notifications_repos.SmsTemplateRepo,
+        )
     create_ddu = use_cases.DDUCreateCase(
         booking_repo=booking_repos.BookingRepo,
         ddu_repo=booking_repos.DDURepo,
@@ -886,6 +987,7 @@ async def ddu_create_view(
         history_service=history_service,
         notification_service=notification_service,
         file_validator=booking_validators.DDUUploadFileValidator,
+        get_sms_template_service=get_sms_template_service,
     )
     ddu_files: dict[str, Any] = dict(
         maternal_capital_certificate_image=maternal_capital_certificate_image,
@@ -1005,6 +1107,14 @@ async def ddu_upload_view(
     history_service = booking_services.HistoryService(
         booking_history_repo=booking_repos.BookingHistoryRepo,
     )
+    get_sms_template_service: notification_services.GetSmsTemplateService = \
+        notification_services.GetSmsTemplateService(
+            sms_template_repo=notifications_repos.SmsTemplateRepo,
+        )
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notifications_repos.EmailTemplateRepo,
+        )
     ddu_upload = use_cases.DDUUploadCase(
         booking_repo=booking_repos.BookingRepo,
         file_processor=files.FileProcessor,
@@ -1012,6 +1122,8 @@ async def ddu_upload_view(
         email_class=email.EmailService,
         history_service=history_service,
         notification_service=notification_service,
+        get_sms_template_service=get_sms_template_service,
+        get_email_template_service=get_email_template_service,
     )
     return await ddu_upload(booking_id=booking_id, secret=secret, ddu_file=ddu_file)
 
@@ -1034,6 +1146,14 @@ async def ddu_accept_view(
     history_service = booking_services.HistoryService(
         booking_history_repo=booking_repos.BookingHistoryRepo,
     )
+    get_sms_template_service: notification_services.GetSmsTemplateService = \
+        notification_services.GetSmsTemplateService(
+            sms_template_repo=notifications_repos.SmsTemplateRepo,
+        )
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notifications_repos.EmailTemplateRepo,
+        )
     accept_ddu = use_cases.DDUAcceptCase(
         booking_repo=booking_repos.BookingRepo,
         ddu_repo=booking_repos.DDURepo,
@@ -1042,6 +1162,8 @@ async def ddu_accept_view(
         email_class=email.EmailService,
         history_service=history_service,
         notification_service=notification_service,
+        get_sms_template_service=get_sms_template_service,
+        get_email_template_service=get_email_template_service,
     )
     return await accept_ddu(user_id=user_id, booking_id=booking_id)
 

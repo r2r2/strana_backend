@@ -10,21 +10,21 @@ from common.email import EmailService
 from src.task_management.constants import PaidBookingSlug
 from src.booking.constants import BookingStages, BookingSubstages
 from src.amocrm.repos import AmocrmStatus, AmocrmStatusRepo
-from src.task_management.services import UpdateTaskInstanceStatusService
 from ..entities import BaseBookingService
 from ..repos import Booking, BookingRepo
 from ..types import BookingAmoCRM, BookingORM, BookingProfitBase, BookingPropertyRepo, BookingRequest
 from ..loggers.wrappers import booking_changes_logger
+from src.notifications.services import GetEmailTemplateService
 
 
 class CheckBookingService(BaseBookingService):
     """
     Проверка онлайн бронирования
     """
+    mail_event_slug = "expired_booking_agent_notification"
     query_type: str = "changePropertyStatus"
     query_name: str = "changePropertyStatus.graphql"
     query_directory: str = "/src/booking/queries/"
-    agent_email_template: str = "src/booking/templates/expired_booking_agent_notification.html"
 
     def __init__(
         self,
@@ -36,7 +36,8 @@ class CheckBookingService(BaseBookingService):
         property_repo: Type[BookingPropertyRepo],
         amocrm_status_repo: Type[AmocrmStatusRepo],
         email_class: Type[EmailService],
-        update_task_instance_status_service: UpdateTaskInstanceStatusService,
+        update_task_instance_status_service: Any,
+        get_email_template_service: GetEmailTemplateService,
         orm_class: Optional[BookingORM] = None,
         check_booking_task: Optional[Any] = None,
         orm_config: Optional[dict[str, Any]] = None,
@@ -54,11 +55,12 @@ class CheckBookingService(BaseBookingService):
         self.check_booking_task: Union[Any, None] = check_booking_task
         self.profitbase_class: Type[BookingProfitBase] = profitbase_class
         self.create_booking_log_task: Union[Any, None] = create_booking_log_task
-        self.update_task_instance_status_service: UpdateTaskInstanceStatusService = update_task_instance_status_service
+        self.update_task_instance_status_service = update_task_instance_status_service
 
         self.login: str = backend_config["internal_login"]
         self.password: str = backend_config["internal_password"]
         self.backend_url: str = backend_config["url"] + backend_config["graphql"]
+        self.get_email_template_service: GetEmailTemplateService = get_email_template_service
 
         self.orm_class: Union[Type[BookingORM], None] = orm_class
         self.orm_config: Union[dict[str, Any], None] = copy(orm_config)
@@ -78,7 +80,7 @@ class CheckBookingService(BaseBookingService):
         """
         filters: dict[str, Any] = dict(id=booking_id, should_be_deactivated_by_timer=True)
         booking: Booking = await self.booking_repo.retrieve(
-            filters=filters, related_fields=["user", "agent", "project", "property", "building"]
+            filters=filters, related_fields=["user", "agent", "project", "project__city", "property", "building"]
         )
         result: bool = True
         if booking:
@@ -142,7 +144,7 @@ class CheckBookingService(BaseBookingService):
             lead_options: dict[str, Any] = dict(
                 status_id=status_id,
                 lead_id=booking.amocrm_id,
-                city_slug=booking.project.city,
+                city_slug=booking.project.city.slug,
             )
             data: list[Any] = await amocrm.update_lead(**lead_options)
             lead_id: int = data[0]["id"]
@@ -178,14 +180,21 @@ class CheckBookingService(BaseBookingService):
         """
         Уведомление агента об истечении времени на бронирование у клиента по почте
         """
-        email_options: dict[str, Any] = dict(
-            topic=f"Резерв по бронированию {booking.id} не оплачен",
-            template=self.agent_email_template,
+        email_notification_template = await self.get_email_template_service(
+            mail_event_slug=self.mail_event_slug,
             context=dict(booking=booking),
-            recipients=[booking.agent.email],
         )
-        email_service: Any = self.email_class(**email_options)
-        return email_service.as_task()
+
+        if email_notification_template and email_notification_template.is_active:
+            email_options: dict[str, Any] = dict(
+                topic=email_notification_template.template_topic.format(booking_id=booking.id),
+                content=email_notification_template.content,
+                recipients=[booking.agent.email],
+                lk_type=email_notification_template.lk_type.value,
+                mail_event_slug=email_notification_template.mail_event_slug,
+            )
+            email_service: Any = self.email_class(**email_options)
+            return email_service.as_task()
 
     async def update_task_instance_status(self, booking_id: int, status_slug: str) -> None:
         """

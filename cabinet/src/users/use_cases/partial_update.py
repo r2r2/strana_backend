@@ -8,14 +8,14 @@ from ..models import RequestPartialUpdateModel
 from ..repos import User, UserRepo
 from ..types import UserAmoCRM, UserEmail
 from ..loggers.wrappers import user_changes_logger
+from src.notifications.services import GetEmailTemplateService
 
 
 class PartialUpdateCase(BaseUserCase):
     """
     Частичное обновление данных
     """
-
-    template: str = "src/users/templates/confirm_email.html"
+    mail_event_slug = "user_partial_update"
     link: str = "https://{}/confirm/users/confirm_email?q={}&p={}"
 
     def __init__(
@@ -25,6 +25,7 @@ class PartialUpdateCase(BaseUserCase):
         email_class: Type[UserEmail],
         amocrm_class: Type[UserAmoCRM],
         token_creator: Callable[[int], str],
+        get_email_template_service: GetEmailTemplateService,
     ) -> None:
         self.user_repo: UserRepo = user_repo()
         self.user_partial_update = user_changes_logger(
@@ -37,6 +38,7 @@ class PartialUpdateCase(BaseUserCase):
         self.email_class: Type[UserEmail] = email_class
         self.amocrm_class: Type[UserAmoCRM] = amocrm_class
         self.token_creator: Callable[[int], str] = token_creator
+        self.get_email_template_service = get_email_template_service
 
         self.site_host: str = site_config["site_host"]
 
@@ -82,11 +84,18 @@ class PartialUpdateCase(BaseUserCase):
         Отправка письма
         """
         confirm_link: str = self.link.format(self.site_host, token, user.email_token)
-        email_options: dict[str, Any] = dict(
-            topic="Подтверждение почты",
-            template=self.template,
-            recipients=[user.email],
+        email_notification_template = await self.get_email_template_service(
+            mail_event_slug=self.mail_event_slug,
             context=dict(confirm_link=confirm_link),
         )
-        email_service: UserEmail = self.email_class(**email_options)
-        return email_service.as_task()
+
+        if email_notification_template and email_notification_template.is_active:
+            email_options: dict[str, Any] = dict(
+                topic=email_notification_template.template_topic,
+                content=email_notification_template.content,
+                recipients=[user.email],
+                lk_type=email_notification_template.lk_type.value,
+                mail_event_slug=email_notification_template.mail_event_slug,
+            )
+            email_service: UserEmail = self.email_class(**email_options)
+            return email_service.as_task()

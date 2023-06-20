@@ -1,8 +1,12 @@
-from http import HTTPStatus
+from typing import Optional
 
-from aiohttp import ClientSession, TCPConnector
+import structlog
+from fastapi import status
+from aiohttp import ClientSession, TCPConnector, ClientResponse
 
 from config import sensei_config, maintenance_settings
+
+logger = structlog.get_logger("Sensei")
 
 
 class SenseiAPI:
@@ -11,7 +15,6 @@ class SenseiAPI:
     """
 
     _auth_headers: dict[str, str] = {"X-Auth-Sensei-Token": sensei_config.get("secret")}
-    SENSEI_PID: int = sensei_config.get("sensei_pid")
 
     def __init__(self) -> None:
         self._session: ClientSession = ClientSession(
@@ -26,14 +29,33 @@ class SenseiAPI:
         if not self._session.closed:
             await self._session.close()
 
+    async def _request(self, method: str, route_url: str, data: Optional[dict]=None) -> ClientResponse:
+        """
+        Запрос в Sensei API
+        """
+        if method == "GET":
+            request = self._session.get(url=self._url + route_url, headers=self._auth_headers)
+        else:
+            request = self._session.post(url=self._url + route_url, headers=self._auth_headers, json=data)
+
+        # возможно, в будущем потребуется доработка других методов
+        response: ClientResponse = await request
+        log_data: dict = dict(
+            method=response.method,
+            url=str(response.url),
+            status=response.status,
+            text=await response.json()
+        )
+        logger.debug("Sensei REQUEST", log_data=log_data)
+        if response.status == status.HTTP_200_OK:
+            return await response.json()
+
     async def process_list(self):
         """
         Получение списка процессов
         """
-        route_url: str = "process/list/"
-        async with self._session.get(url=self._url + route_url, headers=self._auth_headers) as response:
-            if response.status == HTTPStatus.OK:
-                return await response.json()
+        method, route_url = "GET", "process/list/"
+        return await self._request(method=method, route_url=route_url)
 
     async def process_start(self, process_id: int, amocrm_id: int):
         """
@@ -53,12 +75,8 @@ class SenseiAPI:
                 dict(entity_id=amocrm_id, entity_type=1)
             ]
         )
-        route_url: str = f"process/start/{process_id}"
-        async with self._session.post(
-                url=self._url + route_url, headers=self._auth_headers, json=entity_data
-        ) as response:
-            if response.status == HTTPStatus.OK:
-                return await response.json()
+        method, route_url = "POST", f"process/start/{process_id}"
+        return await self._request(method=method, route_url=route_url, data=entity_data)
 
     async def process_list_start(self, process_id: int, amocrm_ids: list[int]):
         """
@@ -67,12 +85,8 @@ class SenseiAPI:
         amocrm_ids: список ID сделок
         """
         entity_data: dict[str:list] = dict(data=self._get_entity_data(amocrm_ids))
-        route_url: str = f"process/start/{process_id}"
-        async with self._session.post(
-                url=self._url + route_url, headers=self._auth_headers, json=entity_data
-        ) as response:
-            if response.status == HTTPStatus.OK:
-                return await response.json()
+        method, route_url = "POST", f"process/start/{process_id}"
+        return await self._request(method=method, route_url=route_url, data=entity_data)
 
     async def process_start_add(self, process_id: int, amocrm_id: int, name: str, phone: str, email: str):
         """
@@ -88,12 +102,8 @@ class SenseiAPI:
             ],
             param_values=self._parse_params(name=name, phone=phone, email=email)
         )
-        route_url: str = f"process/start/{process_id}"
-        async with self._session.post(
-                url=self._url + route_url, headers=self._auth_headers, json=entity_data
-        ) as response:
-            if response.status == HTTPStatus.OK:
-                return await response.json()
+        method, route_url = "POST", f"process/start/{process_id}"
+        return await self._request(method=method, route_url=route_url, data=entity_data)
 
     async def task_close(self, amocrm_id: int, task_id: int, result: str):
         """
@@ -108,12 +118,8 @@ class SenseiAPI:
             result_caption=result,
             task_id=task_id
         )
-        route_url: str = "element/task/complete"
-        async with self._session.post(
-                url=self._url + route_url, headers=self._auth_headers, json=data
-        ) as response:
-            if response.status == HTTPStatus.OK:
-                return await response.json()
+        method, route_url = "POST", "element/task/complete"
+        return await self._request(method=method, route_url=route_url, data=data)
 
     async def tasks_close(self, process_id: int, amocrm_ids: list[int], close_tasks=True):
         """
@@ -124,12 +130,8 @@ class SenseiAPI:
         Он означает, что в указанных сделках помимо завершения процесса, также будет завершена задача по процессу
         """
         entity_data: dict[str:list] = dict(close_tasks=close_tasks, data=self._get_entity_data(amocrm_ids))
-        route_url: str = f"process/stop/{process_id}"
-        async with self._session.post(
-                url=self._url + route_url, headers=self._auth_headers, json=entity_data
-        ) as response:
-            if response.status == HTTPStatus.OK:
-                return await response.json()
+        method, route_url = "POST", f"process/stop/{process_id}"
+        return await self._request(method=method, route_url=route_url, data=entity_data)
 
     async def lead_process_close(self, process_id: int, amocrm_id: int, close_tasks=True):
         """
@@ -145,12 +147,8 @@ class SenseiAPI:
                 dict(entity_id=amocrm_id, entity_type=1)
             ]
         )
-        route_url: str = f"process/stop-entity/{process_id}"
-        async with self._session.post(
-                url=self._url + route_url, headers=self._auth_headers, json=entity_data
-        ) as response:
-            if response.status == HTTPStatus.OK:
-                return await response.json()
+        method, route_url = "POST", f"process/stop-entity/{process_id}"
+        return await self._request(method=method, route_url=route_url, data=entity_data)
 
     def _get_entity_data(self, amocrm_ids: list[int]) -> list:
         entity_list: list = [dict(entity_id=amocrm_id, entity_type=1) for amocrm_id in amocrm_ids]

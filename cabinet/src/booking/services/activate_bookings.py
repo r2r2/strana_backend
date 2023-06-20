@@ -47,6 +47,8 @@ class ActivateBookingsService(BaseBookingsService):
             )
         )
         self.logger.info('Amocrm booking activated', booking=booking.id, amocrm_id=booking.amocrm_id)
+        if self.check_pinning is not None:
+            self.check_pinning.as_task(user_id=booking.user_id)
 
     async def _backend_booking(self, booking: Booking) -> bool:
         """

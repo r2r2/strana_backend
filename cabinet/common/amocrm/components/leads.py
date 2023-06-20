@@ -118,6 +118,20 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
 
     # ID полей для встреч
     meeting_type_field_id = 815568
+    meeting_date_id = 689581
+    meeting_property_type_id = 366965
+    meeting_user_name_id = 676461
+    meeting_types: dict[str, str] = {
+        "1326776": "online",
+        "1326774": "offline",
+    }
+    meeting_property_types: dict[str, str] = {
+        "715523": "flat",
+        "715525": "parking",
+        "1311059": "commercial",
+        "1331542": "pantry",
+        "1324118": "apartment",
+    }
 
     # ID Тегов
     fast_booking_tag_id: int = 748608
@@ -612,6 +626,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         project_amocrm_pipeline_id: Optional[int] = None,
         project_amocrm_responsible_user_id: Optional[int] = None,
         project_amocrm_organization: Optional[str] = None,
+        tags: Optional[list[AmoTag]] = None,
     ):
         route: str = f"/leads/{lead_id}"
         custom_fields = []
@@ -691,9 +706,16 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
             payload.update(project_amocrm_organization=project_amocrm_organization)
         if project_amocrm_pipeline_id:
             payload.update(pipeline_id=int(project_amocrm_pipeline_id))
+        if tags:
+            payload.update(
+                dict(
+                    _embedded=AmoLeadEmbedded(
+                        tags=tags,
+                    ).dict(exclude_unset=True)
+                )
+            )
         self.logger.debug(f"Payload lead v4: {payload}")
         response: CommonResponse = await self._request_patch_v4(route=route, payload=payload)
-
         return response.data if response else []
 
     async def update_leads_v4(
@@ -718,7 +740,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         custom_fields = []
 
         # Город
-        if city_slug:
+        if city_slug is not None:
             custom_fields.append(
                 dict(
                     field_id=self.city_field_id,
@@ -727,7 +749,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
             )
 
         # Проект
-        if project_amocrm_name:
+        if project_amocrm_name is not None:
             custom_fields.append(
                 dict(
                     field_id=self.project_field_id,
@@ -736,7 +758,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
             )
 
         # Объект недвижимости
-        if property_id:
+        if property_id is not None:
             custom_fields.append(
                 dict(
                     field_id=self.property_field_id,
@@ -745,7 +767,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
             )
 
         # Тип объекта недвижимости
-        if property_type:
+        if property_type is not None:
             custom_fields.append(
                 dict(
                     field_id=self.property_type_field_id,
@@ -754,7 +776,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
             )
 
         # Тип бронирования
-        if booking_type_id:
+        if booking_type_id is not None:
             custom_fields.append(
                 dict(
                     field_id=self.booking_type_field_id,
@@ -763,7 +785,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
             )
 
         # Размер скидки/акции
-        if booking_discount:
+        if booking_discount is not None:
             custom_fields.append(
                 dict(
                     field_id=self.booking_discounts_and_promotions,
@@ -772,7 +794,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
             )
 
         # Стоимость с учетом скидки
-        if price_with_sales:
+        if price_with_sales is not None:
             custom_fields.append(
                 dict(
                     field_id=self.property_price_with_sale_field_id,

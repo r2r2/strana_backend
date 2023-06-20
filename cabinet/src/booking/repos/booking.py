@@ -5,7 +5,7 @@ Booking repo
 from collections import OrderedDict
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Optional, Union
+from typing import Optional, Union, Any
 from uuid import UUID, uuid4
 
 from common import cfields, orm
@@ -18,6 +18,7 @@ from src.projects.repos import Project
 from src.properties.repos import Property
 from src.users.repos import User
 from tortoise import Model, fields
+from tortoise.queryset import QuerySet
 from tortoise.fields import (ForeignKeyNullableRelation,
                              OneToOneNullableRelation)
 
@@ -246,6 +247,7 @@ class Booking(Model):
     project_id: Optional[int]
     agency_id: Optional[int]
     agent_id: Optional[int]
+    user_id: Optional[int]
 
     def __str__(self) -> str:
         return str(self.id)
@@ -373,7 +375,61 @@ class BookingRepo(BaseBookingRepo, CRUDMixin, SCountMixin, FacetsMixin, SpecsMix
     """
     Репозиторий бронирования
     """
+
+    non_false_fields = (
+        "price_payed",
+    )
+
     model = Booking
     q_builder: orm.QBuilder = orm.QBuilder(Booking)
     c_builder: orm.ConverterBuilder = orm.ConverterBuilder(Booking)
     a_builder: orm.AnnotationBuilder = orm.AnnotationBuilder(Booking)
+
+    async def update_or_create(
+        self,
+        filters: dict[str, Any],
+        data: dict[str, Any],
+    ) -> 'UpdateOrCreateMixin.model':
+        """
+        Создание или обновление модели
+        """
+        data = {
+            k: v for k, v in data.items()
+            if (k in self.non_false_fields and v is not False) or k not in self.non_false_fields
+        }
+
+        model, _ = await self.model.update_or_create(**filters, defaults=data)
+        return model
+
+    async def update(self, model: Booking, data: dict[str, Any]) -> Booking:
+        """
+        Обновление модели
+        """
+        for field, value in data.items():
+            if field in self.non_false_fields and value is False:
+                continue
+            setattr(model, field, value)
+        await model.save()
+        await model.refresh_from_db()
+        return model
+
+    async def bulk_update(
+        self,
+        data: dict[str, Any],
+        filters: dict[str, Any],
+        exclude_filters: dict[str, Any] = None,
+    ) -> None:
+        """
+        Обновление пачки бронирований
+        """
+
+        data = {
+            k: v for k, v in data.items()
+            if (k in self.non_false_fields and v is not False) or k not in self.non_false_fields
+        }
+
+        if not exclude_filters:
+            qs: QuerySet[Model] = self.model.select_for_update().filter(**filters)
+        else:
+            qs: QuerySet[Model] = self.model.select_for_update().filter(**filters).exclude(**exclude_filters)
+        await qs.update(**data)

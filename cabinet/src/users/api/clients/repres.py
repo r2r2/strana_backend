@@ -92,6 +92,7 @@ async def repres_clients_view(
     resources: dict = dict(
         user_repo=users_repos.UserRepo,
         check_repo=users_repos.CheckRepo,
+        user_pinning_repo=users_repos.UserPinningStatusRepo,
     )
     clients_case: use_cases.RepresListClientsCase = use_cases.RepresListClientsCase(**resources)
     return await clients_case(repres_id=repres_id, init_filters=init_filters, pagination=pagination)
@@ -116,6 +117,7 @@ async def represes_users_retrieve_view(
     resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
         check_repo=users_repos.CheckRepo,
+        user_pinning_repo=users_repos.UserPinningStatusRepo,
     )
     represes_users_retrieve: use_cases.RepresesUsersRetrieveCase = (
         use_cases.RepresesUsersRetrieveCase(**resources)

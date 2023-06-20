@@ -47,7 +47,7 @@ class BookingDeleteCase(BaseBookingCase, BookingLogMixin):
     async def __call__(self, user_id: int, booking_id: int) -> Booking:
         filters: dict[str, Any] = dict(id=booking_id, user_id=user_id, active=True)
         booking: Booking = await self.booking_repo.retrieve(
-            filters=filters, related_fields=["user", "project", "property", "building"]
+            filters=filters, related_fields=["user", "project", "project__city", "property", "building"]
         )
         if not booking:
             raise BookingNotFoundError
@@ -76,7 +76,7 @@ class BookingDeleteCase(BaseBookingCase, BookingLogMixin):
             lead_options: dict[str, Any] = dict(
                 status=BookingSubstages.UNREALIZED,
                 lead_id=booking.amocrm_id,
-                city_slug=booking.project.city,
+                city_slug=booking.project.city.slug,
             )
             data: list[Any] = await amocrm.update_lead(**lead_options)
             lead_id: int = data[0]["id"]

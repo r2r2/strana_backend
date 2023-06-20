@@ -106,6 +106,7 @@ class RepeatBookingService(BaseBookingService):
         """
         Бронирование в AmoCRM
         """
+        await booking.fetch_related("project", "project__city")
         async with await self.amocrm_class() as amocrm:
             lead_options: dict[str, Any] = dict(lead_id=booking.amocrm_id)
             lead: list[Any] = await amocrm.fetch_lead(**lead_options)
@@ -114,7 +115,7 @@ class RepeatBookingService(BaseBookingService):
                 lead_options: dict[str, Any] = dict(
                     status=BookingSubstages.BOOKING,
                     lead_id=booking.amocrm_id,
-                    city_slug=booking.project.city,
+                    city_slug=booking.project.city.slug,
                 )
                 data: list[Any] = await amocrm.update_lead(**lead_options)
                 lead_id: int = data[0]["id"]
@@ -129,7 +130,7 @@ class RepeatBookingService(BaseBookingService):
                 lead_options: dict[str, Any] = dict(
                     status=BookingSubstages.START,
                     tags=booking.tags,
-                    city_slug=booking.project.city,
+                    city_slug=booking.project.city.slug,
                     property_type=booking.property.type.value.lower(),
                     user_amocrm_id=booking.user.amocrm_id,
                     project_amocrm_name=booking.project.amocrm_name,
@@ -152,7 +153,7 @@ class RepeatBookingService(BaseBookingService):
                 )
                 self.create_amocrm_log_task.delay(note_data=note_data)
                 lead_options: dict[str, Any] = dict(
-                    status=BookingSubstages.BOOKING, lead_id=lead_id, city_slug=booking.project.city
+                    status=BookingSubstages.BOOKING, lead_id=lead_id, city_slug=booking.project.city.slug
                 )
                 data: list[Any] = await amocrm.update_lead(**lead_options)
                 lead_id: int = data[0]["id"]

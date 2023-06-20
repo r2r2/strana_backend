@@ -3,13 +3,13 @@ from typing import Any, Type, Optional
 from src.booking.entities import BaseBookingCase
 from src.booking.exceptions import BookingNotFoundError
 from src.booking.repos import Booking
-from src.users.repos import CheckRepo
+from src.users.repos import CheckRepo, UserPinningStatus, UserPinningStatusRepo
 from src.users.types import UserBookingRepo
 from src.users.repos import User
 from src.task_management.utils import build_task_data
 
 from ..types import UserAgentRepo
-from ...amocrm.repos import AmocrmStatus, AmocrmStatusRepo
+from ...amocrm.repos import AmocrmGroupStatusRepo, AmocrmGroupStatus
 
 
 class UserBookingRetrieveCase(BaseBookingCase):
@@ -21,13 +21,15 @@ class UserBookingRetrieveCase(BaseBookingCase):
         self,
         check_repo: Type[CheckRepo],
         booking_repo: Type[UserBookingRepo],
-        amocrm_status_repo: Type[AmocrmStatusRepo],
+        amocrm_group_status_repo: Type[AmocrmGroupStatusRepo],
         agent_repo: Type[UserAgentRepo],
+        user_pinning_repo: Type[UserPinningStatusRepo],
     ) -> None:
         self.check_repo: CheckRepo = check_repo()
         self.booking_repo: UserBookingRepo = booking_repo()
-        self.amocrm_status_repo: AmocrmStatusRepo = amocrm_status_repo()
+        self.amocrm_group_status_repo: AmocrmGroupStatusRepo = amocrm_group_status_repo()
         self.agent_repo: UserAgentRepo = agent_repo()
+        self.user_pinning_repo: UserPinningStatusRepo = user_pinning_repo()
 
     async def __call__(
         self,
@@ -49,10 +51,12 @@ class UserBookingRetrieveCase(BaseBookingCase):
             "agency",
             "user",
             "project",
+            "project__city",
             "building",
             "property",
             "property__floor",
             "amocrm_status",
+            "amocrm_status__group_status",
             "task_instances",
             "task_instances__status",
             "task_instances__status__button",
@@ -67,16 +71,44 @@ class UserBookingRetrieveCase(BaseBookingCase):
             raise BookingNotFoundError
 
         if booking.project and booking.amocrm_status:
-            statuses_filters: dict = dict(pipeline_id=booking.project.amo_pipeline_id)
-            statuses: list[AmocrmStatus] = await self.amocrm_status_repo.list(filters=statuses_filters, ordering="sort")
-            booking.amocrm_status.steps_numbers = len(statuses) + 1
-            statuses.append(booking.amocrm_status)
-            booking.amocrm_status.current_step = statuses.index(booking.amocrm_status) + 1
-            booking.amocrm_status.actions = await booking.amocrm_status.amocrm_actions
+            group_statuses: list[AmocrmGroupStatus] = await self.amocrm_group_status_repo.list(
+                filters=dict(is_final=False),
+                ordering="sort",
+            )
+            final_group_statuses: list[AmocrmGroupStatus] = await self.amocrm_group_status_repo.list(
+                filters=dict(is_final=True),
+            )
+            final_group_statuses_ids = [final_group_status.id for final_group_status in final_group_statuses]
+
+            booking_group_status = booking.amocrm_status.group_status
+            if not booking_group_status:
+                booking_group_status_current_step = 1
+            elif booking_group_status.id in final_group_statuses_ids:
+                booking_group_status_current_step = len(group_statuses) + 1
+            else:
+                for number, group_status in enumerate(group_statuses):
+                    if booking_group_status.id == group_status.id:
+                        booking_group_status_current_step = number + 1
+
+            booking_group_status_actions = await booking_group_status.amocrm_actions if booking_group_status else None
+
+            if booking_group_status:
+                booking.amocrm_status.name = booking_group_status.name
+                booking.amocrm_status.group_id = booking_group_status.id
+                booking.amocrm_status.show_reservation_date = booking_group_status.show_reservation_date
+                booking.amocrm_status.show_booking_date = booking_group_status.show_booking_date
+
+            booking.amocrm_status.color = booking_group_status.color if booking_group_status else None
+            booking.amocrm_status.steps_numbers = len(group_statuses) + 1
+            booking.amocrm_status.current_step = booking_group_status_current_step
+            booking.amocrm_status.actions = booking_group_status_actions
 
         status = await self.check_repo.list(filters=dict(user_id=booking.user.id), ordering="-requested").first()
+        pinning_status: UserPinningStatus = await self.user_pinning_repo.retrieve(
+            filters=dict(user_id=booking.user.id),
+        )
         booking.user.status = status
-
+        booking.user.pinning_status = pinning_status
         task_instances = sorted(booking.task_instances, key=lambda x: x.status.priority)
         booking.tasks = build_task_data(task_instances, booking_status=booking.amocrm_status)  # type: ignore
         return booking

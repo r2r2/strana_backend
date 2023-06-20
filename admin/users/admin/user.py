@@ -5,7 +5,6 @@ from json import dumps
 from requests import post
 from django.http import HttpResponse
 from django.contrib.admin import ModelAdmin, SimpleListFilter, StackedInline, register, TabularInline
-
 from common.loggers.models import BaseLogInline
 from booking.models import Booking
 from users.models import CabinetUser, UserLog, UserRole, ConfirmClientAssign
@@ -81,7 +80,13 @@ class CabinetUserAdmin(ModelAdmin):
     actions = ("adminify", "export_csv")
     readonly_fields = ("created_at", "agency_city", "project_city", "auth_first_at")
     date_hierarchy = "auth_first_at"
-    list_filter = (RoleFilter, TypeFilter, "agency__city")
+    list_filter = (
+        RoleFilter,
+        TypeFilter,
+        "agency__city",
+        "created_at",
+        "auth_first_at",
+    )
     list_per_page = 15
     show_full_result_count = False
     list_select_related = True

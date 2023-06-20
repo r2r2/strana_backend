@@ -10,6 +10,7 @@ from ..loggers.wrappers import booking_changes_logger
 from ..repos import Booking, BookingRepo
 from ..services import HistoryService, NotificationService
 from ..types import BookingEmail, BookingFileProcessor, BookingSms
+from src.notifications.services import GetSmsTemplateService, GetEmailTemplateService
 
 
 class DDUUploadCase(BaseBookingCase):
@@ -17,7 +18,8 @@ class DDUUploadCase(BaseBookingCase):
     Загрузка ДДУ юристом
     """
 
-    email_template: str = "src/booking/templates/ddu_uploaded.html"
+    sms_event_slug = "booking_ddu_uploaded"
+    mail_event_slug: str = "booking_ddu_uploaded"
     _notification_template = "src/booking/templates/notifications/ddu_upload.json"
     _history_template = "src/booking/templates/history/ddu_upload.txt"
 
@@ -29,6 +31,8 @@ class DDUUploadCase(BaseBookingCase):
         email_class: Type[BookingEmail],
         history_service: HistoryService,
         notification_service: NotificationService,
+        get_sms_template_service: GetSmsTemplateService,
+        get_email_template_service: GetEmailTemplateService,
     ) -> None:
         self.booking_repo: BookingRepo = booking_repo()
         self.file_processor: BookingFileProcessor = file_processor
@@ -40,6 +44,8 @@ class DDUUploadCase(BaseBookingCase):
         self.booking_update = booking_changes_logger(
             self.booking_repo.update, self, content="Загрузка ДДУ юристом",
         )
+        self.get_sms_template_service: GetSmsTemplateService = get_sms_template_service
+        self.get_email_template_service: GetEmailTemplateService = get_email_template_service
 
     async def __call__(self, *, booking_id: int, secret: str, ddu_file: Any) -> Booking:
         filters: dict[str, Any] = dict(active=True, id=booking_id)
@@ -85,28 +91,38 @@ class DDUUploadCase(BaseBookingCase):
             template=self._notification_template,
         )
 
-    def _send_email(self, booking: Booking) -> Task:
+    async def _send_email(self, booking: Booking) -> Task:
         """Уведомление по почте"""
-        email_options: dict[str, Any] = dict(
-            topic="Покупка квартиры.",
-            template=self.email_template,
+        email_notification_template = await self.get_email_template_service(
+            mail_event_slug=self.mail_event_slug,
             context=dict(booking=booking),
-            recipients=[booking.user.email],
         )
-        email_service: Any = self.email_class(**email_options)
-        return email_service.as_task()
 
-    def _send_sms(self, booking: Booking) -> Task:
+        if email_notification_template and email_notification_template.is_active:
+            email_options: dict[str, Any] = dict(
+                topic=email_notification_template.template_topic,
+                content=email_notification_template.content,
+                recipients=[booking.user.email],
+                lk_type=email_notification_template.lk_type.value,
+                mail_event_slug=email_notification_template.mail_event_slug,
+            )
+            email_service: Any = self.email_class(**email_options)
+            return email_service.as_task()
+
+    async def _send_sms(self, booking: Booking) -> Task:
         """СМС уведомление"""
-        message = (
-            "Покупка квартиры.\n\n"
-            "Договор долевого участия составлен, войдите в личный кабинет для согласования.\n\n"
-            "Подробности в личном кабинете:\n"
-            "www.strana.com/login"
+        sms_notification_template = await self.get_sms_template_service(
+            sms_event_slug=self.sms_event_slug,
         )
-        sms_options: dict[str, Any] = dict(phone=booking.user.phone, message=message)
-        sms_service: Any = self.sms_class(**sms_options)
-        return sms_service.as_task()
+        if sms_notification_template and sms_notification_template.is_active:
+            sms_options: dict[str, Any] = dict(
+                phone=booking.user.phone,
+                message=sms_notification_template.template_text,
+                lk_type=sms_notification_template.lk_type.value,
+                sms_event_slug=sms_notification_template.sms_event_slug,
+            )
+            sms_service: Any = self.sms_class(**sms_options)
+            return sms_service.as_task()
 
     @classmethod
     def _validate_data(cls, *, booking: Booking, secret: str) -> None:

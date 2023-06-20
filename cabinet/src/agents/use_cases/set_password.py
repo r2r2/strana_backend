@@ -15,6 +15,7 @@ from ..exceptions import (
     AgentChangePasswordError,
 )
 from src.users.loggers.wrappers import user_changes_logger
+from src.notifications.services import GetEmailTemplateService
 
 
 class SetPasswordCase(BaseAgentCase):
@@ -22,7 +23,7 @@ class SetPasswordCase(BaseAgentCase):
     Установка пароля
     """
 
-    template: str = "src/agents/templates/confirm_email_short.html"
+    mail_event_slug: str = "agent_set_password"
     link: str = "https://{}/confirm/agents/confirm_email?q={}&p={}"
 
     def __init__(
@@ -35,6 +36,7 @@ class SetPasswordCase(BaseAgentCase):
         email_class: Type[AgentEmail],
         hasher: Callable[..., AgentHasher],
         token_creator: Callable[[int], str],
+        get_email_template_service: GetEmailTemplateService,
     ):
         self.hasher: AgentHasher = hasher()
         self.agent_repo: AgentRepo = agent_repo()
@@ -50,6 +52,7 @@ class SetPasswordCase(BaseAgentCase):
         self.site_host: str = site_config["site_host"]
         self.password_settable_key: str = session_config["password_settable_key"]
         self.password_reset_key: str = session_config["password_reset_key"]
+        self.get_email_template_service: GetEmailTemplateService = get_email_template_service
 
     async def __call__(self, payload: RequestSetPasswordModel) -> User:
         data: dict[str, Any] = payload.dict()
@@ -90,11 +93,18 @@ class SetPasswordCase(BaseAgentCase):
 
     async def _send_email(self, agent: User, token: str) -> Task:
         confirm_link: str = self.link.format(self.site_host, token, agent.email_token)
-        email_options: dict[str, Any] = dict(
-            topic="Подтверждение почты",
-            template=self.template,
-            recipients=[agent.email],
+        email_notification_template = await self.get_email_template_service(
+            mail_event_slug=self.mail_event_slug,
             context=dict(confirm_link=confirm_link),
         )
-        email_service: AgentEmail = self.email_class(**email_options)
-        return email_service.as_task()
+
+        if email_notification_template and email_notification_template.is_active:
+            email_options: dict[str, Any] = dict(
+                topic=email_notification_template.template_topic,
+                content=email_notification_template.content,
+                recipients=[agent.email],
+                lk_type=email_notification_template.lk_type.value,
+                mail_event_slug=email_notification_template.mail_event_slug,
+            )
+            email_service: AgentEmail = self.email_class(**email_options)
+            return email_service.as_task()

@@ -44,7 +44,7 @@ class UpdateAmoBookingService(BaseBookingCase, BookingLogMixin):
     ) -> None:
         booking: Booking = await self.booking_repo.retrieve(
             filters=dict(id=booking_id),
-            related_fields=["project", "user", "property", "agency", "agent"]
+            related_fields=["project", "project__city", "user", "property", "agency", "agent"]
         )
 
         if booking and booking.amocrm_id:
@@ -88,7 +88,7 @@ class UpdateAmoBookingService(BaseBookingCase, BookingLogMixin):
         # обновляем сделку в амо (основные поля)
         await amocrm.update_lead_v4(
             lead_id=booking.amocrm_id,
-            city_slug=booking.project.city if booking.project else None,
+            city_slug=booking.project.city.slug if booking.project else None,
             status_id=booking.amocrm_status_id,
             price=int(booking.payment_amount) if booking.payment_amount else None,
             project_amocrm_name=booking.project.amocrm_name if booking.project else None,

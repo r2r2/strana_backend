@@ -12,7 +12,6 @@ class AmocrmStatus(Model):
     id: int = fields.IntField(description='ID', pk=True)
     name: str = fields.CharField(max_length=150, description='Имя сделки', null=True)
     sort: int = fields.IntField(default=0, description='Сортировка')
-    color: str = fields.CharField(max_length=40, description='Цвет', null=True)
     pipeline: fields.ForeignKeyRelation = fields.ForeignKeyField(
         model_name="models.AmocrmPipeline", related_name='statuses', on_delete=fields.CASCADE
     )
@@ -20,9 +19,9 @@ class AmocrmStatus(Model):
         model_name="models.AmocrmGroupStatus", related_name='statuses', null=True, on_delete=fields.SET_NULL
     )
 
-    amocrm_actions: fields.ManyToManyRelation["AmocrmAction"]
     taskchain_booking_substages: fields.ManyToManyRelation["TaskChain"]
     taskchain_task_visibilities: fields.ManyToManyRelation["TaskChain"]
+    pinning_status_statuses: fields.ManyToManyRelation["PinningStatus"]
 
     def __repr__(self):
         return self.name

@@ -57,6 +57,9 @@ INSTALLED_APPS = [
     "questionnaire.apps.QuestionnaireAppConfig",
     "task_management.apps.TaskManagementAppConfig",
     "admincharts",
+    "notification_templates.apps.NotificationTemplatesAppConfig",
+    "meetings.apps.MeetingsAppConfig",
+    "main_page.apps.MainPageAppConfig",
 ]
 
 MIDDLEWARE = [

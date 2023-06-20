@@ -17,6 +17,7 @@ class AmocrmPipeline(Model):
     city: fields.ForeignKeyNullableRelation["City"] = fields.ForeignKeyField(
         description="Город", model_name="models.City", related_name="pipelines", null=True
     )
+    pinning_status_pipelines: fields.ManyToManyRelation["PinningStatus"]
 
     def __repr__(self):
         return self.name

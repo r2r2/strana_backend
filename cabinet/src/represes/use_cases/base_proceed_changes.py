@@ -12,12 +12,11 @@ class BaseProceedEmailChanges(BaseRepresCase):
     """
     Базовый класс обновления почты
     """
-
-    email_template: str = "src/repres/templates/change_email.html"
+    mail_event_slug: Type[object] = lambda **kwargs: exec("raise NotImplementedError")
     email_link: str = "https://{}/change/repres/change_email?q={}&p={}"
     email_class: Type[object] = lambda **kwargs: exec("raise NotImplementedError")
-    email_topic = "Смена почты"
     site_host: str = None
+    get_email_template_service: Type[object] = lambda **kwargs: exec("raise NotImplementedError")
 
     @abstractmethod
     def __init__(self, *args, **kwargs):
@@ -30,16 +29,21 @@ class BaseProceedEmailChanges(BaseRepresCase):
 
     async def _send_email(self, repres: User, token: str) -> Task:
         update_link: str = self.email_link.format(self.site_host, token, repres.change_email_token)
-        email_options: dict[str, Any] = dict(
-            topic=self.email_topic,
-            recipients=[repres.email],
-            template=self.email_template,
-            context=dict(
-                update_link=update_link, old_email=repres.email, new_email=repres.change_email
-            ),
+        email_notification_template = await self.get_email_template_service(
+            email_event_slug=self.mail_event_slug,
+            context=dict(update_link=update_link, old_email=repres.email, new_email=repres.change_email),
         )
-        email_service: RepresEmail = self.email_class(**email_options)
-        return email_service.as_task()
+
+        if email_notification_template and email_notification_template.is_active:
+            email_options: dict[str, Any] = dict(
+                topic=email_notification_template.template_topic,
+                content=email_notification_template.content,
+                recipients=[repres.email],
+                lk_type=email_notification_template.lk_type.value,
+                mail_event_slug=email_notification_template.mail_event_slug,
+            )
+            email_service: RepresEmail = self.email_class(**email_options)
+            return email_service.as_task()
 
 
 class BaseProceedPhoneChanges(BaseRepresCase):
@@ -47,21 +51,29 @@ class BaseProceedPhoneChanges(BaseRepresCase):
     Базовый класс обновления телефона
     """
     phone_link: str = "https://{}/change/repres/change_phone?q={}&p={}"
-    message_template: str = (
-        "Для подтверждения смены номера телефона {old_phone} на {new_phone} перейдите по ссылке {update_link} . "
-        "После перехода по ссылке Ваш аккаунт будет неактивен до подтверждения номера телефона {new_phone} ."
-    )
+    sms_event_slug: Type[object] = lambda **kwargs: exec("raise NotImplementedError")
     sms_class: Type[object] = lambda **kwargs: exec("raise NotImplementedError")
     site_host: str = None
+    get_sms_template_service: Type[object] = lambda **kwargs: exec("raise NotImplementedError")
 
     async def _send_sms(self, repres: User, token: str) -> Task:
-        update_link: str = self.phone_link.format(self.site_host, token, repres.change_phone_token)
-        message: str = self.message_template.format(
-            new_phone=repres.change_phone, old_phone=repres.phone, update_link=update_link
+        sms_notification_template = await self.get_sms_template_service(
+            sms_event_slug=self.sms_event_slug,
         )
-        sms_options: dict[str, Any] = dict(phone=repres.phone, message=message)
-        sms_service: RepresSms = self.sms_class(**sms_options)
-        return sms_service.as_task()
+
+        if sms_notification_template and sms_notification_template.is_active:
+            update_link: str = self.phone_link.format(self.site_host, token, repres.change_phone_token)
+            message: str = sms_notification_template.template_text.format(
+                new_phone=repres.change_phone, old_phone=repres.phone, update_link=update_link
+            )
+            sms_options: dict[str, Any] = dict(
+                phone=repres.phone,
+                message=message,
+                k_type=sms_notification_template.lk_type.value,
+                sms_event_slug=sms_notification_template.sms_event_slug,
+            )
+            sms_service: RepresSms = self.sms_class(**sms_options)
+            return sms_service.as_task()
 
     @abstractmethod
     def __init__(self, *args, **kwargs):

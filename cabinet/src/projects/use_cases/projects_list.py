@@ -17,16 +17,21 @@ class ProjectsListCase(BaseProjectCase):
         self.project_repo: ProjectRepo = project_repo()
 
     async def __call__(self, status: Optional[Status], pagination: ProjectPagination) -> dict[str, Any]:
-        filters = dict(is_active=True, status=status.value) if status else dict(is_active=True)
+        filters = dict(
+            is_active=True,
+            status=status.value,
+        ) if status else dict(is_active=True, status__not=Status.COMPLETED.value)
+        
         projects: list[Project] = await self.project_repo.list(
             filters=filters,
             end=pagination.end,
             start=pagination.start,
             related_fields=["city"],
         )
+        unique_projects = list({project.name: project for project in projects}.values())
         count_list: list[tuple[int]] = await self.project_repo.count(filters=filters)
         count = count_list[0][0]
-        data: dict[str, Any] = dict(count=count, result=projects, page_info=pagination(count=count))
+        data: dict[str, Any] = dict(count=count, result=unique_projects, page_info=pagination(count=count))
         return data
 
 
@@ -44,7 +49,10 @@ class AdditionalProjectsListCase(BaseProjectCase):
         self.additional_template_repo: AdditionalAgreementTemplateRepo = additional_template_repo()
 
     async def __call__(self, status: Optional[Status]) -> list[Project]:
-        filters = dict(is_active=True, status=status.value) if status else dict(is_active=True)
+        filters = dict(
+            is_active=True,
+            status=status.value,
+        ) if status else dict(is_active=True, status__not=Status.COMPLETED.value)
 
         additional_templates_filters: dict[str, Any] = dict(
             project_id=self.project_repo.a_builder.build_outer("id")
@@ -58,4 +66,6 @@ class AdditionalProjectsListCase(BaseProjectCase):
             related_fields=["city"],
         )
 
-        return projects
+        unique_projects = list({project.name: project for project in projects}.values())
+
+        return unique_projects

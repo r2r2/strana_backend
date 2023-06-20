@@ -63,7 +63,7 @@ class FillPersonalCase(BaseBookingCase, BookingLogMixin):
         )
         filters: dict[str, Any] = dict(id=booking_id, active=True, user_id=user_id)
         booking: Booking = await self.booking_repo.retrieve(
-            filters=filters, related_fields=["user", "project", "property", "building"]
+            filters=filters, related_fields=["user", "project", "project__city", "property", "building"]
         )
         if not booking:
             raise BookingNotFoundError
@@ -73,7 +73,7 @@ class FillPersonalCase(BaseBookingCase, BookingLogMixin):
             filters: dict[str, Any] = dict(active=True, id=booking.id, user_id=user_id)
             booking: Booking = await self.booking_repo.retrieve(
                 filters=filters,
-                related_fields=["project", "property", "floor", "building", "ddu", "agent", "agency"],
+                related_fields=["project", "project__city", "property", "floor", "building", "ddu", "agent", "agency"],
                 prefetch_fields=["ddu__participants"],
             )
             return booking
@@ -105,7 +105,7 @@ class FillPersonalCase(BaseBookingCase, BookingLogMixin):
         filters: dict[str, Any] = dict(active=True, id=booking.id, user_id=user_id)
         booking: Booking = await self.booking_repo.retrieve(
             filters=filters,
-            related_fields=["project", "property", "floor", "building", "ddu", "agent", "agency"],
+            related_fields=["project", "project__city", "property", "floor", "building", "ddu", "agent", "agency"],
             prefetch_fields=["ddu__participants"],
         )
         return booking
@@ -125,7 +125,7 @@ class FillPersonalCase(BaseBookingCase, BookingLogMixin):
             lead_options: dict[str, Any] = dict(
                 tags=booking.tags + self.lk_client_tag,
                 status=BookingSubstages.START,
-                city_slug=booking.project.city,
+                city_slug=booking.project.city.slug,
                 property_id=self.global_id_decoder(booking.property.global_id)[1],
                 property_type=booking.property.type.value.lower(),
                 user_amocrm_id=booking.user.amocrm_id,
@@ -147,7 +147,7 @@ class FillPersonalCase(BaseBookingCase, BookingLogMixin):
             )
             self.create_amocrm_log_task.delay(note_data=note_data)
             lead_options: dict[str, Any] = dict(
-                status=BookingSubstages.BOOKING, lead_id=lead_id, city_slug=booking.project.city
+                status=BookingSubstages.BOOKING, lead_id=lead_id, city_slug=booking.project.city.slug
             )
             data: list[Any] = await amocrm.update_lead(**lead_options)
             lead_id: int = data[0]["id"]

@@ -22,14 +22,11 @@ def amocrm_note(amocrm_class: Type[AmoCRM]):
             if isinstance(exception, IntegrityError):
                 raise exception
 
-            _, notify_client = func_result
-
-            if notify_client:
-                async with await amocrm_class() as amocrm:
-                    await amocrm.send_lead_note(
-                        lead_id=lead_id,
-                        message=text
-                    )
+            async with await amocrm_class() as amocrm:
+                await amocrm.send_lead_note(
+                    lead_id=lead_id,
+                    message=text
+                )
 
             if exception:
                 raise exception

@@ -75,6 +75,7 @@ class UpdateBookingsService:
         cities_repo: Type[CityRepo],
         building_repo: Type[BuildingRepo],
         statuses_repo: Type[AmoStatusesRepo],
+        check_pinning: Optional[Any] = None,
         orm_class: Optional[BookingORM] = None,
         orm_config: Optional[dict[str, Any]] = None,
     ):
@@ -91,6 +92,7 @@ class UpdateBookingsService:
         self.cities_repo: CityRepo = cities_repo()
         self.building_repo: BuildingRepo = building_repo()
         self.statuses_repo: AmoStatusesRepo = statuses_repo()
+        self.check_pinning: Optional[Any] = check_pinning
         self.partition_limit: int = amocrm_config["partition_limit"]
 
         self.orm_class: Union[Type[BookingORM], None] = orm_class
@@ -221,9 +223,7 @@ class UpdateBookingsService:
             data.pop("commission")
             data.pop("commission_value")
 
-        if (final_payment_amount or price_with_sale) and (
-                not booking.final_payment_amount or (booking.final_payment_amount and final_payment_amount)
-        ):
+        if final_payment_amount := final_payment_amount or price_with_sale:
             data["final_payment_amount"] = final_payment_amount
         if amocrm_stage and booking.amocrm_stage != amocrm_stage:
             data["amocrm_stage"] = amocrm_stage
@@ -253,6 +253,7 @@ class UpdateBookingsService:
         if not property_id:
             data.update(dict(building=None, floor=None, property=None))
         await self.booking_repo.update(model=booking, data=data)
+        self.check_pinning.as_task(user_id=booking.user_id)
 
     @staticmethod
     def _is_stage_valid(amocrm_substage: str) -> bool:

@@ -1,9 +1,15 @@
 from jinja2 import Template
 from aiofile import async_open
 from config import email_config
-from typing import Optional, Any, Union
+from typing import Optional, Any, Union, Type
 from asyncio import ensure_future, Future, create_task, Task
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, errors
+from tortoise import Tortoise
+from copy import copy
+
+from config import tortoise_config
+
+from .repos import LogEmailRepo, LogEmail
 
 
 class EmailService(object):
@@ -20,12 +26,21 @@ class EmailService(object):
         content: Optional[str] = None,
         template: Optional[str] = None,
         context: Optional[dict[str, Any]] = None,
+        lk_type: Optional[str] = None,
+        mail_event_slug: Optional[str] = None,
     ) -> None:
         self._topic: str = topic
         self._subtype: str = subtype
         self._retries: int = retries
         self._current_try: int = 1
         self._recipients: list[str] = [email for email in recipients if email]
+        self.lk_type: Optional[str] = lk_type
+        self.mail_event_slug: Optional[str] = mail_event_slug
+        self.log_email_repo: LogEmailRepo = LogEmailRepo()
+        self.orm_class: Type[Tortoise] = Tortoise
+        self.orm_config: dict[str, Any] = copy(tortoise_config)
+        if self.orm_config:
+            self.orm_config.pop("generate_schemas", None)
 
         if not content and not (context and template):
             raise ValueError(
@@ -70,11 +85,13 @@ class EmailService(object):
 
         sender: FastMail = FastMail(self._config)
         message: MessageSchema = await self.make_message()
+
+        log_email = await self._loging_email(is_sent=True, message=message)
+
         try:
-            result: None = await sender.send_message(message=message)
+            await sender.send_message(message=message)
         except errors.ConnectionErrors:
-            result: None = await self._retry(sender=sender, message=message)
-        return result
+            await self._retry(sender=sender, message=message, log_email=log_email)
 
     async def make_message(self) -> MessageSchema:
         message_args = dict(subject=self._topic, subtype=self._subtype, recipients=self._recipients)
@@ -88,13 +105,31 @@ class EmailService(object):
             message_args['html'] = body
         return MessageSchema(**message_args)
 
-    async def _retry(self, sender: FastMail, message: MessageSchema) -> None:
+    async def _retry(
+        self,
+        sender: FastMail,
+        message: MessageSchema,
+        log_email: LogEmail,
+    ) -> None:
         self._current_try += 1
         try:
-            result: None = await sender.send_message(message=message)
+            await sender.send_message(message=message)
         except Exception:
             if self._current_try < self._retries:
-                result: None = await self._retry(sender=sender, message=message)
+                await self._retry(sender=sender, message=message, log_email=log_email)
             else:
-                result = None
-        return result
+                await self.log_email_repo.update(model=log_email, data=dict(is_sent=False))
+
+    async def _loging_email(self, is_sent: bool, message: MessageSchema) -> LogEmail:
+        """
+        Логируем отправленное письмо в админке через селери таску.
+        """
+        data = dict(
+            topic=self._topic,
+            text=self._content if self._content else message.html,
+            lk_type=self.lk_type,
+            mail_event_slug=self.mail_event_slug,
+            recipient_emails=", ".join(self._recipients),
+            is_sent=is_sent,
+        )
+        return await self.log_email_repo.create(data=data)

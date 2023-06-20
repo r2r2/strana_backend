@@ -7,6 +7,7 @@ from .users import (
     DeletedUserCheck,
     CurrentOptionalUserId,
     CurrentUserFromAmocrm,
+    CurrentOptionalUserIdWithoutRole,
 )
 from .properties import (
     PropertiesFromGlobalId

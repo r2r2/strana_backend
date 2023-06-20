@@ -8,6 +8,7 @@ from ..models import TaskChain
 class TaskChainAdmin(admin.ModelAdmin):
     list_display = (
         "name",
+        "sensei_pid",
     )
     readonly_fields = ("updated_at", "created_at",)
     ordering = ("name",)
@@ -15,7 +16,7 @@ class TaskChainAdmin(admin.ModelAdmin):
     filter_horizontal = ("booking_substage", "task_visibility")
 
     def formfield_for_manytomany(self, db_field, request, **kwargs):
-        if db_field.name == "booking_substage" or db_field.name == "task_visibility":
+        if db_field.name in ("booking_substage", "task_visibility"):
             kwargs['widget'] = FilteredSelectMultiple(
                 db_field.verbose_name, is_stacked=False
             )

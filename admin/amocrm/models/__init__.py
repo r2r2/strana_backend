@@ -1,4 +1,4 @@
 from .pipelines import AmocrmPipeline
-from .statuses import AmocrmStatus, StatusActionThrough
+from .statuses import AmocrmStatus
 from .actions import AmocrmAction
-from .group_statuses import AmocrmGroupStatus
+from .group_statuses import AmocrmGroupStatus, GroupStatusActionThrough

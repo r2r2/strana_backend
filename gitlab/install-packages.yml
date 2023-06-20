@@ -19,7 +19,7 @@ install-pkg-python-admin:
       ./admin
     - docker push $PYTHON_ADMIN
   tags:
-    - docker
+    - docker-sber
 
 install-pkg-python-cabinet:
   stage: install_packages
@@ -42,4 +42,4 @@ install-pkg-python-cabinet:
       ./cabinet
     - docker push $PYTHON_CABINET
   tags:
-    - docker
+    - docker-sber

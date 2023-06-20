@@ -1,27 +1,23 @@
 from typing import Any, Optional, Type
 
 from common.amocrm.types import AmoLead
-from fastapi import UploadFile
-from src.agreements.constants import AgreementFileType
 from src.agreements.repos import AgencyAgreement, AgreementType
 from src.booking.repos import Booking
 from src.getdoc.repos import DocTemplate
 from src.projects.repos import Project
 from src.users.repos import User
-
 from .. import exceptions
-from ..constants import UploadPath
 from ..entities import BaseAgencyCase
 from ..repos import Agency, AgencyRepo
 from ..types import (AgencyAgreementRepo, AgencyAgreementTypeRepo,
                      AgencyAmoCRM, AgencyBookingRepo, AgencyDocTemplateRepo,
-                     AgencyFileProcessor, AgencyGetDoc, AgencyProjectRepo,
+                     AgencyProjectRepo,
                      AgencyUserRepo)
 
 
 class RepresAgenciesCreateAgreementCase(BaseAgencyCase):
     """
-    Создание договора агенства
+    Создание договора агентства
     """
 
     lk_broker_tag: list[str] = ["ЛК Брокера"]
@@ -31,8 +27,6 @@ class RepresAgenciesCreateAgreementCase(BaseAgencyCase):
         booking_getdoc_statuses: Any,
         agency_repo: Type[AgencyRepo],
         user_repo: Type[AgencyUserRepo],
-        file_processor: Type[AgencyFileProcessor],
-        getdoc_class: Type[AgencyGetDoc],
         amocrm_class: Type[AgencyAmoCRM],
         project_repo: Type[AgencyProjectRepo],
         agreement_repo: Type[AgencyAgreementRepo],
@@ -48,8 +42,6 @@ class RepresAgenciesCreateAgreementCase(BaseAgencyCase):
         self._booking_repo: AgencyBookingRepo = booking_repo()
         self._agreement_type_repo: AgencyAgreementTypeRepo = agreement_type_repo()
         self._doc_template_repo: AgencyDocTemplateRepo = doc_template_repo()
-        self._file_processor: Type[AgencyFileProcessor] = file_processor
-        self._getdoc_class: Type[AgencyGetDoc] = getdoc_class
         self._amocrm_class: Type[AgencyAmoCRM] = amocrm_class
 
     async def __call__(self, *, repres_id: int, projects_ids: list[int], type_id: int) -> list[AgencyAgreement]:
@@ -125,22 +117,13 @@ class RepresAgenciesCreateAgreementCase(BaseAgencyCase):
         agreement_type: AgreementType,
         template_name: str,
     ) -> AgencyAgreement:
-        """Получение дговора для агенства"""
-        async with await self._getdoc_class() as getdoc:
-            file: UploadFile = await getdoc.get_doc(booking.amocrm_id, template_name)
-
-        agreement_files = await self._file_processor(
-            files=dict(agreement_file=[file]),
-            path=UploadPath.FILES,
-            choice_class=AgreementFileType,
-        )
+        """Получение договора для агентства"""
         agreement_data = dict(
             agency_id=agency.id,
             booking_id=booking.id,
             project_id=project.id,
             agreement_type_id=agreement_type.id,
             template_name=template_name,
-            files=agreement_files,
             created_by=repres,
         )
         agreement: AgencyAgreement = await self._agreement_repo.create(data=agreement_data)

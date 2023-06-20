@@ -10,4 +10,7 @@ from .terms import (CheckTerm, CheckTermRepo, IsConType, TermCity,
 from .user import User, UserRepo
 from .user_log import UserLog, UserLogRepo
 from .fake_user_phones import FakeUserPhone, FakeUserPhoneRepo
+from .pinning_status import (PinningStatus, PinningStatusCity, PinningStatusPipeline,
+                             PinningStatusStatus, PinningStatusRepo, PinningStatusType)
+from .user_pinning_status import UserPinningStatus, UserPinningStatusRepo
 from .confirm_client_assign import ConfirmClientAssign, ConfirmClientAssignRepo

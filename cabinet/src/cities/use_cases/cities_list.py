@@ -13,9 +13,15 @@ class CitiesListCase(BaseCityCase):
         self.city_repo: CityRepo = city_repo()
 
     async def __call__(self) -> list[City]:
-        cities_filter: dict = dict(slug__not_in=[""])
+        cities_filter: dict = dict(
+            slug__not="",
+            name__not="Не определен",
+            projects__isnull=False,
+        )
 
-        cities: list[City] = await self.city_repo.list(filters=cities_filter)
+        cities: list[City] = await self.city_repo.list(
+            filters=cities_filter,
+        ).distinct()
         if not cities:
             raise CitiesNotFoundError
 

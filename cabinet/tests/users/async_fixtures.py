@@ -7,7 +7,7 @@ from pytest import fixture
 
 
 @fixture(scope="function")
-async def user(user_repo, active_agency):
+async def user(user_repo, active_agency, project):
     data = {
         "email": "test_email@email.com",
         "name": "test",
@@ -21,7 +21,9 @@ async def user(user_repo, active_agency):
         "code": "1234",
         "is_active": False,
         "type": "client",
-        "agency_id": active_agency.id
+        "agency_id": active_agency.id,
+        "interested_project_id": project.id,
+        "maintained_id": active_agency.id,
     }
     user = await user_repo.update_or_create({"phone": "+79296010017"}, data)
     return user

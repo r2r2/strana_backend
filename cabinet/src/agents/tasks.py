@@ -13,6 +13,8 @@ from src.booking.repos import BookingRepo
 from src.users import constants as users_constants
 from src.users import repos as users_repos
 from tortoise import Tortoise
+from src.notifications import services as notification_services
+from src.notifications import repos as notification_repos
 
 
 @celery.app.task
@@ -20,6 +22,10 @@ def import_clients_task(agent_id: int) -> None:
     """
     Импорт клиентов агента
     """
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notification_repos.EmailTemplateRepo,
+        )
     resources: dict[str, Any] = dict(
         user_statuses=users_constants.UserStatus,
         import_bookings_task=booking_tasks.import_bookings_task,
@@ -34,6 +40,7 @@ def import_clients_task(agent_id: int) -> None:
         email_class=AgentEmail,
         amocrm_config=amocrm_config,
         statuses_repo=amocrm_repos.AmoStatusesRepo,
+        get_email_template_service=get_email_template_service,
     )
     import_clients: services.ImportClientsService = services.ImportClientsService(**resources)
     loop: Any = get_event_loop()

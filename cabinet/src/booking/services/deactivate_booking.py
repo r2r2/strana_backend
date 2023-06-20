@@ -1,7 +1,6 @@
-import json
-from typing import Any
+import asyncio
 
-from ..decorators import logged_action, logged_mutation
+from ..loggers import booking_changes_logger
 from ..repos import Booking
 from ..types import BookingProperty
 from typing import Type, Any
@@ -9,8 +8,9 @@ from ..entities import BaseBookingService
 from ..constants import BookingSubstages
 from ..types import BookingAmoCRM, BookingProfitBase
 from ..repos import BookingRepo
-from ..types import BookingPropertyRepo, BookingRequest
+from ..types import BookingPropertyRepo
 from config import backend_config
+from common.requests import GraphQLRequest
 
 
 class DeactivateBookingService(BaseBookingService):
@@ -22,13 +22,14 @@ class DeactivateBookingService(BaseBookingService):
     query_name: str = "changePropertyStatus.graphql"
     query_directory: str = "/src/booking/queries/"
 
-    def __init__(self,
-         amocrm_class: Type[BookingAmoCRM],
-         profitbase_class: Type[BookingProfitBase],
-         booking_repo: Type[BookingRepo],
-         property_repo: Type[BookingPropertyRepo],
-         request_class: Type[BookingRequest],
-     ) -> None:
+    def __init__(
+        self,
+        amocrm_class: Type[BookingAmoCRM],
+        profitbase_class: Type[BookingProfitBase],
+        booking_repo: Type[BookingRepo],
+        property_repo: Type[BookingPropertyRepo],
+        request_class: Type[GraphQLRequest],
+    ) -> None:
         self.amocrm_class: Type[BookingAmoCRM] = amocrm_class
         self.profitbase_class: Type[BookingProfitBase] = profitbase_class
         self.booking_repo: BookingRepo = booking_repo()
@@ -36,21 +37,25 @@ class DeactivateBookingService(BaseBookingService):
         self.login: str = backend_config["internal_login"]
         self.password: str = backend_config["internal_password"]
         self.backend_url: str = backend_config["url"] + backend_config["graphql"]
-        self.request_class: Type[BookingRequest] = request_class
+        self.request_class: Type[GraphQLRequest] = request_class
+        self.booking_update = booking_changes_logger(
+            self.booking_repo.update, self, content="ДЕАКТИВАЦИЯ БРОНИ | AMOCRM, PORTAL, PROFITBASE"
+        )
 
-    async def __call__(self, booking: Booking):
-        deactivate_logger = logged_mutation(use_case=self, content="ДЕАКТИВАЦИЯ БРОНИ | AMOCRM, PORTAL, PROFITBASE")
+    async def __call__(self, booking: Booking) -> None:
         data: dict[str] = dict(active=False)
-        booking: Booking = await deactivate_logger(self.booking_repo.update)(booking, data=data)
+        booking: Booking = await self.booking_update(booking=booking, data=data)
         filters: dict[str] = dict(id=booking.property_id)
         booking_property: BookingProperty = await self.property_repo.retrieve(filters=filters)
         if booking_property:
             data: dict[str] = dict(status=booking_property.statuses.FREE)
             await self.property_repo.update(booking_property, data=data)
             setattr(booking, "property", booking_property)
-            await self.__backend_unbooking(booking=booking)
-            await self.__amocrm_unbooking(booking=booking)
-            await self.__profitbase_unbooking(booking=booking)
+            await asyncio.gather(
+                self.__backend_unbooking(booking=booking),
+                self.__amocrm_unbooking(booking=booking),
+                self.__profitbase_unbooking(booking=booking),
+            )
 
     # @logged_action(content="РАЗБРОНИРОВАНИЕ | PORTAL")
     async def __backend_unbooking(self, booking: Booking) -> bool:
@@ -64,7 +69,7 @@ class DeactivateBookingService(BaseBookingService):
             password=self.password,
             query_name=self.query_name,
             query_directory=self.query_directory,
-            filters=(booking.property.global_id, booking.property.status),
+            filters=(booking.property.global_id, booking.property.statuses.FREE),
         )
         async with self.request_class(**unbook_options) as response:
             response_ok: bool = response.ok
@@ -72,11 +77,12 @@ class DeactivateBookingService(BaseBookingService):
 
     # @logged_action(content="РАЗБРОНИРОВАНИЕ | AMOCRM")
     async def __amocrm_unbooking(self, booking: Booking) -> int:
+        await booking.fetch_related("project", "project__city")
         async with await self.amocrm_class() as amocrm:
             lead_options: dict[str, Any] = dict(
-                status=BookingSubstages.UNREALIZED,
+                status=BookingSubstages.MAKE_DECISION,
                 lead_id=booking.amocrm_id,
-                city_slug=booking.project.city,
+                city_slug=booking.project.city.slug,
             )
             data: list[Any] = await amocrm.update_lead(**lead_options)
             lead_id: int = data[0]["id"]

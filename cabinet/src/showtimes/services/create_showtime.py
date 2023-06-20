@@ -30,12 +30,12 @@ class CreateShowTimeService(BaseShowTimeService):
     ) -> int:
         filters: dict[str, Any] = dict(id=showtime_id)
         showtime: ShowTime = await self.showtime_repo.retrieve(
-            filters=filters, related_fields=["user", "agent", "project"]
+            filters=filters, related_fields=["user", "agent", "project", "project__city"]
         )
         async with await self.amocrm_class() as amocrm:
             data: dict[str, Any] = dict(
                 visit=showtime.visit,
-                city_slug=showtime.project.city,
+                city_slug=showtime.project.city.slug,
                 property_type=showtime.property_type,
                 user_amocrm_id=showtime.user.amocrm_id,
                 agent_amocrm_id=showtime.agent.amocrm_id,

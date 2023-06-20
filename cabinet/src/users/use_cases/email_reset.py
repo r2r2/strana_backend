@@ -1,6 +1,7 @@
 from asyncio import Task
 from secrets import token_urlsafe
 from typing import Type, Any, Callable
+from enum import Enum
 
 from ..exceptions import UserNotFoundError
 from ..models import RequestEmailResetModel
@@ -9,18 +10,24 @@ from ..entities import BaseUserCase
 from ..types import UserEmail
 from ..loggers.wrappers import user_changes_logger
 from ..constants import UserType
+from src.notifications.services import GetEmailTemplateService
+
+
+class UserUrlType(str, Enum):
+    ADMIN = 'admins'
+    REPRES = 'represes'
+    AGENT = 'agents'
 
 
 class EmailResetCase(BaseUserCase):
     """
     Юзкейс для отправки ссылки для сброса пароля на почту пользователя.
     """
+    agent_mail_event_slug = "agent_reset_password"
+    repres_mail_event_slug = "repres_reset_password"
+    admin_mail_event_slug = "admin_reset_password"
 
-    agent_template: str = "src/agents/templates/reset_password.html"
-    repres_template: str = "src/represes/templates/reset_password.html"
-    admin_template: str = "src/admins/templates/reset_password.html"
-
-    link: str = "https://{}/reset/admins/reset_password?q={}&p={}"
+    link: str = "https://{}/reset/{}/reset_password?q={}&p={}"
 
     def __init__(
         self,
@@ -28,6 +35,7 @@ class EmailResetCase(BaseUserCase):
         site_config: dict[str, Any],
         email_class: Type[UserEmail],
         token_creator: Callable[[int], str],
+        get_email_template_service: GetEmailTemplateService,
     ):
         self.user_repo: UserRepo = user_repo()
         self.user_update = user_changes_logger(
@@ -36,6 +44,7 @@ class EmailResetCase(BaseUserCase):
 
         self.email_class: Type[UserEmail] = email_class
         self.token_creator: Callable[[int], str] = token_creator
+        self.get_email_template_service: GetEmailTemplateService = get_email_template_service
 
         self.site_host: str = site_config["site_host"]
 
@@ -60,19 +69,28 @@ class EmailResetCase(BaseUserCase):
         return user
 
     async def _send_email(self, user: User, token: str) -> Task:
-        reset_link: str = self.link.format(self.site_host, token, user.discard_token)
         if user.type.value == "admin":
-            template = self.admin_template
+            mail_event_slug = self.admin_mail_event_slug
+            reset_link: str = self.link.format(self.site_host, UserUrlType.ADMIN, token, user.discard_token)
         elif user.type.value == "repres":
-            template = self.repres_template
+            mail_event_slug = self.repres_mail_event_slug
+            reset_link: str = self.link.format(self.site_host, UserUrlType.REPRES, token, user.discard_token)
         else:
-            template = self.agent_template
+            mail_event_slug = self.agent_mail_event_slug
+            reset_link: str = self.link.format(self.site_host, UserUrlType.AGENT, token, user.discard_token)
 
-        email_options: dict[str, Any] = dict(
-            topic="Сброс пароля",
-            template=template,
-            recipients=[user.email],
+        email_notification_template = await self.get_email_template_service(
+            mail_event_slug=mail_event_slug,
             context=dict(reset_link=reset_link),
         )
-        email_service: UserEmail = self.email_class(**email_options)
-        return email_service.as_task()
+
+        if email_notification_template and email_notification_template.is_active:
+            email_options: dict[str, Any] = dict(
+                topic=email_notification_template.template_topic,
+                content=email_notification_template.content,
+                recipients=[user.email],
+                lk_type=email_notification_template.lk_type.value,
+                mail_event_slug=email_notification_template.mail_event_slug,
+            )
+            email_service: UserEmail = self.email_class(**email_options)
+            return email_service.as_task()

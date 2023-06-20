@@ -1,5 +1,4 @@
-from typing import Optional, Any
-from pydantic import root_validator as method_field
+from typing import Optional
 
 from ..constants import UserStatus
 from ..entities import BaseCheckModel

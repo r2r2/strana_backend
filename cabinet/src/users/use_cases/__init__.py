@@ -55,4 +55,4 @@ from .users_check_unique_in_base import UserCheckUniqueCase
 from .update_last_activity import UpdateLastActivityCase
 from .email_reset import EmailResetCase
 from .client_confirm_assign import ConfirmAssignClientCase
-from .client_unassign_text import UnassignTextCase
+from .client_unassign_text import AssignUnassignTextCase

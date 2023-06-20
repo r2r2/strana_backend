@@ -19,10 +19,10 @@ class AmoCRMWebhookUpdateTaskInstanceCase(BaseTaskCase):
         self.booking_repo = booking_repo()
         self.update_task_instance_status_service: UpdateTaskInstanceStatusService = update_task_instance_status_service
 
-    async def __call__(self, data: dict[str, Any]) -> None:
-        booking_amocrm_id: int = data.get('id')
-        slug: str = data.get('result_status')
-        comment: Optional[str] = data.get('comment')
+    async def __call__(self, data: dict[str, list[str]]) -> None:
+        booking_amocrm_id: int = int(data.get('id')[0])
+        slug: str = data.get('result_status')[0]
+        comment: Optional[str] = data.get('comment')[0] if data.get('comment') else None
 
         booking: Booking = await self.booking_repo.retrieve(filters=dict(amocrm_id=booking_amocrm_id))
         if not booking:

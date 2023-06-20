@@ -2,6 +2,7 @@ from typing import Any, Optional, Type, Union
 from enum import IntEnum
 
 from src.booking.loggers.wrappers import booking_changes_logger
+from src.users import services as user_services
 
 from ..constants import UserType
 from ..entities import BaseUserCase
@@ -31,10 +32,10 @@ class AdminsUsersUpdateCase(BaseUserCase):
         self,
         user_repo: Type[UserRepo],
         check_repo: Type[CheckRepo],
-        change_client_agent_task: Any,
         agent_repo: Type[UserAgentRepo],
         agency_repo: Type[UserAgencyRepo],
         booking_repo: Type[UserBookingRepo],
+        change_agent_service: user_services.ChangeAgentService,
     ) -> None:
         self.user_repo: UserRepo = user_repo()
         self.user_update = user_changes_logger(
@@ -44,8 +45,8 @@ class AdminsUsersUpdateCase(BaseUserCase):
         self.agent_repo: UserAgentRepo = agent_repo()
         self.agency_repo: UserAgencyRepo = agency_repo()
         self.booking_repo: UserBookingRepo = booking_repo()
+        self.change_agent_service: user_services.ChangeAgentService = change_agent_service
 
-        self.change_client_agent_task: Any = change_client_agent_task
         self.booking_update = booking_changes_logger(
             self.booking_repo.update, self, content="Изменение пользователя",
         )
@@ -69,7 +70,7 @@ class AdminsUsersUpdateCase(BaseUserCase):
             if not agent:
                 raise UserNoAgentError
         if agency_id:
-            filters: dict[str, Any] = dict(id=agency_id, id_deleted=False, is_approved=True)
+            filters: dict[str, Any] = dict(id=agency_id, is_deleted=False, is_approved=True)
             agency: UserAgency = await self.agency_repo.retrieve(filters=filters)
             if not agency:
                 raise UserNoAgencyError
@@ -96,8 +97,11 @@ class AdminsUsersUpdateCase(BaseUserCase):
             for booking in bookings:
                 await self.booking_update(booking=booking, data=bound_data)
 
+        if u_data.get("agent_id") and not u_data.get("agency_id"):
+            u_data["agency_id"] = agent.agency_id
+
         user: User = await self.user_update(user=user, data=u_data)
 
         if agent:
-            self.change_client_agent_task.delay(user_id=user_id, agent_id=agent.id)
+            self.change_agent_service.as_task(user_id=user_id, agent_id=agent.id)
         return user

@@ -6,6 +6,7 @@ from ..entities import BaseAgentCase
 from ..repos import AgentRepo, User
 from ..types import AgentSms
 from src.users.loggers.wrappers import user_changes_logger
+from src.notifications.services import GetSmsTemplateService
 
 
 class ChangePhoneCase(BaseAgentCase):
@@ -13,7 +14,7 @@ class ChangePhoneCase(BaseAgentCase):
     Смена телефона
     """
 
-    template: str = "Для подтверждения номера телефона перейдите по ссылке {confirm_link} . "
+    sms_event_slug = "agent_confirm_change_phone"
     link: str = "https://{}/confirm/agents/confirm_phone?q={}&p={}"
 
     fail_link: str = "https://{}/account/agents"
@@ -27,6 +28,7 @@ class ChangePhoneCase(BaseAgentCase):
         sms_class: Type[AgentSms],
         token_creator: Callable[[int], str],
         token_decoder: Callable[[str], Union[int, None]],
+        get_sms_template_service: GetSmsTemplateService,
     ) -> None:
         self.agent_repo: AgentRepo = agent_repo()
         self.agent_update = user_changes_logger(
@@ -40,6 +42,8 @@ class ChangePhoneCase(BaseAgentCase):
         self.user_type: str = user_type
         self.lk_site_host: str = site_config["lk_site_host"]
         self.broker_site_host: str = site_config["broker_site_host"]
+
+        self.get_sms_template_service: GetSmsTemplateService = get_sms_template_service
 
     async def __call__(self, token: str, change_phone_token: str) -> str:
         agent_id: Union[int, None] = self.token_decoder(token)
@@ -70,8 +74,16 @@ class ChangePhoneCase(BaseAgentCase):
         return link
 
     async def _send_sms(self, agent: User, token: str) -> Task:
-        confirm_link: str = self.link.format(self.lk_site_host, token, agent.change_phone_token)
-        message: str = self.template.format(confirm_link=confirm_link)
-        sms_options: dict[str, Any] = dict(phone=agent.phone, message=message)
-        sms_service: AgentSms = self.sms_class(**sms_options)
-        return sms_service.as_task()
+        sms_notification_template = await self.get_sms_template_service(
+            sms_event_slug=self.sms_event_slug,
+        )
+        if sms_notification_template and sms_notification_template.is_active:
+            confirm_link: str = self.link.format(self.lk_site_host, token, agent.change_phone_token)
+            sms_options: dict[str, Any] = dict(
+                phone=agent.phone,
+                message=sms_notification_template.template_text.format(confirm_link=confirm_link),
+                lk_type=sms_notification_template.lk_type.value,
+                sms_event_slug=sms_notification_template.sms_event_slug,
+            )
+            sms_service: AgentSms = self.sms_class(**sms_options)
+            return sms_service.as_task()

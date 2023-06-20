@@ -7,6 +7,7 @@ from ..exceptions import AdminDataTakenError
 from ..models import RequestProcessRegisterModel
 from ..repos import AdminRepo, User
 from ..types import AdminHasher, AdminSms
+from src.notifications.services import GetSmsTemplateService
 
 
 class ProcessRegisterCase(BaseAdminCase):
@@ -14,9 +15,7 @@ class ProcessRegisterCase(BaseAdminCase):
     Процессинг регистрации
     """
 
-    message_template: str = (
-        "Вы были зарегистрированы как администратор. Email: {email} Пароль: {password} "
-    )
+    sms_event_slug = "register_admin"
 
     def __init__(
         self,
@@ -25,6 +24,7 @@ class ProcessRegisterCase(BaseAdminCase):
         admin_repo: Type[AdminRepo],
         hasher: Callable[..., AdminHasher],
         password_generator: Callable[..., str],
+        get_sms_template_service: GetSmsTemplateService,
     ) -> None:
         self.admin_repo: AdminRepo = admin_repo()
 
@@ -32,6 +32,7 @@ class ProcessRegisterCase(BaseAdminCase):
         self.hasher: AdminHasher = hasher()
         self.sms_class: Type[AdminSms] = sms_class
         self.password_generator: Callable[..., str] = password_generator
+        self.get_sms_template_service: GetSmsTemplateService = get_sms_template_service
 
     async def __call__(self, payload: RequestProcessRegisterModel) -> User:
         data: dict[str, Any] = payload.dict()
@@ -51,9 +52,17 @@ class ProcessRegisterCase(BaseAdminCase):
         )
         data.update(extra_data)
         admin: User = await self.admin_repo.create(data=data)
-        sms_options: dict[str, Any] = dict(
-            phone=phone,
-            message=self.message_template.format(email=email, password=one_time_password),
+
+        sms_notification_template = await self.get_sms_template_service(
+            sms_event_slug=self.sms_event_slug,
         )
-        self.sms_class(**sms_options).as_task()
+        if sms_notification_template and sms_notification_template.is_active:
+            sms_options: dict[str, Any] = dict(
+                phone=phone,
+                message=sms_notification_template.template_text.format(email=email, password=one_time_password),
+                lk_type=sms_notification_template.lk_type.value,
+                sms_event_slug=sms_notification_template.sms_event_slug,
+            )
+            self.sms_class(**sms_options).as_task()
+
         return admin

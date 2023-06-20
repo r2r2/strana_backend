@@ -27,6 +27,12 @@ class BookingTimeOutError(BaseBookingException):
     reason: str = "booking_time_out"
 
 
+class BookingTimeOutRepeatError(BaseBookingException):
+    message: str = "Время бронирования истекло."
+    status: int = HTTPStatus.BAD_REQUEST
+    reason: str = "booking_time_out_repeat"
+
+
 class BookingPropertyMissingError(BaseBookingException):
     message: str = "Объект бронирования не найден."
     status: int = HTTPStatus.BAD_REQUEST

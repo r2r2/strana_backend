@@ -72,6 +72,10 @@ class Choices(metaclass=ChoiceMeta):
             self.value: Union[int, str] = value
             self.label: str = label
 
+    def __str__(self):
+        result = self.value or "null"
+        return str(result)
+
     @classmethod
     def to_label(cls, value: str) -> Union[str, None]:
         """

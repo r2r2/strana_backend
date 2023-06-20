@@ -7,12 +7,15 @@ from ..repos import RepresRepo, User
 from ..models import RequestInitializeChangePhone
 from ..exceptions import RepresNotFoundError, RepresPhoneTakenError
 from ...users.loggers.wrappers import user_changes_logger
+from src.notifications.services import GetSmsTemplateService
 
 
 class InitializeChangePhoneCase(BaseProceedPhoneChanges):
     """
     Обновление телефона агентом
     """
+
+    sms_event_slug = "repres_change_phone"
 
     def __init__(
         self,
@@ -21,6 +24,7 @@ class InitializeChangePhoneCase(BaseProceedPhoneChanges):
         repres_repo: Type[RepresRepo],
         site_config: dict[str, Any],
         token_creator: Callable[[int], str],
+        get_sms_template_service: GetSmsTemplateService,
     ) -> None:
         self.repres_repo: RepresRepo = repres_repo()
         self.repres_update = user_changes_logger(
@@ -30,6 +34,7 @@ class InitializeChangePhoneCase(BaseProceedPhoneChanges):
         self.sms_class: Type[RepresSms] = sms_class
         self.token_creator: Callable[[int], str] = token_creator
         self.site_host: str = site_config["site_host"]
+        self.get_sms_template_service: GetSmsTemplateService = get_sms_template_service
 
     async def __call__(self, repres_id: int, payload: RequestInitializeChangePhone) -> User:
         phone = payload.phone

@@ -81,6 +81,7 @@ async def agent_clients_view(
     resources: dict = dict(
         user_repo=users_repos.UserRepo,
         check_repo=users_repos.CheckRepo,
+        user_pinning_repo=users_repos.UserPinningStatusRepo,
     )
     clients_case: use_cases.AgentListClientsCase = use_cases.AgentListClientsCase(**resources)
     return await clients_case(agent_id=agent_id, init_filters=init_filters, pagination=pagination)
@@ -102,6 +103,7 @@ async def agents_users_retrieve_view(
     resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
         check_repo=users_repos.CheckRepo,
+        user_pinning_repo=users_repos.UserPinningStatusRepo,
     )
     agents_users_retrieve: use_cases.AgentsUsersRetrieveCase = use_cases.AgentsUsersRetrieveCase(
         **resources

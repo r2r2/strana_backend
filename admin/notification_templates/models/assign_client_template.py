@@ -6,6 +6,17 @@ class AssignClientTemplate(models.Model):
     Модель СМС для закрепления клиента
     """
     text: str = models.TextField(verbose_name="Текст открепления")
+    title: str = models.CharField(verbose_name="Название", max_length=255, null=True, blank=True)
+    success_assign_text: str = models.TextField(
+        verbose_name="Текст страницы успешного закрепления",
+        blank=True,
+        null=True,
+    )
+    success_unassign_text: str = models.TextField(
+        verbose_name="Текст страницы успешного открепления",
+        blank=True,
+        null=True,
+    )
     city: models.ForeignKey = models.ForeignKey(
         to='cities.Cities',
         related_name='assign_clients',

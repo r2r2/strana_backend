@@ -198,6 +198,28 @@ class AmoCRMCompanies(AmoCRMInterface, ABC):
             return response.data
         return {}
 
+    async def unbind_entity(
+            self,
+            agency_amocrm_id: int,
+            entity_id: int,
+            entity_type: AmoCompanyEntityType) -> dict[Any]:
+        """
+        Открепить сущность от компании в амо
+        @param agency_amocrm_id: ID Компании из амо
+        @param entity_id:  ID сущности, которую мы хотим отвязать от копании
+        @param entity_type: Тип сущности, которая отвязывается от компании.
+        @return:
+        """
+        route: str = f"/companies/{agency_amocrm_id}/unlink"
+        payload = dict(
+           to_entity_id=entity_id,
+           to_entity_type=entity_type
+        )
+        response: CommonResponse = await self._request_post_v4(route=route, payload=[payload])
+        if response.data:
+            return response.data
+        return {}
+
     def _get_company_default_custom_fields(self, company_update: CompanyUpdateParams) -> list[AmoCustomField]:
         """
         get company default custom fields

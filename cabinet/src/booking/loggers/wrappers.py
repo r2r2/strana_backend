@@ -1,7 +1,7 @@
 import json
 from asyncio import create_task
 
-from common.loggers.utils import get_difference_between_two_dicts
+from common.loggers.utils import get_difference_between_two_dicts, dumps_dict
 from ..repos import Booking, BookingRepo
 from ..entities import BaseBookingCase
 
@@ -14,7 +14,7 @@ def booking_changes_logger(booking_change: BookingRepo(), use_case: BaseBookingC
 
     async def _wrapper(booking: Booking = None, data: dict = None, filters: dict = None, exclude_filters: dict = None):
         booking_after, response_data = dict(), dict()
-        booking_before: str = json.dumps(dict(booking), indent=4, sort_keys=True, default=str) if booking else dict()
+        booking_before: str = dumps_dict(dict(booking)) if booking else dict()
         booking_difference_json: str = ""
         error_data, booking_id = None, None
 
@@ -33,8 +33,8 @@ def booking_changes_logger(booking_change: BookingRepo(), use_case: BaseBookingC
         try:
             booking: Booking = await update_booking
             booking_id: int = booking.id if booking else None
-            booking_after: str = json.dumps(
-                dict(booking), indent=4, sort_keys=True, default=str
+            booking_after: str = dumps_dict(
+                dict(booking)
             ) if booking else dict()
             booking_difference: dict = get_difference_between_two_dicts(
                 json.loads(booking_before), json.loads(booking_after)

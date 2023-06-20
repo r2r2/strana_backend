@@ -4,6 +4,7 @@ from celery.local import PromiseProxy
 from common.entities import BaseFilter
 from common.orm.entities import BaseRepo
 from pydantic import BaseModel
+from common.pydantic import CamelCaseBaseModel
 
 
 class BaseUserModel(BaseModel):
@@ -66,7 +67,7 @@ class BaseUserException(Exception):
     reason: str
 
 
-class BaseCheckModel(BaseModel):
+class BaseCheckModel(CamelCaseBaseModel):
     """
     базовая модель проверки
     """

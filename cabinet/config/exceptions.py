@@ -17,6 +17,8 @@ def get_exceptions() -> OrderedDict[Type[Exception], Callable[..., Any]]:
     from src.task_management import exceptions as task_management_exceptions
     from src.meetings import exceptions as meetings_exceptions
     from src.cities import exceptions as cities_exceptions
+    from src.text_blocks import exceptions as text_block_exceptions
+    from src.projects import exceptions as projects_exceptions
 
     modules: list[Any] = [
         users_exceptions,
@@ -31,7 +33,9 @@ def get_exceptions() -> OrderedDict[Type[Exception], Callable[..., Any]]:
         amocrm_exceptions,
         task_management_exceptions,
         meetings_exceptions,
-        cities_exceptions
+        cities_exceptions,
+        text_block_exceptions,
+        projects_exceptions,
     ]
 
     exceptions: OrderedDict[Type[Exception], Callable[..., Any]] = OrderedDict()

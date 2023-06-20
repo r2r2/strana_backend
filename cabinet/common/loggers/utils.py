@@ -1,3 +1,10 @@
+from typing import Optional
+from deepdiff import DeepDiff
+import json
+
+
+def dumps_dict(d: dict):
+    return json.dumps(d, indent=4, sort_keys=True, default=str, ensure_ascii=False)
 
 
 def get_difference_between_two_dicts(dict_1: dict, dict_2: dict) -> dict:

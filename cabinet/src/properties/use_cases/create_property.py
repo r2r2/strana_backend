@@ -76,7 +76,7 @@ class CreatePropertyCase(BasePropertyCase):
 
         _property: Property = await self.property_repo.retrieve(
             filters=filters,
-            related_fields=["project", "building"],
+            related_fields=["project", "project__city", "building"],
             prefetch_fields=["building__booking_types"],
         )
 
@@ -100,7 +100,7 @@ class CreatePropertyCase(BasePropertyCase):
             )
         self.session[self.document_key]: dict[str, Any] = dict(
             premise=_property.premise.label,
-            city=_property.project.city if _property.project else None,
+            city=_property.project.city.slug if _property.project else None,
             address=building.address,
             price=selected_booking_type.price,
             period=selected_booking_type.period,

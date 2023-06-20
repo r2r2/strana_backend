@@ -40,3 +40,12 @@ class BaseNotificationException(Exception):
     message: str
     status: int
     reason: str
+
+
+class BaseNotificationService:
+    """
+    Базовый сервис уведомлений
+    """
+
+    async def __call__(self, *args: list[Any], **kwargs: dict[str, Any]) -> Any:
+        raise NotImplementedError
