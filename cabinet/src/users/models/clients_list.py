@@ -3,7 +3,6 @@ from typing import Any, Optional
 
 from pydantic import root_validator
 from src.agencies.constants import AgencyType
-from src.users.constants import UserStatus, UserPinningStatusType
 from src.users.entities import BaseCheckModel, BaseUserModel
 
 
@@ -12,16 +11,24 @@ class _StatusModel(BaseCheckModel):
     requested: Optional[datetime]
     dispute_requested: Optional[datetime]
     status_fixed: Optional[bool]
-    status: Optional[UserStatus.serializer]
+    unique_status: Optional[Any]
     value: Optional[str]
-    label: Optional[str]
+    title: Optional[str]
+    subtitle: Optional[str]
+    color: Optional[str]
+    background_color: Optional[str]
+    border_color: Optional[str]
 
     @root_validator
-    def get_status(cls, values: dict[str, Any]) -> dict[str, Any]:
-        """status"""
-        status = values.pop("status")
-        values["value"] = status.value
-        values["label"] = status.label
+    def get_unique_status(cls, values: dict[str, Any]) -> dict[str, Any]:
+        """unique status"""
+        if unique_status := values.pop("unique_status"):
+            values["value"] = unique_status.slug
+            values["title"] = unique_status.title
+            values["subtitle"] = unique_status.subtitle
+            values["color"] = unique_status.color
+            values["background_color"] = unique_status.background_color
+            values["border_color"] = unique_status.border_color
         return values
 
     class Config:
@@ -57,20 +64,25 @@ class _AgencyRetrieveModel(BaseUserModel):
         orm_mode = True
 
 
-class _PinningStatusModel(BaseUserModel):
-    status: Optional[UserPinningStatusType.serializer]
-    label: Optional[str]
+class _PinningStatusModel(BaseCheckModel):
+    title: Optional[str]
     value: Optional[str]
+    unique_status: Optional[Any]
+    subtitle: Optional[str]
+    color: Optional[str]
+    background_color: Optional[str]
+    border_color: Optional[str]
 
     @root_validator
-    def get_pinning_status(cls, values: dict[str, Any]) -> dict[str, Any]:
-        """set pinning status"""
-        if pinning_status := values.pop("status"):
-            values["label"] = pinning_status.label
-            values["value"] = pinning_status.value
-        else:
-            values["label"] = UserPinningStatusType.to_label(UserPinningStatusType.UNKNOWN)
-            values["value"] = UserPinningStatusType.to_value(UserPinningStatusType.UNKNOWN)
+    def get_unique_status(cls, values: dict[str, Any]) -> dict[str, Any]:
+        """unique status"""
+        if unique_status := values.pop("unique_status"):
+            values["value"] = unique_status.slug
+            values["title"] = unique_status.title
+            values["subtitle"] = unique_status.subtitle
+            values["color"] = unique_status.color
+            values["background_color"] = unique_status.background_color
+            values["border_color"] = unique_status.border_color
         return values
 
     class Config:

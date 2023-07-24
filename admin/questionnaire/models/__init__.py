@@ -9,3 +9,4 @@ from .documents_blocks import QuestionnaireDocumentBlock
 from .documents import QuestionnaireDocument
 from .upload_documents import QuestionnaireUploadDocument
 from .users_answers import UserAnswer
+from .task_instance_logs import TaskInstanceLog

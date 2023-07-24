@@ -13,7 +13,6 @@ class ResponseUnassignText(BaseModel):
 
 class ResponseSMSText(BaseModel):
     text: Optional[str] = Field(description='Текст для отправки смс')
-    text_found: bool = Field(default=True, description='Найден ли текст для отправки смс', alias="textFound")
 
     class Config:
         orm_mode = True

@@ -138,3 +138,21 @@ def fire_agent_task(
             agency_amocrm_id=agency_amocrm_id,
         )
     )
+
+
+@celery.app.task
+def update_missed_amocrm_id_task() -> None:
+    """
+    Заполнение потерянных amocrm_id в агентствах.
+    """
+    resources: dict[str, Any] = dict(
+        amocrm_class=amocrm.AmoCRM,
+        orm_class=Tortoise,
+        orm_config=tortoise_config,
+        agency_repo=agencies_repos.AgencyRepo,
+    )
+    update_organization_amocrm_id: services.UpdateOrganizationAmocrmIdService = (
+        services.UpdateOrganizationAmocrmIdService(**resources)
+    )
+    loop: Any = get_event_loop()
+    loop.run_until_complete(celery.sentry_catch(celery.init_orm(update_organization_amocrm_id))())

@@ -118,9 +118,11 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
 
     # ID полей для встреч
     meeting_type_field_id = 815568
-    meeting_date_id = 689581
-    meeting_property_type_id = 366965
-    meeting_user_name_id = 676461
+    meeting_date_sensei_field_id = 689581
+    meeting_date_zoom_field_id = 688593
+    meeting_address_field_id = 831168
+    meeting_property_type_field_id = 366965
+    meeting_user_name_field_id = 676461
     meeting_types: dict[str, str] = {
         "1326776": "online",
         "1326774": "offline",
@@ -138,6 +140,10 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
     dev_booking_tag_id: int = 708334
     stage_booking_tag_id: int = 765058
 
+    # Lead contacts tags IDs
+    realtor_tag_id: int = 437407
+    client_tag_id: int = 555355
+
     # ID Условия_оплаты_брони
     booking_type_20_days: int = 1
     booking_type_50_days: int = 2
@@ -149,8 +155,8 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
 
     # Custom fields values
     city_field_values: dict[str, dict[str, Union[str, int]]] = {
-        "tyumen": {"enum_id": 1322598, "value": "Тюмень"},
-        "moskva": {"enum_id": 1322604, "value": "Москва"},
+        "tmn": {"enum_id": 1322598, "value": "Тюмень"},
+        "msk": {"enum_id": 1322604, "value": "Москва"},
         "spb": {"enum_id": 1322602, "value": "Санкт-Петербург"},
         "ekb": {"enum_id": 1322600, "value": "Екатеринбург"},
         "test_case": {"enum_id": 1332428, "value": "Не определен"},
@@ -433,13 +439,19 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
 
     # Cities mapping by slug
     lead_city_mapping: dict[str, str] = {
-        "spb": "spb", "tyumen": "tmn", "moskva": "msk", "ekb": "ekb", "test_case": "test_case"
+        "spb": "spb",
+        "tmn": "tmn",
+        "msk": "msk",
+        "ekb": "ekb",
+        "test_case": "test_case",
     }
 
-    async def fetch_lead(self,
-                         *,
-                         lead_id: Union[int, str],
-                         query_with: list[AmoLeadQueryWith] = None) -> Optional[AmoLead]:
+    async def fetch_lead(
+            self,
+            *,
+            lead_id: Union[int, str],
+            query_with: list[AmoLeadQueryWith] = None
+    ) -> Optional[AmoLead]:
         """
         Lead lookup by id
         """
@@ -466,10 +478,12 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
             )
             return None
 
-    async def fetch_leads(self,
-                          *,
-                          lead_ids: list[Union[int, str]],
-                          query_with: Optional[list[AmoLeadQueryWith]] = None) -> list[AmoLead]:
+    async def fetch_leads(
+            self,
+            *,
+            lead_ids: list[Union[int, str]],
+            query_with: Optional[list[AmoLeadQueryWith]] = None
+    ) -> list[AmoLead]:
         """
         Lead lookup by id
         """
@@ -526,9 +540,12 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         @return: list[AmoLead]
         """
         route: str = "/leads"
+        print("*" * 100)
+        print("city_slug: ", city_slug)
+        print("self.lead_city_mapping[city_slug]: ", self.lead_city_mapping[city_slug])
+        print("status_id: ", status_id)
         if not status_id:
-            status_id = getattr(
-                self, f"{self.lead_city_mapping[city_slug]}_status_ids")[status]
+            status_id = getattr(self, f"{self.lead_city_mapping[city_slug]}_status_ids")[status]
         tags: list[AmoTag] = [AmoTag(name=tag) for tag in (tags + self._lead_tags)]
         if companies:
             companies: list[AmoLeadCompany] = [AmoLeadCompany(id=company) for company in companies]
@@ -626,6 +643,8 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         project_amocrm_pipeline_id: Optional[int] = None,
         project_amocrm_responsible_user_id: Optional[int] = None,
         project_amocrm_organization: Optional[str] = None,
+        meeting_date_sensei: Optional[datetime.timestamp] = None,
+        meeting_date_zoom: Optional[datetime.timestamp] = None,
         tags: Optional[list[AmoTag]] = None,
     ):
         route: str = f"/leads/{lead_id}"
@@ -694,6 +713,22 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
                 )
             )
 
+        # Время встречи
+        if meeting_date_sensei:
+            custom_fields.append(
+                dict(
+                    field_id=self.meeting_date_sensei_field_id,
+                    values=[dict(value=int(meeting_date_sensei))]
+                )
+            )
+        if meeting_date_zoom:
+            custom_fields.append(
+                dict(
+                    field_id=self.meeting_date_zoom_field_id,
+                    values=[dict(value=int(meeting_date_zoom))]
+                )
+            )
+
         payload = dict(custom_fields_values=custom_fields)
 
         if price:
@@ -716,6 +751,8 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
             )
         self.logger.debug(f"Payload lead v4: {payload}")
         response: CommonResponse = await self._request_patch_v4(route=route, payload=payload)
+        if response:
+            print(f'{response.data=}')
         return response.data if response else []
 
     async def update_leads_v4(
@@ -853,7 +890,6 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         """
         Lead mutation
         """
-
         route: str = "/leads"
         payload: dict[str, Any] = dict(
             update=[dict(id=lead_id, updated_at=int(datetime.now(tz=UTC).timestamp()))]

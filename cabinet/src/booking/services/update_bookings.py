@@ -253,7 +253,6 @@ class UpdateBookingsService:
         if not property_id:
             data.update(dict(building=None, floor=None, property=None))
         await self.booking_repo.update(model=booking, data=data)
-        self.check_pinning.as_task(user_id=booking.user_id)
 
     @staticmethod
     def _is_stage_valid(amocrm_substage: str) -> bool:

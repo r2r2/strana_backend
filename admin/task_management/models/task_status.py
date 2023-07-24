@@ -50,10 +50,11 @@ class TaskStatus(BaseTaskManagementModel):
     )
 
     def __str__(self) -> str:
-        return self.name
+        tasks_chain_name = self.tasks_chain.name if self.tasks_chain else "-"
+        return f"[{tasks_chain_name}] ({self.name})"
 
     class Meta:
         managed = False
         db_table = 'task_management_taskstatus'
         verbose_name = 'Статус задачи'
-        verbose_name_plural = 'Статусы задач'
+        verbose_name_plural = '9.4. [Справочник] Статусы задач'

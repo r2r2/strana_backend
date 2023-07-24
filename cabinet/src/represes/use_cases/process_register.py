@@ -23,6 +23,7 @@ from src.users.loggers.wrappers import user_changes_logger
 from src.agencies.loggers.wrappers import agency_changes_logger
 from src.notifications.services import GetEmailTemplateService
 from src.users.services import UserCheckUniqueService
+from src.cities.repos import City, CityRepo
 
 
 class ProcessRegisterCase(BaseRepresCase):
@@ -44,6 +45,7 @@ class ProcessRegisterCase(BaseRepresCase):
         agency_repo: Type[AgencyRepo],
         agent_repo: Type[AgentRepo],
         admin_repo: Type[AdminRepo],
+        city_repo: Type[CityRepo],
         file_processor: Type[FileProcessor],
         create_contact_service: Union[Callable, PromiseProxy],
         create_organization_service: Union[Callable, PromiseProxy],
@@ -55,6 +57,7 @@ class ProcessRegisterCase(BaseRepresCase):
     ) -> None:
         self.hasher: CryptContext = hasher()
         self.repres_repo: RepresRepo = repres_repo()
+        self.city_repo: CityRepo = city_repo()
         self.repres_create = user_changes_logger(
             self.repres_repo.create, self, content="Создание представителя"
         )
@@ -134,12 +137,15 @@ class ProcessRegisterCase(BaseRepresCase):
         if deleted_agency:
             await self.agency_delete(deleted_agency)
 
+        city: City = await self.city_repo.retrieve(filters=dict(name__iexact=payload.city))
+
         # Создаём агентство
         data: dict[str, Any] = payload.dict()
         data.update(dict(
             files=await self.file_processor(files=files, path=AgencyUploadPath.FILES,
                                             choice_class=AgencyFileType),
-            is_approved=True
+            is_approved=True,
+            city=city,
         ))
         agency: Agency = await self.agency_create(data=data)
         await self._send_admins_email(agency)

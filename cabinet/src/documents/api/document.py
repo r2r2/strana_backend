@@ -53,3 +53,25 @@ async def get_slug_document_by_city_view(
         document_repo=documents_repos.DocumentRepo
     )
     return await get_slug_document_by_city_case(document_slug=document_slug, city_slug=city_slug)
+
+
+@router.get(
+    "/instructions/{slug}",
+    status_code=HTTPStatus.OK,
+    response_model=models.ResponseGetSlugInstructionModel,
+)
+async def get_instruction_by_slug(
+    slug: str = Path(..., description="slug инструкции"),
+):
+    """
+    Получение инструкции по слагу.
+    """
+    resources: dict[str, Any] = dict(
+        instruction_repo=documents_repos.InstructionRepo,
+    )
+    get_instruction_by_slug_case: use_cases.GetSlugInstructionCase = use_cases.GetSlugInstructionCase(
+        **resources
+    )
+    return await get_instruction_by_slug_case(
+        slug=slug,
+    )

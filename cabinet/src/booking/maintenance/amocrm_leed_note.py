@@ -2,25 +2,26 @@
 from functools import wraps
 from typing import Any, Optional, Tuple, Type
 
+from asyncpg import UniqueViolationError
+from tortoise.exceptions import IntegrityError
+
 from common.amocrm import AmoCRM
 from common.amocrm.exceptions import BaseAmocrmException
 from src.booking.exceptions import BaseBookingException
 from src.booking.use_cases.amocrm_webhook import WebhookLead
-from tortoise.exceptions import IntegrityError
 
 
 def amocrm_note(amocrm_class: Type[AmoCRM]):
-    """Декоратор для отправки сообщения в сделку о реузуьтате отправки sms"""
+    """
+    Декоратор для отправки сообщения в сделку о результате отправки sms
+    """
 
     def initialized_func(func):
 
         @wraps(func)
         async def wrapper(*args, **kwargs):
-            lead_id = _get_lead_id(kwargs.get("webhook_lead"))
+            lead_id = kwargs.get("amocrm_id")
             func_result, exception, text = await _get_note_message(func, *args, kwargs)
-
-            if isinstance(exception, IntegrityError):
-                raise exception
 
             async with await amocrm_class() as amocrm:
                 await amocrm.send_lead_note(
@@ -44,7 +45,9 @@ def _get_lead_id(webhook_lead: Optional[WebhookLead]) -> int:
 
 
 async def _get_note_message(func, *args, **kwargs) -> Tuple[Any, Any, str]:
-    """Получение результата функции, ошибки при выполнении этой функции и строку для передачи в амо"""
+    """
+    Получение результата функции, ошибки при выполнении этой функции и строку для передачи в амо
+    """
     result = None
     exception = None
     text = "Смс с быстрой бронью не отправлено - неизвестная ошибка. "
@@ -59,6 +62,10 @@ async def _get_note_message(func, *args, **kwargs) -> Tuple[Any, Any, str]:
     except BaseBookingException as booking_exception:
         exception = booking_exception
         text += booking_exception.message
+    except IntegrityError as tortoise_exception:
+        if isinstance(uniq_error := tortoise_exception.args[0], UniqueViolationError):
+            if uniq_error.constraint_name == "users_user_unique_together_email_type":
+                text += "Данная почта уже закреплена за другим клиентом"
     except Exception as e:
         exception = e
         import traceback

@@ -1,4 +1,4 @@
-from asyncio import Task
+import asyncio
 from datetime import datetime
 from typing import Any, Type
 
@@ -12,9 +12,9 @@ from src.users.constants import UserType
 
 from ..constants import UserStatus
 from ..entities import BaseCheckCase
-from ..exceptions import CheckNotFoundError, UserNotFoundError
+from src.users.exceptions import CheckNotFoundError, UserNotFoundError, UniqueStatusNotFoundError
 from ..models import RequestAgentsUsersCheckDisputeModel
-from ..repos import Check, CheckRepo, User, UserRepo
+from src.users.repos import Check, CheckRepo, User, UserRepo, UniqueStatus, UniqueStatusRepo, HistoricalDisputeDataRepo
 from src.notifications.services import GetEmailTemplateService
 
 
@@ -28,6 +28,8 @@ class CheckDisputeCase(BaseCheckCase):
         agent_repo: Type[AgentRepo],
         user_repo: Type[UserRepo],
         admin_repo: Type[AdminRepo],
+        unique_status_repo: Type[UniqueStatusRepo],
+        historical_dispute_repo: Type[HistoricalDisputeDataRepo],
         email_recipients: dict,
         get_email_template_service: GetEmailTemplateService,
     ) -> None:
@@ -36,6 +38,8 @@ class CheckDisputeCase(BaseCheckCase):
         self.agent_repo = agent_repo()
         self.user_repo = user_repo()
         self.admin_repo = admin_repo()
+        self.unique_status_repo: UniqueStatusRepo = unique_status_repo()
+        self.historical_dispute_repo: HistoricalDisputeDataRepo = historical_dispute_repo()
         self.strana_manager = email_recipients['strana_manager']
         self.lk_site_host = site_config['site_host']
         self.get_email_template_service = get_email_template_service
@@ -46,27 +50,42 @@ class CheckDisputeCase(BaseCheckCase):
         user: User = await self.user_repo.retrieve(filters=filters)
         if not user:
             raise UserNotFoundError
-        agent: User = await self.agent_repo.retrieve(filters=dict(id=dispute_agent_id, is_approved=True))
+        agent: User = await self.agent_repo.retrieve(
+            filters=dict(id=dispute_agent_id, is_approved=True), prefetch_fields=["agency__city"]
+        )
         if not agent:
             raise AgentNotFoundError
-        filters: dict[str:Any] = dict(user_id=data["user_id"],
-                                      status__in=[UserStatus.NOT_UNIQUE, UserStatus.CAN_DISPUTE])
+        filters: dict[str:Any] = dict(
+            user_id=data["user_id"], status__in=[UserStatus.NOT_UNIQUE, UserStatus.CAN_DISPUTE]
+        )
         check: Check = await self.check_repo.retrieve(filters=filters, ordering='-id')
         if not check:
             raise CheckNotFoundError
 
+        unique_status: UniqueStatus = await self._get_unique_status(slug=UserStatus.DISPUTE)
         data = dict(
-            status=UserStatus.DISPUTE,
+            unique_status=unique_status,
             agent_id=user.agent_id,
             agency_id=user.agency_id,
             comment=payload.comment,
             dispute_agent_id=dispute_agent_id,
             dispute_requested=datetime.now(tz=UTC),
         )
-        await self.check_repo.update(check, data=data)
+        historical_data: dict[str:Any] = dict(
+            unique_status=unique_status,
+            agent_id=user.agent_id,
+            client_agency_id=user.agency_id,
+            dispute_agent_id=dispute_agent_id,
+            dispute_requested=datetime.now(tz=UTC),
+            dispute_agent_agency_id=agent.agency_id,
+        )
+        await asyncio.gather(
+            self.check_repo.update(check, data=data),
+            self.historical_dispute_repo.create(data=historical_data),
+        )
         await check.refresh_from_db(fields=['status'])
 
-        filters = dict(type=UserType.ADMIN, receive_admin_emails=True)
+        filters = dict(type=UserType.ADMIN, receive_admin_emails=True, users_cities=agent.agency.city.id)
         admins = await self.admin_repo.list(filters=filters)
 
         data: dict[str:Any] = dict(
@@ -81,7 +100,7 @@ class CheckDisputeCase(BaseCheckCase):
         await self._send_email(**data)
         return check
 
-    async def _send_email(self, recipients: list[str], **context) -> Task:
+    async def _send_email(self, recipients: list[str], **context) -> asyncio.Task:
         """
         Отправка сообщения об оспаривании
         """
@@ -103,3 +122,12 @@ class CheckDisputeCase(BaseCheckCase):
 
     def _generate_dispute_link(self, dispute_id: int):
         return f"https://{self.lk_site_host}/admin/disputes/dispute/{dispute_id}/change/"
+
+    async def _get_unique_status(self, slug: str) -> UniqueStatus:
+        """
+        Получаем статус закрепления по slug
+        """
+        status: UniqueStatus = await self.unique_status_repo.retrieve(filters=dict(slug=slug))
+        if not status:
+            raise UniqueStatusNotFoundError
+        return status

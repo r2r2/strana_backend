@@ -41,7 +41,7 @@ async def caution_list(
     summary="Заглушение предупреждения"
 )
 async def cautions_mute(
-    caution_id: int = Query(...),
+    caution_id: int,
     user_id: int = Depends(CurrentAnyTypeUserId())
 ):
     resources = dict(

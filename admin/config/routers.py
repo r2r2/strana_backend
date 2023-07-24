@@ -1,75 +1,84 @@
 # pylint: disable=unused-argument
-import agreements.models
-from agencies import models as agencies_models
-from amocrm import models as amocrm_models
-from booking import models as booking_models
-from buildings import models as buildings_models
-from cautions import models as caution_models
-from cities import models as cities_models
-from disputes import models as disputes_models
 from documents import models as documents_models
-from floors import models as floors_models
+from booking import models as booking_models
+from contents import models as contents_models
+from references import models as references_models
+from disputes import models as disputes_models
 from managers import models as managers_models
-from pages import models as pages_models
-from projects import models as projects_models
+from artefacts import models as artefacts_models
 from properties import models as properties_models
-from tips import models as tips_models
 from users import models as users_models
 from questionnaire import models as questionnaire_models
 from task_management import models as task_management_models
-from notification_templates import models as notification_templates_models
+from notifications import models as notifications_models
 from meetings import models as meetings_models
-from main_page import models as main_page_models
+from events import models as event_models
+from dashboard import models as dashboard_models
+from settings import models as settings_models
 
 
 cabinet_models: list = [
     booking_models.Booking,
     booking_models.BookingLog,
-    booking_models.BookingHelpText,
-    buildings_models.Building,
-    documents_models.Document,
-    documents_models.Escrow,
-    projects_models.Project,
+    booking_models.AmocrmPipeline,
+    booking_models.AmocrmStatus,
+    booking_models.AmocrmAction,
+    booking_models.AmocrmGroupStatus,
+    booking_models.GroupStatusActionThrough,
     properties_models.Property,
+    properties_models.Building,
+    properties_models.Project,
+    properties_models.Floor,
     users_models.CabinetUser,
-    floors_models.Floor,
-    tips_models.Tip,
-    pages_models.BrokerRegistration,
-    agencies_models.Agency,
-    agencies_models.AgencyAct,
-    agencies_models.AgencyAgreement,
-    agencies_models.AgencyLog,
-    agencies_models.AgencyAdditionalAgreement,
-    pages_models.CheckUnique,
-    pages_models.ShowtimeRegistration,
+    users_models.CabinetAgent,
+    users_models.CabinetClient,
+    documents_models.AgencyAct,
+    documents_models.AgencyAgreement,
+    documents_models.AgencyAdditionalAgreement,
+    documents_models.DocTemplate,
+    documents_models.ActTemplate,
+    documents_models.AgreementStatus,
+    documents_models.AgreementType,
+    documents_models.AdditionalAgreementStatus,
+    documents_models.AdditionalAgreementTemplate,
+    documents_models.AgencyAdditionalAgreementCreatingData,
+    documents_models.AdditionalProjectThrough,
+    documents_models.AdditionalAgencyThrough,
+    artefacts_models.CheckUnique,
+    artefacts_models.ShowtimeRegistration,
+    artefacts_models.Document,
+    artefacts_models.Escrow,
+    artefacts_models.BookingHelpText,
+    artefacts_models.Tip,
     managers_models.Manager,
+    disputes_models.ConfirmClientAssign,
     disputes_models.Dispute,
-    cities_models.Cities,
-    amocrm_models.AmocrmPipeline,
-    amocrm_models.AmocrmStatus,
-    amocrm_models.AmocrmAction,
-    amocrm_models.GroupStatusActionThrough,
-    users_models.CitiesThrough,
-    users_models.PipelinesThrough,
-    users_models.StatusesThrough,
-    users_models.CabinetChecksTerms,
+    disputes_models.CheckHistory,
+    disputes_models.PinningStatus,
+    disputes_models.PinningStatusCity,
+    disputes_models.PinningStatusPipeline,
+    disputes_models.PinningStatusStatus,
+    disputes_models.UniqueStatus,
+    disputes_models.CabinetChecksTerms,
+    disputes_models.CitiesThrough,
+    disputes_models.PipelinesThrough,
+    disputes_models.StatusesThrough,
+    references_models.Cities,
+    references_models.Menu,
     users_models.UserLog,
     users_models.UserRole,
-    users_models.CheckHistory,
+    users_models.CityUserThrough,
     users_models.UserNotificationMute,
     users_models.RealIpUsers,
     users_models.FakeUserPhone,
-    users_models.PinningStatus,
-    users_models.PinningStatusCity,
-    users_models.PinningStatusPipeline,
-    users_models.PinningStatusStatus,
-    users_models.ConfirmClientAssign,
-    caution_models.Caution,
-    caution_models.CautionMute,
-    agreements.models.DocTemplate,
-    agreements.models.ActTemplate,
-    agreements.models.AgreementStatus,
-    agreements.models.AgreementType,
+    users_models.Agency,
+    users_models.AgencyLog,
+    users_models.HistoricalDisputeData,
+    contents_models.Caution,
+    contents_models.CautionMute,
+    contents_models.TextBlock,
+    contents_models.BrokerRegistration,
+    contents_models.Instruction,
     questionnaire_models.FunctionalBlock,
     questionnaire_models.QuestionGroup,
     questionnaire_models.Question,
@@ -81,24 +90,32 @@ cabinet_models: list = [
     questionnaire_models.QuestionnaireDocument,
     questionnaire_models.QuestionnaireUploadDocument,
     questionnaire_models.UserAnswer,
-    agreements.models.AdditionalAgreementStatus,
-    agreements.models.AdditionalAgreementTemplate,
+    questionnaire_models.TaskInstanceLog,
     task_management_models.TaskStatus,
     task_management_models.Button,
     task_management_models.TaskInstance,
     task_management_models.TaskChain,
     task_management_models.TaskChainStatusThrough,
     task_management_models.TaskChainTaskVisibilityStatusThrough,
-    task_management_models.TaskInstanceLog,
-    amocrm_models.AmocrmGroupStatus,
-    notification_templates_models.TextBlock,
-    notification_templates_models.LogEmail,
-    notification_templates_models.LogSms,
-    notification_templates_models.EmailTemplate,
-    notification_templates_models.SmsTemplate,
-    notification_templates_models.AssignClientTemplate,
+    notifications_models.LogEmail,
+    notifications_models.LogSms,
+    notifications_models.EmailTemplate,
+    notifications_models.SmsTemplate,
+    notifications_models.AssignClientTemplate,
     meetings_models.Meeting,
-    main_page_models.Ticket,
+    event_models.Event,
+    event_models.EventTag,
+    event_models.EventParticipant,
+    event_models.EventTagThrough,
+    dashboard_models.Ticket,
+    dashboard_models.TicketCityThrough,
+    dashboard_models.Block,
+    dashboard_models.BlockCityThrough,
+    dashboard_models.Element,
+    dashboard_models.ElementCityThrough,
+    dashboard_models.Link,
+    dashboard_models.LinkCityThrough,
+    settings_models.BookingSettings,
 ]
 
 

@@ -14,3 +14,5 @@ from .pinning_status import (PinningStatus, PinningStatusCity, PinningStatusPipe
                              PinningStatusStatus, PinningStatusRepo, PinningStatusType)
 from .user_pinning_status import UserPinningStatus, UserPinningStatusRepo
 from .confirm_client_assign import ConfirmClientAssign, ConfirmClientAssignRepo
+from .unique_status import UniqueStatus, UniqueStatusRepo
+from .historical_dispute_data import HistoricalDisputeData, HistoricalDisputeDataRepo

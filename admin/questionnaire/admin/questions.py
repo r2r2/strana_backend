@@ -16,6 +16,7 @@ class QuestionAdminInline(admin.StackedInline):
 
 @admin.register(Question)
 class QuestionAdmin(admin.ModelAdmin):
-    list_display = ("title", "description", "question_group", "sort", )
+    list_display = ("title", "description", "question_group", "sort", "type", "required", "updated_at", "created_at")
     inlines = (AnswerAdminInline,)
     readonly_fields = ("updated_at", "created_at",)
+    search_fields = ("title", "description", "question_group__title")

@@ -11,6 +11,7 @@ from tortoise import Model, fields
 
 from ..entities import BaseAgreementRepo
 from .additional_agreement_status import AdditionalAgreementStatus
+from .additional_agreement_creating_data import AgencyAdditionalAgreementCreatingData
 
 
 class AgencyAdditionalAgreement(Model, TimeBasedMixin):
@@ -36,6 +37,12 @@ class AgencyAdditionalAgreement(Model, TimeBasedMixin):
     reason_comment: str = fields.CharField(description="Комментарий (администратора)", max_length=300)
     signed_at: datetime = fields.DatetimeField(description="Когда подписано", null=True)
     files: Union[list, dict] = cfields.MutableDocumentContainerField(description="Файлы", null=True)
+    creating_data: fields.ForeignKeyRelation[AgencyAdditionalAgreementCreatingData] = fields.ForeignKeyField(
+        model_name="models.AgencyAdditionalAgreementCreatingData",
+        description='Данные для формирования ДС (через админку)',
+        on_delete=fields.SET_NULL,
+        null=True,
+    )
 
     class Meta:
         table = "agencies_additional_agreement"

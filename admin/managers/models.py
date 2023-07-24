@@ -1,7 +1,7 @@
 from typing import Optional
 
-from django.db import models
 from django.core.validators import FileExtensionValidator
+from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 
@@ -22,8 +22,7 @@ class Manager(models.Model):
                                                  null=True, max_length=100, blank=True)
     position: Optional[str] = models.CharField(help_text='Должность', verbose_name='Должность',
                                                null=True, max_length=512)
-    phone: Optional[str] = models.CharField(help_text='Номер телефона', verbose_name='Телефон', null=True, blank=True,
-                                            max_length=20)
+    phone: str = models.CharField(help_text='Номер телефона', verbose_name='Телефон', max_length=20)
     work_schedule: Optional[str] = models.CharField(help_text='Расписание работы', verbose_name='Расписание',
                                                     null=True, blank=True, max_length=512)
     photo = models.ImageField(help_text="Фотография", max_length=2000, null=True, blank=True, upload_to='usr/mng/pht',
@@ -38,4 +37,4 @@ class Manager(models.Model):
         managed = False
         db_table = "users_managers"
         verbose_name = "Контакт менеджера"
-        verbose_name_plural = "Контакты менеджеров"
+        verbose_name_plural = "11.1. Контакты менеджеров"

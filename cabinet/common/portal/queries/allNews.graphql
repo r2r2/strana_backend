@@ -1,0 +1,14 @@
+query allNews{
+    allNews(
+        type: "action",
+        first: 16,
+        order: "order",
+        projectsCity: %s
+    ) {
+        edges {
+            node {
+                shortDescription
+            }
+        }
+    }
+}

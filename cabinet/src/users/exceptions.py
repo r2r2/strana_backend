@@ -220,3 +220,9 @@ class ConfirmClientAssignNotFoundError(BaseUserException):
     message: str = "Запрашиваемая проверка не найдена."
     status: int = HTTPStatus.NOT_FOUND
     reason: str = "confirm_client_assign_not_found"
+
+
+class UniqueStatusNotFoundError(BaseUserException):
+    message: str = "Статус не найден."
+    status: int = HTTPStatus.NOT_FOUND
+    reason: str = "unique_status_not_found"

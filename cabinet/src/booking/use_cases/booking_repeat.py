@@ -61,7 +61,7 @@ class BookingRepeat(BaseBookingCase, BookingLogMixin):
             user_id: int,
             booking_id: int,
     ) -> Booking:
-
+        print("***BookingRepeat***")
         filters: dict[str, Any] = dict(id=booking_id)
         if not await self.booking_repo.exists(filters=filters):
             raise BookingNotFoundError
@@ -69,7 +69,9 @@ class BookingRepeat(BaseBookingCase, BookingLogMixin):
         booking: Booking = await self.booking_repo.retrieve(
             filters=filters, related_fields=["user", "project", "property", "building"]
         )
-
+        print(f"{booking=}")
+        print(f'{booking.active=}')
+        print(f"{booking.property=}")
         if await booking.property.bookings.filter(active=True).count() > 0:
             raise BookingUnfinishedExistsError
 
@@ -84,8 +86,13 @@ class BookingRepeat(BaseBookingCase, BookingLogMixin):
 
         property_status, property_available = await self.check_profitbase_property_service(
             booking.property)
+        print(f"{property_status=}")
+        print(f"{property_available=}")
         property_status_bool = property_status == booking.property.statuses.FREE
+        print(f"{property_status_bool=}")
+        print(f"{property_status=}")
         if not property_available or not property_status_bool:
+            print("if not property_available or not property_status_bool:")
             property_data: dict[str, Any] = dict(status=property_status)
             await self.property_repo.update(booking.property, data=property_data)
             raise BookingPropertyUnavailableError(property_status_bool, property_available)
@@ -108,6 +115,5 @@ class BookingRepeat(BaseBookingCase, BookingLogMixin):
             related_fields=["project", "project__city", "property", "floor", "building", "ddu", "agent", "agency"],
             prefetch_fields=["ddu__participants"],
         )
-        print(f'{booking=}')
-        print(f'{[b for b in booking]=}')
+        print(f"BookingRepeat done: {booking=}")
         return booking

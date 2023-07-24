@@ -65,7 +65,7 @@ class UpdateTaskInstanceStatusService(BaseTaskService):
 
                 data: dict[str, Any] = dict(
                     status=task_status,
-                    comment=comment or task_instance.comment,
+                    comment=comment,
                     task_amocrmid=task_amocrmid,
                 )
                 self.logger.info(f"Обновление задачи {task_instance}: "

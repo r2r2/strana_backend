@@ -23,6 +23,7 @@ from src.properties.services import CheckProfitbasePropertyService
 
 from common import utils, amocrm, requests, profitbase, dependencies, email, messages, security
 from common.backend import repos as backend_repos
+from common.settings import repos as settings_repos
 from config import session_config, site_config, amocrm_config
 from src.notifications import services as notification_services
 from src.notifications import repos as notification_repos
@@ -159,6 +160,7 @@ async def bind_booking_property(
         get_sms_template_service=get_sms_template_service,
         send_sms_to_msk_client_service=send_sms_to_msk_client,
         check_pinning=check_pinning,
+        booking_settings_repo=settings_repos.BookingSettingsRepo,
     )
     bind_property: use_cases.BindBookingPropertyCase = use_cases.BindBookingPropertyCase(**resources)
     return await bind_property(payload=payload)
@@ -185,9 +187,21 @@ async def unbind_booking_property(
     deactivate_booking_service: DeactivateBookingService = DeactivateBookingService(
         **resources
     )
+
+    resources: dict[str, Any] = dict(
+        task_instance_repo=task_management_repos.TaskInstanceRepo,
+        task_status_repo=task_management_repos.TaskStatusRepo,
+        booking_repo=booking_repos.BookingRepo,
+    )
+    update_status_service = task_management_services.UpdateTaskInstanceStatusService(
+        **resources
+    )
+
     resources: dict[str, Any] = dict(
         booking_repo=booking_repos.BookingRepo,
         deactivate_booking_service=deactivate_booking_service,
+        update_status_service=update_status_service,
+        amocrm_status_repo=amocrm_repos.AmocrmStatusRepo,
     )
     unbind_property: use_cases.UnbindBookingPropertyCase = use_cases.UnbindBookingPropertyCase(**resources)
     await unbind_property(payload=payload)

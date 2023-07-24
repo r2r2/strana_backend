@@ -375,7 +375,17 @@ class BookingRepo(BaseBookingRepo, CRUDMixin, SCountMixin, FacetsMixin, SpecsMix
     """
     Репозиторий бронирования
     """
-
+    non_nullable_fields = (
+        "until",
+        "expires",
+        "payment_id",
+        "payment_amount",
+        "payment_url",
+        "payment_order_number",
+        "final_payment_amount",
+        "property_id",
+        "property",
+    )
     non_false_fields = (
         "price_payed",
     )
@@ -393,10 +403,15 @@ class BookingRepo(BaseBookingRepo, CRUDMixin, SCountMixin, FacetsMixin, SpecsMix
         """
         Создание или обновление модели
         """
-        data = {
-            k: v for k, v in data.items()
-            if (k in self.non_false_fields and v is not False) or k not in self.non_false_fields
-        }
+        for non_nullable_field in self.non_nullable_fields:
+            if non_nullable_field in data:
+                if data.get(non_nullable_field) is None:
+                    data.pop(non_nullable_field)
+
+        for non_false_field in self.non_false_fields:
+            if non_false_field in data:
+                if data.get(non_false_field) is False:
+                    data.pop(non_false_field)
 
         model, _ = await self.model.update_or_create(**filters, defaults=data)
         return model
@@ -408,6 +423,8 @@ class BookingRepo(BaseBookingRepo, CRUDMixin, SCountMixin, FacetsMixin, SpecsMix
         for field, value in data.items():
             if field in self.non_false_fields and value is False:
                 continue
+            elif field in self.non_nullable_fields and value is None:
+                continue
             setattr(model, field, value)
         await model.save()
         await model.refresh_from_db()
@@ -417,19 +434,24 @@ class BookingRepo(BaseBookingRepo, CRUDMixin, SCountMixin, FacetsMixin, SpecsMix
         self,
         data: dict[str, Any],
         filters: dict[str, Any],
-        exclude_filters: dict[str, Any] = None,
+        exclude_filters: list[dict] = None,
     ) -> None:
         """
         Обновление пачки бронирований
         """
 
-        data = {
-            k: v for k, v in data.items()
-            if (k in self.non_false_fields and v is not False) or k not in self.non_false_fields
-        }
+        for non_nullable_field in self.non_nullable_fields:
+            if non_nullable_field in data:
+                if data.get(non_nullable_field) is None:
+                    data.pop(non_nullable_field)
 
-        if not exclude_filters:
-            qs: QuerySet[Model] = self.model.select_for_update().filter(**filters)
-        else:
-            qs: QuerySet[Model] = self.model.select_for_update().filter(**filters).exclude(**exclude_filters)
+        for non_false_field in self.non_false_fields:
+            if non_false_field in data:
+                if data.get(non_false_field) is False:
+                    data.pop(non_false_field)
+
+        qs: QuerySet[Model] = self.model.select_for_update().filter(**filters)
+        if exclude_filters:
+            for exclude_filter in exclude_filters:
+                qs: QuerySet[Model] = qs.exclude(**exclude_filter)
         await qs.update(**data)

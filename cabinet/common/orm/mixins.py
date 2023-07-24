@@ -83,9 +83,11 @@ class UpdateOrCreateMixin(BaseMixin):
     """
     Update or create Mixin
     """
-    async def update_or_create(self,
-                               filters: dict[str, Any],
-                               data: dict[str, Any]) -> 'UpdateOrCreateMixin.model':
+    async def update_or_create(
+            self,
+            filters: dict[str, Any],
+            data: dict[str, Any]
+    ) -> 'UpdateOrCreateMixin.model':
         """
         Создание или обновление модели
         """
@@ -209,7 +211,10 @@ class SCountMixin(BaseMixin):
     SCount Mixin
     """
     def scount(
-        self, filters: Optional[dict[str, Any]] = None, q_filters: Optional[list[Q]] = None
+            self,
+            filters: Optional[dict[str, Any]] = None,
+            q_filters: Optional[list[Q]] = None,
+            distinct: Optional[bool] = True,
     ) -> CountQuery:
         """
         Количество агентов подзапросом
@@ -219,6 +224,8 @@ class SCountMixin(BaseMixin):
             models: QuerySet[Model] = models.filter(**filters)
         if q_filters:
             models: QuerySet[Model] = models.filter(*q_filters)
+        if distinct:
+            models.distinct()
         models: CountQuery = models.count()
         return models
 

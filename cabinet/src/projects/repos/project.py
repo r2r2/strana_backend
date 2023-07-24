@@ -6,14 +6,13 @@ from tortoise.fields import ForeignKeyNullableRelation
 from common import cfields, orm
 from common.orm.mixins import CountMixin, CRUDMixin, FacetsMixin
 from ..entities import BaseProjectRepo
-from ..constants import ProjectStatus
+from ..constants import ProjectStatus, ProjectSkyColor
 
 
 class Project(Model):
     """
     Проект
     """
-
     id: int = fields.IntField(description="ID", pk=True)
     slug: Optional[str] = fields.CharField(description="Слаг", max_length=100, null=True)
     global_id: Optional[str] = fields.CharField(
@@ -23,6 +22,28 @@ class Project(Model):
     city: ForeignKeyNullableRelation["City"] = fields.ForeignKeyField(
         "models.City", related_name="projects", null=True, on_delete=fields.SET_NULL,
     )
+    address: str = fields.CharField(description="Адрес", max_length=250)
+    metro: fields.ForeignKeyRelation["Metro"] = fields.ForeignKeyField(
+        "models.Metro", on_delete=fields.SET_NULL, null=True
+    )
+    transport: fields.ForeignKeyRelation["Transport"] = fields.ForeignKeyField(
+        "models.Transport", on_delete=fields.SET_NULL, null=True
+    )
+    transport_time = fields.IntField(description="Время в пути", blank=True, null=True)
+    project_color = fields.CharField(default="#FFFFFF", description="Цвет", null=True, max_length=8)
+    title = fields.CharField(description="Заголовок", max_length=200, null=True)
+    card_image = cfields.MediaField(description="Изображение на карточке", max_length=255, null=True)
+    card_image_night = cfields.MediaField(description="Изображение на карточке (ночь)", max_length=255, null=True)
+    card_sky_color: str = cfields.CharChoiceField(
+        description="Цвет неба на карточке проекта",
+        default=ProjectSkyColor.LIGHT_BLUE,
+        choice_class=ProjectSkyColor,
+        max_length=20,
+    )
+    min_flat_price = fields.IntField(description="Мин цена квартиры", null=True)
+    min_flat_area = fields.DecimalField(description="Мин площадь квартиры", max_digits=7, decimal_places=2, null=True)
+    max_flat_area = fields.DecimalField(description="Макс площадь квартиры", max_digits=7, decimal_places=2, null=True)
+
     amocrm_name: Optional[str] = fields.CharField(
         description="Имя AmoCRM", max_length=200, null=True
     )
@@ -41,6 +62,25 @@ class Project(Model):
     status: str = cfields.CharChoiceField(
         description="Статус", max_length=200, default=ProjectStatus.CURRENT, choice_class=ProjectStatus
     )
+    show_in_paid_booking: bool = fields.BooleanField(description="Отображать в платном бронировании", default=True)
+    flats_reserv_time: float = fields.FloatField(description="Время резервирования квартир (ч)", null=True)
+    discount: int = fields.SmallIntField(description="Скидка в %", default=0)
+
+    @property
+    def flat_area_range(self) -> dict[str, fields.DecimalField]:
+        return dict(min=self.min_flat_area, max=self.max_flat_area)
+
+    @property
+    def card_image_display(self):
+        # доработка изменение размера изображения
+        if self.card_image:
+            return self.card_image
+
+    @property
+    def card_image_night_display(self):
+        # доработка изменение размера изображения
+        if self.card_image_night:
+            return self.card_image_night
 
     def __str__(self) -> str:
         if self.name:

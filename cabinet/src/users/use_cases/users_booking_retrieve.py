@@ -49,6 +49,7 @@ class UserBookingRetrieveCase(BaseBookingCase):
         prefetch_fields: list = [
             "agent",
             "agency",
+            "agency__city",
             "user",
             "project",
             "project__city",
@@ -103,9 +104,14 @@ class UserBookingRetrieveCase(BaseBookingCase):
             booking.amocrm_status.current_step = booking_group_status_current_step
             booking.amocrm_status.actions = booking_group_status_actions
 
-        status = await self.check_repo.list(filters=dict(user_id=booking.user.id), ordering="-requested").first()
+        status = await self.check_repo.list(
+            filters=dict(user_id=booking.user.id),
+            ordering="-requested",
+            related_fields=["unique_status"],
+        ).first()
         pinning_status: UserPinningStatus = await self.user_pinning_repo.retrieve(
             filters=dict(user_id=booking.user.id),
+            related_fields=["unique_status"],
         )
         booking.user.status = status
         booking.user.pinning_status = pinning_status

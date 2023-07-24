@@ -2,3 +2,4 @@ from .get_document import GetDocumentCase
 from .get_slug_document import GetSlugDocumentCase
 from .get_slug_document_by_city import GetSlugDocumentByCityCase
 from .get_escrow_document import GetSlugEscrowCase
+from .get_instruction_by_slug import GetSlugInstructionCase

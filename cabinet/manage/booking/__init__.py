@@ -1,1 +1,1 @@
-from .send_booking_email import SendBookingEmail
+from .send_booking_email import SendBookingEmail, SendTestEmail

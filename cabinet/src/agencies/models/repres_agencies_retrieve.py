@@ -1,7 +1,8 @@
 from datetime import date
 from typing import Optional
 
-from pydantic import NoneStr
+from pydantic import NoneStr, validator
+
 from src.agencies.constants import AgencyType
 from src.agencies.entities import BaseAgencyModel
 
@@ -30,6 +31,12 @@ class ResponseRepresAgenciesRetrieveModel(BaseAgencyModel):
 
     signatory_registry_number: NoneStr
     signatory_sign_date: Optional[date]
+
+    @validator("city", pre=True)
+    def get_city_name(cls, value):
+        if value:
+            return value.name
+        return None
 
     class Config:
         orm_mode = True

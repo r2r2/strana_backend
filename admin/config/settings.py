@@ -13,7 +13,7 @@ SECRET_KEY = os.getenv("LK_SECRET_KEY", "rw+t6fn87n-r+9%$s^rfsdjfaa2yux(rz#!8th3
 
 TESTING = len(sys.argv) > 1 and sys.argv[1] == "test"
 
-DEBUG = os.getenv("DEBUG", "True") == "True" and not TESTING
+DEBUG = "True"
 
 ALLOWED_HOSTS = ["*"]
 
@@ -37,29 +37,24 @@ INSTALLED_APPS = [
     "phonenumber_field",
     "colorful",
     "nested_admin",
-    "cities.apps.CitiesAppConfig",
-    "amocrm.apps.AmocrmAppConfig",
+    "references.apps.ReferencesAppConfig",
     "users.apps.UsersAppConfig",
-    "buildings.apps.BuildingsAppConfig",
     "booking.apps.BookingAppConfig",
-    "documents.apps.DocumentsAppConfig",
-    "floors.apps.FloorsAppConfig",
-    "projects.apps.ProjectsAppConfig",
     "properties.apps.PropertiesAppConfig",
-    "tips.apps.TipsAppConfig",
-    "pages.apps.PagesAppConfig",
-    "agencies.apps.AgenciesAppConfig",
+    "artefacts.apps.ArtefactsAppConfig",
+    "documents.apps.DocumentsAppConfig",
     "log_viewer",
     "managers.apps.ManagersAppConfig",
     "disputes.apps.DisputesAppConfig",
-    "cautions.apps.CautionsAppConfig",
-    "agreements.apps.AgreementAppConfig",
+    "contents.apps.ContentsAppConfig",
     "questionnaire.apps.QuestionnaireAppConfig",
     "task_management.apps.TaskManagementAppConfig",
     "admincharts",
-    "notification_templates.apps.NotificationTemplatesAppConfig",
+    "notifications.apps.NotificationsAppConfig",
     "meetings.apps.MeetingsAppConfig",
-    "main_page.apps.MainPageAppConfig",
+    "events.apps.EventAppConfig",
+    "dashboard.apps.DashboardAppConfig",
+    "settings.apps.SettingsAppConfig",
 ]
 
 MIDDLEWARE = [
@@ -160,6 +155,7 @@ AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME")
 AWS_S3_ENDPOINT_URL = os.getenv("AWS_S3_ENDPOINT_URL")
+AWS_S3_CUSTOM_DOMAIN = os.getenv("AWS_S3_CUSTOM_DOMAIN")
 AWS_QUERYSTRING_AUTH = False
 AWS_DEFAULT_ACL = None
 

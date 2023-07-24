@@ -10,7 +10,7 @@ from ..types import AgencyUserRepo
 
 class AgenciesRetrieveCase(BaseAgencyCase):
     """
-    Получение данных агенства представителем
+    Получение данных агентства представителем
     """
 
     def __init__(
@@ -25,8 +25,9 @@ class AgenciesRetrieveCase(BaseAgencyCase):
         if repres_id:
             agency: Agency = await self.agency_repo.retrieve(filters=dict(maintainer=repres_id))
         else:
-            agent: User = await self.user_repo.retrieve(filters=dict(id=agent_id), related_fields=["agency"])
+            agent: User = await self.user_repo.retrieve(filters=dict(id=agent_id), prefetch_fields=["agency"])
             agency: Agency = await agent.agency
         if not agency:
             raise AgencyNotFoundError
+        agency.city = await agency.city
         return agency

@@ -9,6 +9,8 @@ class TaskChainAdmin(admin.ModelAdmin):
     list_display = (
         "name",
         "sensei_pid",
+        "created_at",
+        "updated_at",
     )
     readonly_fields = ("updated_at", "created_at",)
     ordering = ("name",)

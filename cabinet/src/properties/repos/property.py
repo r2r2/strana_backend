@@ -20,7 +20,6 @@ class Property(Model):
     """
     Объект недвижимости
     """
-
     types = PropertyTypes()
     premises = PremiseType()
     statuses = PropertyStatuses()
@@ -68,6 +67,9 @@ class Property(Model):
     )
     floor: ForeignKeyNullableRelation[Floor] = fields.ForeignKeyField(
         description="Этаж", model_name="models.Floor", related_name="properties", null=True
+    )
+    section: fields.ForeignKeyNullableRelation["BuildingSection"] = fields.ForeignKeyField(
+        "models.BuildingSection", null=True, on_delete=fields.CASCADE, related_name="property_section"
     )
     special_offers: Optional[str] = fields.TextField(description="Акции", null=True)
     similar_property_global_id: Optional[str] = fields.CharField(

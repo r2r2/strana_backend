@@ -53,4 +53,4 @@ class Button(BaseTaskManagementModel):
         managed = False
         db_table = 'task_management_button'
         verbose_name = 'Кнопка'
-        verbose_name_plural = 'Кнопки'
+        verbose_name_plural = '9.3. [Справочник] Кнопки (в задачах)'

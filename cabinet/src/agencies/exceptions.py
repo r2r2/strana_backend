@@ -103,3 +103,7 @@ class AgencyMainteinerNotExists(BaseAgencyException):
     message: str = "У агентства нет представителя"
     status: int = HTTPStatus.BAD_REQUEST
     reason: str = "agency_maintainer_not_exists"
+
+
+class InvalidAdminDataError(BaseAgencyException):
+    status: int = HTTPStatus.BAD_REQUEST

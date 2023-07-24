@@ -2,13 +2,14 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Optional
 
-from pydantic import root_validator as method_field
+from pydantic import root_validator, validator
+
 from src.agencies.constants import AgencyType
 from src.booking import constants as booking_constants
 from src.properties.constants import PropertyTypes
 
-from ..constants import UserStatus, UserPinningStatusType
 from ..entities import BaseCheckModel, BaseUserModel
+from src.users.repos.unique_status import IconType
 
 
 class RequestAgentsUsersRetrieveModel(BaseUserModel):
@@ -97,6 +98,12 @@ class _IndentProjectListModel(BaseUserModel):
     slug: Optional[str]
     name: Optional[str]
     city: Optional[str]
+
+    @validator("city", pre=True)
+    def get_city_name(cls, value):
+        if value:
+            return value.name
+        return None
 
     class Config:
         orm_mode = True
@@ -203,39 +210,56 @@ class _AgentRetrieveModel(BaseUserModel):
 
 class _StatusModel(BaseCheckModel):
     """Проверка полльзователя на уникальность"""
+    value: Optional[str]
+    title: Optional[str]
+    unique_status: Optional[Any]
+    subtitle: Optional[str]
+    color: Optional[str]
+    background_color: Optional[str]
+    border_color: Optional[str]
+    icon: Optional[IconType.serializer]
+    status_fixed: Optional[bool]
     requested: Optional[datetime]
     dispute_requested: Optional[datetime]
-    status_fixed: Optional[bool]
-    status: Optional[UserStatus.serializer]
-    value: Optional[str]
-    label: Optional[str]
 
-    @method_field
-    def get_status(cls, values: dict[str, Any]) -> dict[str, Any]:
-        """status"""
-        status = values.pop("status")
-        values["value"] = status.value
-        values["label"] = status.label
+    @root_validator
+    def get_unique_status(cls, values: dict[str, Any]) -> dict[str, Any]:
+        """unique status"""
+        if unique_status := values.pop("unique_status"):
+            values["value"] = unique_status.slug
+            values["title"] = unique_status.title
+            values["subtitle"] = unique_status.subtitle
+            values["icon"] = unique_status.icon
+            values["color"] = unique_status.color
+            values["background_color"] = unique_status.background_color
+            values["border_color"] = unique_status.border_color
         return values
 
     class Config:
         orm_mode = True
 
 
-class _PinningStatusModel(BaseUserModel):
-    status: Optional[UserPinningStatusType.serializer]
-    label: Optional[str]
+class _PinningStatusModel(BaseCheckModel):
+    title: Optional[str]
     value: Optional[str]
+    unique_status: Optional[Any]
+    subtitle: Optional[str]
+    icon: Optional[IconType.serializer]
+    color: Optional[str]
+    background_color: Optional[str]
+    border_color: Optional[str]
 
-    @method_field
-    def get_pinning_status(cls, values: dict[str, Any]) -> dict[str, Any]:
-        """set pinning status"""
-        if pinning_status := values.pop("status"):
-            values["label"] = pinning_status.label
-            values["value"] = pinning_status.value
-        else:
-            values["label"] = UserPinningStatusType.to_label(UserPinningStatusType.UNKNOWN)
-            values["value"] = UserPinningStatusType.to_value(UserPinningStatusType.UNKNOWN)
+    @root_validator
+    def get_unique_status(cls, values: dict[str, Any]) -> dict[str, Any]:
+        """unique status"""
+        if unique_status := values.pop("unique_status"):
+            values["value"] = unique_status.slug
+            values["title"] = unique_status.title
+            values["subtitle"] = unique_status.subtitle
+            values["icon"] = unique_status.icon
+            values["color"] = unique_status.color
+            values["background_color"] = unique_status.background_color
+            values["border_color"] = unique_status.border_color
         return values
 
     class Config:

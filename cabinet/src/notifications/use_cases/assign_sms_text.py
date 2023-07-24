@@ -1,14 +1,14 @@
-from typing import Union
-
-from src.cities.repos import City
 from src.notifications.entities import BaseNotificationCase
-from src.notifications.exceptions import AssignClientTemplateNotFoundError
 from src.notifications.repos import AssignClientTemplateRepo, AssignClientTemplate
 from src.projects.exceptions import ProjectNotFoundError
 from src.projects.repos import ProjectRepo, Project
 
 
 class AssignSMSTextCase(BaseNotificationCase):
+    sms_event_slug = "assign_client"
+    sms_event_slug_msk = "assign_client_msk"
+    sms_event_slug_spb = "assign_client_spb"
+
     def __init__(
         self,
         project_repo: type[ProjectRepo],
@@ -25,16 +25,30 @@ class AssignSMSTextCase(BaseNotificationCase):
         if not project:
             raise ProjectNotFoundError
 
-        filters: dict[str, Union[bool, City]] = dict(city=project.city)
+        slug = self.sms_event_slug
+        if project.city.slug == 'moskva':
+            slug = self.sms_event_slug_msk
+        elif project.city.slug == 'spb':
+            slug = self.sms_event_slug_spb
 
-        text_template = await self.assign_client_template_repo.retrieve(filters=filters)
+        text_template: AssignClientTemplate = await self.assign_client_template_repo.retrieve(
+            filters=dict(
+                city=project.city,
+                sms__sms_event_slug=slug,
+                sms__is_active=True,
+                is_active=True,
+            ),
+            related_fields=["sms"],
+        )
 
-        if not text_template:
+        if text_template:
+            text_template.text = text_template.sms.template_text
+        else:
             text_template: AssignClientTemplate = await self.assign_client_template_repo.retrieve(
-                filters=dict(default=True),
+                filters=dict(default=True, is_active=True, sms__is_active=True),
+                related_fields=["sms"],
             )
-            if not text_template:
-                raise AssignClientTemplateNotFoundError
-            text_template.text_found = False
+            if text_template:
+                text_template.text = text_template.sms.template_text
 
         return text_template

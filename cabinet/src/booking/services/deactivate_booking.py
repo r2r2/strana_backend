@@ -11,6 +11,7 @@ from ..repos import BookingRepo
 from ..types import BookingPropertyRepo
 from config import backend_config
 from common.requests import GraphQLRequest
+from src.properties.constants import PropertyStatuses
 
 
 class DeactivateBookingService(BaseBookingService):
@@ -48,7 +49,7 @@ class DeactivateBookingService(BaseBookingService):
         filters: dict[str] = dict(id=booking.property_id)
         booking_property: BookingProperty = await self.property_repo.retrieve(filters=filters)
         if booking_property:
-            data: dict[str] = dict(status=booking_property.statuses.FREE)
+            data: dict[str] = dict(status=PropertyStatuses.FREE)
             await self.property_repo.update(booking_property, data=data)
             setattr(booking, "property", booking_property)
             await asyncio.gather(
@@ -69,7 +70,7 @@ class DeactivateBookingService(BaseBookingService):
             password=self.password,
             query_name=self.query_name,
             query_directory=self.query_directory,
-            filters=(booking.property.global_id, booking.property.statuses.FREE),
+            filters=(booking.property.global_id, PropertyStatuses.FREE),
         )
         async with self.request_class(**unbook_options) as response:
             response_ok: bool = response.ok

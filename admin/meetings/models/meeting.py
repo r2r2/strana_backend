@@ -41,7 +41,7 @@ class Meeting(models.Model):
         APARTMENT: str = "apartment", _("Апартаменты")
 
     city: models.ForeignKey = models.ForeignKey(
-        to='cities.Cities',
+        to='references.Cities',
         related_name='meeting_city',
         on_delete=models.CASCADE,
         verbose_name='Город',
@@ -49,7 +49,7 @@ class Meeting(models.Model):
         null=True,
     )
     project: models.ForeignKey = models.ForeignKey(
-        to='projects.Project',
+        to='properties.Project',
         related_name='meeting_project',
         on_delete=models.CASCADE,
         verbose_name='Проект',
@@ -100,4 +100,4 @@ class Meeting(models.Model):
         managed = False
         db_table = 'meetings_meeting'
         verbose_name = "Встреча"
-        verbose_name_plural = "Встречи"
+        verbose_name_plural = "13.1. Встречи"

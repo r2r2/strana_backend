@@ -270,10 +270,12 @@ class AmoCRMContacts(AmoCRMInterface, ABC):
             StringField(id=812950),
         )
 
-    async def fetch_contact(self,
-                            *,
-                            user_id: int,
-                            query_with: list[AmoContactQueryWith] = None) -> Optional[AmoContact]:
+    async def fetch_contact(
+            self,
+            *,
+            user_id: int,
+            query_with: list[AmoContactQueryWith] = None
+    ) -> Optional[AmoContact]:
         """
         Contact lookup by phone
         """

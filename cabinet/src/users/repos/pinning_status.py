@@ -88,6 +88,17 @@ class PinningStatus(Model):
         max_length=36,
         choice_class=PinningStatusType,
     )
+    assigned_to_agent: bool = fields.BooleanField(default=False, description="Закреплен за проверяющим агентом")
+    assigned_to_another_agent: bool = fields.BooleanField(
+        default=False,
+        description="Закреплен за другим агентом проверяющего агентства",
+    )
+    unique_status: fields.ForeignKeyNullableRelation["UniqueStatus"] = fields.ForeignKeyField(
+        description="Уникальный статус",
+        model_name="models.UniqueStatus",
+        related_name="pinning_status",
+        null=True,
+    )
 
     class Meta:
         table = "users_pinning_status"

@@ -7,3 +7,4 @@ from ..models import QuestionnaireDocumentBlock
 class QuestionnaireDocumentBlockAdmin(admin.ModelAdmin):
     list_display = ("title", "matrix", "sort", "required")
     readonly_fields = ("updated_at", "created_at",)
+    search_fields = ("title", "matrix__title")

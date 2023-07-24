@@ -105,7 +105,7 @@ app.conf.beat_schedule = {
     },
     "import_cities_periodic": {
         "schedule": crontab(hour='*/1', minute='0'),
-        "task": "src.cities.tasks.import_cities_periodic",
+        "task": "src.cities.tasks.periodic_cities_update_task",
         "options": {
             "priority": priority.middle,
         }
@@ -145,6 +145,13 @@ app.conf.beat_schedule = {
     "periodic_notification_logs_clean": {
         "schedule": crontab(minute=0, hour=0, day_of_month='*/1'),
         "task": "src.notifications.tasks.periodic_notification_logs_clean",
+        "options": {
+            "priority": priority.low,
+        }
+    },
+    "periodic_update_missed_amocrm_id_task": {
+        "schedule": crontab(minute=0, hour='21'),
+        "task": "agency.tasks.update_missed_amocrm_id_task",
         "options": {
             "priority": priority.low,
         }

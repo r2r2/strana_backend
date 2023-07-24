@@ -6,6 +6,7 @@ from typing import Any, Callable, Optional, Type, Union
 from celery.app.task import Task
 from pytz import UTC
 from src.agents.tasks import import_clients_task
+from src.users import constants as users_constants
 from src.users.loggers.wrappers import user_changes_logger
 
 from ..constants import UserType
@@ -16,7 +17,6 @@ from ..models import RequestProcessLoginModel
 from ..repos import User, UserRepo
 from ..types import UserHasher, UserSession
 from .agents_user_login_cases import AbstractHandler
-from src.users import constants as users_constants
 
 
 class ProcessLoginCase(BaseProcessLoginCase):
@@ -44,6 +44,9 @@ class ProcessLoginCase(BaseProcessLoginCase):
         self.user_repo: UserRepo = user_repo()
         self.user_update = user_changes_logger(
             self.user_repo.update, self, content="Установка reset_time"
+        )
+        self.user_first_auth_update = user_changes_logger(
+            self.user_repo.update, self, content="Обновление времени авторизации"
         )
 
         self._login_handler = login_handler
@@ -73,6 +76,10 @@ class ProcessLoginCase(BaseProcessLoginCase):
         user: User = await admin_query or await repres_query or await agent_query
         if not user:
             raise self.NotFoundError
+
+        if not user.auth_first_at:
+            await self.user_first_auth_update(user=user, data=dict(auth_first_at=datetime.now(tz=UTC)))
+
         if self._login_handler:
             self._login_handler.handle(user=user)
 
@@ -114,10 +121,11 @@ class ProcessLoginCase(BaseProcessLoginCase):
         return True
 
     async def _import_amocrm_hook(self, user: User):
-        if self.user_type == UserType.AGENT:
+        if user.type == UserType.AGENT:
             self.import_clients_task.delay(user.id)
-        elif self.user_type == UserType.REPRES:
+        elif user.type == UserType.REPRES:
             agents = await self.user_repo.list(filters=dict(agency_id=user.agency_id, type=UserType.AGENT))
+            self.import_clients_task.delay(user.id)
             for agent in agents:
                 agent: User
                 self.import_clients_task.delay(agent.id)

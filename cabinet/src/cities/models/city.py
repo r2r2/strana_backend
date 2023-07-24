@@ -8,3 +8,12 @@ class CityModel(BaseCityModel):
     id: int
     name: str
     slug: str
+
+
+class CityPortalModel(BaseCityModel):
+    """
+    Модель города
+    """
+    id: str
+    name: str
+    slug: str

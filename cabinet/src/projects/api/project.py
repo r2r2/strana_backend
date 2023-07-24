@@ -6,12 +6,14 @@ from fastapi import APIRouter, Depends, Query
 from common import paginations, dependencies
 from src.projects import models, use_cases
 from src.projects import repos as projects_repos
+from src.properties import repos as properties_repos
 from src.getdoc import repos as getdoc_repos
 from ..models import Status
 
 
-router = APIRouter(prefix="/projects", tags=["Project"])
-router_v2 = APIRouter(prefix="/v2/projects", tags=["Project", "v2"])
+router = APIRouter(prefix="/projects", tags=["Projects"])
+router_v2 = APIRouter(prefix="/v2/projects", tags=["Projects_v2"])
+router_v3 = APIRouter(prefix="/v3/projects", tags=["Projects_v3"])
 
 
 @router.get("", status_code=HTTPStatus.OK, response_model=models.ResponseProjectsListModel)
@@ -40,3 +42,29 @@ async def projects_list_view_v2(
     )
     projects_list: use_cases.AdditionalProjectsListCase = use_cases.AdditionalProjectsListCase(**resources)
     return await projects_list(status=status)
+
+
+@router_v3.get("", status_code=HTTPStatus.OK, response_model=list[models.ProjectDetailResponse])
+async def projects_list_view_v3():
+    """
+    Список проектов
+    """
+    resources: dict[str, Any] = dict(
+        project_repo=projects_repos.ProjectRepo,
+        property_repo=properties_repos.PropertyRepo,
+    )
+    projects_list: use_cases.ProjectsListV3Case = use_cases.ProjectsListV3Case(**resources)
+    return await projects_list()
+
+
+@router_v3.get("/{project_id}", status_code=HTTPStatus.OK, response_model=models.ProjectDetailResponse)
+async def projects_detail_view_v3(project_id: int):
+    """
+    Получение проекта
+    """
+    resources: dict[str, Any] = dict(
+        project_repo=projects_repos.ProjectRepo,
+        property_repo=properties_repos.PropertyRepo,
+    )
+    get_project: use_cases.ProjectDetailCase = use_cases.ProjectDetailCase(**resources)
+    return await get_project(project_id=project_id)

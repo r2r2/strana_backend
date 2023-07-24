@@ -2,7 +2,7 @@
 
 from typing import Any, Optional, Union
 
-from pydantic import NoneStr
+from pydantic import NoneStr, validator
 from pydantic import root_validator as method_field
 
 from src.agencies.constants import AgencyType
@@ -66,6 +66,12 @@ class _AgencyListModel(BaseAgencyModel):
             values["phone"] = None
             values["email"] = None
         return values
+
+    @validator("city", pre=True)
+    def get_city_name(cls, value):
+        if value:
+            return value.name
+        return None
 
     class Config:
         orm_mode = True

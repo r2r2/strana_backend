@@ -33,3 +33,4 @@ from .admins_get_additional import (ResponseAdminsAdditionalAgreement,
                                    ResponseAdminsAdditionalAgreementList)
 from .admin_create_additional import RequestAgencyAdditionalAgreementListModel
 from .fire_agent_bookings_list import ResponseFireAgentBookingsListModel
+from .superuser_additional_notify_agency_email import RequestAdditionalNotifyAgencyEmailModel

@@ -11,7 +11,7 @@ class TaskChain(BaseTaskManagementModel):
     name: str = models.CharField(max_length=100, verbose_name='Название')
     sensei_pid: int = models.IntegerField(verbose_name='ID процесса в Sensei', null=True, blank=True)
     booking_substage: models.ManyToManyField = models.ManyToManyField(
-        to='amocrm.AmocrmStatus',
+        to='booking.AmocrmStatus',
         verbose_name='Статус сделки',
         related_name='taskchain_booking_substages',
         help_text='Первое задание в цепочке будет создано при достижении сделкой данного статуса',
@@ -19,7 +19,7 @@ class TaskChain(BaseTaskManagementModel):
         through_fields=('task_chain_substage', 'status_substage'),
     )
     task_visibility: models.ManyToManyField = models.ManyToManyField(
-        to='amocrm.AmocrmStatus',
+        to='booking.AmocrmStatus',
         verbose_name='Видимость заданий',
         related_name='taskchain_task_visibilities',
         help_text='Задание будет видно только в данных статусах, в последующих статусах оно будет не видно',
@@ -34,7 +34,7 @@ class TaskChain(BaseTaskManagementModel):
         managed = False
         db_table = 'task_management_taskchain'
         verbose_name = 'Цепочка заданий'
-        verbose_name_plural = 'Цепочки заданий'
+        verbose_name_plural = '9.1. Цепочки заданий'
 
 
 class TaskChainStatusThrough(models.Model):
@@ -49,7 +49,7 @@ class TaskChainStatusThrough(models.Model):
         primary_key=True,
     )
     status_substage: models.ForeignKey = models.ForeignKey(
-        to='amocrm.AmocrmStatus',
+        to='booking.AmocrmStatus',
         on_delete=models.CASCADE,
         related_name='status_substage',
         verbose_name='Статус сделки',
@@ -77,7 +77,7 @@ class TaskChainTaskVisibilityStatusThrough(models.Model):
         primary_key=True,
     )
     status_visibility: models.ForeignKey = models.ForeignKey(
-        to='amocrm.AmocrmStatus',
+        to='booking.AmocrmStatus',
         on_delete=models.CASCADE,
         related_name='status_visibility',
         verbose_name='Статус сделки',

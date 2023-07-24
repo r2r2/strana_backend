@@ -12,6 +12,11 @@ class BaseUserModel(BaseModel):
     Базовая модель пользователя
     """
 
+class BaseUserCamelCaseModel(CamelCaseBaseModel):
+    """
+    Базовая модель пользователя CamelCase
+    """
+
 
 class BaseUserFilter(BaseFilter):
     """

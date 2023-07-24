@@ -46,7 +46,7 @@ class UsersBookingsCase(BaseUserCase, CurrentUserDataMixin):
 
         prefetch_fields: list[Union[str, dict[str, Any]]] = [
             "agent",
-            "agency",
+            "agency__city",
             "user",
             "project",
             "project__city",

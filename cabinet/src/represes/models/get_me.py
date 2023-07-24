@@ -1,6 +1,6 @@
 from typing import Optional
 
-from pydantic import Field
+from pydantic import Field, validator
 
 from src.users import constants as users_constants
 from src.agencies import constants as agencies_constants
@@ -28,6 +28,12 @@ class _AgencyRetrieveModel(BaseRepresModel):
     name: Optional[str]
     type: Optional[agencies_constants.AgencyType.serializer]
 
+    @validator("city", pre=True)
+    def get_city_name(cls, value):
+        if value:
+            return value.name
+        return None
+
     class Config:
         orm_mode = True
 
@@ -37,9 +43,11 @@ class ResponseUserInfoBaseModel(BaseRepresModel):
     surname: Optional[str]
     patronymic: Optional[str]
     agency: Optional[_AgencyRetrieveModel]
+    is_fired: Optional[bool] = Field(default=None, alias="isFired")
 
     class Config:
         orm_mode = True
+        allow_population_by_field_name = True
 
 
 class ResponseGetMeModel(BaseRepresModel):

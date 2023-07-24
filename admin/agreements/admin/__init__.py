@@ -1,6 +1,0 @@
-from .agreement_status import AgreementStatusAdmin
-from .agreement_type import AgreementTypeAdmin
-from .doc_template import DocTemplateAdmin
-from .act_template import ActTemplateAdmin
-from .additional_agreement_status import AdditionalAgreementStatusAdmin
-from .additional_agreement_template import AdditionalAgreementTemplateAdmin

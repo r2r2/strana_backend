@@ -1,10 +1,9 @@
-from .history_check import CheckHistory
 from .notifaction_mute import RealIpUsers, UserNotificationMute
 from .roles import UserRole
-from .user import CabinetUser
+from .user import CabinetUser, CabinetAgent, CabinetClient
 from .user_log import UserLog
-from .users_checks_terms import (CabinetChecksTerms, CitiesThrough,
-                                 PipelinesThrough, StatusesThrough)
 from .fake_user_phones import FakeUserPhone
-from .pinning_status import PinningStatus, PinningStatusCity, PinningStatusPipeline, PinningStatusStatus
-from .confirm_client_assign import ConfirmClientAssign
+from .through_cities_users import CityUserThrough
+from .agency import Agency
+from .agency_log import AgencyLog
+from .historical_dispute_data import HistoricalDisputeData

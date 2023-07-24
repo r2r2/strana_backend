@@ -35,3 +35,32 @@ class SendBookingEmail(object):
         email_service: EmailService = EmailService(**resources)
         await email_service()
         await self.orm_class.close_connections()
+
+
+class SendTestEmail(object):
+    """
+    Отправка письма о бронировании
+    """
+
+    def __init__(self) -> None:
+        self.booking_repo: booking_repos.BookingRepo = booking_repos.BookingRepo()
+        self.orm_class: Type[Tortoise] = Tortoise
+        self.orm_config: dict[str, Any] = copy(tortoise_config)
+        self.orm_config.pop("generate_schemas", None)
+
+    def __await__(self) -> Coroutine:
+        return self().__await__()
+
+    async def __call__(self, *args, **kwargs) -> None:
+        await self.orm_class.init(config=self.orm_config)
+        resources: dict[str, Any] = dict(
+            topic="ТЕСТ: Успешная оплата бронирования",
+            recipients=["mayorov@artw.ru", "sidorin@artw.ru"],
+            context="test",
+        )
+        try:
+            email_service: EmailService = EmailService(**resources)
+            await email_service()
+            await self.orm_class.close_connections()
+        except Exception as e:
+            print(e)

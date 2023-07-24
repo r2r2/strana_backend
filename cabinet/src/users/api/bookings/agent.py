@@ -1,8 +1,9 @@
 from http import HTTPStatus
-from typing import Any, Callable, Coroutine
+from typing import Any
+
+from fastapi import Depends, Path, Query
 
 from common import dependencies, paginations
-from fastapi import Depends, Path, Query
 from src.amocrm.repos import AmocrmGroupStatusRepo
 from src.booking import repos as booking_repos
 from src.users import constants as users_constants
@@ -10,7 +11,6 @@ from src.users import filters, models
 from src.users import repos as users_repos
 from src.users import use_cases
 from src.agents import repos as agents_repos
-
 from ..user import router
 
 __all__ = ('agents_bookings_specs_view', 'agents_bookings_facets_view', 'agents_bookings_lookup_view',

@@ -1,7 +1,8 @@
 from http import HTTPStatus
-from typing import Any, Callable, Coroutine
+from typing import Any
 
 from common import dependencies, paginations, amocrm
+from common.email import email
 from config import amocrm_config
 from fastapi import Body, Depends, Path, Query
 from src.agencies import repos as agencies_repos
@@ -13,6 +14,8 @@ from src.users import filters, models
 from src.users import repos as users_repos
 from src.users import use_cases
 from src.users import services as user_services
+from src.notifications import services as notification_services
+from src.notifications import repos as notification_repos
 
 from ..user import router
 
@@ -154,6 +157,12 @@ async def admins_users_update(
         agent_repo=agents_repos.AgentRepo,
     )
     change_agent_service: user_services.ChangeAgentService = user_services.ChangeAgentService(**resources)
+
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notification_repos.EmailTemplateRepo,
+        )
+
     resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
         check_repo=users_repos.CheckRepo,
@@ -161,6 +170,8 @@ async def admins_users_update(
         agency_repo=agencies_repos.AgencyRepo,
         booking_repo=booking_repos.BookingRepo,
         change_agent_service=change_agent_service,
+        get_email_template_service=get_email_template_service,
+        email_class=email.EmailService,
     )
     admins_users_update_case: use_cases.AdminsUsersUpdateCase = use_cases.AdminsUsersUpdateCase(
         **resources

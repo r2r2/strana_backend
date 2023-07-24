@@ -78,8 +78,7 @@ class ProcessRegisterCase(BaseAgentCase):
 
         agency_id: int = data.pop("agency")
         filters: dict[str, Any] = dict(id=agency_id, is_approved=True)
-        agency: Agency = await self.agency_repo.retrieve(
-            filters=filters, prefetch_fields=['maintainer'])
+        agency: Agency = await self.agency_repo.retrieve(filters=filters, prefetch_fields=['maintainer'])
         if not agency:
             raise AgentNoAgencyError
         data["agency_id"]: int = agency_id

@@ -1,13 +1,21 @@
 from typing import Any
 
+from pydantic import BaseModel
+
 from common.entities import BaseFilter
 from common.orm.entities import BaseRepo
-from pydantic import BaseModel
+from common.pydantic import CamelCaseBaseModel
 
 
 class BaseProjectModel(BaseModel):
     """
     Базовая модель проекта
+    """
+
+
+class BaseProjectCamelCaseBaseModel(CamelCaseBaseModel):
+    """
+    Базовая модель проекта в CamelCase
     """
 
 

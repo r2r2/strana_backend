@@ -10,5 +10,18 @@ class ConditionAdmin(admin.ModelAdmin):
         "question_groups",
         "questions",
         "answers",
+        "created_at",
+        "updated_at",
+    )
+    autocomplete_fields = (
+        "questions",
+        "answers",
     )
     readonly_fields = ("updated_at", "created_at",)
+    search_fields = (
+        "questions__title",
+        "questions__question_group__title",
+        "answers__title",
+        "answers__question__title",
+        "answers__question__question_group__title",
+    )

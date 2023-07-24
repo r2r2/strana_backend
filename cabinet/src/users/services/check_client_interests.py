@@ -188,11 +188,11 @@ class CheckClientInterestService(BaseUserService):
 
         # (обход проблемы/бага tortoise)
         if updated_property.plan_png and isinstance(updated_property.plan_png, str):
-            plan = f'https://storage.yandexcloud.net/{aws_config["storage_bucket_name"]}/{updated_property.plan_png}'
+            plan = f'{aws_config["custom_domain"]}/{aws_config["storage_bucket_name"]}/{updated_property.plan_png}'
         elif updated_property.plan_png:
             plan = updated_property.plan_png.get("aws")
         elif isinstance(updated_property.plan, str):
-            plan = f'https://storage.yandexcloud.net/{aws_config["storage_bucket_name"]}/{updated_property.plan}'
+            plan = f'{aws_config["custom_domain"]}/{aws_config["storage_bucket_name"]}/{updated_property.plan}'
         else:
             plan = updated_property.plan.get("aws")
 

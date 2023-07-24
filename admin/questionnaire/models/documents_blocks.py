@@ -8,7 +8,12 @@ class QuestionnaireDocumentBlock(BaseQuestionnaireModel):
     Блок документов опросника
     """
     title: str = models.CharField(
-        max_length=150, verbose_name="Название", help_text="Название", null=True, blank=True
+        max_length=150,
+        verbose_name="Название",
+        null=True,
+        blank=True,
+        help_text="Блок документов определяет набор блоков, в которых будут выведены поля для загрузки от документов "
+                  "в зависимости от ответов на вопросы",
     )
     label: str = models.TextField(verbose_name='Подсказка', help_text='Подсказка', null=True, blank=True)
     description: str = models.TextField(
@@ -34,4 +39,4 @@ class QuestionnaireDocumentBlock(BaseQuestionnaireModel):
         managed = False
         db_table = "questionnaire_documents_blocks"
         verbose_name = "Блок документов"
-        verbose_name_plural = "Блоки документов"
+        verbose_name_plural = " 10.6. [Опросник для пакета документов] Блоки документов"

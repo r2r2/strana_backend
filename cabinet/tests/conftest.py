@@ -30,7 +30,8 @@ from .buildings.repos_fixtures import *
 from .agents.repos_fixtures import *
 from .admins.repos_fixtures import *
 from .represes.repos_fixtures import *
-from .main_page.repos_fixtures import *
+from .dashboard.repos_fixtures import *
+from .events.repos_fixtures import *
 
 
 @pytest.fixture

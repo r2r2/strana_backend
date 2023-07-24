@@ -55,4 +55,4 @@ class UserAnswer(BaseQuestionnaireModel):
         managed = False
         db_table = "questionnaire_users_answers"
         verbose_name = "Ответ пользователя"
-        verbose_name_plural = "Ответы пользователей"
+        verbose_name_plural = " 10.4. Ответы пользователей"

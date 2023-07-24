@@ -2,7 +2,7 @@ from http import HTTPStatus
 from typing import Any, Optional
 
 
-from common import dependencies, email, files, security, messages
+from common import dependencies, email, files, security, messages, amocrm
 from common.amocrm import AmoCRM
 from common.amocrm.tasks import bind_contact_to_company
 from config import auth_config, session_config, site_config
@@ -14,6 +14,7 @@ from src.admins import repos as admins_repos
 from src.agencies import repos as agencies_repos
 from src.agencies.services import CreateOrganizationService
 from src.agents import repos as agent_repos
+from src.cities import repos as cities_repos
 from src.represes.services import CreateContactService
 from src.represes import models
 from src.represes import use_cases
@@ -29,6 +30,7 @@ from src.users import repos as users_repos
 from src.booking import repos as booking_repos
 from src.represes import repos as represes_repos
 from src.agencies import models as agencies_models
+from src.agents import services as agent_services
 
 router = APIRouter(prefix="/represes", tags=["Representatives"])
 
@@ -87,6 +89,7 @@ async def process_register_view(
         bind_contact_to_company=bind_contact_to_company,
         get_email_template_service=get_email_template_service,
         check_user_unique_service=check_user_unique_service,
+        city_repo=cities_repos.CityRepo,
     )
     return await process_register(
         payload=payload,
@@ -439,3 +442,43 @@ async def repres_fire_agent(
         repres_id=repres_id,
         role=users_constants.UserType.REPRES,
     )
+
+
+@router.post(
+    "/join_agency",
+    status_code=HTTPStatus.OK,
+    response_model=models.ResponseSignupInAgencyModel,
+)
+async def process_signup_in_agency(
+    payload: models.RequestSignupInAgencyModel = Body(...),
+    repres_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.REPRES)),
+):
+    """
+    Восстановление представителя как агента в новом агентстве.
+    """
+    create_contact_service = agent_services.CreateContactService(
+        amocrm_class=amocrm.AmoCRM,
+        agent_repo=agents_repos.AgentRepo,
+        agency_repo=agencies_repos.AgencyRepo,
+    )
+    ensure_broker_tag_service = agent_services.EnsureBrokerTagService(
+        amocrm_class=amocrm.AmoCRM,
+        agent_repo=agents_repos.AgentRepo,
+    )
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notification_repos.EmailTemplateRepo,
+        )
+    resources: dict[str, Any] = dict(
+        agent_repo=agents_repos.AgentRepo,
+        repres_repo=represes_repos.RepresRepo,
+        agency_repo=agencies_repos.AgencyRepo,
+        email_class=email.EmailService,
+        create_contact_service=create_contact_service,
+        ensure_broker_tag_service=ensure_broker_tag_service,
+        bind_contact_company_task=amocrm.tasks.bind_contact_to_company,
+        site_config=site_config,
+        get_email_template_service=get_email_template_service,
+    )
+    process_signup_in_agency: use_cases.ProcessSignupInAgency = use_cases.ProcessSignupInAgency(**resources)
+    return await process_signup_in_agency(repres_id=repres_id, payload=payload)

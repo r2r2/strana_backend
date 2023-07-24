@@ -1,8 +1,7 @@
-from typing import Type, Optional, Any
 from enum import Enum
+from typing import Type, Optional, Any
 
 from src.users.constants import UserType
-
 from ..repos import UserRepo, User
 from ..exceptions import NotUniquePhoneUser, NotUniqueEmailUser, NotUniqueEmaiAndPhoneUser
 from ..entities import BaseUserService
@@ -45,8 +44,14 @@ class UserCheckUniqueService(BaseUserService):
         """
 
         filters = [
-            {"phone": payload.phone},
-            {"email": payload.email},
+            {
+                "phone": payload.phone,
+                "type__not_in": [UserType.CLIENT],
+            },
+            {
+                "email": payload.email,
+                "type__not_in": [UserType.CLIENT],
+            },
         ]
         exceptions = (
             NotUniquePhoneUser,

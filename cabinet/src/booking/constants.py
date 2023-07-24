@@ -18,7 +18,7 @@ class BookingStages(mixins.Choices):
     Этапы бронирования
     """
 
-    START: str = "start", "Заявка создана"
+    START: str = "start", "Первичный контакт"
     BOOKING: str = "booking", "Онлайн-бронирование"
     DDU_PROCESS: str = "ddu_process", "Оформление ДДУ"
     DDU_SIGNING: str = "ddu_signing", "Подписание ДДУ"
@@ -32,7 +32,7 @@ class BookingSubstages(mixins.Choices, BaseLeadSalesStatuses):
     Подэтапы бронирования
     """
 
-    START: str = "start", "Заявка создана"
+    START: str = "start", "Первичный контакт"
     ASSIGN_AGENT = "assign_agent", "Фиксация клиента за агентом"
     MAKE_APPOINTMENT = "make_appointment", "Назначить встречу"
     MEETING = "meeting", "Встреча назначена"

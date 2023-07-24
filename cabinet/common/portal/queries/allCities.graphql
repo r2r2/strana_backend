@@ -1,0 +1,12 @@
+query allCities{
+    allCities
+     {
+        edges {
+            node {
+                id
+                slug
+                %s
+            }
+        }
+    }
+}

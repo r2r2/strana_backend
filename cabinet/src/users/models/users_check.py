@@ -1,12 +1,12 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Any
 
 from common.utils import parse_phone
-from pydantic import EmailStr, constr, validator, Field
+from pydantic import EmailStr, constr, validator, root_validator, Field, parse_obj_as
 
-from ..constants import UserStatus
-from ..entities import BaseUserModel
-from ..exceptions import UserIncorrectPhoneForamtError
+from src.users.entities import BaseUserModel, BaseCheckModel
+from src.users.exceptions import UserIncorrectPhoneForamtError
+from src.users.repos.unique_status import IconType
 
 
 class RequestUsersCheckModel(BaseUserModel):
@@ -34,18 +34,40 @@ class RequestUsersCheckModel(BaseUserModel):
         orm_mode = True
 
 
-class ResponseUsersCheckModel(BaseUserModel):
+class UniqueStatusSchema(BaseCheckModel):
+    slug: Optional[str] = Field(alias="value")
+    title: Optional[str]
+    subtitle: Optional[str]
+    icon: Optional[IconType.serializer]
+    color: Optional[str]
+    background_color: Optional[str]
+    border_color: Optional[str]
+
+    class Config:
+        orm_mode = True
+
+
+class ResponseUsersCheckModel(BaseCheckModel):
     """
     Модель ответа проверки пользователя агентом на уникальность
     """
 
     id: Optional[int]
-    user_id: Optional[int] = Field(alias='userId')
-    agent_id: Optional[int] = Field(alias='agentId')
-    agency_id: Optional[int] = Field(alias='agencyId')
+    user_id: Optional[int]
+    agent_id: Optional[int]
+    agency_id: Optional[int]
     requested: Optional[datetime]
-    status: Optional[UserStatus.serializer]
+    unique_status: Optional[Any]
+    status: Optional[UniqueStatusSchema]
+    can_dispute: Optional[bool]
+
+    @root_validator
+    def get_unique_status(cls, values: dict[str, Any]) -> dict[str, Any]:
+        """unique status"""
+        if unique_status := values.pop("unique_status"):
+            values["status"] = parse_obj_as(UniqueStatusSchema, unique_status)
+            values["can_dispute"] = unique_status.can_dispute
+        return values
 
     class Config:
         orm_mode = True
-        allow_population_by_field_name = True

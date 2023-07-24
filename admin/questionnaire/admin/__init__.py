@@ -7,3 +7,4 @@ from .documents_blocks import QuestionnaireDocumentBlockAdmin
 from .documents import QuestionnaireDocumentAdmin
 from .upload_documents import QuestionnaireUploadDocumentAdmin
 from .users_answers import UserAnswerAdmin
+from .task_instance_logs import TaskInstanceLogAdmin

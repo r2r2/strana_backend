@@ -24,6 +24,13 @@ class Check(Model):
     status: Optional[str] = cfields.CharChoiceField(
         description="Статус", max_length=20, choice_class=UserStatus, null=True, index=True
     )
+    unique_status: fields.ForeignKeyNullableRelation["UniqueStatus"] = fields.ForeignKeyField(
+        description="Статус уникальности",
+        model_name="models.UniqueStatus",
+        on_delete=fields.CASCADE,
+        related_name="checks",
+        null=True,
+    )
     user: ForeignKeyNullableRelation[User] = fields.ForeignKeyField(
         description="Пользователь",
         model_name="models.User",
@@ -61,6 +68,11 @@ class Check(Model):
     )
     comment: Optional[str] = fields.TextField(description="Комментарий агента", null=True)
     admin_comment: Optional[str] = fields.TextField(description="Комментарий менеджера", null=True)
+    send_admin_email: bool = fields.BooleanField(
+        default=False,
+        description="Отправлено письмо администраторам",
+    )
+    amocrm_id: Optional[int] = fields.IntField(description="ID сделки в amoCRM, по которой была проверка", null=True)
 
     agent_id: Optional[int]
     dispute_agent_id: Optional[int]

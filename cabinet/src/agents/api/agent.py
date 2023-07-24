@@ -361,7 +361,9 @@ async def initialize_change_phone_view(
     agent_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT)),
     payload: models.RequestInitializeChangePhone = Body(...)
 ):
-    """Обновление телефона агентом"""
+    """
+    Обновление телефона агентом
+    """
     get_sms_template_service: notification_services.GetSmsTemplateService = \
         notification_services.GetSmsTemplateService(
             sms_template_repo=notification_repos.SmsTemplateRepo,
@@ -383,7 +385,9 @@ async def initialize_change_email_view(
     agent_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT)),
     payload: models.RequestInitializeChangeEmail = Body(...)
 ):
-    """Обновление почты агентом"""
+    """
+    Обновление почты агентом
+    """
     get_email_template_service: notification_services.GetEmailTemplateService = \
         notification_services.GetEmailTemplateService(
             email_template_repo=notification_repos.EmailTemplateRepo,
@@ -405,7 +409,7 @@ async def change_phone_view(
     token: str = Query(..., alias="q"), change_phone_token: str = Query(..., alias="p")
 ):
     """
-    Служебный ендпоинт для подтверждения изменения телефона
+    Служебный эндпоинт для подтверждения изменения телефона
     """
     get_sms_template_service: notification_services.GetSmsTemplateService = \
         notification_services.GetSmsTemplateService(
@@ -432,7 +436,7 @@ async def change_email_view(
     change_email_token: str = Query(..., alias="p")
 ):
     """
-    Служебный ендпоинт для подтверждения изменения почты
+    Служебный эндпоинт для подтверждения изменения почты
 
     """
     get_email_template_service: notification_services.GetEmailTemplateService = \
@@ -571,7 +575,7 @@ async def represes_agents_register_view(
     agency_id: int = Depends(dependencies.CurrentUserExtra(key="agency_id")),
 ):
     """
-    Регистрация агента представителем агенства
+    Регистрация агента представителем агентства
     """
     create_contact_service = services.CreateContactService(
         amocrm_class=amocrm.AmoCRM,

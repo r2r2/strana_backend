@@ -1,4 +1,6 @@
-from typing import Type
+from typing import Type, Any
+
+import structlog
 
 from common.amocrm import AmoCRM
 from common.amocrm.types import AmoLead
@@ -33,10 +35,12 @@ class CreateMeetingCase(BaseMeetingCase):
         self.user_repo: UserRepo = user_repo()
         self.amocrm_status_repo: AmocrmStatusRepo = amocrm_status_repo()
         self.amocrm_class: Type[AmoCRM] = amocrm_class
+        self.logger = structlog.getLogger(__name__)
 
     async def __call__(self, user_id: int, payload: RequestCreateMeetingModel) -> Meeting:
         user: User = await self.user_repo.retrieve(filters=dict(id=user_id))
         if not user:
+            self.logger.error(f"Didn't found user with {user_id=}")
             raise UserNotFoundError
         property_type: str = payload.property_type
 
@@ -67,6 +71,7 @@ class CreateMeetingCase(BaseMeetingCase):
         )
 
         if project := created_meeting.project:
+            self.logger.info(f"Preparing amocrm status for {project=}")
             amocrm_status: AmocrmStatus = await self.amocrm_status_repo.retrieve(
                 filters=dict(
                     pipeline_id=project.amo_pipeline_id,
@@ -94,6 +99,13 @@ class CreateMeetingCase(BaseMeetingCase):
                 amocrm_id=lead[0].id,
                 user_id=user.id,
             )
+
+            lead_options: dict[str, Any] = dict(
+                lead_id=lead[0].id,
+                meeting_date_sensei=created_meeting.date.timestamp(),
+                meeting_date_zoom=created_meeting.date.timestamp(),
+            )
+            await amocrm.update_lead_v4(**lead_options)
 
             amo_notes: str = f"Время встречи: {created_meeting.date.strftime('%Y-%m-%d %H:%M')}"
             await amocrm.send_lead_note(

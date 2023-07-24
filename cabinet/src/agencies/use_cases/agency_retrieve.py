@@ -1,4 +1,4 @@
-from typing import Type, Any, Union
+from typing import Type, Any, Optional
 
 from ..exceptions import AgencyNotFoundError, AgencyNotApprovedError
 from ..repos import AgencyRepo, Agency
@@ -15,7 +15,7 @@ class AgencyRetrieveCase(BaseAgencyCase):
 
     async def __call__(self, agency_inn: str) -> Agency:
         filters: dict[str, Any] = dict(inn=agency_inn)
-        agency: Union[Agency, None] = await self.agency_repo.retrieve(filters=filters)
+        agency: Optional[Agency] = await self.agency_repo.retrieve(filters=filters, related_fields=["city"])
         if not agency:
             raise AgencyNotFoundError
         if not agency.is_approved:

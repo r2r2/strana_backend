@@ -1,6 +1,7 @@
 from typing import Type, Any, Callable
 
 from src.users.constants import UserType
+from src.notifications.services import GetSmsTemplateService
 
 from ..services import CreateContactService, EnsureBrokerTagService
 from ..types import AgentHasher, AgentSms
@@ -9,14 +10,12 @@ from ..entities import BaseAgentCase
 from ..exceptions import AgentDataTakenError
 from ..models import RequestRepresesAgentsRegisterModel
 from ...users.loggers.wrappers import user_changes_logger
-from src.notifications.services import GetSmsTemplateService
 
 
 class RepresesAgentsRegisterCase(BaseAgentCase):
     """
     Регистрация агента представителем агентства
     """
-
     sms_event_slug = "repres_registration_agent"
 
     def __init__(

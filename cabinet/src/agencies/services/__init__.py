@@ -2,3 +2,4 @@ from .check_organization import CheckOrganizationService
 from .create_organization import CreateOrganizationService
 from .update_organization import UpdateOrganizationService
 from .fire_agent import FireAgentService
+from .update_organization_ammocrm_id import UpdateOrganizationAmocrmIdService

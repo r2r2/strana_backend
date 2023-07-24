@@ -22,6 +22,8 @@ x-app_environment: &app_environment
     - AWS_ACCESS_KEY_ID
     - AWS_SECRET_ACCESS_KEY
     - AWS_STORAGE_BUCKET_NAME
+    - AWS_S3_CUSTOM_DOMAIN_LK
+    - AWS_S3_CUSTOM_DOMAIN
     - AWS_S3_ENDPOINT_URL
     - PROFITBASE_BASE_URL
     - PROFITBASE_API_KEY
@@ -116,7 +118,8 @@ x-app_environment: &app_environment
     - KONTUR_TALK_SECRET
     - SENSEI_PID
     - SENSEI_SECRET
-
+    - LK_MAX_REQUESTS
+    - LK_MAX_REQUESTS_PERIOD
 
 services:
   cabinet:
@@ -165,7 +168,7 @@ services:
     container_name: tasks
     restart: always
     image: ${DOCKER_REGISTRY}cabinet:${TAG:-latest}
-    command: celery -A config.celery worker -l info -B -c 1 -n tasks@strana.com -Q tasks
+    command: celery -A config.celery worker -l info -B -c 4 -n tasks@strana.com -Q tasks
     depends_on:
       - redis
     <<: *app_environment

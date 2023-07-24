@@ -13,7 +13,7 @@ from config.settings import (AerichSettings, AMOCrmSettings,
                              SessionSettings, SiteSettings, SmsCenterSettings,
                              TortoiseSettings, TrustedSettings, FakeSendSms,
                              UvicornSettings, LogsSettings, SenseiSettings,
-                             KonturTalkSettings)
+                             KonturTalkSettings, RequestLimiterSettings, MCSettings)
 
 
 base_dir: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -33,6 +33,7 @@ amocrm_config: dict[str, Any] = AMOCrmSettings().dict()
 booking_config: dict[str, Any] = BookingSettings().dict()
 trusted_config: dict[str, Any] = TrustedSettings().dict()
 backend_config: dict[str, Any] = BackendSettings().dict()
+mc_backend_config: dict[str, Any] = MCSettings().dict()
 uvicorn_config: dict[str, Any] = UvicornSettings().dict()
 session_config: dict[str, Any] = SessionSettings().dict()
 imgproxy_config: dict[str, Any] = ImgproxySettings().dict()
@@ -54,3 +55,4 @@ fake_sms_send: dict[str, Any] = FakeSendSms().dict()
 sensei_config: dict[str, Any] = SenseiSettings().dict()
 kontur_talk_config: dict[str, Any] = KonturTalkSettings().dict()
 logs_config: dict[str, Any] = LogsSettings().dict()
+request_limiter_config: dict[str, Any] = RequestLimiterSettings().dict()

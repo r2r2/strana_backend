@@ -52,6 +52,7 @@ class UpdateAgencyProfile(BaseAgencyCase):
             raise RepresAgencyNotFoundError
 
         data: dict = payload.dict(exclude_unset=True, exclude_none=True)
+        await agency.fetch_related("city")
 
         agency = await self._proceed_agency_changes(agency, data, **files)
         await asyncio.gather(

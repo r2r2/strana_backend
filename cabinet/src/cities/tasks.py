@@ -2,22 +2,24 @@ from asyncio import get_event_loop
 from typing import Any
 
 import tortoise
-from common.backend.repos import BackendCitiesRepo
-from config import celery, tortoise_config
 
-from .repos import CityRepo
+from common.backend.repos import BackendCitiesRepo
+from common.portal.portal import PortalAPI
+from common.requests import GraphQLRequest
+from config import celery, tortoise_config, backend_config
+from src.cities.repos.city import CityRepo
 from .services import ImportCitiesService
+from .services.update_cities_data import UpdateCitiesService
 
 
 @celery.app.task
-def import_cities_periodic() -> None:
+def periodic_cities_update_task() -> None:
     """
-    Переодический импорт городов из БД
+    Обновление списка городов
     """
-    resources: dict[str, Any] = dict(
-        orm_class=tortoise.Tortoise, orm_config=tortoise_config,
-        backend_city_repo=BackendCitiesRepo, city_repo=CityRepo
-    )
-    import_cities_service = ImportCitiesService(**resources)
-    loop: Any = get_event_loop()
-    loop.run_until_complete(celery.sentry_catch(celery.init_orm(import_cities_service))())
+    resources = dict(orm_class=tortoise.Tortoise, orm_config=tortoise_config,
+                     cities_repo=CityRepo,
+                     portal_class=PortalAPI(request_class=GraphQLRequest, portal_config=backend_config))
+    update_cities: UpdateCitiesService = UpdateCitiesService(**resources)
+    loop = get_event_loop()
+    loop.run_until_complete(celery.init_orm(update_cities)())

@@ -8,7 +8,12 @@ class Condition(BaseQuestionnaireModel):
     Условие для матрицы
     """
     title: str = models.CharField(
-        max_length=150, verbose_name="Название", help_text="Название", null=True, blank=True
+        max_length=150,
+        verbose_name="Название",
+        null=True,
+        blank=True,
+        help_text="Условия нужны для формирования совокупности ответов пользователя (матрицы) и соответствующего "
+                  "им блока документов, которые ему нужно будет заполнить",
     )
     question_groups = models.ForeignKey(
         "questionnaire.QuestionGroup",
@@ -36,10 +41,13 @@ class Condition(BaseQuestionnaireModel):
     )
 
     def __str__(self):
-        return self.title
+        answers_title = self.answers.title if self.answers else "-"
+        questions_title = self.questions.title if self.questions else "-"
+        question_group_title = self.question_groups.title if self.question_groups else "-"
+        return f"{self.title} [{question_group_title} -> {questions_title} -> {answers_title}]"
 
     class Meta:
         managed = False
         db_table = "questionnaire_conditions"
         verbose_name = "Условие для матрицы"
-        verbose_name_plural = "Условия для матрицы"
+        verbose_name_plural = "10.10. [Опросник для пакета документов] Условия для матрицы"

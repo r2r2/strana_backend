@@ -1,1 +1,1 @@
-from .city import CityModel
+from .city import CityModel, CityPortalModel

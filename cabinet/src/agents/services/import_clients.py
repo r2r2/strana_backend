@@ -130,9 +130,9 @@ class ImportClientsService(BaseAgentService):
                     client_ids.update(self._client_ids_by_lead(amocrm, lead, agent_contact_id))
             self.logger.info(f"Agent '{agent_id}' has {len(client_ids)} clients")
 
+        await self._unbind_clients(agent, client_ids)
         if not client_ids:
             return
-        await self._unbind_clients(agent, client_ids)
 
         filters: dict[str, Any] = dict(amocrm_id__in=client_ids, type=UserType.CLIENT)
         users: List[User] = await self.user_repo.list(filters=filters, prefetch_fields=["agent"])
@@ -404,18 +404,18 @@ class ImportClientsService(BaseAgentService):
     async def _unbind_clients(self, agent, amocrm_clients_ids: set):
         """unbind"""
         filters = dict(
-            agent__id=agent.id,
-            is_active=True
+            agent_id=agent.id,
+            is_active=True,
         )
         lk_clients_list: List[User] = await self.user_repo.list(
             filters=filters,
-            prefetch_fields=["agent"]
+            prefetch_fields=["agent"],
         )
 
         for client in lk_clients_list:
             if client.amocrm_id not in amocrm_clients_ids:
-                await self.unbind_client(client, data=dict(agent_id=None, agency_id=None))
                 await self._unbind_agent_from_bookings(agent, client)
+                await self.unbind_client(client, data=dict(agent_id=None, agency_id=None))
 
     async def _unbind_agent_from_bookings(self, agent, client):
         """
@@ -424,7 +424,7 @@ class ImportClientsService(BaseAgentService):
         filters = dict(
             agent_id=agent.id,
             user_id=client.id,
-            active=True
+            active=True,
         )
         data = dict(
             active=False,

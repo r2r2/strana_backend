@@ -20,3 +20,4 @@ from .change_phone import RequestChangePhoneModel, ResponseChangePhoneModel
 from .confirm_phone import RequestConfirmPhoneModel, ResponseConfirmPhoneModel
 from .update_profile import UpdateProfileModel
 from .initialize_changes import RequestInitializeChangeEmail, RequestInitializeChangePhone
+from .signup_in_agency import RequestSignupInAgencyModel, ResponseSignupInAgencyModel

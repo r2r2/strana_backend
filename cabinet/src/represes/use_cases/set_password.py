@@ -94,7 +94,7 @@ class SetPasswordCase(BaseRepresCase):
     async def _send_email(self, repres: User, token: str) -> Task:
         confirm_link: str = self.link.format(self.site_host, token, repres.email_token)
         email_notification_template = await self.get_email_template_service(
-            mail_event_slug=self.repres_mail_event_slug,
+            mail_event_slug=self.mail_event_slug,
             context=dict(confirm_link=confirm_link),
         )
 

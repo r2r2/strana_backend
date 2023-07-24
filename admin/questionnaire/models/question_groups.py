@@ -13,10 +13,11 @@ class QuestionGroup(BaseQuestionnaireModel):
     func_block = models.ForeignKey(
         "questionnaire.FunctionalBlock",
         on_delete=models.CASCADE,
-        verbose_name="Функциональный блок",
-        help_text="Функциональный блок",
+        verbose_name="Функциональный блок (слаг)",
         related_name="func_block",
-        null=True, blank=True,
+        null=True,
+        blank=True,
+        help_text="Группа вопросов будет выводиться в месте, связанном с данным слагом",
     )
 
     def __str__(self):
@@ -26,4 +27,4 @@ class QuestionGroup(BaseQuestionnaireModel):
         managed = False
         db_table = "questionnaire_question_groups"
         verbose_name = "Группа вопроса"
-        verbose_name_plural = "Группы вопросов"
+        verbose_name_plural = " 10.3. Группы вопросов"

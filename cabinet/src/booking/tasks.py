@@ -142,14 +142,6 @@ def import_bookings_task(user_id: int) -> None:
         backend_floors_repo=backend_repos.BackendFloorsRepo,
         backend_sections_repo=backend_repos.BackendSectionsRepo,
     )
-    resources: dict[str, Any] = dict(
-        amocrm_class=amocrm.AmoCRM,
-        user_repo=users_repos.UserRepo,
-        check_pinning_repo=users_repos.PinningStatusRepo,
-        user_pinning_repo=users_repos.UserPinningStatusRepo,
-        amocrm_config=amocrm_config,
-    )
-    check_pinning: user_services.CheckPinningStatusService = user_services.CheckPinningStatusService(**resources)
 
     resources: dict[str, Any] = dict(
         orm_class=Tortoise,
@@ -170,7 +162,6 @@ def import_bookings_task(user_id: int) -> None:
         import_property_service=import_property_service,
         statuses_repo=amo_repos.AmoStatusesRepo,
         amocrm_config=amocrm_config,
-        check_pinning=check_pinning,
     )
     import_bookings_service = services.ImportBookingsService(**resources)
     loop: Any = get_event_loop()
@@ -184,15 +175,6 @@ def update_bookings_task() -> None:
     """
     Обновление существующих бронирований
     """
-    resources: dict[str, Any] = dict(
-        amocrm_class=amocrm.AmoCRM,
-        user_repo=users_repos.UserRepo,
-        check_pinning_repo=users_repos.PinningStatusRepo,
-        user_pinning_repo=users_repos.UserPinningStatusRepo,
-        amocrm_config=amocrm_config,
-    )
-    check_pinning: user_services.CheckPinningStatusService = user_services.CheckPinningStatusService(**resources)
-
     resources: dict[str, Any] = dict(
         orm_class=Tortoise,
         orm_config=tortoise_config,
@@ -208,7 +190,6 @@ def update_bookings_task() -> None:
         property_repo=properties_repos.PropertyRepo,
         statuses_repo=amo_repos.AmoStatusesRepo,
         cities_repo=cities_repos.CityRepo,
-        check_pinning=check_pinning,
     )
     update_bookings: services.UpdateBookingsService = services.UpdateBookingsService(**resources)
     loop: Any = get_event_loop()
@@ -220,20 +201,10 @@ async def deactivate_bookings_task(booking_data: dict) -> None:
     Деактивация бронирования
     """
     resources: dict[str, Any] = dict(
-        amocrm_class=amocrm.AmoCRM,
-        user_repo=users_repos.UserRepo,
-        check_pinning_repo=users_repos.PinningStatusRepo,
-        user_pinning_repo=users_repos.UserPinningStatusRepo,
-        amocrm_config=amocrm_config,
-    )
-    check_pinning: user_services.CheckPinningStatusService = user_services.CheckPinningStatusService(**resources)
-
-    resources: dict[str, Any] = dict(
         booking_repo=booking_repos.BookingRepo,
         property_repo=properties_repos.PropertyRepo,
         request_class=requests.GraphQLRequest,
         webhook_request_repo=booking_repos.WebhookRequestRepo,
-        check_pinning=check_pinning,
     )
     update_bookings: services.DeactivateBookingsService = services.DeactivateBookingsService(**resources)
     await update_bookings(**booking_data)
@@ -244,20 +215,10 @@ async def activate_bookings_task(booking_data: dict) -> None:
     Активация бронирования
     """
     resources: dict[str, Any] = dict(
-        amocrm_class=amocrm.AmoCRM,
-        user_repo=users_repos.UserRepo,
-        check_pinning_repo=users_repos.PinningStatusRepo,
-        user_pinning_repo=users_repos.UserPinningStatusRepo,
-        amocrm_config=amocrm_config,
-    )
-    check_pinning: user_services.CheckPinningStatusService = user_services.CheckPinningStatusService(**resources)
-
-    resources: dict[str, Any] = dict(
         booking_repo=booking_repos.BookingRepo,
         property_repo=properties_repos.PropertyRepo,
         request_class=requests.GraphQLRequest,
         webhook_request_repo=booking_repos.WebhookRequestRepo,
-        check_pinning=check_pinning,
     )
     update_bookings: services.ActivateBookingsService = services.ActivateBookingsService(**resources)
     await update_bookings(**booking_data)

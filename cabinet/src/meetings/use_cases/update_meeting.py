@@ -55,8 +55,10 @@ class UpdateMeetingCase(BaseMeetingCase):
             lead_options: dict[str, Any] = dict(
                 lead_id=meeting.booking.amocrm_id,
                 status_id=amocrm_status.id,
+                meeting_date_sensei=update_meeting.date.timestamp(),
+                meeting_date_zoom=update_meeting.date.timestamp(),
             )
-            await amocrm.update_lead(**lead_options)
+            await amocrm.update_lead_v4(**lead_options)
 
             amo_notes: str = f"Новое время встречи: {update_meeting.date.strftime('%Y-%m-%d %H:%M')}"
             await amocrm.send_lead_note(

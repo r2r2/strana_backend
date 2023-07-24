@@ -73,6 +73,21 @@ class CheckTerm(Model):
     priority: int = fields.IntField(description="Приоритет", null=False)
     unique_value: str = cfields.CharChoiceField(description="Статус уникальности", max_length=50,
                                                 choice_class=UniqueValueType, null=False)
+    assigned_to_agent: bool = fields.BooleanField(default=False, description="Закреплен за проверяющим агентом")
+    assigned_to_another_agent: bool = fields.BooleanField(
+        default=False,
+        description="Закреплен за другим агентом проверяющего агентства",
+    )
+    send_admin_email: bool = fields.BooleanField(
+        default=False,
+        description="Отправлять письмо администраторам при проверке клиента в данном статусе",
+    )
+    unique_status: fields.ForeignKeyNullableRelation["UniqueStatus"] = fields.ForeignKeyField(
+        model_name="models.UniqueStatus",
+        description="Статус уникальности",
+        related_name="terms",
+        null=True,
+    )
 
     class Meta:
         table = "users_checks_terms"

@@ -45,8 +45,6 @@ class ResetPasswordCase(BaseAgentCase):
         agent_id: Union[int, None] = self.token_decoder(token)
         filters: dict[str, Any] = dict(
             id=agent_id,
-            is_active=True,
-            is_approved=True,
             type=self.user_type,
             discard_token=discard_token,
         )

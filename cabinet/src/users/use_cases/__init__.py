@@ -19,7 +19,7 @@ from .bookings import (AdminBookingsFacetsCase, AdminBookingsLookupCase,
 from .change_password import ChangePasswordCase
 from .change_phone import ChangePhoneCase
 from .check_case import UsersCheckCase
-from .client_unassign_case import UnAssignationCase, UnassignCase
+from .client_unassign_case import UnassignCase
 from .clients import (AdminClientsFacetsCase, AdminClientsLookupCase,
                       AdminClientsSpecsCase, AgentClientsFacetsCase,
                       AgentClientsLookupCase, AgentClientsSpecsCase,
@@ -56,3 +56,4 @@ from .update_last_activity import UpdateLastActivityCase
 from .email_reset import EmailResetCase
 from .client_confirm_assign import ConfirmAssignClientCase
 from .client_unassign_text import AssignUnassignTextCase
+from .represes_users_check_dispute import RepresCheckDisputeCase

@@ -1,6 +1,8 @@
+import asyncio
 from typing import Any, Optional, Type, Union
 from enum import IntEnum
 
+from common.email import EmailService
 from src.booking.loggers.wrappers import booking_changes_logger
 from src.users import services as user_services
 
@@ -13,6 +15,8 @@ from ..models import RequestAdminsUsersUpdateModel
 from ..repos import CheckRepo, User, UserRepo
 from ..types import (UserAgency, UserAgencyRepo, UserAgentRepo, UserBooking,
                      UserBookingRepo)
+from src.agents.types import AgentEmail
+from src.notifications.services import GetEmailTemplateService
 
 
 class LeadStatuses(IntEnum):
@@ -27,6 +31,8 @@ class AdminsUsersUpdateCase(BaseUserCase):
     """
     Изменение пользователя администратором
     """
+    mail_event_slug = "assign_client"
+    previous_agent_email_slug = "previous_agent_email"
 
     def __init__(
         self,
@@ -35,6 +41,8 @@ class AdminsUsersUpdateCase(BaseUserCase):
         agent_repo: Type[UserAgentRepo],
         agency_repo: Type[UserAgencyRepo],
         booking_repo: Type[UserBookingRepo],
+        email_class: Type[AgentEmail],
+        get_email_template_service: GetEmailTemplateService,
         change_agent_service: user_services.ChangeAgentService,
     ) -> None:
         self.user_repo: UserRepo = user_repo()
@@ -46,6 +54,8 @@ class AdminsUsersUpdateCase(BaseUserCase):
         self.agency_repo: UserAgencyRepo = agency_repo()
         self.booking_repo: UserBookingRepo = booking_repo()
         self.change_agent_service: user_services.ChangeAgentService = change_agent_service
+        self.email_class: Type[AgentEmail] = email_class
+        self.get_email_template_service: GetEmailTemplateService = get_email_template_service
 
         self.booking_update = booking_changes_logger(
             self.booking_repo.update, self, content="Изменение пользователя",
@@ -56,7 +66,7 @@ class AdminsUsersUpdateCase(BaseUserCase):
         agent_id: Union[int, None] = u_data.get("agent_id", None)
         agency_id: Union[int, None] = u_data.get("agency_id", None)
         filters: dict[str, Any] = dict(id=user_id, type=UserType.CLIENT)
-        user: User = await self.user_repo.retrieve(filters=filters)
+        user: User = await self.user_repo.retrieve(filters=filters, related_fields=["agent"])
         if not user:
             raise UserNotFoundError
 
@@ -100,8 +110,38 @@ class AdminsUsersUpdateCase(BaseUserCase):
         if u_data.get("agent_id") and not u_data.get("agency_id"):
             u_data["agency_id"] = agent.agency_id
 
+        if user.agent_id and agent:
+            await self._send_email(
+                recipients=[user.agent.email],
+                agent_name=user.agent.full_name,
+                slug=self.previous_agent_email_slug,
+            )
+
         user: User = await self.user_update(user=user, data=u_data)
 
         if agent:
             self.change_agent_service.as_task(user_id=user_id, agent_id=agent.id)
         return user
+
+    async def _send_email(self, recipients: list[str], slug, **context) -> asyncio.Task:
+        """
+        Отправляем письмо клиенту.
+        @param recipients: list[str]
+        @param context: Any (Контекст, который будет использоваться в шаблоне письма)
+        @return: Task
+        """
+        email_notification_template = await self.get_email_template_service(
+            mail_event_slug=slug,
+            context=context,
+        )
+
+        if email_notification_template and email_notification_template.is_active:
+            email_options: dict[str, Any] = dict(
+                topic=email_notification_template.template_topic,
+                content=email_notification_template.content,
+                recipients=recipients,
+                lk_type=email_notification_template.lk_type.value,
+                mail_event_slug=email_notification_template.mail_event_slug,
+            )
+            email_service: EmailService = self.email_class(**email_options)
+            return email_service.as_task()

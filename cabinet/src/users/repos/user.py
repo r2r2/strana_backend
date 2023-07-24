@@ -2,15 +2,16 @@ from datetime import date, datetime
 from typing import Any, Optional, Union
 from uuid import UUID
 
+from tortoise import Model, fields
+from tortoise.exceptions import IntegrityError
+from tortoise.fields import ForeignKeyNullableRelation, ManyToManyRelation, ForeignKeyRelation
+
 from common import cfields, orm
 from common.orm.mixins import ExistsMixin, GenericMixin
 from src.agencies.repos import Agency
 from src.projects.repos import Project
 from src.properties.constants import PropertyTypes
 from src.properties.repos import Property
-from tortoise import Model, fields
-from tortoise.exceptions import IntegrityError
-from tortoise.fields import ForeignKeyNullableRelation, ManyToManyRelation, ForeignKeyRelation
 
 from ..constants import DutyType, UserType
 from ..entities import BaseUserRepo
@@ -192,12 +193,15 @@ class User(Model):
     auth_first_at: Optional[datetime] = fields.DatetimeField(
         description="Дата и время первой авторизации", null=True
     )
+    auth_last_at: Optional[datetime] = fields.DatetimeField(
+        description="Дата и время последней авторизации", null=True
+    )
     interested_sub: bool = fields.BooleanField(description="Подписка на избранное", default=False)
 
     assignation_comment: Optional[str] = fields.TextField(
         description="Комментарий при закреплении клиента", null=True
     )
-
+    users_cities: fields.ManyToManyRelation["City"]
     users_checks: fields.ReverseRelation["Check"]
     bookings: fields.ReverseRelation["Booking"]
     users_pinning_status: fields.ReverseRelation["UserPinningStatus"]
@@ -232,11 +236,14 @@ class User(Model):
     @property
     def is_fired(self) -> Optional[bool]:
         """
-        Агент уволен
+        Агент или представитель уволен
         """
-        if self.type != UserType.AGENT:
+        if self.type not in (UserType.AGENT, UserType.REPRES):
             return None
-        return self.agency_id is None
+        elif self.type == UserType.AGENT:
+            return self.agency_id is None
+        else:
+            return self.maintained_id is None
 
     class Meta:
         table = "users_user"

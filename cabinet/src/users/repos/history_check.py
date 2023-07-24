@@ -45,6 +45,13 @@ class CheckHistory(Model):
     status: Optional[str] = cfields.CharChoiceField(
         description="Статус проверки", max_length=20, choice_class=UserStatusCheck, null=True, index=True
     )
+    unique_status: fields.ForeignKeyNullableRelation["UniqueStatus"] = fields.ForeignKeyField(
+        description="Статус уникальности",
+        model_name="models.UniqueStatus",
+        on_delete=fields.CASCADE,
+        related_name="checks_history",
+        null=True,
+    )
     created_at: Optional[date] = fields.DatetimeField(description="Дата проверки", auto_now_add=True)
 
     class Meta:

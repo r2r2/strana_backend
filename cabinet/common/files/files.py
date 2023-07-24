@@ -55,7 +55,7 @@ class ProcessedFile(object):
             (".".join(file.filename.split(".")[:-1]) + str(int(time()))).encode("utf-8")
         ).hexdigest()
         source: str = f"{path}/{hashed_name}.{extension}"
-        aws: str = f'{aws_config["endpoint_url"]}{aws_config["storage_bucket_name"]}/{source}'
+        aws: str = f'{aws_config["custom_domain"]}/{aws_config["storage_bucket_name"]}/{source}'
         init_kwargs: dict[str, Any] = dict(
             aws=aws,
             name=name,
@@ -86,7 +86,7 @@ class ProcessedFile(object):
 
     def serializable(self) -> dict[str, Any]:
         result: dict[str, Any] = dict(
-            aws=self.aws,
+            aws=f'{aws_config["custom_domain"]}/{aws_config["storage_bucket_name"]}/{self.source}',
             name=self.name,
             hash=self.hash,
             source=self.source,

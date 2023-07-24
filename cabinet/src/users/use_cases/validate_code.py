@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta
 from typing import Any, Callable, Type
 
@@ -68,7 +69,7 @@ class ValidateCodeCase(BaseUserCase):
                 raise UserWrongCodeError
             if not user.auth_first_at:
                 await self.user_update(
-                    self.user_repo.update, self, content='Обновление времени авторизации клиента'
+                    self.user_repo.update, self, content='Обновление времени первой авторизации клиента'
                 )(user=user, data=dict(auth_first_at=datetime.now(tz=UTC)))
             await self.clear_notification_mute(phone=user.phone, real_ip=real_ip)
         else:
@@ -84,6 +85,11 @@ class ValidateCodeCase(BaseUserCase):
             await self.user_update(
                 self.user_repo.update, self, content='Обновление данных зависимого клиента'
             )(user=user, data=dict(is_independent_client=True))
+        asyncio.create_task(
+            self.user_update(
+                self.user_repo.update, self, content='Обновление времени последней авторизации клиента'
+            )(user=user, data=dict(auth_last_at=datetime.now(tz=UTC)))
+        )
         token: dict[str, str] = self.token_creator(subject_type=user.type.value, subject=user.id)
         token["id"]: int = user.id
         token["role"]: str = user.type.value

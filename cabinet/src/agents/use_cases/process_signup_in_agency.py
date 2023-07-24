@@ -70,7 +70,7 @@ class ProcessSignupInAgency(BaseAgentCase):
         await self._import_contacts(agent=agent, agency=agency)
         await self._send_agency_email(agent=agent, agency=agency)
 
-        return await self.agent_repo.retrieve(filters=dict(id=agent.id), related_fields=["agency"])
+        return await self.agent_repo.retrieve(filters=dict(id=agent.id), related_fields=["agency__city"])
 
     async def _send_agency_email(self, agency: Agency, agent: User) -> Optional[Task]:
         if not agency.maintainer:

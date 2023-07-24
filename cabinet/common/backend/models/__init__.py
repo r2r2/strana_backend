@@ -1,5 +1,5 @@
 from .buildings import BackendBuilding, BackendBuildingBookingType
-from .city import BackendCity
+from .city import BackendCity, BackendMetroLine, BackendMetro, BackendTransport
 from .floor import BackendFloor
 from .projects import BackendProject
 from .properties import BackendProperty

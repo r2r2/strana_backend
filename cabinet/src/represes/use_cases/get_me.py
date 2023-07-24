@@ -15,7 +15,7 @@ class GetMeCase(BaseRepresCase):
 
     async def __call__(self, repres_id: int) -> User:
         filters: dict[str, Any] = dict(id=repres_id)
-        repres: User = await self.repres_repo.retrieve(filters=filters, related_fields=["agency"])
+        repres: User = await self.repres_repo.retrieve(filters=filters, related_fields=["agency__city"])
         if not repres:
             raise RepresNotFoundError
         return repres

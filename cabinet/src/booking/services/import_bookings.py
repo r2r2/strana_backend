@@ -1,19 +1,20 @@
 # pylint: disable=too-many-statements
 # pylint: disable=arguments-differ
-
+import structlog
 from copy import copy
 from datetime import datetime
 from typing import Any, Callable, Optional, Type, Union
 from enum import Enum
+from pytz import UTC
 
-import structlog
+from tortoise.queryset import QuerySet
+
 from common.amocrm import AmoCRM
 from common.amocrm.constants import AmoContactQueryWith, AmoLeadQueryWith
 from common.amocrm.repos import AmoStatusesRepo
 from common.amocrm.types import AmoContact, AmoCustomField, AmoLead
 from common.backend.models import AmocrmStatus
 from common.utils import partition_list
-from pytz import UTC
 from src.agents.repos import AgentRepo
 from src.booking.loggers.wrappers import booking_changes_logger
 from src.booking.constants import BookingCreatedSources
@@ -25,7 +26,6 @@ from src.properties.repos import Property, PropertyRepo
 from src.properties.services import ImportPropertyService
 from src.users.loggers.wrappers import user_changes_logger
 from src.users.repos import User, UserRepo
-from tortoise.queryset import QuerySet
 
 from ..constants import BookingStagesMapping, BookingSubstages
 from ..entities import BaseBookingService
@@ -84,6 +84,7 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
         orm_class: Optional[BookingORM] = None,
         orm_config: Optional[dict[str, Any]] = None,
         create_booking_log_task: Optional[Any] = None,
+        check_booking_task: Optional[Any] = None,
         logger=structlog.getLogger(__name__),
     ) -> None:
         self.logger = logger
@@ -119,6 +120,7 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
         self.booking_update = booking_changes_logger(
             self.booking_repo.update, self, content="Подписание ДДУ",
         )
+        self.check_booking_task: Any = check_booking_task
 
     async def __call__(self, user_id: int) -> bool:
         user_filters: dict[str, Any] = dict(id=user_id)
@@ -193,7 +195,8 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
         amocrm_substage: str = amocrm.get_lead_substage(lead.status_id)
         amocrm_stage: str = BookingStagesMapping()[amocrm_substage]
         amocrm_status: AmocrmStatus = await self.statuses_repo.retrieve(
-            filters=dict(id=lead.status_id))
+            filters=dict(id=lead.status_id)
+        )
 
         property_id: Optional[int] = None
         property_type: Optional[str] = None
@@ -204,6 +207,7 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
         commission: Optional[str] = "0"
 
         lead_until: Optional[str] = None
+        lead_expires: Optional[datetime] = None
         lead_booking_price: Optional[str] = None
         lead_booking_final_price: Optional[str] = None
         lead_booking_price_with_sale: Optional[str] = None
@@ -241,6 +245,9 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
                 lead_booking_final_price = custom_field.values[0].value
             if custom_field.field_id == amocrm.property_price_with_sale_field_id:
                 lead_booking_price_with_sale = custom_field.values[0].value
+            if custom_field.field_id == amocrm.booking_until_datetime_field_id:
+                lead_expires_amo_timestamp = custom_field.values[0].value
+                lead_expires: datetime = datetime.fromtimestamp(lead_expires_amo_timestamp, tz=UTC)
 
         property_type: str = property_type or property_str_type
         if not property_id or not property_type:
@@ -260,6 +267,7 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
         booking_payment_amount: Optional[int] = lead_booking_price or booking.payment_amount if booking else None
         booking_final_payment_amount: Optional[int] = lead_booking_final_price or lead_booking_price_with_sale
         booking_created: datetime = datetime.fromtimestamp(int(lead_created), tz=UTC)
+        booking_expires: datetime = lead_expires
         booking_until: Optional[datetime] = (
             datetime.fromtimestamp(int(lead_until)) if lead_until else booking.until if booking else None
         )
@@ -277,6 +285,7 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
             building=booking_property.building,
             property=booking_property,
             until=booking_until,
+            expires=booking_expires,
             active=booking_active,
             profitbase_booked=True,
             created=booking_created,
@@ -312,7 +321,8 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
                 amocrm_id=lead.id,
                 created_source=BookingCreatedSources.AMOCRM,
             )
-            await self.booking_repo.create(data=data)
+            booking: Booking = await self.booking_repo.create(data=data)
+            self.check_booking_task.apply_async((booking.id,), eta=booking.expires)
 
     @staticmethod
     def _is_stage_valid(amocrm_substage: str) -> bool:

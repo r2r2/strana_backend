@@ -8,15 +8,20 @@ class Matrix(BaseQuestionnaireModel):
     Матрица
     """
     title: str = models.CharField(
-        max_length=150, verbose_name="Название матрицы", help_text="Название матрицы", null=True, blank=True
+        max_length=150,
+        verbose_name="Название матрицы",
+        null=True,
+        blank=True,
+        help_text="Определяет список ответов на вопросы, при которых будут выводиться блоки документов",
     )
     conditions = models.ManyToManyField(
-        null=True, blank=True,
         verbose_name="Условия для матрицы",
         to="questionnaire.Condition",
         through="MatrixConditionsThrough",
         through_fields=("matrix", "condition",),
-        related_name="matrix_conditions"
+        related_name="matrix_conditions",
+        null=True,
+        blank=True,
     )
 
     def __str__(self):
@@ -26,4 +31,4 @@ class Matrix(BaseQuestionnaireModel):
         managed = False
         db_table = "questionnaire_matrix"
         verbose_name = "Матрица"
-        verbose_name_plural = "Матрицы"
+        verbose_name_plural = " 10.9. [Опросник для пакета документов] Матрицы"

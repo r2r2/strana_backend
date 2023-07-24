@@ -39,7 +39,6 @@ class Agency(Model):
 
     id: int = fields.IntField(description="ID", pk=True)
     inn: str = fields.CharField(description="ИНН", max_length=30)
-    city: str = fields.CharField(description="Город", max_length=30)
     name: Optional[str] = fields.CharField(description="Имя", max_length=100, null=True)
 
     type: Optional[str] = cfields.CharChoiceField(
@@ -72,7 +71,9 @@ class Agency(Model):
     signatory_registry_number: str = fields.CharField(description="Номер регистрации в реестре",
                                                       max_length=100, null=True)
     signatory_sign_date: date = fields.DateField(description="Дата подписания", null=True)
-
+    city: fields.ForeignKeyNullableRelation["City"] = fields.ForeignKeyField(
+        description="Город агентства", model_name="models.City", related_name="agency_city", null=True
+    )
     maintainer: fields.ReverseRelation['User']
     agreements: fields.ReverseRelation["AgencyAgreement"]
     acts: fields.ReverseRelation["AgencyAct"]
@@ -88,7 +89,7 @@ class Agency(Model):
 
 class AgencyRepo(BaseAgencyRepo, ReadWriteMixin, DeleteMixin, CountMixin):
     """
-    Репозиторий агенства
+    Репозиторий агентства
     """
     model = Agency
     q_builder: orm.QBuilder = orm.QBuilder(Agency)

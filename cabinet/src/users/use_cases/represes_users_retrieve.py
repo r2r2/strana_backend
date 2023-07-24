@@ -28,10 +28,10 @@ class RepresesUsersRetrieveCase(BaseUserCase):
             related_fields=["agent", "agency"],
             prefetch_fields=[
                 dict(relation="users_checks",
-                     queryset=self.check_repo.list(ordering="-requested"),
+                     queryset=self.check_repo.list(ordering="-requested", related_fields=["unique_status"]),
                      to_attr="statuses"),
                 dict(relation="users_pinning_status",
-                     queryset=self.user_pinning_repo.list(),
+                     queryset=self.user_pinning_repo.list(related_fields=["unique_status"]),
                      to_attr="pinning_statuses"),
             ],
         )

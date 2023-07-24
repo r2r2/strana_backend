@@ -7,6 +7,7 @@ import structlog
 from pytz import UTC
 
 from common.amocrm.types import AmoTag
+from common.settings.repos import BookingSettings, BookingSettingsRepo
 from config import booking_config, site_config, MaintenanceSettings, EnvTypes
 from common.security import create_access_token
 from src.booking.repos import BookingRepo, Booking
@@ -46,6 +47,7 @@ class BindBookingPropertyCase(BasePropertyCase):
         building_booking_type_repo: Type[BuildingBookingTypeRepo],
         amocrm_status_repo: Type[AmocrmStatusRepo],
         amocrm_class: Type[BookingAmoCRM],
+        booking_settings_repo: Type[BookingSettingsRepo],
         activate_bookings_service: ActivateBookingService,
         check_profitbase_property_service: CheckProfitbasePropertyService,
         sms_class: Type[BookingSms],
@@ -66,6 +68,7 @@ class BindBookingPropertyCase(BasePropertyCase):
         )
         self.building_booking_type_repo: BuildingBookingTypeRepo = building_booking_type_repo()
         self.amocrm_status_repo: AmocrmStatusRepo = amocrm_status_repo()
+        self.booking_settings_repo: BookingSettingsRepo = booking_settings_repo()
 
         self.amocrm_class: Type[BookingAmoCRM] = amocrm_class
         self.activate_bookings_service: ActivateBookingService = activate_bookings_service
@@ -120,9 +123,21 @@ class BindBookingPropertyCase(BasePropertyCase):
         if not booking:
             raise BookingNotFoundError
 
-        expires: datetime = datetime.now(tz=UTC) + timedelta(hours=self.booking_time_hours)
+        if booking_property.building and booking_property.building.flats_reserv_time:
+            booking_reserv_time: float = booking_property.building.flats_reserv_time
+
+        elif booking_property.project and booking_property.project.flats_reserv_time:
+            booking_reserv_time: float = booking_property.project.flats_reserv_time
+
+        else:
+            booking_settings: BookingSettings = await self.booking_settings_repo.retrieve(
+                filters=dict(),
+            )
+            booking_reserv_time: float = booking_settings.default_flats_reserv_time
+
+        expires: datetime = datetime.now(tz=UTC) + timedelta(hours=booking_reserv_time)
         if not booking.is_agent_assigned():
-            expires: datetime = datetime.now(tz=UTC) + timedelta(minutes=self.booking_time_minutes)
+            expires: datetime = datetime.now(tz=UTC) + timedelta(hours=booking_reserv_time)
 
         filters = dict(
             name__iexact=BookingSubstages.BOOKING_LABEL,
@@ -131,6 +146,7 @@ class BindBookingPropertyCase(BasePropertyCase):
         actual_amocrm_status: AmocrmStatus = await self.amocrm_status_repo.retrieve(filters=filters)
         self.logger.debug(f"Actual booking status: id={actual_amocrm_status.id} "
                           f"pipeline={actual_amocrm_status.pipeline}")
+        tags: list[str] = [self.TAG] + booking.tags if booking.tags else []
         booking_data: dict = dict(
             expires=expires,
             property_id=booking_property.id,
@@ -138,6 +154,7 @@ class BindBookingPropertyCase(BasePropertyCase):
             amocrm_substage=BookingSubstages.BOOKING,
             should_be_deactivated_by_timer=True,
             amocrm_status=actual_amocrm_status,
+            tags=tags,
         )
 
         building_type: BuildingBookingType = await self.building_booking_type_repo.retrieve(
@@ -157,9 +174,13 @@ class BindBookingPropertyCase(BasePropertyCase):
         elif self.environment == EnvTypes.PROD:
             strana_ozernaya_global_id = self.STRANA_OZERNAYA_GLOBALID_PROD
 
-        booking_agent_discount: int = 0
+        booking_discount: int = booking_property.building.discount
+        if not booking_discount:
+            booking_discount: int = booking_property.project.discount
         if booking_property.project.global_id == strana_ozernaya_global_id:
-            booking_agent_discount = int(booking_property.original_price * self.AGENT_DISCOUNT / 100)
+            booking_discount: int = self.AGENT_DISCOUNT
+
+        booking_agent_discount: int = int(booking_property.original_price * booking_discount / 100)
 
         if building := booking_property.building:
             additional_data: dict = dict(
@@ -187,7 +208,7 @@ class BindBookingPropertyCase(BasePropertyCase):
             asyncio_tasks.append(self._send_sms(booking))
             await asyncio.gather(*asyncio_tasks)
 
-        tags: list[AmoTag] = [AmoTag(name=tag) for tag in booking.tags] + [AmoTag(name=self.TAG)]
+        tags: list[AmoTag] = [AmoTag(name=tag) for tag in tags]
         default_booking_type: BuildingBookingType = await self.building_booking_type_repo.list().first()
         lead_options: dict[str, Any] = dict(
             lead_id=booking.amocrm_id,

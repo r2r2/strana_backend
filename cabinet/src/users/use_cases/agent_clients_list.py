@@ -44,7 +44,7 @@ class AgentListClientsCase(BaseUserCase):
             search_q_filters: list[Any] = [self.user_repo.q_builder(or_filters=search[0])]
             q_filters += search_q_filters
 
-        bookings_count_annotations: dict[str, Any] = self._get_booking_count_annotation()
+        bookings_count_annotations: dict[str, Any] = self._get_booking_count_annotation(agent_id)
         users: List[User] = await self.user_repo.list(
             filters=init_filters,
             q_filters=q_filters,
@@ -57,10 +57,10 @@ class AgentListClientsCase(BaseUserCase):
                 "agency",
                 "bookings",
                 dict(relation="users_checks",
-                     queryset=self.check_repo.list(ordering="-requested"),
+                     queryset=self.check_repo.list(ordering="-requested", related_fields=["unique_status"]),
                      to_attr="statuses"),
                 dict(relation="users_pinning_status",
-                     queryset=self.user_pinning_repo.list(),
+                     queryset=self.user_pinning_repo.list(related_fields=["unique_status"]),
                      to_attr="pinning_statuses"),
             ],
         )
@@ -76,20 +76,25 @@ class AgentListClientsCase(BaseUserCase):
 
         return data
 
-    def _get_booking_count_annotation(self) -> dict[str, Any]:
+    def _get_booking_count_annotation(self, agent_id) -> dict[str, Any]:
         """Get bookings annotations"""
         bookings = self.user_repo.a_builder.build_count(
-            "bookings"
+            "bookings",
+            filter=Q(bookings__agent_id=agent_id),
         )
         active_bookings = self.user_repo.a_builder.build_count(
             "bookings",
-            filter=~Q(bookings__amocrm_substage__in=[BookingSubstages.REALIZED, BookingSubstages.UNREALIZED]),
+            filter=~Q(bookings__amocrm_substage__in=[
+                BookingSubstages.REALIZED, BookingSubstages.UNREALIZED
+            ]) & Q(bookings__agent_id=agent_id),
         )
         successful_bookings = self.user_repo.a_builder.build_count(
-            "bookings", filter=Q(bookings__amocrm_substage=BookingSubstages.REALIZED)
+            "bookings",
+            filter=Q(bookings__amocrm_substage=BookingSubstages.REALIZED) & Q(bookings__agent_id=agent_id),
         )
         unsuccessful_bookings = self.user_repo.a_builder.build_count(
-            "bookings", filter=Q(bookings__amocrm_substage=BookingSubstages.UNREALIZED)
+            "bookings",
+            filter=Q(bookings__amocrm_substage=BookingSubstages.UNREALIZED) & Q(bookings__agent_id=agent_id),
         )
 
         bookings_count: dict[str, Any] = dict(

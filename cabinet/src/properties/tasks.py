@@ -1,16 +1,17 @@
 from asyncio import get_event_loop
 from typing import Any
 
+from tortoise import Tortoise
+
 from common import utils
 from common.backend import repos as backend_repos
 from config import celery, tortoise_config
 from src.buildings import repos as buildings_repos
+from src.cities import repos as cities_repo
 from src.floors import repos as floors_repos
 from src.projects import repos as projects_repos
 from src.properties import repos as properties_repos
-from src.properties.services import (ImportBuildingBookingTypesService,
-                                     ImportPropertyService)
-from tortoise import Tortoise
+from src.properties.services import ImportBuildingBookingTypesService, ImportPropertyService
 
 
 @celery.app.task
@@ -28,6 +29,7 @@ def import_property_task(property_id: int) -> None:
         project_repo=projects_repos.ProjectRepo,
         building_repo=buildings_repos.BuildingRepo,
         property_repo=properties_repos.PropertyRepo,
+        city_repo=cities_repo.CityRepo,
         building_booking_type_repo=buildings_repos.BuildingBookingTypeRepo,
         backend_building_booking_type_repo=backend_repos.BackendBuildingBookingTypesRepo,
         backend_properties_repo=backend_repos.BackendPropertiesRepo,
@@ -58,6 +60,7 @@ def import_properties_task_periodic() -> None:
         project_repo=projects_repos.ProjectRepo,
         building_repo=buildings_repos.BuildingRepo,
         property_repo=properties_repos.PropertyRepo,
+        city_repo=cities_repo.CityRepo,
         building_booking_type_repo=buildings_repos.BuildingBookingTypeRepo,
         backend_building_booking_type_repo=backend_repos.BackendBuildingBookingTypesRepo,
         backend_properties_repo=backend_repos.BackendPropertiesRepo,

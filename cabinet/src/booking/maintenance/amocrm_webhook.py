@@ -1,12 +1,12 @@
 # pylint: disable=broad-except
 import traceback
+import pytz
 from datetime import datetime
 from functools import wraps
 from typing import Any, Union
 from urllib.parse import parse_qs, unquote
-
-import pytz
 import structlog
+
 from common.amocrm import AmoCRM
 from config import EnvTypes, maintenance_settings
 

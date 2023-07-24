@@ -1,1 +1,2 @@
-from .projects_list import ProjectsListCase, AdditionalProjectsListCase
+from .projects_list import ProjectsListCase, AdditionalProjectsListCase, ProjectsListV3Case
+from .projects_detail import ProjectDetailCase

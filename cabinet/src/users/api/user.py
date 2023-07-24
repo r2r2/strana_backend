@@ -30,10 +30,11 @@ from src.users import repos as users_repos
 from src.users import services as user_services
 from src.users import tasks as users_tasks
 from src.users import use_cases
+from src.represes import repos as represes_repos
 from tortoise import Tortoise
 from config import auth_config, session_config, site_config
-from src.main_page import repos as main_page_repos
-from src.main_page import use_cases as main_page_use_cases
+from src.dashboard import repos as dashboard_repos
+from src.dashboard import use_cases as dashboard_use_cases
 from src.notifications import services as notification_services
 from src.notifications import repos as notifications_repos
 
@@ -122,6 +123,7 @@ async def validate_code_view(
         statuses_repo=amocrm_repos.AmoStatusesRepo,
         amocrm_config=amocrm_config,
         check_pinning=check_pinning,
+        check_booking_task=bookings_tasks.check_booking_task,
     )
     import_bookings_service: booking_services.ImportBookingsService = booking_services.ImportBookingsService(
         **resources,
@@ -533,31 +535,7 @@ async def agents_users_lookup_view(
     return await agents_users_search(agent_id=agent_id, lookup=lookup, init_filters=init_filters)
 
 
-@router.get(
-    "/client/unassignation",
-    status_code=HTTPStatus.OK,
-    response_model=models.ResponseUnAssigned,
-    response_model_by_alias=False
-)
-async def unassigned_client_to_agent(
-    token: str = Query(..., alias='t'), data: str = Query(..., alias='d')
-):
-    """Редирект на страницу открепления клиента от агента по ссылке"""
-    resources: dict[str, Any] = dict(
-        user_repo=users_repos.UserRepo,
-        hasher=security.get_hasher,
-    )
-    get_agent_client_service = user_services.GetAgentClientFromQueryService(**resources)
-
-    resources: dict[str, Any] = dict(
-        get_agent_client_service=get_agent_client_service,
-        hasher=security.get_hasher,
-    )
-    use_case: use_cases.UnAssignationCase = use_cases.UnAssignationCase(**resources)
-    return await use_case(token=token, data=data)
-
-
-@router.get(
+@router.post(
     "/client/unassign",
     status_code=HTTPStatus.OK,
     response_model_by_alias=True,
@@ -660,10 +638,21 @@ async def represes_users_check_view(
         amocrm_config=amocrm_config,
     )
     check_unique_service: user_services.CheckUniqueService = user_services.CheckUniqueService(**resources)
+
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notifications_repos.EmailTemplateRepo,
+        )
+
     resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
         check_repo=users_repos.CheckRepo,
         check_unique_service=check_unique_service,
+        unique_status_repo=users_repos.UniqueStatusRepo,
+        email_class=email.EmailService,
+        get_email_template_service=get_email_template_service,
+        booking_repo=booking_repos.BookingRepo,
+        historical_dispute_repo=users_repos.HistoricalDisputeDataRepo,
     )
     repres_users_check: use_cases.UsersCheckCase = use_cases.UsersCheckCase(
         **resources
@@ -693,14 +682,26 @@ async def represes_users_check_view_v2(
         check_repo=users_repos.CheckRepo,
         agent_repo=agents_repos.AgentRepo,
         check_term_repo=users_repos.CheckTermRepo,
+        unique_status_repo=users_repos.UniqueStatusRepo,
         amocrm_config=amocrm_config,
     )
     check_unique_service: user_services.CheckUniqueServiceV2 = user_services.CheckUniqueServiceV2(**resources)
+
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notifications_repos.EmailTemplateRepo,
+        )
+
     resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
         check_repo=users_repos.CheckRepo,
         check_unique_service=check_unique_service,
         history_check_repo=users_repos.CheckHistoryRepo,
+        unique_status_repo=users_repos.UniqueStatusRepo,
+        email_class=email.EmailService,
+        get_email_template_service=get_email_template_service,
+        booking_repo=booking_repos.BookingRepo,
+        historical_dispute_repo=users_repos.HistoricalDisputeDataRepo,
     )
     represes_users_check: use_cases.UsersCheckCase = use_cases.UsersCheckCase(
         **resources
@@ -897,10 +898,21 @@ async def agents_users_check_view(
         amocrm_config=amocrm_config,
     )
     check_unique_service: user_services.CheckUniqueService = user_services.CheckUniqueService(**resources)
+
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notifications_repos.EmailTemplateRepo,
+        )
+
     resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
         check_repo=users_repos.CheckRepo,
         check_unique_service=check_unique_service,
+        unique_status_repo=users_repos.UniqueStatusRepo,
+        email_class=email.EmailService,
+        get_email_template_service=get_email_template_service,
+        booking_repo=booking_repos.BookingRepo,
+        historical_dispute_repo=users_repos.HistoricalDisputeDataRepo,
     )
     agents_users_check: use_cases.UsersCheckCase = use_cases.UsersCheckCase(**resources)
     return await agents_users_check(agent_id=agent_id, payload=payload)
@@ -925,14 +937,26 @@ async def agents_users_check_view_v2(
         check_repo=users_repos.CheckRepo,
         agent_repo=agents_repos.AgentRepo,
         check_term_repo=users_repos.CheckTermRepo,
+        unique_status_repo=users_repos.UniqueStatusRepo,
         amocrm_config=amocrm_config,
     )
     check_unique_service: user_services.CheckUniqueServiceV2 = user_services.CheckUniqueServiceV2(**resources)
+
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notifications_repos.EmailTemplateRepo,
+        )
+
     resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
         check_repo=users_repos.CheckRepo,
         check_unique_service=check_unique_service,
         history_check_repo=users_repos.CheckHistoryRepo,
+        unique_status_repo=users_repos.UniqueStatusRepo,
+        email_class=email.EmailService,
+        get_email_template_service=get_email_template_service,
+        booking_repo=booking_repos.BookingRepo,
+        historical_dispute_repo=users_repos.HistoricalDisputeDataRepo,
     )
     agents_users_check: use_cases.UsersCheckCase = use_cases.UsersCheckCase(**resources)
     return await agents_users_check(agent_id=agent_id, payload=payload)
@@ -948,7 +972,7 @@ async def agents_users_check_dispute_view(
     agent_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT)),
 ):
     """
-    Оспаривание результатов проверки
+    Оспаривание результатов проверки агентом
     """
     get_email_template_service: notification_services.GetEmailTemplateService = \
         notification_services.GetEmailTemplateService(
@@ -962,10 +986,44 @@ async def agents_users_check_dispute_view(
         admin_repo=admins_repos.AdminRepo,
         email_recipients=email_recipients_config,
         get_email_template_service=get_email_template_service,
+        unique_status_repo=users_repos.UniqueStatusRepo,
+        historical_dispute_repo=users_repos.HistoricalDisputeDataRepo,
     )
 
-    agents_users_check_dispute: use_cases = use_cases.CheckDisputeCase(**resources)
+    agents_users_check_dispute: use_cases.CheckDisputeCase = use_cases.CheckDisputeCase(**resources)
     return await agents_users_check_dispute(dispute_agent_id=agent_id, payload=payload)
+
+
+@router.patch(
+    "/repres/check-dispute",
+    status_code=HTTPStatus.OK,
+    response_model=models.ResponseAgentUsersCheckDisputeModel,
+)
+async def agents_users_check_dispute_view(
+    payload: models.RequestAgentsUsersCheckDisputeModel = Body(...),
+    repres_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.REPRES)),
+):
+    """
+    Оспаривание результатов проверки представителем
+    """
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notifications_repos.EmailTemplateRepo,
+        )
+    resources: dict = dict(
+        check_repo=users_repos.CheckRepo,
+        email_class=email.EmailService,
+        repres_repo=represes_repos.RepresRepo,
+        user_repo=users_repos.UserRepo,
+        admin_repo=admins_repos.AdminRepo,
+        email_recipients=email_recipients_config,
+        get_email_template_service=get_email_template_service,
+        unique_status_repo=users_repos.UniqueStatusRepo,
+        historical_dispute_repo=users_repos.HistoricalDisputeDataRepo,
+    )
+
+    agents_users_check_dispute: use_cases.RepresCheckDisputeCase = use_cases.RepresCheckDisputeCase(**resources)
+    return await agents_users_check_dispute(dispute_repres_id=repres_id, payload=payload)
 
 
 @router.patch(
@@ -1126,6 +1184,16 @@ async def assign_client_to_repres(
         notification_services.GetEmailTemplateService(
             email_template_repo=notifications_repos.EmailTemplateRepo,
         )
+
+    resources: dict[str, Any] = dict(
+        amocrm_class=amocrm.AmoCRM,
+        user_repo=users_repos.UserRepo,
+        check_pinning_repo=users_repos.PinningStatusRepo,
+        user_pinning_repo=users_repos.UserPinningStatusRepo,
+        amocrm_config=amocrm_config,
+    )
+    check_pinning: user_services.CheckPinningStatusService = user_services.CheckPinningStatusService(**resources)
+
     resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
         check_repo=users_repos.CheckRepo,
@@ -1143,6 +1211,7 @@ async def assign_client_to_repres(
         create_task_instance_service=create_task_instance_service,
         confirm_client_assign_repo=users_repos.ConfirmClientAssignRepo,
         get_email_template_service=get_email_template_service,
+        check_pinning=check_pinning,
     )
     use_case: use_cases.AssignClientCase = use_cases.AssignClientCase(**resources)
     return await use_case(payload=payload, repres_id=repres_id)
@@ -1479,8 +1548,8 @@ async def create_ticket(
     Создание заявки.
     """
     resources: dict[str, Any] = dict(
-        ticket_repo=main_page_repos.TicketRepo,
+        ticket_repo=dashboard_repos.TicketRepo,
         city_repo=cities_repos.CityRepo,
     )
-    create_ticket_case: main_page_use_cases.CreateTicketCase = main_page_use_cases.CreateTicketCase(**resources)
+    create_ticket_case: dashboard_use_cases.CreateTicketCase = dashboard_use_cases.CreateTicketCase(**resources)
     return await create_ticket_case(payload=payload)

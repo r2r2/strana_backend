@@ -1,7 +1,8 @@
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional, Union, Any
-from pydantic import root_validator as method_field
+
+from pydantic import root_validator as method_field, validator
 
 from src.booking import constants as booking_constants
 from src.properties.constants import PropertyTypes
@@ -96,6 +97,12 @@ class _IndentProjectListModel(BaseUserModel):
     slug: Optional[str]
     name: Optional[str]
     city: Optional[str]
+
+    @validator("city", pre=True)
+    def get_city_name(cls, value):
+        if value:
+            return value.name
+        return None
 
     class Config:
         orm_mode = True

@@ -37,8 +37,10 @@ class UserStatus(mixins.Choices):
     DISPUTE: str = 'dispute', "Оспаривание статуса"
     CAN_DISPUTE: str = 'can_dispute', "Закреплен, но можно оспорить"
     ERROR: str = 'error', "Ошибка"
-    AGENT_PINNED: str = 'agent_pinned', "Закреплен за вами"
-    REPRES_PINNED: str = 'repres_pinned', "Закреплен за другим агентом вашего агентства"
+    SAME_PINNED: str = 'same_pinned', "Закреплен за вами"
+    REPRES_PINNED: str = 'repres_pinned', "Закреплен за вашим агентством"
+    AGENT_REPRES_PINNED: str = 'agent_repres_pinned', "Закреплен за агентом из вашего агентства"
+    REPRES_PINNED_DISPUTE: str = 'repres_pinned_dispute', 'Закреплен за вашим агентством, но можно оспорить'
 
 
 class UserStatusCheck(mixins.Choices):

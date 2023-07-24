@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import Any, Callable, Coroutine
+from typing import Any
 
 from common import dependencies, paginations
 from fastapi import Depends, Path, Query

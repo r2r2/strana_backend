@@ -15,23 +15,23 @@ workflow:
   rules:
     - if: $CI_COMMIT_BRANCH == "development"
       variables:
-        SITE_REDIRECT_LK: lk.stranadev.com
-        LK_SITE_HOST: lk.stranadev.com
-        LK_REDIRECT: stranadev.com
-        MAIN_SITE_HOST: stranadev.com
+        SITE_REDIRECT_LK: lk.stranadev-new.com
+        LK_SITE_HOST: lk.stranadev-new.com
+        LK_REDIRECT: stranadev-new.com
+        MAIN_SITE_HOST: stranadev-new.com
         CI_COMMIT_SHA: 'latest'
         SSH_PRIVATE_KEY: $SSH_PRIVATE_KEY_NEW_DEV
-        TOP_HOST: stranadev.com
+        TOP_HOST: stranadev-new.com
         TOKEN_DADATA: ${TOKEN_DADATA}
         ENV_FILE: $ENV_NEW_DEV_FULL_FILE
     - if: $CI_COMMIT_BRANCH == "pre-production"
       variables:
-        SITE_REDIRECT_LK: lk.stranastage.com
-        LK_SITE_HOST: lk.stranastage.com
-        LK_REDIRECT: stranastage.com
+        SITE_REDIRECT_LK: lk.stranastage-new.com
+        LK_SITE_HOST: lk.stranastage-new.com
+        LK_REDIRECT: stranastage-new.com
         DEPLOY_USER: bb-idaproject
-        DEPLOY_HOST: stranastage.com
-        TOP_HOST: stranastage.com
+        DEPLOY_HOST: stranastage-new.com
+        TOP_HOST: stranastage-new.com
         SSH_PRIVATE_KEY: ${SSH_PRIVATE_KEY_strana}
         TOKEN_DADATA: ${TOKEN_DADATA}
         ENV_FILE: $ENV_STAGE_FULL_FILE

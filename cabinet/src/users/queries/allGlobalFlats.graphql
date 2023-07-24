@@ -1,0 +1,12 @@
+query allGlobalFlats{
+    allGlobalFlats(
+         city: %s,
+         orderBy: %s
+    ) {
+        edges {
+            node {
+                price
+            }
+        }
+    }
+}

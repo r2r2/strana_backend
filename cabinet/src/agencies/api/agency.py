@@ -3,7 +3,7 @@ from typing import Any, Callable, Coroutine, Optional
 
 from common import (amocrm, dependencies, email, files, getdoc, messages,
                     paginations, redis, security, utils)
-from config import redis_config, site_config
+from config import redis_config, site_config, lk_admin_config
 from fastapi import APIRouter, Body, Depends, File, Path, Query, UploadFile
 from src.agencies import filters, models
 from src.agencies import repos as agencies_repos
@@ -1023,7 +1023,7 @@ async def agency_profile_update_view(
 )
 async def agency_retrieve_view(agency_inn: str = Path(...)):
     """
-    Получение агенства
+    Получение агентства
     """
     resources: dict[str, Any] = dict(agency_repo=agencies_repos.AgencyRepo)
     agency_retrieve: use_cases.AgencyRetrieveCase = use_cases.AgencyRetrieveCase(**resources)
@@ -1119,6 +1119,31 @@ def superuser_agencies_fill_data_view(
         export_agency_in_amo_task=agency_tasks.export_agency_in_amo,
     )
     return superuser_agency_fill_data_case(agency_id=agency_id, data=data)
+
+
+@router.post(
+    "/superuser/additional_agency_email_notify",
+    status_code=HTTPStatus.OK,
+)
+async def superuser_additional_notify_agency_email(
+    data: str = Query(...),
+    payload: list[models.RequestAdditionalNotifyAgencyEmailModel] = Body(...),
+):
+    """
+    Отправка писем представителям агентов при создании ДС в админке.
+    """
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notification_repos.EmailTemplateRepo,
+        )
+    superuser_additional_notify_agency_email_case: use_cases.SuperuserAdditionalNotifyAgencyEmailCase = \
+        use_cases.SuperuserAdditionalNotifyAgencyEmailCase(
+            agency_repo=agencies_repos.AgencyRepo,
+            email_class=email.EmailService,
+            get_email_template_service=get_email_template_service,
+            lk_admin_config=lk_admin_config,
+        )
+    return await superuser_additional_notify_agency_email_case(payload=payload, data=data)
 
 
 @router.patch(

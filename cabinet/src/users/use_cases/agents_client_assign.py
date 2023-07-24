@@ -54,6 +54,7 @@ class AssignClientCase(BaseUserCase):
 
     client_tag: list[str] = ['клиент']
     lk_broker_tag: list[str] = ['ЛК Брокера']
+    lk_test_tag: list[str] = ['Тест']
     mail_event_slug = "assign_client"
     previous_agent_email_slug = "previous_agent_email"
     sms_event_slug = "assign_client"
@@ -129,7 +130,7 @@ class AssignClientCase(BaseUserCase):
         else:
             filters: dict[str: Any] = dict(type=UserType.REPRES, id=repres_id)
 
-        agency_realtor: User = await self.user_repo.retrieve(filters=filters, prefetch_fields=['agency'])
+        agency_realtor: User = await self.user_repo.retrieve(filters=filters, prefetch_fields=['agency', 'agent'])
 
         client_id_filters: dict[str: Any] = dict(type=UserType.CLIENT, id=payload.user_id)
         client: User = await self.user_repo.retrieve(filters=client_id_filters)
@@ -166,12 +167,10 @@ class AssignClientCase(BaseUserCase):
         notify_tasks: list[Awaitable] = []
         if client.agent_id and (client.agent_id != agency_realtor.id):
             # Именно смене агентов, т.е. когда 1 агент меняется на другого.
-            notify_tasks.append(
-                self._send_email(
-                    recipients=[agency_realtor.email],
-                    agent_name=agency_realtor.full_name,
-                    slug=self.previous_agent_email_slug,
-                ),
+            await self._send_email(
+                recipients=[client.agent.email],
+                agent_name=client.agent.full_name,
+                slug=self.previous_agent_email_slug,
             )
 
         client = await self._update_client_data(
@@ -218,13 +217,14 @@ class AssignClientCase(BaseUserCase):
             )
             await self.client_update(client, data=dict(amocrm_id=contact.id))
             contact_leads: list[AmoLead] = await self._fetch_contact_leads(amocrm, contact=contact)
-            await self._import_amo_leads(client=client, agent=agent, active_projects=payload.active_projects,
-                                         leads=contact_leads)
+            await self._import_amo_leads(
+                client=client, agent=agent, active_projects=payload.active_projects, leads=contact_leads
+            )
             await self._update_amocrm_leads(amocrm, leads=contact_leads, agent=agent, user=client)
             await self._update_booking_data(client=client, agent=agent)
-            not_created_projects: list[Project] = await self._find_not_created_projects(client=client,
-                                                                                        agent_id=agent.id,
-                                                                                        payload=payload)
+            not_created_projects: list[Project] = await self._find_not_created_projects(
+                client=client, agent_id=agent.id, payload=payload
+            )
             await self._create_requested_leads(
                 amocrm,
                 client=client,
@@ -240,10 +240,10 @@ class AssignClientCase(BaseUserCase):
         @rtype: bool
         """
         filters: dict[str, Any] = {'id': check_id}
-        check: Check = await self.check_repo.retrieve(filters=filters, ordering='-id')
+        check: Check = await self.check_repo.retrieve(filters=filters, ordering='-id', related_fields=["unique_status"])
         if not check:
             raise CheckNotFoundError
-        if check.status != UserStatus.UNIQUE:
+        if check.unique_status.slug != UserStatus.UNIQUE:
             raise UserNotUnique
         data = dict(
             user_id=client_id,
@@ -405,10 +405,15 @@ class AssignClientCase(BaseUserCase):
             if lead.status_id in (LeadStatuses.REALIZED, LeadStatuses.UNREALIZED):
                 continue
 
-            amocrm_name: str = [custom_field.values[0].value for custom_field in lead.custom_fields_values if custom_field.field_id == self.amocrm_class.project_field_id][0]
-            project: Project = await self.project_repo.retrieve(
-                filters=dict(amo_pipeline_id=lead.pipeline_id, amocrm_name=amocrm_name)
-            )
+            amocrm_name: list = [custom_field.values[0].value for custom_field in lead.custom_fields_values if
+                                custom_field.field_id == self.amocrm_class.project_field_id]
+            if amocrm_name:
+                project: Project = await self.project_repo.retrieve(
+                    filters=dict(amo_pipeline_id=lead.pipeline_id, amocrm_name=amocrm_name[0])
+                )
+            else:
+                project = None
+
             amocrm_substage: str = self.amocrm_class.get_lead_substage(lead.status_id)
             amocrm_stage: str = BookingStagesMapping()[amocrm_substage]
             status: AmocrmStatus = await self.amo_statuses_repo.retrieve(filters=dict(id=lead.status_id))
@@ -437,7 +442,11 @@ class AssignClientCase(BaseUserCase):
             await self._create_task_instance([booking.id])
 
     async def _find_not_created_projects(
-            self, client: User, agent_id: int, payload: RequestAssignClient) -> list[Project]:
+        self,
+        client: User,
+        agent_id: int,
+        payload: RequestAssignClient,
+    ) -> list[Project]:
         """
         Находим не созданные в бд сделки, исходя из переданных в запросе id проектов.
         @param client: User
@@ -467,6 +476,7 @@ class AssignClientCase(BaseUserCase):
         @param not_created_projects: list[Project]
         """
         status_name: str = 'фиксация клиента за ан'
+        tags: list[str] = self.lk_broker_tag + self.lk_test_tag if client.is_test_user else self.lk_broker_tag
         for project in not_created_projects:
             status: AmocrmStatus = await self._get_status_by_name(name=status_name, pipeline_id=project.amo_pipeline_id)
             if not status:
@@ -487,7 +497,7 @@ class AssignClientCase(BaseUserCase):
                 contact_ids=[agent.amocrm_id],
                 companies=[agent.agency.amocrm_id],
                 creator_user_id=agent.id,
-                tags=self.lk_broker_tag,
+                tags=tags,
             )
             print(f"New lead AMO data: {amo_data}")
             lead: list[AmoLead] = await amocrm.create_lead(**amo_data)
@@ -504,7 +514,7 @@ class AssignClientCase(BaseUserCase):
                 amocrm_status=status,
                 origin=f"https://{self.site_host}",
                 created_source=BookingCreatedSources.LK_ASSIGN,
-                tags=self.lk_broker_tag,
+                tags=tags,
                 active=True,
             )
             booking = await self.booking_create(data=data)
@@ -529,7 +539,10 @@ class AssignClientCase(BaseUserCase):
         @param agent: User
         """
         filters: dict[str, Any] = dict(user_id=client.id, active=True)
-        exclude_filters: dict[str, Any] = dict(amocrm_status_id=LeadStatuses.REALIZED)
+        exclude_filters: list[dict] = [
+            dict(amocrm_status_id=LeadStatuses.REALIZED),
+            dict(amocrm_status_id=LeadStatuses.UNREALIZED),
+        ]
         data = dict(
             agent_id=agent.id,
             agency_id=agent.agency.id,
@@ -538,6 +551,8 @@ class AssignClientCase(BaseUserCase):
         await self.booking_bulk_update(filters=filters, exclude_filters=exclude_filters, data=data)
         bookings: list[Booking] = await self.booking_repo.list(filters=filters).exclude(
             amocrm_status_id=LeadStatuses.REALIZED
+        ).exclude(
+            amocrm_status_id=LeadStatuses.UNREALIZED
         )
         if bookings:
             await self._create_task_instance([booking.id for booking in bookings])
@@ -613,16 +628,21 @@ class AssignClientCase(BaseUserCase):
             return
 
         template: AssignClientTemplate = await self.template_repo.retrieve(
-            filters=dict(city=city, sms__sms_event_slug=self.sms_event_slug),
+            filters=dict(
+                city=city,
+                sms__sms_event_slug=self.sms_event_slug,
+                sms__is_active=True,
+                is_active=True,
+            ),
             related_fields=["sms"],
         )
-        if template and not template.sms.is_active:
-            # Если шаблон есть, но смс не активно, то не отправляем смс
+        if template and not template.is_active:
+            # Если шаблон есть, но он не активен, то не отправляем смс
             return
 
         if not template:
             template: AssignClientTemplate = await self.template_repo.retrieve(
-                filters=dict(default=True, sms__is_active=True),
+                filters=dict(default=True, sms__is_active=True, is_active=True),
                 related_fields=["sms"],
             )
         if not template:

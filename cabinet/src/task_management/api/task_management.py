@@ -66,7 +66,7 @@ async def one_time_set_pinning():
     from src.users import services as users_services
     from src.users import constants as users_constants
 
-    RATE_LIMIT = 80  # requests per second
+    RATE_LIMIT = 7  # requests per second
 
     resources: dict[str, Any] = dict(
         amocrm_class=amocrm.AmoCRM,

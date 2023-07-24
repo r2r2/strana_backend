@@ -27,7 +27,7 @@ class EmailResetCase(BaseUserCase):
     repres_mail_event_slug = "repres_reset_password"
     admin_mail_event_slug = "admin_reset_password"
 
-    link: str = "https://{}/reset/{}/reset_password?q={}&p={}"
+    link: str = "https://{}/api/{}/reset_password?q={}&p={}"
 
     def __init__(
         self,

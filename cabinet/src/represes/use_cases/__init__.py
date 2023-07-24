@@ -16,3 +16,4 @@ from .resend_confirm_letter import RepresResendLetterCase
 from .base_proceed_changes import BaseProceedEmailChanges, BaseProceedPhoneChanges
 from .initialize_change_email import InitializeChangeEmailCase
 from .initialize_change_phone import InitializeChangePhoneCase
+from .process_signup_in_agency import ProcessSignupInAgency

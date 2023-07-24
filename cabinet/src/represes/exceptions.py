@@ -84,3 +84,9 @@ class RepresWasDeletedError(BaseRepresException):
     message: str = "Представитель был удален"
     status: int = HTTPStatus.BAD_REQUEST
     reason: str = "repres_was_deleted"
+
+
+class RepresHasAgencyError(BaseRepresException):
+    message: str = "У представителя уже есть агентство"
+    status: int = HTTPStatus.BAD_REQUEST
+    reason: str = "repres_has_agency_error"

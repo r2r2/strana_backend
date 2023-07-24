@@ -7,13 +7,6 @@ class TaskInstance(BaseTaskManagementModel):
     """
     Задача
     """
-    comment: str = models.TextField(
-        verbose_name='Комментарий администратора AMO',
-        help_text='Текст комментария администратора (из АМО) в случае отказа',
-        null=True,
-        blank=True
-    )
-    task_amocrmid: str = models.CharField(max_length=255, verbose_name='AMOCRMID_задания', null=True, blank=True)
     status: models.ForeignKey = models.ForeignKey(
         'task_management.TaskStatus',
         on_delete=models.CASCADE,
@@ -28,6 +21,22 @@ class TaskInstance(BaseTaskManagementModel):
         verbose_name='Бронирование',
         help_text='ID сущности, в которой будет выводиться задание',
     )
+    task_amocrmid: str = models.CharField(
+        max_length=255,
+        verbose_name='AMOCRMID_задания',
+        null=True,
+        blank=True,
+        help_text="ID связанного процесса Sensei, по данному полю производится сопоставление запускаемого процесса в "
+                  "AMOCRM",
+    )
+    comment: str = models.TextField(
+        verbose_name='Комментарий администратора AMO',
+        help_text='[Загрузить документы] Текст комментария администратора (из АМО) '
+                  'в случае отправки документов на доработку',
+        null=True,
+        blank=True,
+    )
+
 
     def __str__(self) -> str:
         return str(self.id)
@@ -36,4 +45,4 @@ class TaskInstance(BaseTaskManagementModel):
         managed = False
         db_table = 'task_management_taskinstance'
         verbose_name = 'Задача'
-        verbose_name_plural = 'Задачи'
+        verbose_name_plural = '9.2. Задачи'

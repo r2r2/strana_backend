@@ -15,7 +15,7 @@ class GetMeCase(BaseAgentCase):
 
     async def __call__(self, agent_id: int) -> User:
         filters: dict[str, Any] = dict(id=agent_id)
-        agent: User = await self.agent_repo.retrieve(filters=filters, related_fields=["agency"])
+        agent: User = await self.agent_repo.retrieve(filters=filters, related_fields=["agency__city"])
         if not agent:
             raise AgentNotFoundError
         return agent

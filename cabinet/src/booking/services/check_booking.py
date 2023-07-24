@@ -3,8 +3,8 @@ from asyncio import Task
 from datetime import datetime
 from typing import Any, Optional, Type, Union
 
-from pytz import UTC
 import structlog
+from pytz import UTC
 
 from common.email import EmailService
 from src.task_management.constants import PaidBookingSlug
@@ -15,6 +15,7 @@ from ..repos import Booking, BookingRepo
 from ..types import BookingAmoCRM, BookingORM, BookingProfitBase, BookingPropertyRepo, BookingRequest
 from ..loggers.wrappers import booking_changes_logger
 from src.notifications.services import GetEmailTemplateService
+from ...properties.constants import PropertyStatuses
 
 
 class CheckBookingService(BaseBookingService):
@@ -91,6 +92,7 @@ class CheckBookingService(BaseBookingService):
             elif booking.time_valid():
                 task_delay: int = (booking.expires - datetime.now(tz=UTC)).seconds
                 if self.check_booking_task:
+
                     self.check_booking_task.apply_async((booking.id, status), countdown=task_delay)
                 result: bool = False
             else:
@@ -112,7 +114,7 @@ class CheckBookingService(BaseBookingService):
                     amocrm_substage=status,
                     amocrm_status=actual_amocrm_status,
                 )
-                property_data: dict[str, Any] = dict(status=booking.property.statuses.FREE)
+                property_data: dict[str, Any] = dict(status=PropertyStatuses.FREE)
                 if booking.is_agent_assigned():
                     await self._profitbase_unbooking(booking)
                     await self._amocrm_unbooking(booking, actual_amocrm_status.id)
@@ -129,11 +131,9 @@ class CheckBookingService(BaseBookingService):
                 await self.property_repo.update(booking.property, data=property_data)
                 await self._backend_unbooking(booking)
                 result: bool = False
-                # task_delay: int = (booking.expires - datetime.now(tz=UTC)).seconds
-                # self.check_booking_task.apply_async((booking.id, status), countdown=task_delay)
                 await self.update_task_instance_status(
-                    booking_id=booking.id, status_slug=PaidBookingSlug.RE_BOOKING.value
-                )
+                        booking_id=booking.id, status_slug=PaidBookingSlug.RE_BOOKING.value
+                    )
         return result
 
     async def _amocrm_unbooking(self, booking: Booking, status_id: int) -> int:
@@ -176,10 +176,13 @@ class CheckBookingService(BaseBookingService):
             response_ok: bool = response.ok
         return response_ok
 
-    async def _send_agent_email(self, booking: Booking) -> Task:
+    async def _send_agent_email(self, booking: Booking) -> Optional[Task]:
         """
         Уведомление агента об истечении времени на бронирование у клиента по почте
         """
+        if not booking.agent:
+            return
+
         email_notification_template = await self.get_email_template_service(
             mail_event_slug=self.mail_event_slug,
             context=dict(booking=booking),

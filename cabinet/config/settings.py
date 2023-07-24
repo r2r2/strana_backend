@@ -27,6 +27,15 @@ class ApplicationSettings(BaseSettings):
         env_file_encoding = "utf-8"
 
 
+class RequestLimiterSettings(BaseSettings):
+    max_requests: float = Field(5, env="LK_MAX_REQUESTS")
+    period: float = Field(1, env="LK_MAX_REQUESTS_PERIOD")  # in seconds
+
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+
+
 class UvicornSettings(BaseSettings):
     app: str = Field("config.asgi:application")
 
@@ -85,7 +94,10 @@ class DataBaseSettings(BaseSettings):
         ("text_blocks", "repos"),
         ("email", "repos"),
         ("messages", "repos"),
-        ("main_page", "repos"),
+        ("events", "repos"),
+        ("dashboard", "repos"),
+        ("menu", "repos"),
+        ("settings", "repos"),
     ]
 
     class Config:
@@ -136,13 +148,17 @@ class BackendSettings(BaseSettings):
     db_password: str = Field("postgres", env="PORTAL_POSTGRES_PASSWORD")
 
     graphql: str = Field("/graphql/", env="LK_BACKEND_GRAPHQL")
-    url: str = Field("https://msk.strana.com", env="LK_BACKEND_URL")
+    url: str = Field("https://msk.stranadev.com", env="LK_BACKEND_URL")
     internal_login: str = Field("internal_login", env="INTERNAL_LOGIN")
     internal_password: str = Field("internal_password", env="INTERNAL_PASSWORD")
 
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+
+
+class MCSettings(BaseSettings):
+    url: str = Field("https://services.stranadev-new.com/api", env="MC_BACKEND_URL")
 
 
 class SberbankSettings(BaseSettings):
@@ -370,7 +386,7 @@ class TortoiseSettings(BaseSettings):
         if testing:
             modules = ["aerich.models"]
             for model in database.models:
-                if model[0] not in ("email", "messages"):
+                if model[0] not in ("email", "messages", "settings"):
                     modules.append(f"src.{model[0]}.{model[1]}")
                 else:
                     modules.append(f"common.{model[0]}.{model[1]}")
@@ -396,7 +412,7 @@ class TortoiseSettings(BaseSettings):
         else:
             modules = []
             for model in database.models:
-                if model[0] not in ("email", "messages"):
+                if model[0] not in ("email", "messages", "settings"):
                     modules.append(f"src.{model[0]}.{model[1]}")
                 else:
                     modules.append(f"common.{model[0]}.{model[1]}")
@@ -456,7 +472,7 @@ class AerichSettings(BaseSettings):
         connections = dict(default=db_url)
         apps = dict(models=dict(models=["aerich.models"]))
         for model in database.models:
-            if model[0] not in ("email", "messages"):
+            if model[0] not in ("email", "messages", "settings"):
                 apps["models"]["models"].append(f"src.{model[0]}.{model[1]}")
             else:
                 apps["models"]["models"].append(f"common.{model[0]}.{model[1]}")
@@ -468,6 +484,7 @@ class AWSSettings(BaseSettings):
     secret_access_key: str = Field("server", env="AWS_SECRET_ACCESS_KEY")
     storage_bucket_name: str = Field("server", env="AWS_STORAGE_BUCKET_NAME")
     endpoint_url: str = Field("server", env="AWS_S3_ENDPOINT_URL")
+    custom_domain: str = Field("server", env="AWS_S3_CUSTOM_DOMAIN_LK")
 
     class Config:
         env_file = ".env"
@@ -546,6 +563,7 @@ class FakeSendSms(BaseSettings):
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+
 
 class LogsSettings(BaseSettings):
     logs_lifetime: int = Field(3, env="LOGS_LIFETIME")

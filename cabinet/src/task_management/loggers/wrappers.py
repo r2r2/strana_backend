@@ -3,10 +3,10 @@ from typing import Optional, Any
 from common.loggers.utils import get_difference_between_two_dicts
 from src.task_management.entities import BaseTaskService
 from src.task_management.repos import TaskInstanceRepo, TaskInstance
-from src.task_management.tasks import create_task_instance_log_task
 
 
 def task_instance_logger(task_change: TaskInstanceRepo(), service: BaseTaskService, content: str):
+    from src.task_management.tasks import create_task_instance_log_task
     """
     Логирование изменений экземпляра задания
     """

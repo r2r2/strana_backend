@@ -11,21 +11,27 @@ class QuestionnaireUploadDocument(BaseQuestionnaireModel):
     """
     id = models.UUIDField(primary_key=True, default=uuid4, editable=False)
     file_name: str = models.CharField(
-        max_length=150, verbose_name="Название", help_text="Название", null=True, blank=True
+        max_length=150,
+        verbose_name="Название",
+        null=True,
+        blank=True,
+        help_text="Хранит ссылки на загруженные пользователями документы (сами документы хранятся в СХД)",
     )
     url: str = models.CharField(
         max_length=2083,
         verbose_name="URL загруженного файла",
         help_text="URL загруженного файла",
-        null=True, blank=True
+        null=True,
+        blank=True,
     )
     uploaded_document = models.ForeignKey(
         "questionnaire.QuestionnaireDocument",
         on_delete=models.SET_NULL,
         verbose_name="Документ",
-        help_text="Документ",
         related_name="uploaded_document",
-        null=True, blank=True
+        null=True,
+        blank=True,
+        help_text="Тип загруженного документа",
     )
     booking = models.ForeignKey(
         "booking.Booking",
@@ -43,4 +49,4 @@ class QuestionnaireUploadDocument(BaseQuestionnaireModel):
         managed = False
         db_table = "questionnaire_upload_documents"
         verbose_name = "Загруженный документ"
-        verbose_name_plural = "Загруженные документы"
+        verbose_name_plural = " 10.8. [Опросник для пакета документов] Загруженные документы"

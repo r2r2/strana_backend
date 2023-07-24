@@ -1,12 +1,17 @@
 from decimal import Decimal
 from typing import Optional
 
-from common.orm.mixins import (DeleteMixin, ListMixin, ReadWriteMixin,
-                               RetrieveMixin, UpdateOrCreateMixin)
+from common import orm
+from common import cfields
+from common.orm.mixins import (
+    DeleteMixin, ListMixin, ReadWriteMixin,
+    RetrieveMixin, UpdateOrCreateMixin
+)
 from src.projects.repos import Project
 from tortoise import Model, fields
 
 from ..entities import BaseBuildingRepo
+from ..constants import BuildingType
 
 
 class BuildingBookingType(Model):
@@ -42,6 +47,7 @@ class Building(Model):
         description="Глобальный ID", max_length=200, unique=True, null=True
     )
     name: Optional[str] = fields.CharField(description="Имя", max_length=100, null=True)
+    name_display = fields.CharField(description="Отображаемое имя", max_length=100, null=True)
     built_year: Optional[int] = fields.IntField(description="Год постройки", null=True)
     ready_quarter: Optional[int] = fields.IntField(description="Квартал готовности", null=True)
     total_floor: Optional[int] = fields.IntField(description="Этажей", null=True)
@@ -59,6 +65,20 @@ class Building(Model):
         related_name="buildings",
         through="building_building_booking_type_m2m",
     )
+    kind: str = cfields.CharChoiceField(
+        description="Тип строения",
+        default=BuildingType.RESIDENTIAL,
+        choice_class=BuildingType,
+        max_length=32,
+    )
+    flats_0_min_price = fields.DecimalField(description="Мин цена студия", max_digits=14, decimal_places=2, null=True)
+    flats_1_min_price = fields.DecimalField(description="Мин цена 1-комн", max_digits=14, decimal_places=2, null=True)
+    flats_2_min_price = fields.DecimalField(description="Мин цена 2-комн", max_digits=14, decimal_places=2, null=True)
+    flats_3_min_price = fields.DecimalField(description="Мин цена 3-комн", max_digits=14, decimal_places=2, null=True)
+    flats_4_min_price = fields.DecimalField(description="Мин цена 4-комн", max_digits=14, decimal_places=2, null=True)
+    show_in_paid_booking: bool = fields.BooleanField(description="Отображать в платном бронировании", default=True)
+    discount: int = fields.SmallIntField(description="Скидка в %", default=0)
+    flats_reserv_time: float = fields.FloatField(description="Время резервирования квартир (ч)", null=True)
 
     def __str__(self) -> str:
         if self.name:
@@ -81,3 +101,4 @@ class BuildingRepo(BaseBuildingRepo, ReadWriteMixin):
     Репозиторий корпуса
     """
     model = Building
+    a_builder: orm.AnnotationBuilder = orm.AnnotationBuilder(Building)

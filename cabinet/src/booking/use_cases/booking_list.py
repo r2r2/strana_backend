@@ -26,7 +26,7 @@ class BookingListCase(BaseBookingCase):
         filters.update(additional_filters)
         bookings: list[Booking] = await self.booking_repo.list(
             filters=filters,
-            related_fields=["property", "floor", "building", "project", "ddu", "amocrm_status", "agent", "agency"]
+            related_fields=["property", "floor", "building", "project", "ddu", "amocrm_status", "agent", "agency__city"]
         )
         data: dict[str, Any] = dict(result=bookings, count=len(bookings))
         return data

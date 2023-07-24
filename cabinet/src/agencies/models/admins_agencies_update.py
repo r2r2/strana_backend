@@ -2,7 +2,7 @@ from typing import Optional
 
 from common import wrappers
 from common.files.models import FileCategoryListModel
-from pydantic import NoneStr, constr
+from pydantic import NoneStr, constr, validator
 
 from ..constants import AgencyType
 from ..entities import BaseAgencyModel
@@ -33,6 +33,12 @@ class ResponseAdminsAgenciesUpdateModel(BaseAgencyModel):
     city: Optional[str]
     type: Optional[AgencyType.serializer]
     files: Optional[list[FileCategoryListModel]]
+
+    @validator("city", pre=True)
+    def get_city_name(cls, value):
+        if value:
+            return value.name
+        return None
 
     class Config:
         orm_mode = True

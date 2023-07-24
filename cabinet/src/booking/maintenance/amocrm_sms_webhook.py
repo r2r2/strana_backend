@@ -3,13 +3,13 @@ from datetime import datetime
 from functools import wraps
 import pytz
 import structlog
+
 from common.amocrm import AmoCRM
 from config import EnvTypes, maintenance_settings
 from typing import Optional
 from common.amocrm.types import AmoLead
 from common.amocrm.constants import AmoLeadQueryWith
-from src.booking.exceptions import (BookingIdWasNotFoundError,
-                                    BookingNotFoundError)
+from src.booking.exceptions import BookingNotFoundError
 
 
 logger = structlog.get_logger("amocrm_sms_maintenance")
@@ -25,8 +25,9 @@ def amocrm_sms_maintenance(amocrm_sms_webhook):
         logger.info(f" AMOCRM sms maintenance PAYLOAD: payload={amocrm_id} ")
         amocrm_class = AmoCRM
         async with await amocrm_class() as amocrm:
-            webhook_lead: Optional[AmoLead] = await amocrm.fetch_lead(lead_id=amocrm_id,
-                                                                      query_with=[AmoLeadQueryWith.contacts])
+            webhook_lead: Optional[AmoLead] = await amocrm.fetch_lead(
+                lead_id=amocrm_id, query_with=[AmoLeadQueryWith.contacts]
+            )
         if not webhook_lead:
             logger.info(
                 f"[{datetime.now(tz=pytz.UTC)}] AMOCRM sms maintenance lead_id NOT FOUND: lead_id={webhook_lead} ")
@@ -50,5 +51,3 @@ def amocrm_sms_maintenance(amocrm_sms_webhook):
             return
 
     return wrapper_sms
-
-

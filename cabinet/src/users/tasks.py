@@ -1,10 +1,11 @@
-from asyncio import get_event_loop
 from typing import Any
+from asyncio import get_event_loop
+
+from tortoise import Tortoise
 
 from common import amocrm, requests, utils, email, security
 from common.amocrm import repos as amocrm_repos
 from common.backend import repos as backend_repos
-from config import amocrm_config, backend_config, celery, tortoise_config, logs_config
 from src.agents import repos as agents_repos
 from src.booking import constants as booking_constants
 from src.booking import repos as booking_repos
@@ -20,9 +21,9 @@ from src.users import loggers
 from src.users import repos as users_repos
 from src.agencies import repos as agencies_repos
 from src.users import services
-from tortoise import Tortoise
 from src.notifications import services as notification_services
 from src.notifications import repos as notification_repos
+from config import amocrm_config, backend_config, celery, tortoise_config, logs_config
 
 
 @celery.app.task
@@ -62,6 +63,7 @@ def create_amocrm_contact_task(user_id: int, phone: str) -> None:
         import_property_service=import_property_service,
         statuses_repo=amocrm_repos.AmoStatusesRepo,
         amocrm_config=amocrm_config,
+        check_booking_task=bookings_tasks.check_booking_task,
     )
     import_bookings_service: booking_services.ImportBookingsService = booking_services.ImportBookingsService(
         **resources,

@@ -7,6 +7,7 @@ from common.backend import repos as backend_repos
 from common.utils import from_global_id, to_global_id
 from config import tortoise_config
 from src.buildings import repos as building_repos
+from src.cities import repos as cities_repo
 from src.floors import repos as floors_repos
 from src.projects import repos as projects_repos
 from src.properties import repos as properties_repos
@@ -26,6 +27,7 @@ class UpdatePropertiesManage:
             project_repo=projects_repos.ProjectRepo,
             building_repo=building_repos.BuildingRepo,
             property_repo=properties_repos.PropertyRepo,
+            city_repo=cities_repo.CityRepo,
             building_booking_type_repo=building_repos.BuildingBookingTypeRepo,
             backend_building_booking_type_repo=backend_repos.BackendBuildingBookingTypesRepo,
             backend_properties_repo=backend_repos.BackendPropertiesRepo,

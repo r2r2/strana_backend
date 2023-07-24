@@ -21,7 +21,7 @@ class ImageProxy(object):
         resize: Optional[str] = "fill",
     ):
         self._width: int = width
-        self._resize: int = resize
+        self._resize: str = resize
         self._height: int = height
         self._gravity: str = gravity
         self._enlarge: int = enlarge

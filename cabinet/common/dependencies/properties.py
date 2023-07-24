@@ -7,7 +7,8 @@ from common.backend.repos import BackendBuildingBookingTypesRepo
 from src.buildings.repos import BuildingRepo, BuildingBookingTypeRepo
 from src.floors.repos import FloorRepo
 from src.projects.repos import ProjectRepo
-from src.properties.repos import PropertyRepo, Property
+from src.properties.repos import PropertyRepo
+from src.cities.repos import CityRepo
 from src.properties.services import ImportPropertyService
 from common.backend import repos as backend_repos
 
@@ -29,6 +30,7 @@ class PropertiesFromGlobalId:
                 project_repo=ProjectRepo,
                 building_repo=BuildingRepo,
                 property_repo=PropertyRepo,
+                city_repo=CityRepo,
                 building_booking_type_repo=BuildingBookingTypeRepo,
                 backend_building_booking_type_repo=BackendBuildingBookingTypesRepo,
                 backend_properties_repo=backend_repos.BackendPropertiesRepo,

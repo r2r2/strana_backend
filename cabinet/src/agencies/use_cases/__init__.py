@@ -32,3 +32,4 @@ from .agencies_getdoc_additional_agreement import AgenciesAdditionalAgreementGet
 from .superuser_agencies_fill_data import SuperuserAgenciesFillDataCase
 from .fire_agent import FireAgentCase
 from .repres_agreement_getdoc import AgreementGetDocCase
+from .superuser_additional_notify_agency_email import SuperuserAdditionalNotifyAgencyEmailCase

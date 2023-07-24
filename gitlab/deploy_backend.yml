@@ -52,7 +52,7 @@ pre-production:cabinet:
     changes:
       - cabinet/**/*
   variables:
-    DOCKER_HOST: ssh://$DEPLOY_USER_STAGE@$DEPLOY_HOST_STAGE
+    DOCKER_HOST: ssh://$DEPLOY_USER_SBER@$DEPLOY_HOST_STAGE_SBER
   before_script:
     - !reference [.before_script_configure_ssh_pre_production]
     - !reference [.docker_login_template,before_script]
@@ -71,7 +71,7 @@ pre-production:admin:
     changes:
       - admin/**/*
   variables:
-    DOCKER_HOST: ssh://$DEPLOY_USER_STAGE@$DEPLOY_HOST_STAGE
+    DOCKER_HOST: ssh://$DEPLOY_USER_SBER@$DEPLOY_HOST_STAGE_SBER
   before_script:
     - !reference [.before_script_configure_ssh_pre_production]
     - !reference [.docker_login_template,before_script]
@@ -110,7 +110,7 @@ prod-yandex:admin:
   only:
     refs:
       - master
-    changes:  
+    changes:
       - admin/**/*
   variables:
     DOCKER_HOST: ssh://$DEPLOY_USER_PROD@$DEPLOY_HOST_PROD
@@ -167,5 +167,4 @@ prod-sber:admin:
   tags:
     - docker-sber
   when: manual
-
 

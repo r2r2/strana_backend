@@ -1,11 +1,10 @@
 from typing import Type
 
-from tortoise.queryset import QuerySet
+import structlog
 
 from common.paginations import PagePagination
-from ..repos import Meeting, MeetingRepo
 from ..entities import BaseMeetingCase
-from ..exceptions import MeetingsNotFoundError
+from ..repos import Meeting, MeetingRepo
 
 
 class MeetingsListCase(BaseMeetingCase):
@@ -17,10 +16,12 @@ class MeetingsListCase(BaseMeetingCase):
         meeting_repo: Type[MeetingRepo],
     ) -> None:
         self.meeting_repo: MeetingRepo = meeting_repo()
+        self.logger = structlog.getLogger(__name__)
 
     async def __call__(self, *, statuses: list[str], user_id: int, pagination: PagePagination) -> dict:
         filters: dict = dict(booking__user_id=user_id)
         if statuses:
+            self.logger.info(f"Add filter with {statuses=}")
             filters.update(status__in=statuses)
 
         q_filters = [

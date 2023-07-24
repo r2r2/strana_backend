@@ -19,4 +19,4 @@ class FunctionalBlock(BaseQuestionnaireModel):
         managed = False
         db_table = "questionnaire_func_blocks"
         verbose_name = "Функциональный блок"
-        verbose_name_plural = "Функциональные блоки"
+        verbose_name_plural = " 10.5. Функциональные блоки (слаги)"

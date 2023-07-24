@@ -2,7 +2,7 @@ from django.dispatch import receiver
 from django.db.models.signals import post_save, pre_delete
 
 from .models import Booking
-from agencies.utils import export_in_amo
+from users.utils import export_in_amo
 
 
 @receiver(post_save, sender=Booking)

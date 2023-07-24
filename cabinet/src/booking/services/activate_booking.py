@@ -36,21 +36,21 @@ class ActivateBookingService(BaseBookingService, BookingLogMixin):
     query_directory: str = "/src/booking/queries/"
 
     def __init__(
-            self,
-            booking_repo: Type[BookingRepo],
-            property_repo: Type[BookingPropertyRepo],
-            building_booking_type_repo: Type[BuildingBookingTypeRepo],
+        self,
+        booking_repo: Type[BookingRepo],
+        property_repo: Type[BookingPropertyRepo],
+        building_booking_type_repo: Type[BuildingBookingTypeRepo],
 
-            amocrm_class: Type[BookingAmoCRM],
-            profitbase_class: Type[BookingProfitBase],
-            request_class: Type[BookingSqlUpdateRequest],
-            global_id_decoder: Callable[[str], tuple[str, Union[str, int]]],
+        amocrm_class: Type[BookingAmoCRM],
+        profitbase_class: Type[BookingProfitBase],
+        request_class: Type[BookingSqlUpdateRequest],
+        global_id_decoder: Callable[[str], tuple[str, Union[str, int]]],
 
-            check_booking_task: Any,
-            create_amocrm_log_task: Any,
-            create_booking_log_task: Any,
+        check_booking_task: Any,
+        create_amocrm_log_task: Any,
+        create_booking_log_task: Any,
 
-            logger: Optional[Any] = structlog.getLogger(__name__),
+        logger: Optional[Any] = structlog.getLogger(__name__),
     ) -> None:
         self.logger = logger
         self.booking_repo: BookingRepo = booking_repo()
@@ -96,8 +96,8 @@ class ActivateBookingService(BaseBookingService, BookingLogMixin):
             self.logger.debug(f"Activate Property data: status={booking_property.status}")
             data: dict[str, Any] = {}
             if booking_property.status in (
-                    booking_property.statuses.SOLD,
-                    booking_property.statuses.BOOKED
+                booking_property.statuses.SOLD,
+                booking_property.statuses.BOOKED
             ):
                 sentry_sdk.capture_message(
                     "cabinet/AcceptContractCase: BookingPropertyMissingError: Неверный статус квартиры"
@@ -115,7 +115,7 @@ class ActivateBookingService(BaseBookingService, BookingLogMixin):
 
         task_delay: int = (booking.expires - datetime.now(tz=UTC)).seconds
         self.check_booking_task.apply_async((booking.id, amocrm_substage), countdown=task_delay)
-        self.logger.debug(f"Launch check booking task: id={booking.id}")
+        self.logger.debug(f"Launch check booking task[celery]: id={booking.id}")
 
         return booking
 
@@ -152,8 +152,10 @@ class ActivateBookingService(BaseBookingService, BookingLogMixin):
                 lead_id: int = data[0]["id"]
             else:
                 booking_type_filter = dict(period=booking.booking_period, price=booking.payment_amount)
-                booking_type: Union[BuildingBookingType,
-                                    BookingTypeNamedTuple] = await self.building_booking_type_repo.retrieve(
+                booking_type: Union[
+                    BuildingBookingType,
+                    BookingTypeNamedTuple
+                ] = await self.building_booking_type_repo.retrieve(
                     filters=booking_type_filter)
                 if not booking_type:
                     booking_type = BookingTypeNamedTuple(price=int(booking.payment_amount))

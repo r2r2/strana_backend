@@ -12,17 +12,19 @@ def booking_changes_logger(booking_change: BookingRepo(), use_case: BaseBookingC
     Логирование изменений бронирования
     """
 
-    async def _wrapper(booking: Booking = None, data: dict = None, filters: dict = None, exclude_filters: dict = None):
+    async def _wrapper(
+        booking: Booking = None,
+        data: dict = None,
+        filters: dict = None,
+        exclude_filters: list[dict] = None
+    ):
         booking_after, response_data = dict(), dict()
         booking_before: str = dumps_dict(dict(booking)) if booking else dict()
         booking_difference_json: str = ""
         error_data, booking_id = None, None
 
         if data and filters:
-            if not exclude_filters:
-                update_booking = booking_change(filters=filters, data=data)
-            else:
-                update_booking = booking_change(filters=filters, data=data, exclude_filters=exclude_filters)
+            update_booking = booking_change(filters=filters, data=data, exclude_filters=exclude_filters)
         elif booking and isinstance(data, dict):
             update_booking = booking_change(model=booking, data=data)
         elif booking:

@@ -31,6 +31,13 @@ class UserPinningStatus(Model):
         null=False,
         index=True,
     )
+    unique_status: fields.ForeignKeyNullableRelation["UniqueStatus"] = fields.ForeignKeyField(
+        description="Статус уникальности",
+        model_name="models.UniqueStatus",
+        on_delete=fields.CASCADE,
+        related_name="users_pinning_status",
+        null=True,
+    )
 
     class Meta:
         table = "users_user_pinning_status"
