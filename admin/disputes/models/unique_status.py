@@ -8,6 +8,10 @@ class IconType(models.TextChoices):
     """
     ICON = "icon", _("Иконка")
     IMAGE = "image", _("Изображение")
+    WARNING = "warning", _("Предупреждение")
+    CHECK_SOLUTION = "checkSolution", _("Решение")
+    DOT = "dot", _("Точка")
+    NOT_PINNED = "notPinned", _("Не закреплено")
 
 
 class StyleListType(models.TextChoices):
@@ -107,12 +111,20 @@ class UniqueStatus(models.Model):
         verbose_name="Можно оспорить статус клиента",
         default=False,
     )
+    stop_check = models.BooleanField(
+        verbose_name="Остановить проверку",
+        default=False,
+    )
 
     class Meta:
         managed = False
         db_table = "users_unique_statuses"
         verbose_name = "Статус уникальности"
-        verbose_name_plural = "6.2. Условия определения статуса уникальности"
+        verbose_name_plural = "6.6. Статусы уникальности / закрепления"
 
     def __str__(self):
-        return self.title
+        if self.type == StatusType.UNIQUE:
+            status_type: str = "Статус уникальности"
+        else:
+            status_type: str = "Статус закрепления"
+        return f"{self.title} {self.subtitle if self.subtitle else ''}({status_type})"

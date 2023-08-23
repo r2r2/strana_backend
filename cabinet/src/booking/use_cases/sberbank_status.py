@@ -5,7 +5,7 @@ import asyncio
 from asyncio import Task
 from datetime import datetime, timedelta
 from secrets import compare_digest
-from typing import Any, Callable, Literal, Type, Union
+from typing import Any, Callable, Literal, Type, Union, Awaitable
 
 from pytz import UTC
 
@@ -119,14 +119,14 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
             )
             self.create_amocrm_log_task.delay(note_data=note_data)
 
-            ## ToDo по-хорошему сделать gather
-            asyncio.create_task(
+            async_tasks: list[Awaitable] = [
                 self.update_task_instance_status(booking_id=booking.id, status_slug=PaidBookingSlug.SUCCESS.value),
-            )
-            await self._send_sms(booking=booking)
-            await self._send_email(booking=booking)
+                self._send_sms(booking=booking),
+                self._send_email(booking=booking),
+            ]
             if booking.is_agent_assigned():
-                await self._send_agent_email(booking=booking)
+                async_tasks.append(self._send_agent_email(booking=booking))
+            await asyncio.gather(*async_tasks)
             await self._amocrm_processing(booking=booking, payment_status=True)
         else:
             data.update(params_checked=False)
@@ -181,9 +181,18 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
     # @logged_action(content="ОПЛАЧЕНО | AMOCRM")
     async def _amocrm_processing(self, booking: Booking, payment_status: bool) -> int:
         """
-        Docs
+        Обновление сделки в amoCRM
         """
-        status = BookingSubstages.PAID_BOOKING if payment_status else BookingSubstages.BOOKING
+        if booking.amocrm_substage in (
+            BookingSubstages.MORTGAGE_DONE,
+            BookingSubstages.MORTGAGE_LEAD,
+            BookingSubstages.MORTGAGE_FILED,
+        ):
+            # Не меняем статус, если это ипотека
+            status = booking.amocrm_substage
+        else:
+            status = BookingSubstages.PAID_BOOKING if payment_status else BookingSubstages.BOOKING
+
         booking_period = booking.booking_period or 0
         booking_until_datetime = datetime.now(tz=UTC) + timedelta(days=booking_period)
         async with await self.amocrm_class() as amocrm:

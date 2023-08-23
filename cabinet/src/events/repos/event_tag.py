@@ -11,7 +11,7 @@ class EventTag(Model):
     """
 
     id: int = fields.IntField(description="ID", pk=True, index=True)
-    name: str = fields.CharField(
+    label: str = fields.CharField(
         description="Название тега",
         max_length=100,
         unique=True,
@@ -21,7 +21,7 @@ class EventTag(Model):
         description='Цвет тега',
         default="#808080",
     )
-    text_color: str = fields.CharField(
+    background_color: str = fields.CharField(
         max_length=40,
         description='Цвет текста тега',
         default="#808080",

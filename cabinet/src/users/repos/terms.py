@@ -14,12 +14,6 @@ class IsConType(mixins.Choices):
     SKIP = "skip", "Не важно"
 
 
-class UniqueValueType(mixins.Choices):
-    UNIQUE = "unique", "Уникален"
-    NOT_UNIQUE = "not_unique", "Не уникален"
-    CAN_DISPUTE = "can_dispute", "Закреплен, но можно оспорить"
-
-
 class TermCity(Model):
     id: int = fields.IntField(pk=True)
     city = fields.ForeignKeyField(model_name="models.City")
@@ -71,11 +65,12 @@ class CheckTerm(Model):
     is_assign_agency_status: str = cfields.CharChoiceField(description="Была ли сделка в статусе 'Фиксация за АН'",
                                                            choice_class=IsConType, max_length=10, null=False)
     priority: int = fields.IntField(description="Приоритет", null=False)
-    unique_value: str = cfields.CharChoiceField(description="Статус уникальности", max_length=50,
-                                                choice_class=UniqueValueType, null=False)
-    assigned_to_agent: bool = fields.BooleanField(default=False, description="Закреплен за проверяющим агентом")
+    assigned_to_agent: bool = fields.BooleanField(
+        null=True,
+        description="Закреплен за проверяющим агентом",
+    )
     assigned_to_another_agent: bool = fields.BooleanField(
-        default=False,
+        null=True,
         description="Закреплен за другим агентом проверяющего агентства",
     )
     send_admin_email: bool = fields.BooleanField(
@@ -88,6 +83,7 @@ class CheckTerm(Model):
         related_name="terms",
         null=True,
     )
+    comment: str = fields.TextField(description="Комментарий", null=True)
 
     class Meta:
         table = "users_checks_terms"

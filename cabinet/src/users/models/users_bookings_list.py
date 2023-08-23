@@ -2,14 +2,17 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Optional
 
-from pydantic import BaseModel, root_validator
-
+from common.pydantic import CamelCaseBaseModel
+from pydantic import BaseModel, root_validator, validator, Field
+from src.meetings.constants import MeetingPropertyType, MeetingType
 from src.properties.models import PropertyRetrieveModel
+from src.users.constants import UserStatus
+from src.users.entities import BaseCheckModel, BaseUserModel
+
 from ...agencies.models import AgencyRetrieveModel
 from ...agents.models import AgentRetrieveModel
+from ...booking.models.booking_retrieve import BookingTagRetrieveModel
 from ...projects.models.projects_list import ProjectListModel
-from src.users.constants import UserStatus
-from src.users.entities import BaseUserModel, BaseCheckModel
 
 
 class _CheckListModel(BaseUserModel):
@@ -55,6 +58,10 @@ class _StatusModel(BaseCheckModel):
     class Config:
         orm_mode = True
 
+        # @staticmethod
+        # def schema_extra(schema: dict[str, Any]) -> None:
+        #     schema["properties"].pop("unique_status")
+
 
 class _PinningStatusModel(BaseCheckModel):
     title: Optional[str]
@@ -79,6 +86,10 @@ class _PinningStatusModel(BaseCheckModel):
 
     class Config:
         orm_mode = True
+
+        # @staticmethod
+        # def schema_extra(schema: dict[str, Any]) -> None:
+        #     schema["properties"].pop("unique_status")
 
 
 class _BookingUserModel(BaseUserModel):
@@ -136,15 +147,53 @@ class Button(BaseModel):
         orm_mode = True
 
 
+class MeetingSchema(CamelCaseBaseModel):
+    id: int
+    city: Optional[str]
+    project: Optional[str]
+    property_type: MeetingPropertyType.serializer
+    type: MeetingType.serializer
+    date: str
+    time: str
+    address: Optional[str]
+    link: Optional[str]
+    slug: Optional[str]
+
+    @validator("type")
+    def validate_type(cls, value: MeetingType) -> str:
+        return value.value
+
+    class Config:
+        orm_mode = True
+
+
+class FixationSchema(CamelCaseBaseModel):
+    fixation_expires: Optional[datetime]
+    days_before_fixation_expires: Optional[int]
+    extension_number: Optional[int]
+
+    class Config:
+        orm_mode = True
+
+
 class TaskInstanceResponseSchema(BaseModel):
     type: str
     title: str
     hint: Optional[str]
     text: str
     buttons: Optional[list[Button]]
+    meeting: Optional[MeetingSchema]
+    fixation: Optional[FixationSchema]
 
     class Config:
         orm_mode = True
+
+    def dict(self, *args, **kwargs):
+        original_dict = super().dict(*args, **kwargs)
+        return {
+            key: value for key, value in original_dict.items()
+            if key != "meeting" or value is not None
+        }
 
 
 class _BookingBuildingRetrieveModel(BaseUserModel):
@@ -171,7 +220,10 @@ class _UserBookingsListModel(BaseUserModel):
 
     payment_amount: Optional[Decimal]
     final_payment_amount: Optional[Decimal]
+    final_discount: Optional[Decimal]
+    final_additional_options: Optional[Decimal]
     expires: Optional[datetime]
+    fixation_expires: Optional[datetime] = Field(None, alias="fixationExpires")
     until: Optional[datetime]
 
     user: _BookingUserModel
@@ -182,6 +234,7 @@ class _UserBookingsListModel(BaseUserModel):
     agent: Optional[AgentRetrieveModel]
     agency: Optional[AgencyRetrieveModel]
     amocrm_status: Optional[AmoCRMStatus]
+    booking_tags: Optional[list[BookingTagRetrieveModel]]
     project: Optional[ProjectListModel]
     building: Optional[_BookingBuildingRetrieveModel]
     property: Optional[PropertyRetrieveModel]
@@ -190,6 +243,7 @@ class _UserBookingsListModel(BaseUserModel):
 
     class Config:
         orm_mode = True
+        allow_population_by_field_name = True
 
 
 class ResponseUserResponseBookingRetrieve(_UserBookingsListModel):

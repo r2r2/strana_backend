@@ -1,5 +1,6 @@
 from typing import Any, Type, Optional
 
+from common.settings.repos import BookingSettingsRepo
 from src.booking.entities import BaseBookingCase
 from src.booking.exceptions import BookingNotFoundError
 from src.booking.repos import Booking
@@ -21,12 +22,14 @@ class UserBookingRetrieveCase(BaseBookingCase):
         self,
         check_repo: Type[CheckRepo],
         booking_repo: Type[UserBookingRepo],
+        booking_settings_repo: Type[BookingSettingsRepo],
         amocrm_group_status_repo: Type[AmocrmGroupStatusRepo],
         agent_repo: Type[UserAgentRepo],
         user_pinning_repo: Type[UserPinningStatusRepo],
     ) -> None:
         self.check_repo: CheckRepo = check_repo()
         self.booking_repo: UserBookingRepo = booking_repo()
+        self.booking_settings_repo: BookingSettingsRepo = booking_settings_repo()
         self.amocrm_group_status_repo: AmocrmGroupStatusRepo = amocrm_group_status_repo()
         self.agent_repo: UserAgentRepo = agent_repo()
         self.user_pinning_repo: UserPinningStatusRepo = user_pinning_repo()
@@ -49,18 +52,15 @@ class UserBookingRetrieveCase(BaseBookingCase):
         prefetch_fields: list = [
             "agent",
             "agency",
-            "agency__city",
             "user",
-            "project",
             "project__city",
             "building",
             "property",
+            "property__section",
+            "property__property_type",
             "property__floor",
-            "amocrm_status",
             "amocrm_status__group_status",
-            "task_instances",
-            "task_instances__status",
-            "task_instances__status__button",
+            "task_instances__status__buttons",
             "task_instances__status__tasks_chain__task_visibility",
         ]
 
@@ -71,7 +71,7 @@ class UserBookingRetrieveCase(BaseBookingCase):
         if not booking:
             raise BookingNotFoundError
 
-        if booking.project and booking.amocrm_status:
+        if booking.amocrm_status:
             group_statuses: list[AmocrmGroupStatus] = await self.amocrm_group_status_repo.list(
                 filters=dict(is_final=False),
                 ordering="sort",
@@ -116,5 +116,10 @@ class UserBookingRetrieveCase(BaseBookingCase):
         booking.user.status = status
         booking.user.pinning_status = pinning_status
         task_instances = sorted(booking.task_instances, key=lambda x: x.status.priority)
-        booking.tasks = build_task_data(task_instances, booking_status=booking.amocrm_status)  # type: ignore
+        booking_settings = await self.booking_settings_repo.list().first()
+        booking.tasks = await build_task_data(
+            task_instances=task_instances,
+            booking=booking,
+            booking_settings=booking_settings,
+        )
         return booking

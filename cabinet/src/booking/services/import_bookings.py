@@ -15,6 +15,7 @@ from common.amocrm.repos import AmoStatusesRepo
 from common.amocrm.types import AmoContact, AmoCustomField, AmoLead
 from common.backend.models import AmocrmStatus
 from common.utils import partition_list
+from src.amocrm.repos import AmocrmStatusRepo
 from src.agents.repos import AgentRepo
 from src.booking.loggers.wrappers import booking_changes_logger
 from src.booking.constants import BookingCreatedSources
@@ -26,6 +27,7 @@ from src.properties.repos import Property, PropertyRepo
 from src.properties.services import ImportPropertyService
 from src.users.loggers.wrappers import user_changes_logger
 from src.users.repos import User, UserRepo
+from src.task_management.constants import FixationExtensionSlug, BOOKING_UPDATE_FIXATION_STATUSES
 
 from ..constants import BookingStagesMapping, BookingSubstages
 from ..entities import BaseBookingService
@@ -70,6 +72,8 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
         booking_repo: Type[BookingRepo],
         user_repo: Type[UserRepo],
         agent_repo: Type[AgentRepo],
+        amocrm_status_repo: Type[AmocrmStatusRepo],
+        update_task_instance_status_task: Any,
         amocrm_class: Type[AmoCRM],
         floor_repo: Type[FloorRepo],
         project_repo: Type[ProjectRepo],
@@ -98,6 +102,8 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
         self.statuses_repo: AmoStatusesRepo = statuses_repo()
         self.import_property_service: ImportPropertyService = import_property_service
         self.check_pinning = check_pinning
+        self.amocrm_status_repo: AmocrmStatusRepo = amocrm_status_repo()
+        self.update_task_instance_status_task = update_task_instance_status_task
         self.user_update = user_changes_logger(
             self.user_repo.update, self, content="Импорт бронирований из АМО"
         )
@@ -125,14 +131,23 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
     async def __call__(self, user_id: int) -> bool:
         user_filters: dict[str, Any] = dict(id=user_id)
         user: User = await self.user_repo.retrieve(filters=user_filters, related_fields=["agent"])
-        agent_filters: dict[str, Any] = dict(
-            is_active=True,
-            is_approved=True,
-            is_deleted=False,
-            amocrm_id__isnull=False,
-            type=self.user_types.AGENT,
-        )
-        agents: list[User] = await self.agent_repo.list(filters=agent_filters)
+        q_filters = [self.agent_repo.q_builder(
+            or_filters=[
+                dict(
+                    is_active=True,
+                    is_approved=True,
+                    is_deleted=False,
+                    amocrm_id__isnull=False,
+                    type=self.user_types.AGENT,
+                ),
+                dict(
+                    is_deleted=False,
+                    amocrm_id__isnull=False,
+                    type=self.user_types.REPRES,
+                ),
+            ]
+        )]
+        agents: list[User] = await self.agent_repo.list(q_filters=q_filters)
 
         async with await self.amocrm_class() as amocrm:
             import_contact: Optional[AmoContact] = await amocrm.fetch_contact(
@@ -197,6 +212,18 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
         amocrm_status: AmocrmStatus = await self.statuses_repo.retrieve(
             filters=dict(id=lead.status_id)
         )
+        amocrm_cabinet_status = await self.amocrm_status_repo.retrieve(
+            filters=dict(id=amocrm_status.id if amocrm_status else None),
+            related_fields=["group_status"],
+        )
+        if (
+            amocrm_cabinet_status.group_status
+            and amocrm_cabinet_status.group_status.name not in BOOKING_UPDATE_FIXATION_STATUSES
+        ):
+            self.update_task_instance_status_task.delay(
+                booking_id=booking.id,
+                status_slug=FixationExtensionSlug.DEAL_ALREADY_BOOKED.value,
+            )
 
         property_id: Optional[int] = None
         property_type: Optional[str] = None
@@ -250,13 +277,14 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
                 lead_expires: datetime = datetime.fromtimestamp(lead_expires_amo_timestamp, tz=UTC)
 
         property_type: str = property_type or property_str_type
-        if not property_id or not property_type:
-            return
+        if property_id and property_type:
+            booking_property = await self._import_property(
+                property_id=property_id, property_type=property_type
+            )
+        else:
+            booking_property = None
 
-        booking_property = await self._import_property(
-            property_id=property_id, property_type=property_type
-        )
-        building: Optional[Building] = booking_property.building
+        building: Optional[Building] = booking_property.building if booking_property else None
 
         booking_active: bool = True
         booking_amocrm_id: int = lead.id
@@ -280,9 +308,9 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
 
         data: dict[str, Any] = dict(
             user=user,
-            floor=booking_property.floor,
-            project=booking_property.project,
-            building=booking_property.building,
+            floor=booking_property.floor if booking_property else None,
+            project=booking_property.project if booking_property else None,
+            building=booking_property.building if booking_property else None,
             property=booking_property,
             until=booking_until,
             expires=booking_expires,

@@ -54,6 +54,19 @@ async def create_task_instance_from_admin(
     status_code=HTTPStatus.OK,
 )
 async def one_time_set_pinning():
+    from fastapi import HTTPException
+    from sentry_sdk import utils
+    from sentry_sdk import capture_message
+    import structlog
+    print(f'{utils.MAX_STRING_LENGTH=}')
+
+    logger = structlog.get_logger()
+    capture_message('test')
+    logger.exception('test*******test___________418')
+
+
+
+    raise HTTPException(status_code=418, detail="Hello world, from FastAPI!")
     """
     Одноразовый эндпоинт. Удалить после использования.
     Установка Статуса закрепления для всех пользователей
@@ -65,8 +78,9 @@ async def one_time_set_pinning():
     from src.users import repos as users_repos
     from src.users import services as users_services
     from src.users import constants as users_constants
+    from src.users.constants import UserPinningStatusType
 
-    RATE_LIMIT = 7  # requests per second
+    RATE_LIMIT = 2  # requests per second
 
     resources: dict[str, Any] = dict(
         amocrm_class=amocrm.AmoCRM,
@@ -78,16 +92,19 @@ async def one_time_set_pinning():
     check_pinning: users_services.CheckPinningStatusService = users_services.CheckPinningStatusService(**resources)
 
     batch_size = 100
-    concurrency_limit = multiprocessing.cpu_count() * 2
+    concurrency_limit = multiprocessing.cpu_count()
 
     total_users_count = await users_repos.UserRepo().count(
-        filters=dict(type=users_constants.UserType.CLIENT, agent_id__isnull=False),
+        filters=dict(
+            type=users_constants.UserType.CLIENT,
+            users_checks__unique_status__slug=UserPinningStatusType.NOT_PINNED,
+        ),
     )
-
+    total_users_count = len(total_users_count)
     print("++++Start Task++++")
-    print(f'Total users count: {total_users_count[0][0]}')
+    print(f'Total users count: {total_users_count}')
 
-    total_batches = (total_users_count[0][0] + batch_size - 1) // batch_size
+    total_batches = (total_users_count + batch_size - 1) // batch_size
     semaphore = asyncio.Semaphore(concurrency_limit)
 
     async def process_batch(offset: int):
@@ -96,7 +113,7 @@ async def one_time_set_pinning():
             users_repos.User.all()
             .filter(
                 type=users_constants.UserType.CLIENT,
-                agent_id__isnull=False,
+                users_checks__unique_status__slug=UserPinningStatusType.NOT_PINNED,
             )
             .limit(batch_size)
             .offset(offset=offset)

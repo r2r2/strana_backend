@@ -75,4 +75,4 @@ class HistoricalDisputeData(models.Model):
         managed = False
         db_table = 'historical_dispute_data'
         verbose_name = 'История оспаривания'
-        verbose_name_plural = '2.7. [Справочник] История оспаривания'
+        verbose_name_plural = ' 2.7. [Справочник] История оспаривания'

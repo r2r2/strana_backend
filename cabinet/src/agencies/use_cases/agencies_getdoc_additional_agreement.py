@@ -92,10 +92,9 @@ class AgenciesAdditionalAgreementGetDocCase(BaseAgencyCase):
         """
         Создание сделки для формирования документа в get_doc
         """
-
         lead_options: dict[str, Any] = dict(
             status_id=self._booking_getdoc_statuses.NEW,
-            city_slug=self._amocrm_class.city_name_mapping.get(agency.city, "tyumen"),
+            city_slug=self._amocrm_class.city_name_mapping.get(agency.city, "tmn"),
             user_amocrm_id=lead_user.amocrm_id,
             project_amocrm_name=project.amocrm_name,
             project_amocrm_enum=project.amocrm_enum,

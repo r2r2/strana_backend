@@ -19,6 +19,18 @@ class BookingSettings(models.Model):
         help_text="Определяет время бесплатного резервирования квартиры "
                   "для агента по умолчанию (если не задано в проекте и корпусе)"
     )
+    lifetime = models.FloatField(
+        verbose_name="Время жизни сделки фиксации при создании, дней", null=True, blank=True,
+    )
+    updated_lifetime = models.FloatField(
+        verbose_name="Время жизни сделки фиксации после обновления в амо, дней", null=True, blank=True,
+    )
+    extension_deadline = models.FloatField(
+        verbose_name="Дедлайн продления сделки до закрытия, дней",
+        null=True,
+        blank=True,
+    )
+    max_extension_number = models.IntegerField(verbose_name="Количество попыток продления", null=True, blank=True,)
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Дата обновления")
 
@@ -29,4 +41,4 @@ class BookingSettings(models.Model):
         managed = False
         db_table = 'settings_booking_settings'
         verbose_name = "Настройки бронирования"
-        verbose_name_plural = "Настройки бронирования"
+        verbose_name_plural = "15.1. Настройки бронирования"

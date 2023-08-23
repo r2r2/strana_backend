@@ -2,18 +2,17 @@ from datetime import date, datetime
 from typing import Any, Optional, Union
 from uuid import UUID
 
-from tortoise import Model, fields
-from tortoise.exceptions import IntegrityError
-from tortoise.fields import ForeignKeyNullableRelation, ManyToManyRelation, ForeignKeyRelation
-
 from common import cfields, orm
 from common.orm.mixins import ExistsMixin, GenericMixin
 from src.agencies.repos import Agency
 from src.projects.repos import Project
 from src.properties.constants import PropertyTypes
 from src.properties.repos import Property
+from tortoise import Model, fields
+from tortoise.exceptions import IntegrityError
+from tortoise.fields import ForeignKeyNullableRelation, ManyToManyRelation, ForeignKeyRelation
 
-from ..constants import DutyType, UserType
+from ..constants import DutyType, UserType, OriginType
 from ..entities import BaseUserRepo
 from ..mixins import UserRepoFacetsMixin, UserRepoSpecsMixin
 
@@ -46,6 +45,9 @@ class User(Model):
     )
     duty_type: Optional[str] = cfields.CharChoiceField(
         description="Тип должности", max_length=20, choice_class=DutyType, null=True
+    )
+    origin: Optional[str] = cfields.CharChoiceField(
+        description="Источник", max_length=30, choice_class=OriginType, null=True
     )
 
     username: Optional[str] = fields.CharField(

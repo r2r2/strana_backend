@@ -36,6 +36,9 @@ class SmsTemplate(Model, TimeBasedMixin):
         default=True,
     )
 
+    booking_notifications: fields.ReverseRelation["BookingNotification"]
+    assign_clients: fields.ReverseRelation["AssignClientTemplate"]
+
     class Meta:
         table = "notifications_sms_notification"
 

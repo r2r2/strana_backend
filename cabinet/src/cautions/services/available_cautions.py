@@ -1,11 +1,10 @@
-from typing import Type, List, Any
-
-from tortoise.fields.relational import RelationalField
+from typing import Any, List, Type
 
 from src.cautions.entities import BaseCautionService
-from src.cautions.repos.caution import CautionRepo, Caution
+from src.cautions.repos.caution import Caution, CautionRepo
 from src.users.exceptions import UserNotFoundError
-from src.users.repos import UserRepo, User
+from src.users.repos import User, UserRepo
+from tortoise.fields.relational import RelationalField
 
 
 class AvailableCautionsForUserService(BaseCautionService):
@@ -53,7 +52,7 @@ class AvailableCautionsForUserService(BaseCautionService):
 
     @staticmethod
     def caution_sql(user_id: int, fields: list, user_type: str):
-        """Строка sql-запроса логики получения предупреждений для пользователя, которые емцу еще не были показаны"""
+        """Строка sql-запроса логики получения предупреждений для пользователя, которые ему еще не были показаны"""
         return f""" SELECT {", ".join(["c1.id AS id"] + fields)}
         FROM cautions_caution c1
         LEFT JOIN users_caution_mute c2 ON c2.caution_id = c1.id AND c2.user_id = {user_id}

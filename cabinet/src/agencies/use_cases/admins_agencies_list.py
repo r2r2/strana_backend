@@ -73,7 +73,7 @@ class AdminsAgenciesListCase(BaseAgencyCase):
             ordering=ordering,
             q_filters=q_filters,
             annotations=annotations,
-            prefetch_fields=["maintainer", "city"],
+            prefetch_fields=["maintainer"],
         )
         counted: list[tuple[Union[int, str]]] = await self.agency_repo.count(
             filters=filters, q_filters=q_filters

@@ -31,7 +31,6 @@ class ProcessLoginCase(BaseProcessLoginCase):
 
     def __init__(
         self,
-        user_type: Optional[str],
         session: UserSession,
         user_repo: Type[UserRepo],
         auth_config: dict[str, Any],
@@ -51,7 +50,6 @@ class ProcessLoginCase(BaseProcessLoginCase):
 
         self._login_handler = login_handler
 
-        self.user_type: str = user_type
         self.session: UserSession = session
         self.token_creator: Callable = token_creator
 
@@ -110,6 +108,8 @@ class ProcessLoginCase(BaseProcessLoginCase):
             await self.session.insert()
         await self._import_amocrm_hook(user)
         token["is_fired"] = user.is_fired
+        await self.user_update(user, data=dict(auth_last_at=datetime.now(tz=UTC)))
+
         return token
 
     async def _remove_change_password_permission(self) -> bool:

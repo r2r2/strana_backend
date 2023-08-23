@@ -36,14 +36,14 @@ class Button(BaseTaskManagementModel):
         null=True,
         blank=True,
     )
-    status: models.ForeignKey = models.ForeignKey(
+    statuses: models.ManyToManyField = models.ManyToManyField(
         'task_management.TaskStatus',
-        on_delete=models.CASCADE,
-        related_name='button',
-        help_text='Статус задания, в котором данное действие будет выводиться',
-        verbose_name='Статус',
-        null=True,
+        through='TaskStatusButtonsThrough',
+        related_name='buttons',
+        help_text='Статусы задания, в которых данное действие будет выводиться',
+        verbose_name='Статусы',
         blank=True,
+        null=True,
     )
 
     def __str__(self) -> str:
@@ -54,3 +54,26 @@ class Button(BaseTaskManagementModel):
         db_table = 'task_management_button'
         verbose_name = 'Кнопка'
         verbose_name_plural = '9.3. [Справочник] Кнопки (в задачах)'
+
+
+class TaskStatusButtonsThrough(models.Model):
+    """
+    Связь между статусами заданий и кнопками
+    """
+    task_status: models.ForeignKey = models.ForeignKey(
+        to='task_management.TaskStatus',
+        on_delete=models.CASCADE,
+        related_name='task_status',
+        verbose_name='Статус задания',
+        primary_key=True,
+    )
+    button: models.ForeignKey = models.ForeignKey(
+        to='task_management.Button',
+        on_delete=models.CASCADE,
+        related_name='button',
+        verbose_name='Кнопка',
+    )
+
+    class Meta:
+        managed = False
+        db_table = 'task_management_taskstatus_buttons'

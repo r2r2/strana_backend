@@ -82,7 +82,7 @@ class RepresesAgentsRetrieveCase(BaseAgentCase):
         closed_clients_qs: Any = self.user_repo.list(filters=filters, annotations=annotations)
 
         filters: dict[str, Any] = dict(agency_id=agency_id, agent_id=agent_id)
-        check_qs: Any = self.check_repo.list(filters=filters)
+        check_qs: Any = self.check_repo.list(filters=filters, related_fields=["unique_status"])
         filters: dict[str, Any] = dict(
             agent_id=agent_id, agency_id=agency_id, type=self.user_types.CLIENT, is_deleted=False
         )

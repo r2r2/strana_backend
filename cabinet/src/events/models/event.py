@@ -38,7 +38,6 @@ class ResponseEventModel(BaseEventModel):
     manager_phone: str
     max_participants_number: int = Field(..., alias="maxParticipantsCount")
     participants_count: int
-    tags: Optional[Any]
     agent_recorded: bool = Field(..., alias="isParticipant")
 
     # Method fields
@@ -51,7 +50,6 @@ class ResponseEventModel(BaseEventModel):
         """
         max_participants_number: int = values.get("max_participants_number", 0)
         participants_count: int = values.get("participants_count", 0)
-        tags: Any = values.pop("tags", None)
 
         if not max_participants_number:
             values["has_empty_seats"]: bool = True
@@ -60,15 +58,6 @@ class ResponseEventModel(BaseEventModel):
                 values["has_empty_seats"]: bool = True
             else:
                 values["has_empty_seats"]: bool = False
-
-        event_tags = []
-        for tag in tags:
-            event_tags.append(dict(
-                name=tag.name,
-                color=tag.color,
-                textСolor=tag.text_color,
-            ))
-        values["tags"]: list[dict[str, str]] = event_tags
 
         return values
 
@@ -86,7 +75,6 @@ class ResponseEventListModel(BaseEventModel):
     type: Optional[EventType.serializer]
     meeting_date_start: Optional[datetime] = Field(None, alias="dateStart")
     meeting_date_end: Optional[datetime] = Field(None, alias="dateEnd")
-    tags: Optional[Any]
     max_participants_number: int
     participants_count: int
     agent_recorded: bool = Field(..., alias="isParticipant")
@@ -101,7 +89,6 @@ class ResponseEventListModel(BaseEventModel):
         """
         max_participants_number: int = values.pop("max_participants_number", 0)
         participants_count: int = values.pop("participants_count", 0)
-        tags: Any = values.pop("tags", None)
 
         if not max_participants_number:
             values["has_empty_seats"]: bool = True
@@ -110,15 +97,6 @@ class ResponseEventListModel(BaseEventModel):
                 values["has_empty_seats"]: bool = True
             else:
                 values["has_empty_seats"]: bool = False
-
-        event_tags = []
-        for tag in tags:
-            event_tags.append(dict(
-                name=tag.name,
-                color=tag.color,
-                textСolor=tag.text_color,
-            ))
-        values["tags"]: list[dict[str, str]] = event_tags
 
         return values
 

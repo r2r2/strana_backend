@@ -1,7 +1,7 @@
 from http import HTTPStatus
 from typing import Any, Optional
 
-from fastapi import APIRouter, Body, Request, Query, Depends
+from fastapi import APIRouter, Body, Request, Query, Depends, status
 from fastapi.responses import RedirectResponse
 
 from common import messages, security, utils, email, dependencies
@@ -24,23 +24,18 @@ router = APIRouter(prefix="/admins", tags=["Admins"])
 
 
 @router.post(
-    "/register", status_code=HTTPStatus.CREATED, response_model=models.ResponseProcessRegisterModel
+    "/register", status_code=status.HTTP_201_CREATED, response_model=models.ResponseProcessRegisterModel
 )
-async def process_register_view(payload: models.RequestProcessRegisterModel = Body(...)):
+async def process_register_view(payload: models.RequestProcessAdminRegisterModel = Body(...)):
     """
     Регистрация администратора
     """
-    get_sms_template_service: notification_services.GetSmsTemplateService = \
-        notification_services.GetSmsTemplateService(
-            sms_template_repo=notification_repos.SmsTemplateRepo,
-        )
     resources: dict[str, Any] = dict(
         hasher=security.get_hasher,
         sms_class=messages.SmsService,
         admin_repo=admins_repos.AdminRepo,
         user_type=users_constants.UserType.ADMIN,
         password_generator=utils.generate_simple_password,
-        get_sms_template_service=get_sms_template_service,
     )
     process_register: use_cases.ProcessRegisterCase = use_cases.ProcessRegisterCase(**resources)
     return await process_register(payload=payload)
@@ -155,7 +150,6 @@ async def process_login_view(
         hasher=security.get_hasher,
         session_config=session_config,
         user_repo=admins_repos.AdminRepo,
-        user_type=users_constants.UserType.ADMIN,
         token_creator=security.create_access_token,
     )
     process_login: use_cases.ProcessLoginCase = use_cases.ProcessLoginCase(**resources)

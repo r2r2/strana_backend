@@ -12,7 +12,7 @@ from common.files import FileProcessor
 from src.users.constants import UserType
 from src.agencies.constants import FileType as AgencyFileType, UploadPath as AgencyUploadPath
 from src.agencies.exceptions import AgencyDataTakenError
-from src.agencies.repos import Agency, AgencyRepo
+from src.agencies.repos import Agency, AgencyRepo, AgencyGeneralTypeRepo
 from src.admins.repos import AdminRepo
 from src.agents.repos import AgentRepo
 
@@ -34,6 +34,7 @@ class ProcessRegisterCase(BaseRepresCase):
     repres_mail_event_slug = "repres_confirm_email"
     admin_mail_event_slug = "admin_confirm_agency"
     link: str = "https://{}/confirm/represes/confirm_email?q={}&p={}"
+    default_general_type_slug = "agency"
 
     def __init__(
         self,
@@ -43,6 +44,7 @@ class ProcessRegisterCase(BaseRepresCase):
         token_creator: Callable[[int], str],
         hasher: Callable[..., CryptContext],
         agency_repo: Type[AgencyRepo],
+        agency_type_repo: Type[AgencyGeneralTypeRepo],
         agent_repo: Type[AgentRepo],
         admin_repo: Type[AdminRepo],
         city_repo: Type[CityRepo],
@@ -62,6 +64,7 @@ class ProcessRegisterCase(BaseRepresCase):
             self.repres_repo.create, self, content="Создание представителя"
         )
         self.agency_repo: AgencyRepo = agency_repo()
+        self.agency_type_repo: AgencyGeneralTypeRepo = agency_type_repo()
         self.agency_create = agency_changes_logger(
             self.agency_repo.create, self, content="Создание агентства"
         )
@@ -137,15 +140,15 @@ class ProcessRegisterCase(BaseRepresCase):
         if deleted_agency:
             await self.agency_delete(deleted_agency)
 
-        city: City = await self.city_repo.retrieve(filters=dict(name__iexact=payload.city))
-
         # Создаём агентство
+        default_general_type = await self.agency_type_repo.retrieve(filters=dict(slug=self.default_general_type_slug))
         data: dict[str, Any] = payload.dict()
         data.update(dict(
             files=await self.file_processor(files=files, path=AgencyUploadPath.FILES,
                                             choice_class=AgencyFileType),
             is_approved=True,
-            city=city,
+            city=payload.city,
+            general_type_id=default_general_type.id,
         ))
         agency: Agency = await self.agency_create(data=data)
         await self._send_admins_email(agency)

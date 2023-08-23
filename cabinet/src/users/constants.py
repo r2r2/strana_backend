@@ -38,7 +38,6 @@ class UserStatus(mixins.Choices):
     CAN_DISPUTE: str = 'can_dispute', "Закреплен, но можно оспорить"
     ERROR: str = 'error', "Ошибка"
     SAME_PINNED: str = 'same_pinned', "Закреплен за вами"
-    REPRES_PINNED: str = 'repres_pinned', "Закреплен за вашим агентством"
     AGENT_REPRES_PINNED: str = 'agent_repres_pinned', "Закреплен за агентом из вашего агентства"
     REPRES_PINNED_DISPUTE: str = 'repres_pinned_dispute', 'Закреплен за вашим агентством, но можно оспорить'
 
@@ -101,3 +100,13 @@ class UserAssignSlug(str, Enum):
     CONFIRMED: str = "confirmed"
     UNASSIGNED: str = "unassigned"
     UNASSIGN: str = "unassign"
+
+
+class OriginType(mixins.Choices):
+    """
+    Источник создания пользователя
+    """
+    AMOCRM: str = "amocrm", "Импорт из АМО",
+    LK_BROKER: str = "lk_broker", "ЛК Брокера"
+    LK_CLIENT: str = "lk_client", "ЛК Клиента"
+    PORTAL: str = "portal", "Портал"

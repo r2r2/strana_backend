@@ -34,8 +34,8 @@ class DocTemplate(models.Model):
     template_name: str = models.CharField(
         verbose_name='Название шаблона',
         max_length=150,
-        help_text="Должно соответствовать названию документа в АМО и "
-                  "включать формат [.docx], например (Отчет-акт.docx)",
+        help_text="Название шаблона должно соответствовать названию документа в АМО и включать формат [.docx], "
+                  "например (Договор.docx)”",
     )
 
     def __str__(self):

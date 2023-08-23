@@ -1,5 +1,5 @@
-from django.contrib import admin
 from django import forms
+from django.contrib import admin
 from django.contrib.admin.widgets import FilteredSelectMultiple
 from django.db.models import OuterRef, Subquery
 
@@ -23,6 +23,7 @@ class AmocrmGroupStatusAdminForm(forms.ModelForm):
             "sort",
             "color",
             "actions",
+            "tags",
             "is_final",
             "show_reservation_date",
             "show_booking_date",
@@ -49,7 +50,7 @@ class AmocrmGroupStatusAdmin(admin.ModelAdmin):
     list_display = ("id", "name", "sort", "color", "is_final", "get_statuses_on_list")
     search_fields = ('id', 'name',)
     ordering = ("sort", )
-    filter_horizontal = ("actions",)
+    filter_horizontal = ("actions", "tags")
 
     def get_statuses_on_list(self, obj):
         if obj.statuses.exists():
@@ -68,7 +69,7 @@ class AmocrmGroupStatusAdmin(admin.ModelAdmin):
         return qs
 
     def formfield_for_manytomany(self, db_field, request, **kwargs):
-        if db_field.name == "actions":
+        if db_field.name in ["actions", "tags"]:
             kwargs['widget'] = FilteredSelectMultiple(
                 db_field.verbose_name, is_stacked=False
             )

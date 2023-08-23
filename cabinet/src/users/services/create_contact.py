@@ -182,7 +182,9 @@ class CreateContactService(BaseUserService):
             raise BookingRequestValidationError(message=f"Незаполнены поля: {' '.join(errors)}")
 
     def fetch_amocrm_data(self, contact: AmoContact, with_personal: bool = True) -> dict:
-        """fetch_amocrm_data"""
+        """
+        Fetch_amocrm_data
+        """
         surname, name, patronymic = self._get_personal_names(contact)
         phone, email, passport_series, passport_number, birth_date, tags = self._get_custom_fields(contact)
         data: dict[str, Any] = dict(
@@ -205,7 +207,9 @@ class CreateContactService(BaseUserService):
 
     @staticmethod
     def _get_personal_names(contact: AmoContact) -> Tuple[Optional[str], Optional[str], Optional[str]]:
-        """Получение имени пользователя"""
+        """
+        Получение имени пользователя
+        """
         name_components: List[str] = contact.name.split()
         name = surname = patronymic = None
         if not name_components:
@@ -214,15 +218,19 @@ class CreateContactService(BaseUserService):
             name = name_components[0]
         elif len(name_components) == 2:
             surname, name = name_components
-        else:
+        elif len(name_components) == 3:
             surname, name, patronymic = name_components
+        else:
+            surname, name, patronymic, *extra_components = name_components
         return surname, name, patronymic
 
     def _get_custom_fields(
             self,
             contact: AmoContact
     ) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str], Optional[datetime], list]:
-        """Получение полей пользователя"""
+        """
+        Получение полей пользователя
+        """
         phone: Optional[str] = None
         email: Optional[str] = None
         passport_series: Optional[str] = None

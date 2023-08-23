@@ -7,12 +7,22 @@ class Agency(models.Model):
     """
 
     inn = models.CharField(max_length=30, verbose_name="ИНН")
+    city = models.CharField(max_length=30, verbose_name="Город агентства")
     is_approved = models.BooleanField(verbose_name="Подтверждено")
     is_deleted = models.BooleanField(verbose_name="Удалено")
     type = models.CharField(max_length=20, blank=True, null=True, verbose_name="Тип")
-    files = models.JSONField(blank=True, null=True, verbose_name="Файлы")
+    general_type = models.ForeignKey(
+        "users.AgencyGeneralType",
+        models.SET_NULL,
+        related_name="agencies",
+        verbose_name="Тип агентства",
+        help_text="Тип агентства (агрегатор/АН). По умолчанию сохраняется тип - 'Агентство'",
+        null=True,
+        blank=True,
+    )
+    files = models.JSONField(blank=True, null=True, verbose_name="Файлы (документы агентства)")
     name = models.CharField(max_length=100, blank=True, null=True, verbose_name="Название")
-    tags = models.JSONField(blank=True, null=True, verbose_name="Теги")
+    tags = models.JSONField(blank=True, null=True, verbose_name="Теги [АМО]")
     amocrm_id = models.BigIntegerField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -28,17 +38,12 @@ class Agency(models.Model):
     signatory_surname = models.CharField(verbose_name="Фамилия подписанта", max_length=50, null=True, blank=True)
     signatory_patronymic = models.CharField(verbose_name="Отчество подписанта", max_length=50, null=True, blank=True)
     signatory_registry_number = models.CharField(
-        verbose_name="Номер регистрации в реестре", max_length=100, null=True, blank=True
+        verbose_name="Номер регистрации в реестре",
+        max_length=100,
+        null=True,
+        blank=True,
     )
     signatory_sign_date = models.DateField(verbose_name="Дата подписания", null=True, blank=True)
-    city = models.ForeignKey(
-        "references.Cities",
-        db_column="city_id",
-        on_delete=models.SET_NULL,
-        verbose_name="Город агентства",
-        related_name="agency_city",
-        null=True
-    )
 
     def __str__(self):
         return f"{self.name} (AMOCRMID {self.amocrm_id}, ИНН {self.inn})"
@@ -47,5 +52,5 @@ class Agency(models.Model):
         managed = False
         db_table = "agencies_agency"
         verbose_name = "Агентство"
-        verbose_name_plural = "2.2. Агентства"
+        verbose_name_plural = " 2.2. Агентства"
         ordering = ["-created_at"]

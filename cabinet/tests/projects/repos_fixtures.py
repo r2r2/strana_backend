@@ -12,7 +12,12 @@ def project_repo():
 @fixture(scope="function")
 def project_factory(project_repo, faker, city):
     async def project(i=0):
-        data = {"slug": f"test_{i}", "name": faker.name(), "city": city}
+        data = {
+            "slug": f"test_{i}",
+            "name": faker.name(),
+            "city": city,
+            "address": faker.address(),
+        }
         return await project_repo.create(data)
 
     return project
@@ -24,6 +29,7 @@ async def project(project_repo, faker, city):
         "slug": f"test_{faker.word()}",
         "name": faker.company(),
         "city_id": city.id,
+        "address": faker.address(),
     }
     project_obj = await project_repo.create(data)
     return project_obj

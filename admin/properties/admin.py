@@ -1,5 +1,8 @@
 from django.contrib import admin
-from .models import Property, Building, Project, Floor
+from django.contrib.admin.widgets import FilteredSelectMultiple
+from django.db.models import Subquery, OuterRef
+
+from .models import Property, Building, Project, Floor, PropertyType, PropertyTypePipelineThrough, Section
 
 
 @admin.register(Property)
@@ -11,6 +14,7 @@ class PropertyAdmin(admin.ModelAdmin):
         "area",
         "global_id",
         "type",
+        "property_type__label",
         "price",
         "final_price",
         "original_price",
@@ -28,10 +32,12 @@ class PropertyAdmin(admin.ModelAdmin):
         "building",
         "project",
         "floor",
+        "section",
     )
     list_display = (
         "global_id",
         "type",
+        "property_type",
         "final_price",
         "area",
         "project",
@@ -40,6 +46,15 @@ class PropertyAdmin(admin.ModelAdmin):
         "status",
         "number",
     )
+
+    def get_search_results(self, request, queryset, search_term):
+        if search_term:
+            search_term = search_term.replace(",", ".")
+
+        queryset, use_distinct = super(PropertyAdmin, self).get_search_results(
+            request, queryset, search_term
+        )
+        return queryset, use_distinct
 
 
 @admin.register(Building)
@@ -92,10 +107,54 @@ class FloorAdmin(admin.ModelAdmin):
     autocomplete_fields = (
         "building",
     )
-    list_display = ("global_id", "floor", "number")
+    list_display = ("global_id", "building", "number")
 
-    def floor(self, obj):
-        return obj
 
-    floor.short_description = 'Этажи'
-    floor.admin_order_field = 'building__name'
+@admin.register(PropertyType)
+class PropertyTypeAdmin(admin.ModelAdmin):
+    list_display = (
+        "sort",
+        "label",
+        "slug",
+        "is_active",
+        "get_pipelines_on_list",
+    )
+    search_fields = (
+        "slug",
+        "label",
+        "sort",
+    )
+
+    def get_pipelines_on_list(self, obj):
+        if obj.pipelines.exists():
+            return [pipeline.name for pipeline in obj.pipelines.all()]
+        else:
+            return "-"
+
+    get_pipelines_on_list.short_description = 'Воронки сделок'
+    get_pipelines_on_list.admin_order_field = 'pipeline_first_name'
+
+    def formfield_for_manytomany(self, db_field, request, **kwargs):
+        if db_field.name == "pipelines":
+            kwargs['widget'] = FilteredSelectMultiple(
+                db_field.verbose_name,
+                is_stacked=False,
+            )
+        else:
+            return super().formfield_for_manytomany(db_field, request, **kwargs)
+        form_field = db_field.formfield(**kwargs)
+        msg = "Зажмите 'Ctrl' ('Cmd') или проведите мышкой, с зажатой левой кнопкой, чтобы выбрать несколько элементов."
+        form_field.help_text = msg
+        return form_field
+
+    def get_queryset(self, request):
+        qs = super(PropertyTypeAdmin, self).get_queryset(request)
+        pipeline_qs = PropertyTypePipelineThrough.objects.filter(property_type__id=OuterRef("id"))
+        qs = qs.annotate(pipeline_first_name=Subquery(pipeline_qs.values("pipeline__name")[:1]))
+        return qs
+
+
+@admin.register(Section)
+class SectionAdmin(admin.ModelAdmin):
+    search_fields = ("name", "building__name")
+    list_display = ("name", "number", "building", "total_floors")

@@ -16,6 +16,7 @@ def get_routers() -> list[APIRouter]:
     from src.documents.api import documents_router, escrow_router
     from src.projects.api import projects_router, projects_router_v2
     from src.meetings.api import meeting_router
+    from src.main_page.api import main_page_router
 
     # ToDo закомментированные роутеры не импортируются
     # from src.admins.api import admins_router
@@ -39,6 +40,7 @@ def get_routers() -> list[APIRouter]:
     routers.append(task_management_router)
     routers.append(tips_router)
     routers.append(meeting_router)
+    routers.append(main_page_router)
 
     # routers.append(auth_router)
     # routers.append(booking_router)

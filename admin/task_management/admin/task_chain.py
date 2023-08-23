@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.admin.widgets import FilteredSelectMultiple
 
-from ..models import TaskChain
+from task_management.models import TaskChain
 
 
 @admin.register(TaskChain)
@@ -15,10 +15,10 @@ class TaskChainAdmin(admin.ModelAdmin):
     readonly_fields = ("updated_at", "created_at",)
     ordering = ("name",)
     search_fields = ("name", "id")
-    filter_horizontal = ("booking_substage", "task_visibility")
+    filter_horizontal = ("booking_substage", "task_visibility", "task_fields")
 
     def formfield_for_manytomany(self, db_field, request, **kwargs):
-        if db_field.name in ("booking_substage", "task_visibility"):
+        if db_field.name in ("booking_substage", "task_visibility", "task_fields"):
             kwargs['widget'] = FilteredSelectMultiple(
                 db_field.verbose_name, is_stacked=False
             )

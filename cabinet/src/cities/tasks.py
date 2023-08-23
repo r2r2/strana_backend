@@ -1,14 +1,11 @@
 from asyncio import get_event_loop
-from typing import Any
 
 import tortoise
 
-from common.backend.repos import BackendCitiesRepo
 from common.portal.portal import PortalAPI
 from common.requests import GraphQLRequest
 from config import celery, tortoise_config, backend_config
 from src.cities.repos.city import CityRepo
-from .services import ImportCitiesService
 from .services.update_cities_data import UpdateCitiesService
 
 

@@ -7,7 +7,7 @@ from ..entities import BaseBookingModel
 
 class RequestAdminsBookingChargeModel(BaseBookingModel):
     """
-    Модель запроса изменения коммиссии бронирования
+    Модель запроса изменения комиссии бронирования
     """
 
     commission: condecimal(decimal_places=2)
@@ -19,7 +19,7 @@ class RequestAdminsBookingChargeModel(BaseBookingModel):
 
 class ResponseAdminsBookingChargeModel(BaseBookingModel):
     """
-    Модель ответа изменении коммиссии бронирования
+    Модель ответа изменения комиссии бронирования
     """
 
     class Config:

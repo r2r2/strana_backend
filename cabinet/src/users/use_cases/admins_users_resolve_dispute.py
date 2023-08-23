@@ -7,7 +7,8 @@ from src.agents.exceptions import AgentNotFoundError
 from ..constants import UserStatus
 from ..exceptions import UserNotFoundError, CheckNotFoundError
 from ..models import RequestAdminsUserCheckDispute
-from ..repos import UserRepo, CheckRepo, Check
+from src.users.repos import UserRepo, CheckRepo, Check, UniqueStatus
+from src.users.utils import get_unique_status
 from ...agents.repos import AgentRepo
 from src.notifications.services import GetEmailTemplateService
 
@@ -34,11 +35,16 @@ class ResolveDisputeCase(BaseCheckCase):
         user = await self.user_repo.retrieve(filters=filters)
         if not user:
             raise UserNotFoundError
+        unique_status: UniqueStatus = await get_unique_status(slug=UserStatus.DISPUTE)
         filters: dict[str:Any] = dict(
             user_id=user_id,
-            status=UserStatus.DISPUTE
+            unique_status=unique_status,
         )
-        check: Check = await self.check_repo.retrieve(filters=filters, ordering='-id')
+        check: Check = await self.check_repo.retrieve(
+            filters=filters,
+            ordering='-id',
+            related_fields=["unique_status"],
+        )
         if not check:
             raise CheckNotFoundError
         filters: dict[str:Any] = dict(
@@ -56,12 +62,11 @@ class ResolveDisputeCase(BaseCheckCase):
         )
         await self._send_email(**email_data)
 
+        new_status: UniqueStatus = await get_unique_status(slug=payload.status)
         data: dict[str:Any] = dict(
-            status=payload.status
+            unique_status=new_status,
         )
         await self.check_repo.update(check, data)
-        await check.refresh_from_db(fields=['status'])
-
         return check
 
     async def _send_email(self, recipients: List[str], **context) -> Task:

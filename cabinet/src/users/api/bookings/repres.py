@@ -2,14 +2,15 @@ from http import HTTPStatus
 from typing import Any
 
 from common import dependencies, paginations
+from common.settings.repos import BookingSettingsRepo
 from fastapi import Depends, Path, Query
+from src.agents import repos as agents_repos
 from src.amocrm.repos import AmocrmGroupStatusRepo
 from src.booking import repos as booking_repos
 from src.users import constants as users_constants
 from src.users import filters, models
 from src.users import repos as users_repos
 from src.users import use_cases
-from src.agents import repos as agents_repos
 
 from ..user import router
 
@@ -99,10 +100,11 @@ async def repres_bookings_list_view(
     """
     resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
-        check_repo=users_repos.CheckRepo,
         booking_repo=booking_repos.BookingRepo,
+        booking_tag_repo=booking_repos.BookingTagRepo,
         amocrm_group_status_repo=AmocrmGroupStatusRepo,
-        user_type=users_constants.UserType.REPRES
+        user_type=users_constants.UserType.REPRES,
+        booking_settings_repo=BookingSettingsRepo,
     )
     repres_bookings_list: use_cases.UsersBookingsCase = use_cases.UsersBookingsCase(
         **resources
@@ -128,6 +130,7 @@ async def repres_booking_retrieve_view(
         booking_repo=booking_repos.BookingRepo,
         agent_repo=agents_repos.AgentRepo,
         user_pinning_repo=users_repos.UserPinningStatusRepo,
+        booking_settings_repo=BookingSettingsRepo,
     )
     booking_retrieve: use_cases.UserBookingRetrieveCase = use_cases.UserBookingRetrieveCase(**resources)
     return await booking_retrieve(booking_id=booking_id, agency_id=agency_id)

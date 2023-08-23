@@ -1,20 +1,10 @@
 from django.db import models
-from django.utils.translation import gettext_lazy as _
 
 
 class CheckHistory(models.Model):
     """
     История проверки
     """
-
-    class StatusCheck(models.TextChoices):
-        """
-        Статус проверки
-        """
-        UNIQUE: str = "unique", _("Уникальный")
-        NOT_UNIQUE: str = "not_unique", _("Неуникальный")
-        CAN_DISPUTE = "can_dispute", _("Закреплен, но можно оспорить")
-        ERROR: str = 'error', _("Ошибка")
 
     client = models.ForeignKey(
         "users.CabinetUser",
@@ -48,7 +38,6 @@ class CheckHistory(models.Model):
         related_name='agency_history_check',
         verbose_name='Агентство'
     )
-    status = models.CharField(choices=StatusCheck.choices, max_length=50, verbose_name='Статус проверки')
     unique_status: models.ForeignKey = models.ForeignKey(
         to="disputes.UniqueStatus",
         verbose_name="Статус уникальности",
@@ -58,13 +47,29 @@ class CheckHistory(models.Model):
         related_name="checks_history",
     )
     created_at = models.DateTimeField(blank=True, null=True, verbose_name='Запрошено')
+    term_uid = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        verbose_name='UID условия проверки на уникальность',
+    )
+    term_comment = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name='Комментарий к условию проверки на уникальность',
+    )
+    lead_link = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name='Ссылка на сделку',
+    )
 
     def __str__(self) -> str:
-        return self.status if self.status else str(self.id)
+        return str(self.id)
 
     class Meta:
         managed = False
         db_table = "users_checks_history"
         verbose_name = "Проверка"
         verbose_name_plural = "6.3. [Исторические данные] История проверок на уникальность"
-        ordering = ["status", "created_at"]
+        ordering = ["created_at"]

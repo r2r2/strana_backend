@@ -6,6 +6,7 @@ from users.models import HistoricalDisputeData
 
 @register(HistoricalDisputeData)
 class HistoricalDisputeDataAdmin(admin.ModelAdmin):
+    date_hierarchy = 'dispute_requested'
     list_display = (
         "dispute_agent",
         "dispute_agent_agency",

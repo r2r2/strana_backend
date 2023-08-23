@@ -151,7 +151,7 @@ app.conf.beat_schedule = {
     },
     "periodic_update_missed_amocrm_id_task": {
         "schedule": crontab(minute=0, hour='21'),
-        "task": "agency.tasks.update_missed_amocrm_id_task",
+        "task": "src.agency.tasks.periodic_update_missed_amocrm_id_task",
         "options": {
             "priority": priority.low,
         }

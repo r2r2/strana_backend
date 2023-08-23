@@ -5,4 +5,4 @@ from ..models import EventTag
 
 @admin.register(EventTag)
 class EventTagAdmin(admin.ModelAdmin):
-    list_display = ("id", "name", "color", "text_color")
+    list_display = ("id", "label", "color", "background_color")

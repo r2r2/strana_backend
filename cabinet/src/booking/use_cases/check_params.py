@@ -1,18 +1,15 @@
 import base64
+from uuid import uuid4
 from datetime import datetime, timedelta
 from typing import Any, Callable, Type, Union
 
-from uuid import uuid4
 import sentry_sdk
 from pytz import UTC
 
-from ...properties.constants import PropertyStatuses
-from ..constants import (PAYMENT_PROPERTY_NAME, BookingStages,
-                         BookingSubstages, PaymentStatuses, PaymentView)
-from ..decorators import logged_action
+from src.properties.constants import PropertyStatuses
+from ..constants import PAYMENT_PROPERTY_NAME, BookingStages, BookingSubstages, PaymentStatuses, PaymentView
 from ..entities import BaseBookingCase
-from ..exceptions import (BookingNotFoundError, BookingOnlinePaymentError,
-                          BookingTimeOutError, BookingWrongStepError)
+from ..exceptions import BookingNotFoundError, BookingOnlinePaymentError, BookingTimeOutError, BookingWrongStepError
 from ..loggers.wrappers import booking_changes_logger
 from ..mixins import BookingLogMixin
 from ..models import RequestCheckParamsModel
@@ -40,13 +37,15 @@ class CheckParamsCase(BaseBookingCase, BookingLogMixin):
         self.booking_update = booking_changes_logger(
             self.booking_repo.update, self, content="Проверка параметров бронирования",
         )
-        self.booking_check_logger = booking_changes_logger(self.booking_repo.update, self, content="Проверка "
-                                                                                                   "параметров")
-        self.booking_fail_logger = booking_changes_logger(self.booking_repo.update, self, content="Ошибка получения "
-                                                                                                  "ссылки")
-        self.booking_success_logger = booking_changes_logger(self.booking_repo.update, self, content="Успешное "
-                                                                                                     "получение "
-                                                                                                     "ссылки")
+        self.booking_check_logger = booking_changes_logger(
+            self.booking_repo.update, self, content="Проверка параметров"
+        )
+        self.booking_fail_logger = booking_changes_logger(
+            self.booking_repo.update, self, content="Ошибка получения ссылки"
+        )
+        self.booking_success_logger = booking_changes_logger(
+            self.booking_repo.update, self, content="Успешное получение ссылки"
+        )
 
     async def __call__(
         self, user_id: int, booking_id: int, payload: RequestCheckParamsModel
@@ -135,7 +134,6 @@ class CheckParamsCase(BaseBookingCase, BookingLogMixin):
         )
         return booking
 
-    # @logged_action(content="ПОЛУЧЕНИЕ ССЫЛКИ | SBERBANK")
     async def _online_payment(self, booking: Booking) -> Union[dict[str, Any], str]:
         """online payment"""
         payment_options: dict[str, Any] = dict(

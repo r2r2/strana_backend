@@ -15,7 +15,8 @@ def booking_repo() -> BookingRepo:
 
 @pytest.fixture(scope="function")
 async def booking(booking_repo, property) -> Booking:
-    booking_type = property.building.booking_types[0]
+    await property.fetch_related("building__booking_types")
+    booking_type = await property.building.booking_types[0]
     data = {
         "booking_period": booking_type.period,
         "until": datetime.now(tz=UTC) + timedelta(days=booking_type.period),

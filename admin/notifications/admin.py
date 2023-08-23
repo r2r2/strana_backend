@@ -1,10 +1,14 @@
 from django.contrib import admin
+from django.contrib.admin.widgets import FilteredSelectMultiple
 
 from .models import LogSms, LogEmail, EmailTemplate, SmsTemplate, AssignClientTemplate
+from .models.booking_notificaton import BookingNotification
+from .models.booking_fixation_notificaton import BookingFixationNotification
 
 
 @admin.register(LogEmail)
 class LogEmailAdmin(admin.ModelAdmin):
+    date_hierarchy = "created_at"
     list_display = (
         "id",
         "lk_type",
@@ -35,6 +39,7 @@ class LogEmailAdmin(admin.ModelAdmin):
 
 @admin.register(LogSms)
 class LogSmsAdmin(admin.ModelAdmin):
+    date_hierarchy = "created_at"
     list_display = (
         "id",
         "lk_type",
@@ -121,3 +126,53 @@ class AssignClientTemplateAdmin(admin.ModelAdmin):
         elif db_field.name == "sms":
             kwargs["queryset"] = db_field.related_model.objects.order_by("sms_event_slug")
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+
+@admin.register(BookingNotification)
+class BookingNotificationAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "sms_template",
+        "created_source",
+        "hours_before_send",
+    )
+    search_fields = ("sms_template__sms_event_slug",)
+    list_filter = ("sms_template",)
+    filter_horizontal = ("project",)
+
+    def formfield_for_manytomany(self, db_field, request, **kwargs):
+        if db_field.name == "project":
+            kwargs['widget'] = FilteredSelectMultiple(
+                db_field.verbose_name, is_stacked=False
+            )
+        else:
+            return super().formfield_for_manytomany(db_field, request, **kwargs)
+        form_field = db_field.formfield(**kwargs)
+        msg = "Зажмите 'Ctrl' ('Cmd') или проведите мышкой, с зажатой левой кнопкой, чтобы выбрать несколько элементов."
+        form_field.help_text = msg
+        return form_field
+
+
+@admin.register(BookingFixationNotification)
+class BookingFixationNotificationAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "mail_template",
+        "type",
+        "days_before_send",
+    )
+    search_fields = ("mail_template__mail_event_slug",)
+    list_filter = ("mail_template", "type")
+    filter_horizontal = ("project",)
+
+    def formfield_for_manytomany(self, db_field, request, **kwargs):
+        if db_field.name == "project":
+            kwargs['widget'] = FilteredSelectMultiple(
+                db_field.verbose_name, is_stacked=False
+            )
+        else:
+            return super().formfield_for_manytomany(db_field, request, **kwargs)
+        form_field = db_field.formfield(**kwargs)
+        msg = "Зажмите 'Ctrl' ('Cmd') или проведите мышкой, с зажатой левой кнопкой, чтобы выбрать несколько элементов."
+        form_field.help_text = msg
+        return form_field

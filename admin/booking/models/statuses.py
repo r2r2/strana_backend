@@ -33,5 +33,5 @@ class AmocrmStatus(models.Model):
         db_table = "amocrm_statuses"
         ordering = ("pipeline_id", "sort")
         verbose_name = "Статус"
-        verbose_name_plural = "1.4. [Справочник] Статусы из АМО"
+        verbose_name_plural = "1.5. [Справочник] Статусы из АМО"
 

@@ -77,6 +77,7 @@ async def process_register_view(
     process_register: use_cases.ProcessRegisterCase = use_cases.ProcessRegisterCase(
         admin_repo=admins_repos.AdminRepo,
         agency_repo=agencies_repos.AgencyRepo,
+        agency_type_repo=agencies_repos.AgencyGeneralTypeRepo,
         email_class=email.EmailService,
         file_processor=files.FileProcessor,
         hasher=security.get_hasher,

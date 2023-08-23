@@ -7,6 +7,9 @@ from pytz import UTC
 
 
 class Booking(models.Model):
+    __original_expires = None
+    __original_payment_id = None
+
     class CreatedSourceChoices(models.TextChoices):
         AMOCRM = "amocrm", _("AMOCRM")
         LK = "lk_booking", _("Бронирование через личный кабинет")
@@ -32,6 +35,7 @@ class Booking(models.Model):
     bill_paid = models.BooleanField()
     email_sent = models.BooleanField()
     email_force = models.BooleanField()
+    send_notify = models.BooleanField()
     should_be_deactivated_by_timer = models.BooleanField()
     payment_url = models.CharField(max_length=350, blank=True, null=True, help_text="Ссылка на оплату в эквайринге")
     amocrm_id = models.BigIntegerField(blank=True, null=True)
@@ -83,17 +87,23 @@ class Booking(models.Model):
     floor = models.ForeignKey("properties.Floor", models.CASCADE, blank=True, null=True)
     profitbase_booked = models.BooleanField(help_text="Забронировано в Profitbase")
     expires = models.DateTimeField(blank=True, null=True)
+    fixation_expires = models.DateTimeField(verbose_name="Фиксация истекает", blank=True, null=True)
     origin = models.CharField(
         max_length=100, blank=True, null=True, help_text="Домен сайта, с которого пришла сделка"
     )
     tags = models.JSONField(blank=True, null=True, help_text="Теги сделки в АМО")
-    online_purchase_id = models.CharField(max_length=9, blank=True, null=True, help_text="Теги сделки в АМО")
+    online_purchase_id = models.CharField(max_length=9, blank=True, null=True)
     ddu_upload_url_secret = models.CharField(max_length=60, blank=True, null=True)
     signing_date = models.DateField(null=True, blank=True)
     created_source = models.CharField(choices=CreatedSourceChoices.choices, default=None, null=True,
                                       max_length=100, blank=True)
     amocrm_status_id = models.IntegerField(null=True, blank=True)
     amocrm_status_name = models.CharField(null=True, blank=True, max_length=200)
+    extension_number = models.IntegerField(
+        verbose_name="Оставшиеся количество попыток продления",
+        null=True,
+        blank=True,
+    )
 
     def __str__(self) -> str:
         return f"Бронирование #{self.id} (AMOCRMID {self.amocrm_id})"
@@ -115,6 +125,20 @@ class Booking(models.Model):
 
     def overed(self):
         return self.until < datetime.now(tz=UTC) if self.until else True
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.__original_expires = self.expires
+        self.__original_payment_id = self.payment_id
+
+    def save(self, *args, **kwargs):
+        if self.__original_expires and not self.expires:
+            self.expires = self.__original_expires
+        if self.__original_payment_id and not self.payment_id:
+            self.payment_id = self.__original_payment_id
+        super().save()
+        self.__original_expires = self.expires
+        self.__original_payment_id = self.payment_id
 
     errors.short_description = "Есть ошибки"
     errors.boolean = True

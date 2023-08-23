@@ -76,6 +76,9 @@ class SmsService:
         """
         Логируем отправленное смс сообщение в админке через селери таску.
         """
+        if self.message.startswith("Добро пожаловать в Страну"):
+            self.message = self.message.replace("%26", "&")
+
         data = dict(
             text=self.message,
             lk_type=self.lk_type,

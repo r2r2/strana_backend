@@ -34,7 +34,7 @@ class UsersListCase(BaseUserCase, CurrentUserDataMixin):
         ordering: Union[str, None] = init_filters.pop("ordering", "-created")
         search: list[list[dict[str, Any]]] = init_filters.pop("search", list())
 
-        check_qs: Any = self.check_repo.list(ordering='-id')
+        check_qs: Any = self.check_repo.list(ordering='-id', related_fields=["unique_status"])
 
         prefetch_fields: list[Union[str, dict[str, Any]]] = [
             "agent",

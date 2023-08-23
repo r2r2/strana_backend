@@ -3,3 +3,5 @@ from .log_sms import LogSms
 from .assign_client_template import AssignClientTemplate
 from .email_template import EmailTemplate
 from .sms_template import SmsTemplate
+from .booking_notificaton import BookingNotification, BookingNotificationsProjectThrough
+from .booking_fixation_notificaton import BookingFixationNotification, BookingFixationNotificationsProjectThrough

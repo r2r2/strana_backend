@@ -1,7 +1,5 @@
 from typing import Any, Optional
 
-from pydantic import validator
-
 from src.agencies import constants as agencies_constants
 
 from ..entities import BaseAgentModel
@@ -26,12 +24,6 @@ class _AgencyRetrieveModel(BaseAgentModel):
     city: Optional[str]
     name: Optional[str]
     type: Optional[agencies_constants.AgencyType.serializer]
-
-    @validator("city", pre=True)
-    def get_city_name(cls, value):
-        if value:
-            return value.name
-        return None
 
     class Config:
         orm_mode = True

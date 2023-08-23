@@ -131,11 +131,11 @@ def fake_user_authorization():
 
 
 @fixture(scope="function")
-def user_token_query(user, agent, hasher) -> str:
-    data = json.dumps(dict(agent_id=agent.id, client_id=user.id))
+async def user_token_query(user, agent_1, hasher) -> str:
+    data = json.dumps(dict(agent_id=agent_1.id, client_id=user.id))
     b64_data = b64encode(data.encode()).decode()
     b64_data = b64_data.replace("&", "%26")
     token = hasher.hash(b64_data)
-    url_query = f"t={token}%26d={b64_data}"
+    url_query = f"t={token}&d={b64_data}"
 
     return url_query

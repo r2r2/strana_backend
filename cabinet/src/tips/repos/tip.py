@@ -22,6 +22,7 @@ class Tip(Model):
         description="Изображение", max_length=500, null=True
     )
     order: Optional[int] = fields.IntField(description="Порядок", null=True)
+    order_test: Optional[int] = fields.IntField(description="Порядок", null=True)
 
     def __str__(self) -> str:
         return self.title if self.title else str(self.id)

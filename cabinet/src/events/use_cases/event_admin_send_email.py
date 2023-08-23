@@ -46,7 +46,7 @@ class EventSendEmailFromAdminCase(BaseEventCase):
 
         event: Event = await self.event_repo.retrieve(
             filters=dict(id=payload.event_id),
-            prefetch_fields=["city", "participants", "tags"],
+            prefetch_fields=["city", "participants"],
         )
 
         await self._send_email_to_agent(

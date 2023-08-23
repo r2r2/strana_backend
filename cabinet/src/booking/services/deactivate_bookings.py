@@ -37,7 +37,7 @@ class DeactivateBookingsService(BaseBookingsService):
         self.logger.info(
             'Amocrm booking deactivated',
             booking_id=booking.id,
-            property_id=booking.payment_id,
+            property_id=booking.property_id,
             stages_valid=stages_valid,
             amocrm_id=booking.amocrm_id,
         )

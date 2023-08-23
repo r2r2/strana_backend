@@ -6,7 +6,6 @@ from common import cfields
 from common.orm.mixins import ReadWriteMixin, CountMixin
 from src.cities.repos import City
 from src.menu.entities import BaseMenuRepo
-from src.users.repos import UserRole
 
 
 class Menu(Model):
@@ -14,8 +13,8 @@ class Menu(Model):
     Фиксирует список пунктов бокового меню. Используется 1 инфоблок по ЛК Брокера и ЛК Клиента
     """
     id: int = fields.BigIntField(description="ID", pk=True, index=True)
-    name: str = fields.CharField(description="Название пункта меню", null=False, max_length=15)
-    link: str = fields.CharField(description="Ссылка пункта меню", null=False, max_length=50)
+    name: str = fields.CharField(description="Название пункта меню", null=False, max_length=50)
+    link: str = fields.CharField(description="Ссылка пункта меню", null=False, max_length=100)
     priority: int = fields.IntField(description="Приоритет (чем меньше чем, тем раньше)", null=False)
     cities: fields.ManyToManyRelation["City"] = fields.ManyToManyField(
         description="Города",

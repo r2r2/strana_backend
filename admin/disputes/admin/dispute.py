@@ -5,20 +5,21 @@ from django.contrib.admin import register, SimpleListFilter
 from pytz import UTC
 
 from users.models import HistoricalDisputeData
-from ..models import Dispute
+from disputes.models import Dispute
 
 
-class StatusFilter(SimpleListFilter):
+class UniqueStatusFilter(SimpleListFilter):
     title = "Статус"
-    parameter_name = "status"
+    parameter_name = "unique_status"
 
     def lookups(self, request, model_admin):
-        statuses = Dispute.UserStatus.choices
-        return [(status, value) for status, value in statuses]
+        statuses = Dispute.objects.values_list("unique_status__id", "unique_status__title").distinct()
+
+        return set(statuses)
 
     def queryset(self, request, queryset):
         if self.value():
-            return queryset.filter(status=self.value())
+            return queryset.filter(unique_status__id=self.value())
         return queryset
 
 
@@ -37,8 +38,8 @@ class FixedStatusFilter(SimpleListFilter):
 
 @register(Dispute)
 class DisputeAdmin(admin.ModelAdmin):
+    date_hierarchy = "dispute_requested"
     list_display = (
-        "status",
         "unique_status",
         "dispute_agent",
         "user",
@@ -50,7 +51,7 @@ class DisputeAdmin(admin.ModelAdmin):
     fields = (
         ("user", "agent"),
         "agency",
-        ("status", "status_fixed"),
+        ("unique_status", "status_fixed"),
         ("dispute_agent", "comment", "dispute_requested"),
         "admin_comment",
         "admin"
@@ -82,7 +83,7 @@ class DisputeAdmin(admin.ModelAdmin):
         "agency",
     )
     readonly_fields = ("comment", "admin", "dispute_requested", "send_admin_email", "amocrm_id")
-    list_filter = (StatusFilter, FixedStatusFilter, "requested", "dispute_requested")
+    list_filter = (UniqueStatusFilter, FixedStatusFilter, "requested", "dispute_requested")
 
     def save_model(self, request, obj, form, change):
         obj.admin_id = request.user.id

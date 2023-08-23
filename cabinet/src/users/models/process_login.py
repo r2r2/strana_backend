@@ -1,8 +1,8 @@
 from typing import Optional
 
-from pydantic import EmailStr
+from pydantic import EmailStr, Field
 
-from ..entities import BaseUserModel
+from ..entities import BaseUserModel, BaseUserCamelCaseModel
 
 
 class RequestProcessLoginModel(BaseUserModel):
@@ -15,6 +15,14 @@ class RequestProcessLoginModel(BaseUserModel):
 
     class Config:
         orm_mode = True
+
+
+class RequestSuperuserLoginModel(BaseUserModel):
+    """
+    Модель запроса на вход суперюзером из админки под выбранным пользователем.
+    """
+
+    session_id: str = Field(alias="sessionId")
 
 
 class ResponseProcessLoginModel(BaseUserModel):

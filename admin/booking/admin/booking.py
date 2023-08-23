@@ -19,6 +19,7 @@ class BookingLogInline(BaseLogInline):
 
 @admin.register(Booking)
 class BookingAdmin(admin.ModelAdmin):
+    date_hierarchy = "created"
     inlines = (BookingLogInline, )
     autocomplete_fields = (
         "property",
@@ -60,6 +61,7 @@ class BookingAdmin(admin.ModelAdmin):
         "user_in_list",
         "agent_in_list",
         "agency_in_list",
+        "agency_type",
         "errors",
         "until",
         "expires",
@@ -67,7 +69,8 @@ class BookingAdmin(admin.ModelAdmin):
         "created_source",
         "group_status",
     )
-    list_filter = ("created",)
+    list_filter = ("created", "agency__general_type")
+    readonly_fields = ("agency_type",)
     save_on_top = True
     list_per_page = 15
     show_full_result_count = False
@@ -96,6 +99,15 @@ class BookingAdmin(admin.ModelAdmin):
 
     agency_in_list.short_description = 'Агентство'
     agency_in_list.admin_order_field = 'agency__name'
+
+    def agency_type(self, obj):
+        if obj.agency:
+            return obj.agency.general_type.label if obj.agency.general_type else "-"
+        else:
+            return "-"
+
+    agency_type.short_description = 'Тип агентства'
+    agency_type.admin_order_field = 'agency__general_type__sort'
 
     def group_status(self, obj):
         return obj.group_status
@@ -130,6 +142,15 @@ class BookingAdmin(admin.ModelAdmin):
     overed.short_description = 'Закончилось'
     overed.admin_order_field = 'overed'
     overed.boolean = True
+
+    def get_search_results(self, request, queryset, search_term):
+        if search_term:
+            search_term = search_term.replace(",", ".")
+
+        queryset, use_distinct = super(BookingAdmin, self).get_search_results(
+            request, queryset, search_term
+        )
+        return queryset, use_distinct
 
     def get_queryset(self, request):
         qs = super(BookingAdmin, self).get_queryset(request)

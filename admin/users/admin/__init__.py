@@ -1,6 +1,8 @@
 from .admin_log import UserLogs
-from .notification_mute import UserNotificationMuteAdmin
-from .user import CabinetUserAdmin, CabinetAgentAdmin, CabinetClientAdmin
-from .fake_user_phones import FakeUserPhoneAdmin
 from .agency import AgencyAdmin
+from .agency_type import AgencyGeneralType
+from .fake_user_phones import FakeUserPhoneAdmin
 from .historical_dispute_data import HistoricalDisputeDataAdmin
+from .notification_mute import UserNotificationMuteAdmin
+from .user import (CabinetAdminAdmin, CabinetAgentAdmin, CabinetClientAdmin,
+                   CabinetUserAdmin)

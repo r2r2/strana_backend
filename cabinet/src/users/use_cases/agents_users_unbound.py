@@ -29,14 +29,14 @@ class AgentsUsersUnboundCase(BaseUserCase):
             self.booking_repo.update, self, content="Отвязка пользователя",
         )
 
-    async def __call__(self, agent_id: int, user_id: int) -> User:
+    async def __call__(self, agent_id: int, user_id: int) -> None:
         filters: dict[str, Any] = dict(user_id=user_id, agent_id=agent_id)
-        check: Check = await self.check_repo.retrieve(filters=filters)
+        check: Check = await self.check_repo.retrieve(filters=filters, related_fields=["unique_status"])
         filters: dict[str, Any] = dict(id=user_id, type=UserType.CLIENT)
         user: User = await self.user_repo.retrieve(filters=filters)
         if not check or not user:
             raise UserNotFoundError
-        if check.status == UserStatus.UNIQUE:
+        if check.unique_status and check.unique_status.slug == UserStatus.UNIQUE:
             data: dict[str, Any] = dict(agent_id=None)
             await self.check_repo.update(check, data=data)
         else:
@@ -49,4 +49,3 @@ class AgentsUsersUnboundCase(BaseUserCase):
         for booking in bookings:
             data: dict[str, Any] = dict(agent_id=None, comission=booking.start_commission)
             await self.booking_update(booking=booking, data=data)
-        return user

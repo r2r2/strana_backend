@@ -63,12 +63,6 @@ class ResponseAgencyRegisterModel(BaseRepresModel):
     city: Optional[str]
     type: Optional[AgencyType.serializer]
 
-    @validator("city", pre=True)
-    def get_city_name(cls, value):
-        if value:
-            return value.name
-        return None
-
     class Config:
         orm_mode = True
 

@@ -1,12 +1,11 @@
 from typing import Any
 
-from pydantic import BaseModel
-
 from common.orm.entities import BaseRepo
 from common.pydantic import CamelCaseBaseModel
+from pydantic import BaseModel
 
 
-class BasBuildingModel(BaseModel):
+class BaseBuildingModel(BaseModel):
     """
     Базовая модель корпуса
     """

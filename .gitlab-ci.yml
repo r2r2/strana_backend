@@ -50,23 +50,25 @@ services:
     - name: docker:20.10.6-dind
 
 
-before_script:
-  #-  - docker login $DOCKER_REGISTRY -u strana_token -p $strana_token
-  #- echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin DOCKER_REGISTRY
-  - cat $ENV_DEV_FULL_FILE > .env
-  - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
+
+#before_script:
+  ##-  - docker login $DOCKER_REGISTRY -u strana_token -p $strana_token
+  ##- echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin DOCKER_REGISTRY
+  #- cat $ENV_DEV_FULL_FILE > .env
+  #- echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
 
 stages:
   - install_packages
   - build
   - test
+  - test:sonar
   - deploy:development
   - deploy:pre-production
-  - deploy:production-yandex
-  - deploy:production-sber
+  - deploy:production
 
 include:
   - local: '/gitlab/template.yml'
+  - local: '/gitlab/.sonarqube.yml'
   - local: '/gitlab/install-packages.yml'
   - local: '/gitlab/backend.yml'
   - local: '/gitlab/test.yml'

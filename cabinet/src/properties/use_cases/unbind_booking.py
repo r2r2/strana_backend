@@ -50,10 +50,10 @@ class UnbindBookingPropertyCase(BasePropertyCase):
         data: dict[str, Any] = dict(
             profitbase_booked=False,
             amocrm_substage=BookingSubstages.MAKE_DECISION,
-            property=None,
             amocrm_status=amocrm_status,
             active=False,
         )
-
+        booking.property = None
         await self.booking_update(booking=booking, data=data)
+        await booking.save()
         await self.update_status_service(booking_id=booking.id, status_slug=PaidBookingSlug.START.value)

@@ -6,7 +6,6 @@ from fastapi import APIRouter, Body, Depends, Query, status, Path
 from src.agents import repos as agents_repos
 from src.notifications import repos as notification_repos
 from src.notifications import services as notification_services
-from src.users import constants as users_constants
 
 from ..models import (RequestEventAdminModel, ResponseEventModel,
                       ResponseListEventModel)

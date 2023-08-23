@@ -25,8 +25,7 @@ class Caution(models.Model):
         default=CautionType.INFORMATION,
         max_length=20,
         verbose_name='Тип',
-        help_text="Определяет внешний вид выводимого предупреждения."
-                  "Приоритет - Чем ниже приоритет, тем выше будет выводиться предупреждение",
+        help_text="Определяет внешний вид выводимого предупреждения",
     )
     roles = models.JSONField(
         null=True,
@@ -36,7 +35,10 @@ class Caution(models.Model):
         help_text="Предупреждение будет выводиться всем пользователям с указанными ролями"
     )
     text = models.TextField(verbose_name="Выводимый текст", help_text="HTML-теги недопустимы")
-    priority = models.SmallIntegerField(verbose_name="Приоритет", help_text="Приоритет предупреждения")
+    priority = models.SmallIntegerField(
+        verbose_name="Приоритет",
+        help_text="Чем ниже приоритет, тем выше будет выводиться предупреждение",
+    )
     expires_at = models.DateTimeField(verbose_name="Активен до", help_text="Когда будет деактивировано")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Создано", help_text="Дата создания")
     updated_at = models.DateTimeField(

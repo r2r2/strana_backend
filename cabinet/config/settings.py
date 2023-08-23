@@ -18,7 +18,7 @@ class SiteSettings(BaseSettings):
 
 class ApplicationSettings(BaseSettings):
     root_path: str = Field("/api")
-    title: str = Field("Личный кабинет Страна деволопмент")
+    title: str = Field("Личный кабинет Страна девелопмент")
 
     debug: bool = Field(True, env="LK_DEBUG")
 
@@ -67,7 +67,9 @@ class DataBaseSettings(BaseSettings):
     host: str = Field("db_cabinet", env="LK_POSTGRES_HOST")
     password: str = Field("postgres", env="LK_POSTGRES_PASSWORD")
     database: str = Field("postgres", env="LK_POSTGRES_DATABASE")
-    database_test: str = Field("postgres_test", env="LK_POSTGRES_DATABASE_TEST")
+    database_test: str = Field("cabinet_test", env="LK_POSTGRES_DATABASE_TEST")
+    test_user: str = Field("postgres", env="POSTGRES_USER_TEST")
+    test_password: str = Field("postgres", env="POSTGRES_PASSWORD_TEST")
 
     models: list[tuple] = [
         ("users", "repos"),
@@ -98,6 +100,7 @@ class DataBaseSettings(BaseSettings):
         ("dashboard", "repos"),
         ("menu", "repos"),
         ("settings", "repos"),
+        ("main_page", "repos"),
     ]
 
     class Config:
@@ -262,6 +265,8 @@ class SmsCenterSettings(BaseSettings):
 
 class SentrySettings(BaseSettings):
     dsn: str = Field("https://dsn.ru", env="LK_SENTRY_DSN")
+    send_default_pii: bool = Field(True)  # personally identifiable information (PII)
+    max_value_length: int = Field(8192)   # DEFAULT_MAX_VALUE_LENGTH = 1024
 
     class Config:
         env_file = ".env"
@@ -395,11 +400,11 @@ class TortoiseSettings(BaseSettings):
                 "cabinet": {
                     "engine": "tortoise.backends.asyncpg",
                     "credentials": {
-                        "database": database.database,
+                        "database": database.database_test,
                         "host": database.host,
-                        "password": database.password,
+                        "password": database.test_password,
                         "port": database.port,
-                        "user": database.user,
+                        "user": database.test_user,
                     },
                 },
             }
@@ -568,6 +573,15 @@ class FakeSendSms(BaseSettings):
 class LogsSettings(BaseSettings):
     logs_lifetime: int = Field(3, env="LOGS_LIFETIME")
     logs_notification_lifetime: int = Field(14, env="LOGS_NOTIFICATION_LIFETIME")
+
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+
+
+class DadataSettings(BaseSettings):
+    token: str = Field("", env="DADATA_TOKEN")
+    secret: str = Field("", env="DADATA_SECRET")
 
     class Config:
         env_file = ".env"

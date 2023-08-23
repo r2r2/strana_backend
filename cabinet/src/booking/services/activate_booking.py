@@ -49,6 +49,7 @@ class ActivateBookingService(BaseBookingService, BookingLogMixin):
         check_booking_task: Any,
         create_amocrm_log_task: Any,
         create_booking_log_task: Any,
+        booking_notification_sms_task: Any,
 
         logger: Optional[Any] = structlog.getLogger(__name__),
     ) -> None:
@@ -79,6 +80,7 @@ class ActivateBookingService(BaseBookingService, BookingLogMixin):
         self.check_booking_task: Any = check_booking_task
         self.create_amocrm_log_task: Any = create_amocrm_log_task
         self.create_booking_log_task: Any = create_booking_log_task
+        self.booking_notification_sms_task: Any = booking_notification_sms_task
 
     async def __call__(self, booking: Booking, amocrm_substage: str) -> Booking:
         booking: Booking = await self.booking_repo.retrieve(
@@ -115,6 +117,7 @@ class ActivateBookingService(BaseBookingService, BookingLogMixin):
 
         task_delay: int = (booking.expires - datetime.now(tz=UTC)).seconds
         self.check_booking_task.apply_async((booking.id, amocrm_substage), countdown=task_delay)
+        self.booking_notification_sms_task.delay(booking.id)
         self.logger.debug(f"Launch check booking task[celery]: id={booking.id}")
 
         return booking

@@ -18,4 +18,3 @@ class ResponseDashboardSpec(BaseUserCamelCaseModel):
     interests: int
     notifications: int
     min_property_price: int
-    phone: str

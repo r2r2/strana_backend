@@ -22,8 +22,8 @@ class BookingUserFilter(BaseUserFilter):
         alias="status", description="Фильтр по групповому статусу")
     project__slug__in: Optional[list] = Field(
         alias="project", description="Фильтр по проекту")
-    property__type__in: Optional[list] = Field(
-        alias="property", description="Фильтр по типу недвижимости")
+    property__property_type__slug__in: Optional[list] = Field(
+        alias="propertyType", description="Фильтр по типу недвижимости")
     # либо work_period_start попадает  [user__work_start, user__work_end], либо work_period_end
     user_id__in: Optional[list] = Field(alias="clients", description="Фильтр по клиентам")
     user__work_end__lte: Optional[date] = Field(alias="work_period_finish", description="Фильтр по дате начала")

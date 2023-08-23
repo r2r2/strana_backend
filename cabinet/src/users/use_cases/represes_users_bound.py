@@ -7,8 +7,9 @@ from ..entities import BaseUserCase
 from ..exceptions import UserNoAgentError, UserNotFoundError
 from ..loggers.wrappers import user_changes_logger
 from ..models import RequestRepresesUsersBoundModel
-from ..repos import Check, CheckRepo, User, UserRepo
+from src.users.repos import Check, CheckRepo, User, UserRepo, UniqueStatus
 from ..types import UserAgentRepo, UserBooking, UserBookingRepo
+from src.users.utils import get_unique_status
 
 
 class RepresesUsersBoundCase(BaseUserCase):
@@ -34,15 +35,16 @@ class RepresesUsersBoundCase(BaseUserCase):
 
     async def __call__(
         self, agency_id: int, user_id: int, payload: RequestRepresesUsersBoundModel
-    ) -> User:
+    ) -> None:
         data: dict[str, Any] = payload.dict()
         agent_id: int = data["agent_id"]
         filters: dict[str, Any] = dict(id=agent_id, type=UserType.AGENT, agency_id=agency_id)
         agent: User = await self.agent_repo.retrieve(filters=filters)
         if not agent:
             raise UserNoAgentError
+        unique_status: UniqueStatus = await get_unique_status(slug=UserStatus.UNIQUE)
         filters: dict[str, Any] = dict(
-            user_id=user_id, agency_id=agency_id, status=UserStatus.UNIQUE, agent_id=None
+            user_id=user_id, agency_id=agency_id, unique_status=unique_status, agent_id=None
         )
         check: Check = await self.check_repo.retrieve(filters=filters)
         filters: dict[str, Any] = dict(
@@ -61,4 +63,3 @@ class RepresesUsersBoundCase(BaseUserCase):
             data: dict[str, Any] = dict(agent_id=agent_id, comission=booking.start_commission)
             await self.booking_update(booking=booking, data=data)
         self.change_client_agent_task.delay(user_id=user_id, agent_id=agent_id)
-        return user

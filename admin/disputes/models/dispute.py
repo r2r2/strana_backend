@@ -2,26 +2,12 @@
 from typing import Optional
 
 from django.db import models
-from django.utils.translation import gettext_lazy as _
 
 
 class Dispute(models.Model):
     """
     Оспаривание статуса клиента
     """
-
-    # TODO : предлагаю вынести UserStatus из кабинета constants.py
-    class UserStatus(models.TextChoices):
-        """
-        Статус пользователя
-        """
-        CHECK: str = "check", _("На проверке")
-        UNIQUE: str = "unique", _("Уникальный")
-        REFUSED: str = "refused", _("Отказался")
-        NOT_UNIQUE: str = "not_unique", _("Не уникальный")
-        DISPUTE: str = 'dispute', _("Оспаривание статуса")
-        CAN_DISPUTE = "can_dispute", _("Закреплен, но можно оспорить")
-        ERROR: str = 'error', _("Ошибка")
 
     user = models.ForeignKey(
         "users.CabinetUser",
@@ -53,10 +39,11 @@ class Dispute(models.Model):
     dispute_agent = models.ForeignKey(
         "users.CabinetUser",
         models.DO_NOTHING,
+        verbose_name='Оспаривающий агент',
         blank=True,
         null=True,
         related_name='dispute_agent',
-        verbose_name='Оспаривающий агент'
+        help_text='Агент, оспаривающий статус клиента',
     )
     admin = models.ForeignKey(
         "users.CabinetUser",
@@ -66,13 +53,11 @@ class Dispute(models.Model):
         related_name='admin',
         verbose_name='Обновлено администратором'
     )
-    status = models.CharField(choices=UserStatus.choices, max_length=50, verbose_name='Статус')
     requested = models.DateTimeField(blank=True, null=True, verbose_name='Запрошено')
     dispute_requested = models.DateTimeField(
         blank=True,
         null=True,
         verbose_name='Время оспаривания',
-        help_text='Агент, оспаривающий статус клиента',
     )
     status_fixed = models.BooleanField(
         verbose_name="Закрепить статус за клиентом",
@@ -105,9 +90,20 @@ class Dispute(models.Model):
         null=True,
         verbose_name="ID сделки в amoCRM",
     )
+    term_uid = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        verbose_name='UID условия проверки на уникальность',
+    )
+    term_comment = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name='Комментарий к условию проверки на уникальность',
+    )
 
     def __str__(self) -> str:
-        return self.status if self.status else str(self.id)
+        return str(self.id)
 
     # TODO full_name нужно нормально сделать в модели User (на будущее)
     @property
@@ -131,4 +127,4 @@ class Dispute(models.Model):
         db_table = "users_checks"
         verbose_name = "Статус клиента"
         verbose_name_plural = "6.5. [Справочник] Текущие статусы проверки клиентов"
-        ordering = ["status", "requested"]
+        ordering = ["requested"]

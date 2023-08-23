@@ -5,3 +5,5 @@ from .bind_booking import (
     ResponseBindBookingPropertyModel,
     RequestUnbindBookingPropertyModel,
 )
+from .property_type import ResponsePropertyTypeModel
+from .viewed_properties import ViewedPropertyResponse

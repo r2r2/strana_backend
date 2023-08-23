@@ -10,12 +10,12 @@ from common.amocrm.types import AmoContact, AmoLead
 from common.utils import partition_list
 from pytz import UTC
 
-from ..constants import UserStatus, UserType
-from ..entities import BaseUserService
-from src.users.exceptions import UniqueStatusNotFoundError
+from src.users.constants import UserStatus, UserType
+from src.users.entities import BaseUserService
 from src.users.repos import (Check, CheckRepo, CheckTermRepo, IsConType,
-                             User, UserRepo, UniqueStatusRepo, UniqueStatus)
-from ..types import UserAgentRepo, UserORM
+                             User, UserRepo, UniqueStatus, CheckTerm)
+from src.users.types import UserAgentRepo, UserORM
+from src.users.utils import get_unique_status, get_list_unique_status
 
 
 class CheckUniqueServiceV2(BaseUserService):
@@ -31,7 +31,6 @@ class CheckUniqueServiceV2(BaseUserService):
         check_term_repo: Type[CheckTermRepo],
         amocrm_class: Type[AmoCRM],
         agent_repo: Type[UserAgentRepo],
-        unique_status_repo: Type[UniqueStatusRepo],
         amocrm_config: dict[Any, Any],
         orm_class: Optional[Type[UserORM]] = None,
         orm_config: Optional[dict[str, Any]] = None,
@@ -43,14 +42,19 @@ class CheckUniqueServiceV2(BaseUserService):
         self.partition_limit: int = amocrm_config["partition_limit"]
 
         self.amocrm_class: Type[AmoCRM] = amocrm_class
-        self.unique_status_repo: UniqueStatusRepo = unique_status_repo()
 
         self.orm_class: Union[Type[UserORM], None] = orm_class
         self.orm_config: Union[dict[str, Any], None] = copy(orm_config)
         if self.orm_config:
             self.orm_config.pop("generate_schemas", None)
         self.logger = structlog.get_logger(__name__)
+
         self.amocrm_id: Optional[int] = None
+        self.term_uid: Optional[str] = None
+        self.term_comment: Optional[str] = None
+
+        self.same_pinned: bool = False
+        self.agent_repres_pinned: bool = False
 
     async def __call__(
         self,
@@ -61,7 +65,8 @@ class CheckUniqueServiceV2(BaseUserService):
         user_id: Optional[int] = None,
         check_id: Optional[int] = None,
         agent_id: Optional[int] = None,
-    ) -> None:
+        agency_id: Optional[int] = None,
+    ) -> bool:
         if not user and user_id:
             filters: dict[str, Any] = dict(id=user_id, type=UserType.CLIENT)
             user: User = await self.user_repo.retrieve(filters=filters)
@@ -76,18 +81,24 @@ class CheckUniqueServiceV2(BaseUserService):
         users_filter = dict(phone=phone, type__not=UserType.CLIENT)
         user_types = await self.user_repo.list(filters=users_filter).values_list("type", flat=True)
         if len(user_types) > 0:
-            unique_status: UniqueStatus = await self._get_unique_status(slug=UserStatus.ERROR)
+            unique_status: UniqueStatus = await get_unique_status(slug=UserStatus.ERROR)
             data: dict[str, Any] = dict(unique_status=unique_status)
             await self.check_repo.update(check, data=data)
             return False
+
+        if user:
+            await self._set_pinned_flags(user=user, agent_id=agent_id, agency_id=agency_id)
 
         is_unique: UniqueStatus = await self._check_unique(phone=phone)
         data: dict[str, Any] = dict(
             unique_status=is_unique,
             send_admin_email=self.send_admin_email,
             amocrm_id=self.amocrm_id,
+            term_uid=self.term_uid,
+            term_comment=self.term_comment,
         )
         await self.check_repo.update(check, data=data)
+        return True
 
     async def _check_unique(self, phone: str) -> UniqueStatus:
         """
@@ -98,7 +109,7 @@ class CheckUniqueServiceV2(BaseUserService):
                 user_phone=phone, query_with=[AmoContactQueryWith.leads]
             )
             if len(contacts) == 0:
-                return await self._get_unique_status(slug=UserStatus.UNIQUE)
+                return await get_unique_status(slug=UserStatus.UNIQUE)
             elif len(contacts) == 1:
                 leads = await self._one_contact_case(contacts=contacts)
             else:
@@ -130,7 +141,8 @@ class CheckUniqueServiceV2(BaseUserService):
         Проверяем каждую сделку клиента на уникальность
         Если хотя бы одна сделка не уникальна - пропускаем все сделки, возвращаем False
         """
-        is_unique: UniqueStatus = await self._get_unique_status(slug=UserStatus.UNIQUE)
+        is_unique: UniqueStatus = await get_unique_status(slug=UserStatus.UNIQUE)
+        stop_check_statuses: list[UniqueStatus] = await get_list_unique_status(filters=dict(stop_check=True))
 
         amo_leads = []
         for amo_lead_ids in partition_list(leads, self.partition_limit):
@@ -138,7 +150,7 @@ class CheckUniqueServiceV2(BaseUserService):
 
         for lead in amo_leads:
             is_unique: UniqueStatus = await self._check_lead_status(lead)
-            if is_unique.slug in [UserStatus.NOT_UNIQUE, UserStatus.CAN_DISPUTE]:
+            if is_unique in stop_check_statuses:
                 return is_unique
         return is_unique
 
@@ -155,10 +167,11 @@ class CheckUniqueServiceV2(BaseUserService):
 
         self.amocrm_id: int = lead.id
 
-        async for term in self.check_term_repo.list(
+        terms: list[CheckTerm] = await self.check_term_repo.list(
             ordering="priority",
             prefetch_fields=["cities", "pipelines", "statuses", "unique_status"]
-        ):
+        )
+        for term in terms:
             # Сделка находится в определенном городе
             cities_names = [city.name for city in term.cities]
             lead_city = lead_custom_fields.get(self.amocrm_class.city_field_id)
@@ -205,11 +218,35 @@ class CheckUniqueServiceV2(BaseUserService):
                         (term.is_assign_agency_status == IsConType.NO and not assign_agency_status)):
                     continue
 
+            # Закреплен за проверяющим агентом
+            if self.same_pinned and term.assigned_to_agent is False:
+                # Если клиент закреплен за проверяющим агентом
+                # Но флаг стоит Нет - пропускаем
+                continue
+            elif not self.same_pinned and term.assigned_to_agent is True:
+                # Если клиент не закреплен за проверяющим агентом
+                # Но флаг стоит Да - пропускаем
+                continue
+
+            # Закреплен за другим агентом проверяющего агентства
+            if self.agent_repres_pinned and term.assigned_to_another_agent is False:
+                # Если клиент закреплен за другим агентом из этого же агентства
+                # Но флаг стоит Нет - пропускаем
+                continue
+            elif not self.agent_repres_pinned and term.assigned_to_another_agent is True:
+                # Если клиент не закреплен за другим агентом из этого же агентства
+                # Но флаг стоит Да - пропускаем
+                continue
+
             if term.send_admin_email:
                 self.send_admin_email: bool = True
+
+            self.term_uid: str = str(term.uid)
+            self.term_comment: str = term.comment or ''
             # Если дошла до статуса - возвращаем результат
             return term.unique_status
-        return await self._get_unique_status(slug=UserStatus.UNIQUE)
+
+        return await get_unique_status(slug=UserStatus.UNIQUE)
 
     async def _check_lead_has_agent(self, lead: AmoLead) -> bool:
         """
@@ -225,11 +262,34 @@ class CheckUniqueServiceV2(BaseUserService):
             for tag in contact.embedded.tags
         )
 
-    async def _get_unique_status(self, slug: str) -> UniqueStatus:
+    async def _set_pinned_flags(
+        self,
+        user: User,
+        agent_id: Optional[int] = None,
+        agency_id: Optional[int] = None,
+    ) -> None:
         """
-        Получаем статус закрепления по slug
+        Устанавливаем флаги для проверки на то, что пользователь закреплён за агентом или агентством.
         """
-        status: UniqueStatus = await self.unique_status_repo.retrieve(filters=dict(slug=slug))
-        if not status:
-            raise UniqueStatusNotFoundError
-        return status
+        agent = repres = None
+        if agent_id:
+            agent: Optional[User] = await self.user_repo.retrieve(
+                filters=dict(id=agent_id, type=UserType.AGENT)
+            )
+        if agency_id:
+            repres: Optional[User] = await self.user_repo.retrieve(
+                filters=dict(agency_id=agency_id, type=UserType.REPRES)
+            )
+        agent_pinned: bool = True if agent and agent.id == user.agent_id else False
+        repres_pinned: bool = True if repres and repres.id == user.agent_id else False
+        if agent_pinned or repres_pinned:
+            # Клиент закреплен за проверяющим агентом или представителем
+            self.same_pinned = True
+
+        elif agent and user.agency_id == agent.agency_id and agent.agency_id is not None:
+            # Агент проверяет клиента, закрепленного за агентом из этого же агентства
+            self.agent_repres_pinned = True
+
+        elif repres and user.agency_id == repres.agency_id and repres.agency_id is not None:
+            # Представитель проверяет клиента, закрепленного за агентом из этого же агентства
+            self.agent_repres_pinned = True

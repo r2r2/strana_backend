@@ -34,12 +34,6 @@ class RequestAdminsAgenciesRegisterModel(BaseAgencyModel):
             raise AgencyIncorrectPhoneForamtError
         return phone
 
-    @validator("city", pre=True)
-    def get_city_name(cls, value):
-        if value:
-            return value.name
-        return None
-
     class Config:
         orm_mode = True
 
@@ -54,12 +48,6 @@ class ResponseAdminsAgenciesRegisterModel(BaseAgencyModel):
     city: Optional[str]
     type: Optional[AgencyType.serializer]
     files: Optional[list[FileCategoryListModel]]
-
-    @validator("city", pre=True)
-    def get_city_name(cls, value):
-        if value:
-            return value.name
-        return None
 
     class Config:
         orm_mode = True

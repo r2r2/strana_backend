@@ -4,7 +4,6 @@ from ..exceptions import UserNotFoundError, CheckNotFoundError
 from ..models import RequestAdminCommentModel
 from ..repos import User, CheckRepo, Check
 from ...agents.repos import AgentRepo
-from ...admins.types import AdminEmail
 
 
 class AdminsAgentsDisputeCommendCase(BaseUserCase):
@@ -31,7 +30,11 @@ class AdminsAgentsDisputeCommendCase(BaseUserCase):
             raise ValueError("У проверяемого пользователя нет номера телефона")
 
         filters = dict(user_id=payload.user_id)
-        check: Check = await self.check_repo.retrieve(filters=filters, ordering="-id")
+        check: Check = await self.check_repo.retrieve(
+            filters=filters,
+            ordering="-id",
+            related_fields=["unique_status"],
+        )
         if not check:
             raise CheckNotFoundError
 

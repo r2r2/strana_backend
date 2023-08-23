@@ -1,8 +1,8 @@
 from typing import Optional
 
 from pydantic import root_validator
-
 from src.projects.constants import ProjectSkyColor
+
 from ..constants import BuildingType
 from ..entities import BaseBuildingCamelCaseBaseModel
 
@@ -47,6 +47,14 @@ class BuildingProjectResponse(BaseBuildingCamelCaseBaseModel):
     card_sky_color: ProjectSkyColor.serializer
     project_color: str
     discount: int
+
+    @root_validator
+    def set_image_displays(cls, values: dict) -> dict:
+        if values.get("card_image"):
+            values["card_image_display"] = values["card_image"]
+        if values.get("card_image_night"):
+            values["card_image_night_display"] = values["card_image_night"]
+        return values
 
 
 class BuildingDetailResponse(BaseBuildingCamelCaseBaseModel):

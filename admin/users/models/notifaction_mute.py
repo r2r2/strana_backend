@@ -15,7 +15,7 @@ class UserNotificationMute(models.Model):
         managed = False
         db_table = "users_notification_mute"
         verbose_name = "Блокировка пользователя"
-        verbose_name_plural = "2.4. [Справочник] Блокировки IP адресов пользователей"
+        verbose_name_plural = " 2.4. [Справочник] Блокировки IP адресов пользователей"
 
 
 class RealIpUsers(models.Model):
@@ -32,4 +32,4 @@ class RealIpUsers(models.Model):
         managed = False
         db_table = "users_real_ip"
         verbose_name = "IP адрес клиента"
-        verbose_name_plural = "2.3. [Справочник] IP адреса пользователей"
+        verbose_name_plural = " 2.3. [Справочник] IP адреса пользователей"

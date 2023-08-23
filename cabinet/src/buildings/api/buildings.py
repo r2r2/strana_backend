@@ -1,13 +1,14 @@
 from typing import Any
 
-from fastapi import APIRouter, status, Query
-
-from src.projects.repos import ProjectRepo
+from fastapi import APIRouter, Query, status
+from common.backend import repos as backend_repos
 from src.floors.repos import FloorRepo
+from src.projects.repos import ProjectRepo
+
 from ..constants import BuildingTypeRequest
-from ..repos import BuildingRepo, BuildingSectionRepo
-from ..use_cases import BuildingsListCase, BuildingDetailCase
 from ..models.buildings import BuildingDetailResponse
+from ..repos import BuildingRepo, BuildingSectionRepo
+from ..use_cases import BuildingDetailCase, BuildingsListCase
 
 router = APIRouter(prefix="/buildings", tags=["Buildings"])
 
@@ -25,6 +26,7 @@ async def buildings_list_view(
         project_repo=ProjectRepo,
         building_section_repo=BuildingSectionRepo,
         floor_repo=FloorRepo,
+        backend_properties_repo=backend_repos.BackendPropertiesRepo,
     )
     buildings_list: BuildingsListCase = BuildingsListCase(**resources)
     return await buildings_list(project_slug=project_slug, kind=kind)
@@ -35,6 +37,12 @@ async def building_detail_view(building_id: int):
     """
     Получение корпуса
     """
-    resources: dict[str, Any] = dict(building_repo=BuildingRepo)
+    resources: dict[str, Any] = dict(
+        building_repo=BuildingRepo,
+        project_repo=ProjectRepo,
+        building_section_repo=BuildingSectionRepo,
+        floor_repo=FloorRepo,
+        backend_properties_repo=backend_repos.BackendPropertiesRepo,
+    )
     get_building: BuildingDetailCase = BuildingDetailCase(**resources)
     return await get_building(building_id=building_id)

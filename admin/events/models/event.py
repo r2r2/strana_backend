@@ -1,5 +1,6 @@
 from django.db import models
 from django.core.exceptions import ValidationError
+from django.core.validators import URLValidator
 
 
 class EventType(models.TextChoices):
@@ -64,8 +65,8 @@ class Event(models.Model):
         verbose_name="Дата и время окончания записи на мероприятие",
         null=True,
         blank=True,
-        help_text="В указанное время возможность записи пропадет, если дата не указывается, то автоматически "
-                  "устанавливается дата начала мероприятия",
+        help_text="Дата и время окончания записи на мероприятие - в указанный день возможность записи пропадет, "
+                  "если дата не указана - запись пропадет в момент начала мероприятия",
     )
     manager_fio: str = models.TextField(
         verbose_name="ФИО ответственного менеджера",
@@ -93,15 +94,6 @@ class Event(models.Model):
         default=True,
         help_text="Неактивные мероприятия не показываются в календаре",
     )
-    tags = models.ManyToManyField(
-        verbose_name="Теги мероприятий",
-        to="events.EventTag",
-        through="EventTagThrough",
-        through_fields=("event", "tag"),
-        related_name="events",
-        null=True,
-        blank=True,
-    )
 
     def __str__(self):
         return self.name
@@ -109,6 +101,14 @@ class Event(models.Model):
     def clean(self):
         if self.meeting_date_end and self.meeting_date_end < self.meeting_date_start:
             raise ValidationError({"meeting_date_end": "Дата окончания не может быть ранее даты начала!"})
+        if self.type == EventType.OFFLINE and not self.city:
+            raise ValidationError("Для офлайн мероприятия необходимо указать город")
+        if self.link:
+            url_validator = URLValidator()
+            try:
+                url_validator(self.link)
+            except ValidationError:
+                raise ValidationError('Неверный URL-адрес для ссылки на мероприятие.')
 
     def save(self, *args, **kwargs):
         if not self.record_date_end:
@@ -120,27 +120,3 @@ class Event(models.Model):
         db_table = "event_event"
         verbose_name = "Мероприятие"
         verbose_name_plural = "8.1. Мероприятия"
-
-
-class EventTagThrough(models.Model):
-    event = models.ForeignKey(
-        verbose_name="Мероприятие",
-        to="events.Event",
-        on_delete=models.CASCADE,
-        related_name="through_tags",
-        primary_key=True,
-    )
-    tag = models.ForeignKey(
-        verbose_name="Тег мероприятия",
-        to="events.EventTag",
-        on_delete=models.CASCADE,
-        related_name="through_events",
-        unique=False,
-    )
-
-    class Meta:
-        managed = False
-        db_table = "event_event_tag_and_event"
-        unique_together = ('event', 'tag')
-        verbose_name = "Мероприятие-Тег"
-        verbose_name_plural = "Мероприятия-Теги"

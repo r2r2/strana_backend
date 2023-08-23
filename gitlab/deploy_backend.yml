@@ -11,7 +11,7 @@ development:cabinet:
   before_script:
     - !reference [.before_script_configure_ssh_development]
     - !reference [.docker_login_template,before_script]
-    - cat $ENV_NEW_DEV_FULL_FILE > .env
+    - cat $ENV_FILE > .env
   script:
     - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml pull cabinet || true
     - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml   --env-file .env up -d cabinet tasks
@@ -32,7 +32,7 @@ development:admin:
   before_script:
     - !reference [.before_script_configure_ssh_development]
     - !reference [.docker_login_template,before_script]
-    - cat $ENV_NEW_DEV_FULL_FILE > .env
+    - cat $ENV_FILE > .env
   script:
     - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml pull admin || true
     - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml   --env-file .env up -d admin redis
@@ -56,7 +56,7 @@ pre-production:cabinet:
   before_script:
     - !reference [.before_script_configure_ssh_pre_production]
     - !reference [.docker_login_template,before_script]
-    - cat $ENV_STAGE_FULL_FILE > .env
+    - cat $ENV_FILE > .env
   script:
     - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml pull cabinet || true
     - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml   --env-file .env up -d cabinet tasks
@@ -75,60 +75,17 @@ pre-production:admin:
   before_script:
     - !reference [.before_script_configure_ssh_pre_production]
     - !reference [.docker_login_template,before_script]
-    - cat $ENV_STAGE_FULL_FILE > .env
+    - cat $ENV_FILE > .env
   script:
     - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml pull admin || true
     - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml   --env-file .env up -d admin
   tags:
     - docker-sber
-
-# --- PROD YANDEX---
-
-prod-yandex:cabinet:
-  stage: deploy:production-yandex
-  only:
-    refs:
-      - master
-    changes:
-      - cabinet/**/*
-  variables:
-    DOCKER_HOST: ssh://$DEPLOY_USER_PROD@$DEPLOY_HOST_PROD
-  before_script:
-    - !reference [.before_script_configure_ssh_production_yandex]
-    - !reference [.docker_login_template,before_script]
-    - cat $ENV_PROD_FULL_FILE > .env
-  script:
-    - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml pull cabinet || true
-    - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml   --env-file .env up -d cabinet tasks
-  tags:
-    - docker-sber
-  when: manual
-
-
-prod-yandex:admin:
-  stage: deploy:production-yandex
-  only:
-    refs:
-      - master
-    changes:
-      - admin/**/*
-  variables:
-    DOCKER_HOST: ssh://$DEPLOY_USER_PROD@$DEPLOY_HOST_PROD
-  before_script:
-    - !reference [.before_script_configure_ssh_production_yandex]
-    - !reference [.docker_login_template,before_script]
-    - cat $ENV_PROD_FULL_FILE > .env
-  script:
-    - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml pull admin || true
-    - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml   --env-file .env up -d admin
-  tags:
-    - docker-sber
-  when: manual
 
 # --- PROD SBER---
 
-prod-sber:cabinet:
-  stage: deploy:production-sber
+production:cabinet:
+  stage: deploy:production
   only:
     refs:
       - master
@@ -137,9 +94,9 @@ prod-sber:cabinet:
   variables:
     DOCKER_HOST: ssh://$DEPLOY_USER_SBER@$DEPLOY_HOST_PROD_SBER
   before_script:
-    - !reference [.before_script_configure_ssh_production_sber]
+    - !reference [.before_script_configure_ssh_production]
     - !reference [.docker_login_template,before_script]
-    - cat $ENV_PROD_FULL_FILE > .env
+    - cat $ENV_FILE > .env
   script:
     - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml pull cabinet || true
     - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml   --env-file .env up -d cabinet tasks
@@ -148,8 +105,8 @@ prod-sber:cabinet:
   when: manual
 
 
-prod-sber:admin:
-  stage: deploy:production-sber
+production:admin:
+  stage: deploy:production
   only:
     refs:
       - master
@@ -158,9 +115,9 @@ prod-sber:admin:
   variables:
     DOCKER_HOST: ssh://$DEPLOY_USER_SBER@$DEPLOY_HOST_PROD_SBER
   before_script:
-    - !reference [.before_script_configure_ssh_production_sber]
+    - !reference [.before_script_configure_ssh_production]
     - !reference [.docker_login_template,before_script]
-    - cat $ENV_PROD_FULL_FILE > .env
+    - cat $ENV_FILE > .env
   script:
     - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml pull admin || true
     - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml   --env-file .env up -d admin

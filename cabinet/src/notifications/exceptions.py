@@ -19,3 +19,9 @@ class AssignClientTemplateNotFoundError(BaseNotificationException):
     message: str = "Шаблон смс для закрепления клиента не найден."
     status: int = HTTPStatus.NOT_FOUND
     reason: str = "assign_client_template_not_found"
+
+
+class BookingNotificationNotFoundError(BaseNotificationException):
+    message: str = "Уведомление для бронирования не найдено."
+    status: int = HTTPStatus.NOT_FOUND
+    reason: str = "booking_notification_not_found"

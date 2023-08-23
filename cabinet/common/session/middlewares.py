@@ -99,14 +99,20 @@ class SessionTimeoutMiddleware(BaseHTTPMiddleware):
         self,
         app: ASGIApp,
         key: str,
+        domain: str,
         last_activity_key: str,
+        amocrm_exclusion: str,
+        auth_key: str,
         session_timeout: int = 20 * 60,
         broker: Optional[Any] = None,
         **_: Any,
     ):
         super().__init__(app=app)
         self.key: str = key
+        self.domain: str = domain
+        self.auth_key: str = auth_key
         self.last_activity_key: str = last_activity_key
+        self.amocrm_exclusion: str = amocrm_exclusion
         self.session_timeout: int = session_timeout
 
         self.redis: Redis = redis
@@ -114,6 +120,12 @@ class SessionTimeoutMiddleware(BaseHTTPMiddleware):
             self.redis: Redis = broker
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        path_valid: bool = self.amocrm_exclusion not in request.scope["path"]
+        if not path_valid:
+            # Skip session timeout check for amocrm requests
+            response = await call_next(request)
+            return response
+
         session_data: SessionStorage = request.session  # type: ignore
         last_activity_timestamp: int = await session_data.get(key=self.last_activity_key)
         current_timestamp: int = int(time.time())
@@ -125,8 +137,8 @@ class SessionTimeoutMiddleware(BaseHTTPMiddleware):
 
         if current_timestamp - last_activity_timestamp > self.session_timeout:
             # Invalidate session
-            session_id: str = request.cookies.get(self.key)
-            await self.redis.delete(session_id)
+            session_data[self.auth_key]: dict[str, None] = dict(type=None, token=None)
+            await session_data.insert()
             response = JSONResponse(
                 status_code=HTTPStatus.UNAUTHORIZED,
                 content={
@@ -136,7 +148,14 @@ class SessionTimeoutMiddleware(BaseHTTPMiddleware):
                 },
             )
             for cookie in request.cookies:
-                response.delete_cookie(key=cookie)
+                if cookie != self.key:
+                    response.delete_cookie(key=cookie, domain=self.domain)
+
+            # Set Cache-Control header to prevent caching
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+
             return response
         else:
             # Update session timestamp and continue processing the request

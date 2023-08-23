@@ -15,6 +15,4 @@ class ResponseMenuListModel(BaseMenuModel):
     """
     Модель ответа списка меню
     """
-    count: int
-    page_info: dict[str, Any]
     result: list[MenuModel]

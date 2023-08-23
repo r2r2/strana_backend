@@ -1,78 +1,128 @@
-from typing import Type, Any, Coroutine, Callable
+from string import Template
+from typing import Type, Any, Optional
 
 from pydantic import parse_obj_as
 
+from common.cache.decorators import cache_storage
+from common.calculator.calculator import CalculatorAPI
 from common.portal.portal import PortalAPI
-from common.requests import CommonRequest, CommonResponse
+from common.requests import CommonResponse
+from src.booking import repos as booking_repos
 from src.cities import repos as cities_repos
 from src.dashboard import repos as dashboard_repos
 from src.dashboard.entities import BaseDashboardCase
 from src.dashboard.models.block import BlockListResponse, _ElementRetrieveModel
+from src.users import repos as user_repos
 
 
 class GetDashboardListCase(BaseDashboardCase):
+    SUCCESS_BOOKING_STATUS_ID = 142
+    PORTAL_ENDPOINT = "/promo/"
 
     def __init__(
             self,
             dashboard_block: Type[dashboard_repos.BlockRepo],
             elements_repo: Type[dashboard_repos.ElementRepo],
             city_repo: Type[cities_repos.CityRepo],
+            user_repo: Type[user_repos.UserRepo],
+            booking_repo: Type[booking_repos.BookingRepo],
             link_repo: Type[dashboard_repos.LinkRepo],
             portal_class: PortalAPI,
-            request_class: Type[CommonRequest],
+            calculator_class: CalculatorAPI,
             mc_config: dict[str, Any]
     ):
         self.block_repo = dashboard_block()
         self.elements_repo = elements_repo()
         self.city_repo = city_repo()
+        self.user_repo = user_repo()
+        self.booking_repo = booking_repo()
         self.link_repo = link_repo()
         self.portal_class: PortalAPI = portal_class
-        self.request_class: Type[CommonRequest] = request_class
+        self.calculator_class: CalculatorAPI = calculator_class
         self.mc_config = mc_config
 
-        self.slug_to_def_mapper = {
-            "mc_banner": self.get_mortgage_calc_data,
-            "portal_news": self.get_portal_news
-        }
-
-    async def __call__(self, city_slug: str) -> list[BlockListResponse]:
-        link_qs = self.link_repo.list()
+    async def __call__(self, city_slug: str, user_id: Optional[int] = None) -> list[BlockListResponse]:
         slug_filter = dict(city__slug=city_slug)
+        link_qs = self.link_repo.list(filters=slug_filter)
         element_qs = self.elements_repo.list(filters=slug_filter,
                                              prefetch_fields=[dict(relation="links", queryset=link_qs,
-                                                                    to_attr="link_list")])
+                                                                   to_attr="link_list")])
         blocks: list[dashboard_repos.Block] = await self.block_repo.list(
             filters=slug_filter, prefetch_fields=[dict(relation="elements", queryset=element_qs,
                                                        to_attr="elements_list")])
         blocks_resp = []
+
+        template_dict = dict(
+            calculator_baner=await self.get_mortgage_calc_data(city_slug),
+        )
+        portal_news = await self.get_portal_news(city_slug)
+
+        if not user_id:
+            user_has_success_booking = False
+        else:
+            bookings_qs = self.booking_repo.list(filters=dict(amocrm_status__id=self.SUCCESS_BOOKING_STATUS_ID))
+            user = await self.user_repo.retrieve(filters=dict(id=user_id),
+                                                 prefetch_fields=[dict(relation="bookings", queryset=bookings_qs,
+                                                                       to_attr="bookings_list")])
+            if user.bookings_list:
+                user_has_success_booking = True
+            else:
+                user_has_success_booking = False
+
         for block in blocks:
             if block.elements:
                 elements_list = []
-                proxy_block = parse_obj_as(BlockListResponse, block)
+                proxy_block = self.build_block(block, template_dict)
                 for element in block.elements:
-                    proxy_element = parse_obj_as(_ElementRetrieveModel, element)
-                    if element.slug in self.slug_to_def_mapper.keys():
-                        description = await self.slug_to_def_mapper[element.slug](city_slug, element.description)
-                        proxy_element.description = description
-                    if element.links:
-                        proxy_element.link = [link.link for link in element.links]
-                    elements_list.append(proxy_element)
+                    if element.has_completed_booking and not user_has_success_booking:
+                        continue
+                    elif element.type == "stock_slider" and portal_news:
+                        for node in portal_news:
+                            template_dict["portal_news"] = node["title"]
+                            proxy_element = self.build_element(element, template_dict)
+                            proxy_element.id = node["id"]
+                            proxy_element.expires = node["end"]
+                            proxy_element.link = self.portal_class.portal_host + self.PORTAL_ENDPOINT + node["slug"]
+                            proxy_element.image = dict(aws=node["cardImageDisplay"])
+                            elements_list.append(proxy_element)
+                            template_dict.pop("portal_news")
+                    else:
+                        proxy_element = self.build_element(element, template_dict)
+                        elements_list.append(proxy_element)
 
-                proxy_block.elements_list = elements_list
-                blocks_resp.append(proxy_block)
+                if elements_list:
+                    proxy_block.elements_list = elements_list
+                    blocks_resp.append(proxy_block)
         return blocks_resp
 
-    async def get_mortgage_calc_data(self, city_slug: str, e_description: str) -> str:
-        request_data: dict[str, Any] = dict(
-            url=self.mc_config["url"] + "/v1/banners",
-            method="GET",
-            query=dict(city=city_slug)
-        )
-        request_get: Callable[..., Coroutine] = self.request_class(**request_data)
-        response: CommonResponse = await request_get()
-        return e_description.format(response.data['bannerMinRate'])
+    @staticmethod
+    def build_block(block: dashboard_repos.Block, template_dict: dict[str, str]):
+        proxy_block = parse_obj_as(BlockListResponse, block)
+        proxy_block.title = Template(proxy_block.title).safe_substitute(template_dict)
+        proxy_block.description = Template(proxy_block.description).safe_substitute(template_dict)
+        return proxy_block
 
-    async def get_portal_news(self, city_slug: str, e_description: str):
+    @staticmethod
+    def build_element(element: dashboard_repos.Element, template_dict: dict[str, str]):
+        proxy_element = parse_obj_as(_ElementRetrieveModel, element)
+        proxy_element.title = Template(proxy_element.title).safe_substitute(template_dict)
+        proxy_element.description = Template(proxy_element.description).safe_substitute(template_dict)
+        if element.links:
+            proxy_element.link = element.links[0].link
+        return proxy_element
+
+    @cache_storage
+    async def get_mortgage_calc_data(self, city_slug: str) -> str:
+        response: CommonResponse = await self.calculator_class.get_mortgage_calc_data(city_slug)
+        return response.data['bannerMinRate']
+        # return "5.31"
+
+    @cache_storage
+    async def get_portal_news(self, city_slug: str) -> list:
         city = await self.city_repo.retrieve(filters=dict(slug=city_slug))
         news = await self.portal_class.get_all_news(city.global_id)
-        return e_description.format(news[0]["shortDescription"])
+        return news
+        # return [
+        #     {"id": "TmV3c1R5cGU6MTQ0NA==", "title": "У нас есть акция 1", "end": "2023-11-30T16:00:00+00:00",},
+        #     {"id": "TmV3c1R5cGU6MTYxOQ==", "title": "У нас есть акция 2", "end": "2023-11-30T16:00:00+00:00",},
+        # ]

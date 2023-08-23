@@ -2,9 +2,9 @@ import base64
 from typing import Any, NamedTuple, Optional, Type, Union
 
 import sentry_sdk
+
 from src.buildings.repos import Building, BuildingBookingType
 from src.properties.constants import PropertyStatuses
-
 from ..constants import PremiseType, PropertyTypes
 from ..entities import BasePropertyCase
 from ..exceptions import PropertyNotAvailableError
@@ -38,12 +38,12 @@ class CreatePropertyCase(BasePropertyCase):
         self.document_key: str = session_config["document_key"]
 
     async def __call__(self, payload: RequestCreatePropertyModel) -> Property:
-        filters: dict[str, Any] = payload.dict()
+        filters: dict = dict(global_id=payload.global_id)
         try:
-            booking_type_id: Optional[int] = filters.pop("booking_type_id")
+            booking_type_id: Optional[int] = payload.booking_type_id
         except ValueError:
             booking_type_id = None
-        _type: str = filters.pop("type")
+        _type: str = payload.type
         data: dict[str, Any] = dict(premise=PremiseType.RESIDENTIAL, type=_type)
         if _type != PropertyTypes.FLAT:
             data: dict[str, Any] = dict(premise=PremiseType.NONRESIDENTIAL, type=_type)

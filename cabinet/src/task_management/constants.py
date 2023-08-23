@@ -48,3 +48,42 @@ class PackageOfDocumentsSlug(Slugs):
     CHECK: str = "Package_of_documents_Check"
     SUCCESS: str = "Package_of_documents_Success"
     ERROR: str = "Package_of_documents_Error"
+
+
+class MeetingsSlug(Slugs):
+    """
+    Слаги для Встреч
+    """
+    SIGN_UP: str = "meetings_sign_up"  # 1. Записаться на встречу
+    AWAITING_CONFIRMATION: str = "meetings_awaiting_confirmation"  # 2. Ожидайте подтверждения встречи
+    CONFIRMED_RESCHEDULED: str = "meetings_confirmed_rescheduled"  # 3. Встреча подтверждена, время перенесено
+    CONFIRMED: str = "meetings_confirmed"  # 4. Встреча подтверждена
+
+    CANCELED: str = "meetings_canceled"  # 6. Встреча отменена (Вы отменили встречу)
+    CLIENT_CANCELED: str = "meetings_client_canceled"  # 7. Встреча отменена (Клиент отменил встречу)
+    CLIENT_RESCHEDULED: str = "meetings_client_rescheduled"  # 8. Встреча отменена (Клиент перенес встречу)
+    RESCHEDULED: str = "meetings_rescheduled"  # 9. Встреча перенесена (Вы перенесли встречу)
+    START: str = "meetings_start"  # 10. Встреча началась
+    FINISH: str = "meetings_finish"  # 11. Встреча завершена
+
+
+class FixationExtensionSlug(Slugs):
+    """
+    Слаги для статусов задач фиксации клиентов брокерами.
+    """
+    NO_EXTENSION_NEEDED: str = "no_extension_needed"  # 1. Продление не требуется
+    DEAL_NEED_EXTENSION: str = "deal_needs_extension"  # 2. Сделка нуждается в продлении
+    CANT_EXTEND_DEAL_BY_ATTEMPT: str = "cant_extend_deal_by_attempt"  # 3. Нельзя продлить сделку из количества попыток
+    DEAL_ALREADY_BOOKED: str = "deal_already_booked"  # 4. Сделка прошла статус бронирования
+    CANT_EXTEND_DEAL_BY_DATE: str = "cant_extend_deal_by_date"  # 5. Нельзя продлить сделку из-за даты дедлайна
+
+
+BOOKING_UPDATE_FIXATION_STATUSES = [
+    "Первичный контакт",
+    "Назначить встречу",
+    "Фиксация клиента за АН",
+    "Встреча назначена",
+    "Идет встреча",
+    "Принимают решение",
+    "Повторная встреча",
+]

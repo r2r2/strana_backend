@@ -10,6 +10,7 @@ from .db_fixtures import *
 from .app_fixtures import *
 from .client_fixtures import *
 from .faker_fixtures import *
+from .config.fixtures import *
 
 # фикстуры приложений
 from .common.sync_fixtures import *
@@ -32,9 +33,19 @@ from .admins.repos_fixtures import *
 from .represes.repos_fixtures import *
 from .dashboard.repos_fixtures import *
 from .events.repos_fixtures import *
+from .documents.repos_fixtures import *
 
 
 @pytest.fixture
 def mocker():
     """Fixture to provide the `mocker` object for mocking."""
     return mock.Mock()
+
+
+@fixture(scope="session")
+async def redis():
+    redis = getattr(import_module("common.redis"), "broker")
+    await redis.connect()
+    yield redis
+    await redis.flush()
+    await redis.disconnect()

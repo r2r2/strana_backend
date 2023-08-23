@@ -9,7 +9,7 @@ class AgreementType(models.Model):
     Типы документов
     """
 
-    name: str = models.CharField(verbose_name='Название типа', max_length=100)
+    name: str = models.CharField(verbose_name='Тип документа', max_length=100)
     description: Optional[str] = models.TextField(
         verbose_name='Описание типа',
         blank=True,

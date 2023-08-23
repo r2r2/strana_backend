@@ -30,7 +30,6 @@ class EventParticipant(models.Model):
         verbose_name="Статус агента участника",
         max_length=20,
         choices=EventParticipantStatus.choices,
-        default=EventParticipantStatus.RECORDED,
     )
     event = models.ForeignKey(
         "events.Event",
@@ -47,7 +46,13 @@ class EventParticipant(models.Model):
         self.__original_status = self.status
 
     def save(self, *args, **kwargs):
-        if self.status != self.__original_status:
+        if self.agent:
+            self.fio = f"{self.agent.surname} {self.agent.name} {self.agent.patronymic}"
+            self.phone = self.agent.phone
+        if self.agent:
+            self.fio = f"{self.agent.surname} {self.agent.name} {self.agent.patronymic}"
+            self.phone = self.agent.phone
+        if self.__original_status and self.status != self.__original_status:
             try:
                 send_email_to_agent(
                     agent_id=self.agent.id,

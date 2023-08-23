@@ -141,7 +141,7 @@ def fire_agent_task(
 
 
 @celery.app.task
-def update_missed_amocrm_id_task() -> None:
+def periodic_update_missed_amocrm_id_task() -> None:
     """
     Заполнение потерянных amocrm_id в агентствах.
     """

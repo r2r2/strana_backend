@@ -21,22 +21,24 @@ from common.backend.models import AmocrmStatus
 from common.email import EmailService
 from common.utils import partition_list
 from src.agents.types import AgentEmail, AgentSms
+from src.amocrm.repos import AmocrmGroupStatus
 from src.booking.constants import BookingCreatedSources, BookingStages, BookingStagesMapping, BookingSubstages
-from src.booking.repos import Booking, BookingRepo
+from src.booking.repos import Booking, BookingRepo, BookingFixingConditionsMatrix, BookingFixingConditionsMatrixRepo
 from src.booking.loggers import booking_changes_logger
 from src.cities.repos import City
 from src.notifications.repos import AssignClientTemplate, AssignClientTemplateRepo
 from src.projects.repos import Project, ProjectRepo
-from src.users.constants import UserStatus, UserType
+from src.users.constants import UserStatus, UserType, UserPinningStatusType
 from src.users.entities import BaseUserCase
 from src.users.exceptions import CheckNotFoundError, UserAlreadyBoundError, UserEmailTakenError, UserNotUnique
 from src.users.models import RequestAssignClient, ResponseAssignClient
-from src.users.repos import Check, CheckRepo, User, UserRepo, ConfirmClientAssignRepo
+from src.users.repos import Check, CheckRepo, User, UserRepo, ConfirmClientAssignRepo, UserPinningStatusRepo, \
+    UniqueStatus
 from src.users.types import UserHasher
 from src.users.loggers.wrappers import user_changes_logger
 from src.notifications.services import GetEmailTemplateService
-from src.users.services import CheckPinningStatusService
 from src.task_management.services import CreateTaskInstanceService
+from src.users.utils import get_unique_status
 
 
 class LeadStatuses(int, Enum):
@@ -54,7 +56,9 @@ class AssignClientCase(BaseUserCase):
 
     client_tag: list[str] = ['клиент']
     lk_broker_tag: list[str] = ['ЛК Брокера']
+    aggregator_tag: list[str] = ['Агрегатор']
     lk_test_tag: list[str] = ['Тест']
+    aggregator_slug = "aggregator"
     mail_event_slug = "assign_client"
     previous_agent_email_slug = "previous_agent_email"
     sms_event_slug = "assign_client"
@@ -68,6 +72,8 @@ class AssignClientCase(BaseUserCase):
         amo_statuses_repo: Type[AmoStatusesRepo],
         template_repo: Type[AssignClientTemplateRepo],
         confirm_client_assign_repo: Type[ConfirmClientAssignRepo],
+        booking_fixing_condition_repo: Type[BookingFixingConditionsMatrixRepo],
+        user_pinning_repo: Type[UserPinningStatusRepo],
         email_class: Type[AgentEmail],
         amocrm_class: Type[AmoCRM],
         sms_class: Type[AgentSms],
@@ -77,22 +83,22 @@ class AssignClientCase(BaseUserCase):
         request: Request,
         site_config: dict,
         get_email_template_service: GetEmailTemplateService,
-        check_pinning: CheckPinningStatusService,
         logger: Optional[Any] = structlog.getLogger(__name__),
     ):
         self.user_repo: UserRepo = user_repo()
         self.check_repo: CheckRepo = check_repo()
         self.project_repo: ProjectRepo = project_repo()
         self.booking_repo: BookingRepo = booking_repo()
+        self.user_pinning_repo: UserPinningStatusRepo = user_pinning_repo()
         self.amo_statuses_repo: AmoStatusesRepo = amo_statuses_repo()
         self.template_repo: AssignClientTemplateRepo = template_repo()
         self.confirm_client_assign_repo: ConfirmClientAssignRepo = confirm_client_assign_repo()
+        self.booking_fixing_condition_repo: BookingFixingConditionsMatrixRepo = booking_fixing_condition_repo()
         self.email_class: Type[AgentEmail] = email_class
         self.amocrm_class: Type[AmoCRM] = amocrm_class
         self.sms_class: Type[AgentSms] = sms_class
         self.get_email_template_service: GetEmailTemplateService = get_email_template_service
         self.create_task_instance_service: CreateTaskInstanceService = create_task_instance_service
-        self.check_pinning: CheckPinningStatusService = check_pinning
         self.hasher: UserHasher = hasher()
         self.main_site_host = site_config['main_site_host']
         self.partition_limit: int = amocrm_config["partition_limit"]
@@ -130,7 +136,10 @@ class AssignClientCase(BaseUserCase):
         else:
             filters: dict[str: Any] = dict(type=UserType.REPRES, id=repres_id)
 
-        agency_realtor: User = await self.user_repo.retrieve(filters=filters, prefetch_fields=['agency', 'agent'])
+        agency_realtor: User = await self.user_repo.retrieve(
+            filters=filters,
+            prefetch_fields=['agency', 'agency__general_type', 'agent'],
+        )
 
         client_id_filters: dict[str: Any] = dict(type=UserType.CLIENT, id=payload.user_id)
         client: User = await self.user_repo.retrieve(filters=client_id_filters)
@@ -167,6 +176,7 @@ class AssignClientCase(BaseUserCase):
         notify_tasks: list[Awaitable] = []
         if client.agent_id and (client.agent_id != agency_realtor.id):
             # Именно смене агентов, т.е. когда 1 агент меняется на другого.
+            await client.fetch_related('agent')
             await self._send_email(
                 recipients=[client.agent.email],
                 agent_name=client.agent.full_name,
@@ -192,7 +202,10 @@ class AssignClientCase(BaseUserCase):
                 slug=self.mail_event_slug,
             ),
         ]
-        await asyncio.gather(*notify_tasks)
+        await asyncio.gather(
+            *notify_tasks,
+            self._set_pinning_status(client=client),
+        )
 
         if payload.assignation_comment:
             async with await self.amocrm_class() as amocrm:
@@ -477,11 +490,20 @@ class AssignClientCase(BaseUserCase):
         """
         status_name: str = 'фиксация клиента за ан'
         tags: list[str] = self.lk_broker_tag + self.lk_test_tag if client.is_test_user else self.lk_broker_tag
+        if agent.agency and agent.agency.general_type and agent.agency.general_type.slug == self.aggregator_slug:
+            tags = tags + self.aggregator_tag
         for project in not_created_projects:
-            status: AmocrmStatus = await self._get_status_by_name(name=status_name, pipeline_id=project.amo_pipeline_id)
-            if not status:
+            status: AmocrmStatus = await self._get_status_for_create_lead(project=project)
+            if status is None:
+                status: AmocrmStatus = await self._get_status_by_name(
+                    name=status_name,
+                    pipeline_id=project.amo_pipeline_id,
+                )
+
+            if status is None:
                 self.logger.error(
-                    f'Не удалось найти статус {status.name} в БД!', project=project.id)
+                    f'Не удалось найти статус "{status_name}" для проекта {project}  в БД!',
+                    project=project.id)
                 continue
             amo_data = dict(
                 status_id=status.id,
@@ -519,8 +541,23 @@ class AssignClientCase(BaseUserCase):
             )
             booking = await self.booking_create(data=data)
             await booking.refresh_from_db(fields=["id"])
-            await self._create_task_instance([booking.id])
-            self.check_pinning.as_task(user_id=client.id)
+            await self._create_task_instance([booking.id], booking_created=True)
+
+    async def _get_status_for_create_lead(self, project: Project) -> Optional[AmocrmStatus]:
+        """
+        Получение первичного статуса для сделки
+        """
+        booking_fixing_condition: BookingFixingConditionsMatrix = await self.booking_fixing_condition_repo.retrieve(
+            filters=dict(project=project, created_source=BookingCreatedSources.LK_ASSIGN),
+        )
+        if booking_fixing_condition:
+            group_status: AmocrmGroupStatus = await booking_fixing_condition.status_on_create
+            statuses = await group_status.statuses
+            status_on_create = next(
+                (status for status in statuses if str(status.pipeline_id) == project.amo_pipeline_id), None)
+
+            return status_on_create
+
 
     async def _get_status_by_name(self, name: str, pipeline_id: Union[str, int]) -> Optional[AmocrmStatus]:
         """
@@ -597,6 +634,9 @@ class AssignClientCase(BaseUserCase):
             lead_ids=active_leads_ids,
             entities=[agent_entities, agency_entities],
         )
+
+        for lead_id in active_leads_ids:
+            await amocrm.update_lead(lead_id=lead_id, is_agency_deal=True)
 
     async def _notify_client_sms(
         self,
@@ -694,12 +734,12 @@ class AssignClientCase(BaseUserCase):
         )
         return self.sms_class(**sms_options).as_task()
 
-    async def _create_task_instance(self, booking_ids: list[int]) -> None:
+    async def _create_task_instance(self, booking_ids: list[int], booking_created: bool = False) -> None:
         """
         Создаем задачу на создание экземпляра задачи.
         @param booking_ids: list[int]
         """
-        await self.create_task_instance_service(booking_ids=booking_ids)
+        await self.create_task_instance_service(booking_ids=booking_ids, booking_created=booking_created)
 
     def generate_tokens(self, agent_id: int, client_id: int) -> Tuple[str, str]:
         """generate_tokens"""
@@ -718,3 +758,13 @@ class AssignClientCase(BaseUserCase):
         """
         b64_data, token = self.generate_tokens(agent_id=agent_id, client_id=client_id)
         return f"https://{self.main_site_host}/unassign?t={token}%26d={b64_data}"
+
+    async def _set_pinning_status(self, client: User) -> None:
+        """
+        Устанавливаем статус закрепления для клиента.
+        @param client: User
+        """
+        unique_status: UniqueStatus = await get_unique_status(slug=UserPinningStatusType.PARTIALLY_PINNED)
+        await self.user_pinning_repo.update_or_create(
+            filters=dict(user=client), data=dict(unique_status=unique_status)
+        )

@@ -12,12 +12,6 @@ class IsConType(models.TextChoices):
     SKIP: str = "skip", _("Не важно")
 
 
-class UniqueValueType(models.TextChoices):
-    UNIQUE = "unique", _("Уникален")
-    NOT_UNIQUE = "not_unique", _("Не уникален")
-    CAN_DISPUTE = "can_dispute", _("Закреплен, но можно оспорить")
-
-
 class CitiesThrough(models.Model):
     city = models.ForeignKey(verbose_name="Город", to="references.Cities", on_delete=models.CASCADE, unique=False)
     term = models.ForeignKey(to="disputes.CabinetChecksTerms", on_delete=models.CASCADE, related_name="city")
@@ -83,26 +77,18 @@ class CabinetChecksTerms(models.Model):
     is_assign_agency_status: str = models.CharField(verbose_name="Была ли сделка в статусе 'Фиксация за АН'",
                                                     choices=IsConType.choices, max_length=10, null=False,
                                                     default=IsConType.SKIP)
-    priority: int = models.IntegerField(
-        verbose_name="Приоритет", null=False, help_text="Чем меньше приоритет тем раньше проверяется условие")
-    unique_value: str = models.CharField(
-        verbose_name="Статус уникальности",
-        choices=UniqueValueType.choices,
-        max_length=30,
-        null=False,
-        help_text="Определяет статус закрепления конкретной сделки, соответствующий описанным выше условиям. "
-                  "Проверяется только при проверке на уникальность. Если хотя бы одна сделка клиента получает статус "
-                  "“Неуникален” (или аналогичный ему) - проверка прекращается, "
-                  "в противном случае проверяются все сделки клиента",
-    )
     assigned_to_agent: bool = models.BooleanField(
         verbose_name="Закреплен за проверяющим агентом",
-        default=False,
+        null=True,
+        blank=True,
     )
     assigned_to_another_agent: bool = models.BooleanField(
         verbose_name="Закреплен за другим агентом проверяющего агентства",
-        default=False,
+        null=True,
+        blank=True,
     )
+    priority: int = models.IntegerField(
+        verbose_name="Приоритет", null=False, help_text="Чем меньше приоритет тем раньше проверяется условие")
     send_admin_email: bool = models.BooleanField(
         verbose_name="Отправлять письмо администраторам при проверке клиента в данном статусе",
         default=False,
@@ -114,6 +100,16 @@ class CabinetChecksTerms(models.Model):
         on_delete=models.CASCADE,
         null=True,
         blank=True,
+        help_text="Определяет статус закрепления конкретной сделки, соответствующий описанным выше условиям. "
+                  "Проверяется только при проверке на уникальность. Если хотя бы одна сделка клиента получает статус "
+                  "“Неуникален” (или аналогичный ему) - проверка прекращается, "
+                  "в противном случае проверяются все сделки клиента",
+    )
+    comment = models.TextField(
+        verbose_name="Комментарий",
+        null=True,
+        blank=True,
+        help_text="Внутренний комментарий по назначению статуса",
     )
 
     def _cities(self):
@@ -124,5 +120,5 @@ class CabinetChecksTerms(models.Model):
         managed = False
         db_table = "users_checks_terms"
         verbose_name = "Условие проверки"
-        verbose_name_plural = "6.6. Условия проверки"
+        verbose_name_plural = "6.2. Условия проверки статуса уникальности"
         ordering = ["priority"]

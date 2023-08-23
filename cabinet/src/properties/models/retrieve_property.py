@@ -1,9 +1,10 @@
 import binascii
 from decimal import Decimal
 from typing import Any, Optional
+from pydantic import root_validator, Field
 
 from common.utils import from_global_id
-from pydantic import root_validator
+from common.pydantic import CamelCaseBaseModel
 from src.properties.constants import PropertyTypes
 from src.properties.entities import BasePropertyModel
 
@@ -14,6 +15,32 @@ class PropertyFloorModel(BasePropertyModel):
     """
 
     id: Optional[int]
+    number: Optional[str]
+
+    class Config:
+        orm_mode = True
+
+
+class PropertyTypeModel(CamelCaseBaseModel):
+    """
+    Модель типа бронирования в базе.
+    """
+
+    slug: Optional[str]
+    label: Optional[str]
+
+    class Config:
+        orm_mode = True
+
+
+class PropertySectionModel(CamelCaseBaseModel):
+    """
+    Модель типа секции в базе.
+    """
+
+    id: Optional[int]
+    name: Optional[str]
+    total_floors: Optional[int]
     number: Optional[str]
 
     class Config:
@@ -40,6 +67,8 @@ class PropertyRetrieveModel(BasePropertyModel):
     plan_png: Optional[dict[str, Any]]
     floor: Optional[PropertyFloorModel]
     type: Optional[PropertyTypes.serializer]
+    property_type: Optional[PropertyTypeModel] = Field(None, alias="propertyType")
+    section: Optional[PropertySectionModel]
 
     @root_validator
     def decode_backend_id(cls, values: dict) -> dict:
@@ -53,3 +82,4 @@ class PropertyRetrieveModel(BasePropertyModel):
 
     class Config:
         orm_mode = True
+        allow_population_by_field_name = True

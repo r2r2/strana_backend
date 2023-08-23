@@ -2,12 +2,11 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional, Union, Any
 
-from pydantic import root_validator as method_field, validator
+from pydantic import root_validator
 
 from src.booking import constants as booking_constants
 from src.properties.constants import PropertyTypes
 
-from ..constants import UserStatus
 from ..entities import BaseUserModel
 
 
@@ -97,12 +96,6 @@ class _IndentProjectListModel(BaseUserModel):
     slug: Optional[str]
     name: Optional[str]
     city: Optional[str]
-
-    @validator("city", pre=True)
-    def get_city_name(cls, value):
-        if value:
-            return value.name
-        return None
 
     class Config:
         orm_mode = True
@@ -209,7 +202,7 @@ class _CheckRetrieveModel(BaseUserModel):
     """
 
     agent_id: Optional[int]
-    status: Optional[UserStatus.serializer]
+    unique_status: Optional[Any]
 
     class Config:
         orm_mode = True
@@ -234,12 +227,12 @@ class ResponseRepresesAgentsUsersRetrieveModel(BaseUserModel):
 
     # Method fields
     agency: Optional[_AgencyRetrieveModel]
-    status: Optional[UserStatus.serializer]
+    status: Optional[Any]
 
     # Totally overrided fields
     checks: Optional[list[_CheckRetrieveModel]]
 
-    @method_field
+    @root_validator
     def get_agency(cls, values: dict[str, Any]) -> dict[str, Any]:
         agency: Union[_AgencyRetrieveModel, None] = values.get("agency")
         if agency:
@@ -249,11 +242,15 @@ class ResponseRepresesAgentsUsersRetrieveModel(BaseUserModel):
         values["agency"]: Union[str, None] = agency
         return values
 
-    @method_field
+    @root_validator
     def get_status(cls, values: dict[str, Any]) -> dict[str, Any]:
         checks: Union[list[Any], None] = values.pop("checks", None)
         if checks:
-            status: dict[str, Any] = checks[0].status.dict()
+            check: _CheckRetrieveModel = checks[0]
+            status: dict[str, Any] = {
+                "value": check.unique_status.slug,
+                "label": f"{check.unique_status.title} {check.unique_status.subtitle or ''}".strip(),
+            }
         else:
             status = None
         values["status"]: Union[dict[str, Any], None] = status

@@ -11,4 +11,5 @@ class UniqueStatusAdmin(ModelAdmin):
         "slug",
         "type",
         "can_dispute",
+        "comment",
     )

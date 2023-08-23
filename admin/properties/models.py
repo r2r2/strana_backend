@@ -1,5 +1,68 @@
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils.translation import gettext_lazy as _
+
+
+class PropertyType(models.Model):
+    """
+    Модель типа объектов недвижимости.
+    """
+
+    sort = models.IntegerField(
+        verbose_name='Приоритет',
+        default=0,
+        help_text='Определяет порядок вывода объектов недвижимости в интерфейсах',
+    )
+    slug = models.CharField(verbose_name='Слаг', max_length=20, unique=True)
+    label = models.CharField(verbose_name='Название типа', max_length=40)
+    is_active = models.BooleanField(
+        verbose_name='Активность',
+        default=True,
+        help_text='Неактивные объекты недвижимости не выводятся в интерфейсах сайта',
+    )
+    pipelines = models.ManyToManyField(
+        verbose_name="Воронки сделок",
+        to="booking.AmocrmPipeline",
+        through="PropertyTypePipelineThrough",
+        through_fields=("property_type", "pipeline"),
+        related_name="property_type_pipelines",
+        blank=True,
+    )
+
+    def __str__(self):
+        return self.label
+
+    class Meta:
+        managed = False
+        db_table = "properties_property_type"
+        ordering = ("sort",)
+        verbose_name = "Тип объектов недвижимости"
+        verbose_name_plural = "3.6. [Справочник] Типы объектов недвижимости"
+
+
+class PropertyTypePipelineThrough(models.Model):
+    """
+    Промежуточная таблица для связи типа объекта недвижимости и воронки.
+    """
+    property_type = models.ForeignKey(
+        to="properties.PropertyType",
+        on_delete=models.CASCADE,
+        related_name="pipeline",
+        primary_key=True,
+    )
+    pipeline = models.ForeignKey(
+        to="booking.AmocrmPipeline",
+        verbose_name="Воронка",
+        on_delete=models.CASCADE,
+        unique=False,
+    )
+
+    class Meta:
+        managed = False
+        db_table = "properties_property_type_pipelines"
+        verbose_name = "Тип объекта - Воронка"
+        verbose_name_plural = "Тип объекта - Воронки"
+        unique_together = ('property_type', 'pipeline')
 
 
 class Property(models.Model):
@@ -7,8 +70,21 @@ class Property(models.Model):
     Объект недвижимости
     """
 
-    global_id = models.CharField(unique=True, max_length=200, blank=True, null=True)
+    global_id = models.CharField(
+        unique=True,
+        max_length=200,
+        help_text="По данному ID производится синхронизация с Порталом",
+        blank=True,
+        null=True,
+    )
     type = models.CharField(max_length=50, blank=True, null=True)
+    property_type = models.ForeignKey(
+        "properties.PropertyType",
+        models.SET_NULL,
+        verbose_name="Тип (модель)",
+        blank=True,
+        null=True,
+    )
     article = models.CharField(max_length=50, blank=True, null=True)
     plan = models.ImageField(max_length=300, blank=True, null=True, upload_to="p/p/p")
     plan_png = models.ImageField(max_length=300, blank=True, null=True, upload_to="p/p/pp")
@@ -21,6 +97,7 @@ class Property(models.Model):
     project = models.ForeignKey("properties.Project", models.CASCADE, blank=True, null=True)
     floor = models.ForeignKey("properties.Floor", models.CASCADE, blank=True, null=True)
     building = models.ForeignKey("properties.Building", models.CASCADE, blank=True, null=True)
+    section = models.ForeignKey("properties.Section", models.SET_NULL, blank=True, null=True)
     status = models.SmallIntegerField(blank=True, null=True)
     number = models.CharField(max_length=100, blank=True, null=True)
     rooms = models.SmallIntegerField(blank=True, null=True)
@@ -31,8 +108,8 @@ class Property(models.Model):
 
     def __str__(self) -> str:
         project_name = self.project.name if self.project else "-"
-        propety = str(self.article) if self.article else str(self.id)  # pylint: disable=no-member
-        return f"{propety}, ЖК {project_name}, {self.rooms}-ком, " \
+        _property = str(self.article) if self.article else str(self.id)  # pylint: disable=no-member
+        return f"{_property}, ЖК {project_name}, {self.rooms}-ком, " \
             f"{self.area} м2, {self.floor}-эт, {self.number} ном"
 
     class Meta:
@@ -57,13 +134,8 @@ class Building(models.Model):
     default_commission = models.DecimalField(
         max_digits=5, decimal_places=2, blank=True, null=True, verbose_name="Комиссия по умолчания (%)"
     )
-    flats_reserv_time = models.FloatField(
-        verbose_name="Время бронирования квартиры",
-        help_text="Определяет время бесплатного резервирования квартиры для агента",
-        null=True,
-        blank=True,
-    )
     discount = models.PositiveSmallIntegerField(default=0, verbose_name="Скидка (%)")
+    show_in_paid_booking: bool = models.BooleanField(verbose_name="Отображать в платном бронировании", default=True)
 
     def __str__(self) -> str:
         project_name = self.project.name if self.project else "-"
@@ -75,6 +147,34 @@ class Building(models.Model):
         db_table = "buildings_building"
         verbose_name = "Корпус"
         verbose_name_plural = "3.2. [Справочник] Корпуса"
+
+
+class Section(models.Model):
+    """
+    Секция
+    """
+
+    name = models.CharField(max_length=50, blank=True, verbose_name="Название")
+    building = models.ForeignKey(
+        "properties.Building", models.CASCADE, blank=True, null=True, verbose_name="Корпус"
+    )
+    total_floors = models.IntegerField(blank=True, null=True, verbose_name="Всего этажей")
+    number = models.CharField(max_length=50, blank=True, verbose_name="Номер")
+
+    def __str__(self) -> str:
+        if self.building:
+            building_name = self.building.name
+            project_name = self.building.project.name if self.building.project else "-"
+        else:
+            building_name = project_name = "-"
+        name = self.name if self.name else self.id
+        return f"[{project_name} -> {building_name}] {name}"
+
+    class Meta:
+        managed = False
+        db_table = "buildings_section"
+        verbose_name = "Секция"
+        verbose_name_plural = "3.3. [Справочник] Секции"
 
 
 class Project(models.Model):
@@ -94,13 +194,15 @@ class Project(models.Model):
         max_length=200,
         blank=True,
         null=True,
-        help_text="По данному ID производится синхронизация с Порталом. "
-                  "Amocrm enum - ID проекта в АМО. Необходим для синхронизации с АМО. "
-                  "Задается на портале и импортируется в ЛК",
+        help_text="По данному ID производится синхронизация с Порталом",
     )
     name = models.CharField(max_length=200, blank=True, null=True)
     city = models.ForeignKey('references.Cities', models.SET_NULL, blank=True, null=True)
-    amocrm_enum = models.BigIntegerField(blank=True, null=True)
+    amocrm_enum = models.BigIntegerField(
+        help_text="ID проекта в АМО. Необходим для синхронизации с АМО. Задается на портале и импортируется в ЛК",
+        blank=True,
+        null=True,
+    )
     amocrm_name = models.CharField(
         max_length=200,
         blank=True,
@@ -140,14 +242,8 @@ class Project(models.Model):
         help_text="Импортируется с Портала. "
                   "Создавать договора и бронировать квартиры можно только в ЖК в статусе “Текущий”",
     )
-    flats_reserv_time = models.FloatField(
-        verbose_name="Время бронирования квартиры",
-        help_text="Устанавливается в том случае, если не задано время резервирования для конкретного корпуса. "
-                  "Определяет время бесплатного резервирования квартиры для агента",
-        null=True,
-        blank=True,
-    )
     discount = models.PositiveSmallIntegerField(default=0, verbose_name="Скидка (%)")
+    show_in_paid_booking: bool = models.BooleanField(verbose_name="Отображать в платном бронировании", default=True)
 
     def __str__(self) -> str:
         return self.name if self.name else str(self.id)
@@ -156,7 +252,7 @@ class Project(models.Model):
         managed = False
         db_table = 'projects_project'
         verbose_name = "Жилой комплекс"
-        verbose_name_plural = "3.3. [Справочник] Жилые комплексы"
+        verbose_name_plural = "3.4. [Справочник] Жилые комплексы"
 
 
 class Floor(models.Model):
@@ -164,8 +260,8 @@ class Floor(models.Model):
     Этаж
     """
     global_id = models.CharField(unique=True, max_length=200, blank=True, null=True)
-    number = models.CharField(max_length=20, blank=True, null=True)
-    building = models.ForeignKey("properties.Building", models.CASCADE, blank=True, null=True)
+    number = models.CharField(max_length=20, blank=True, null=True, verbose_name="Номер этажа")
+    building = models.ForeignKey("properties.Building", models.CASCADE, blank=True, null=True, verbose_name="Корпус")
 
     def __str__(self) -> str:
         number = self.number if self.number else str(self.id)
@@ -177,4 +273,4 @@ class Floor(models.Model):
         managed = False
         db_table = 'floors_floor'
         verbose_name = "Этаж"
-        verbose_name_plural = "3.4. [Справочник] Этажи"
+        verbose_name_plural = "3.5. [Справочник] Этажи"

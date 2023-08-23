@@ -3,15 +3,16 @@ from typing import Any, Optional, Type, Union
 
 from tortoise.query_utils import Q
 
+from common.settings.repos import BookingSettingsRepo
+from src.users.repos import UserRepo
+from src.users.types import UserBookingRepo, UserPagination
+from src.task_management.repos import TaskInstance
+from src.task_management.utils import build_task_data
 from ...amocrm.repos import AmocrmGroupStatus
-from ...booking.repos import Booking
+from ...booking.repos import Booking, BookingTag, BookingTagRepo
 from ..constants import UserType
 from ..entities import BaseUserCase
 from ..mixins import CurrentUserDataMixin
-from ..repos import CheckRepo, UserRepo
-from ..types import UserBookingRepo, UserPagination
-from ...task_management.repos import TaskInstance
-from ...task_management.utils import build_task_data
 
 
 class UsersBookingsCase(BaseUserCase, CurrentUserDataMixin):
@@ -22,15 +23,17 @@ class UsersBookingsCase(BaseUserCase, CurrentUserDataMixin):
     def __init__(
         self,
         user_repo: Type[UserRepo],
-        check_repo: Type[CheckRepo],
         booking_repo: Type[UserBookingRepo],
+        booking_tag_repo: Type[BookingTagRepo],
+        booking_settings_repo: Type[BookingSettingsRepo],
         amocrm_group_status_repo: Type[AmocrmGroupStatus],
         user_type: Union[UserType.AGENT, UserType.REPRES, UserType.ADMIN]
     ) -> None:
         self.user_repo: UserRepo = user_repo()
         self.amocrm_group_status_repo: AmocrmGroupStatus = amocrm_group_status_repo()
-        self.check_repo: CheckRepo = check_repo()
+        self.booking_settings_repo: BookingSettingsRepo = booking_settings_repo()
         self.booking_repo: UserBookingRepo = booking_repo()
+        self.booking_tag_repo: BookingTagRepo = booking_tag_repo()
         self.user_type: Union[UserType.AGENT, UserType.REPRES, UserType.ADMIN] = user_type
 
     async def __call__(
@@ -46,18 +49,16 @@ class UsersBookingsCase(BaseUserCase, CurrentUserDataMixin):
 
         prefetch_fields: list[Union[str, dict[str, Any]]] = [
             "agent",
-            "agency__city",
+            "agency",
             "user",
-            "project",
             "project__city",
             "building",
             "property",
+            "property__section",
+            "property__property_type",
             "property__floor",
-            "amocrm_status",
             "amocrm_status__group_status",
-            "task_instances",
-            "task_instances__status",
-            "task_instances__status__button",
+            "task_instances__status__buttons",
             "task_instances__status__tasks_chain__task_visibility",
         ]
         q_filters = self.get_booking_q_filters(search)
@@ -78,8 +79,9 @@ class UsersBookingsCase(BaseUserCase, CurrentUserDataMixin):
 
         for booking in bookings:
             booking.tasks = await self._get_booking_tasks(booking=booking)
+            booking.booking_tags = await self._get_booking_tags(booking)
 
-            if booking.project and booking.amocrm_status:
+            if booking.amocrm_status:
                 group_statuses: list[AmocrmGroupStatus] = await self.amocrm_group_status_repo.list(
                     filters=dict(is_final=False),
                     ordering="sort",
@@ -112,10 +114,21 @@ class UsersBookingsCase(BaseUserCase, CurrentUserDataMixin):
         data: dict[str, Any] = dict(count=count, result=bookings, page_info=pagination(count=count))
         return data
 
+    async def _get_booking_tags(self, booking: Booking) -> Optional[list[BookingTag]]:
+        tag_filters: dict[str, Any] = dict(
+            is_active=True,
+            group_statuses=booking.amocrm_status.group_status,
+        )
+        return (await self.booking_tag_repo.list(filters=tag_filters, ordering='-priority')) or None
+
     def get_bookings_filters(self, init_filters: dict) -> dict[str, Any]:
         """Get booking data with user_data mixin"""
 
-        filters = dict(user__type=UserType.CLIENT, **init_filters)
+        filters = dict(
+            user__type=UserType.CLIENT,
+            property__property_type__is_active__not_in=[False],
+            **init_filters,
+        )
         if self.user_type == UserType.AGENT:
             filters["agent_id"] = self.current_user_data.agent_id
         if self.user_type == UserType.REPRES:
@@ -175,5 +188,14 @@ class UsersBookingsCase(BaseUserCase, CurrentUserDataMixin):
             # берем таску с наивысшим приоритетом,
             # наивысшим будет приоритет с наименьшим значением ¯_(ツ)_/¯
             highest_priority_task = min(task_instances, key=lambda x: x.status.priority)
-            tasks = build_task_data(task_instances=[highest_priority_task], booking_status=booking.amocrm_status)
+
+            booking_settings = await self.booking_settings_repo.list().first()
+            tasks = await build_task_data(
+                task_instances=[highest_priority_task],
+                booking=booking,
+                booking_settings=booking_settings,
+            )
+
+            # Убираем инфу о встрече, в списке сделок она не нужна
+            [task.pop("meeting") for task in tasks if task.get("meeting")]
         return tasks

@@ -10,8 +10,14 @@ from src.users import use_cases
 
 from ..user import router
 
-__all__ = ('agent_clients_specs_view', 'agent_clients_facets_view', 'agent_clients_lookup_view', 'agent_clients_view',
-           'agents_users_retrieve_view')
+__all__ = (
+    'agent_clients_specs_view',
+    'agent_clients_facets_view',
+    'agent_clients_lookup_view',
+    'agent_clients_phone_lookup_view',
+    'agent_clients_view',
+    'agents_users_retrieve_view',
+)
 
 
 @router.get(
@@ -66,6 +72,25 @@ async def agent_clients_lookup_view(
     resources: dict[str, Any] = dict(user_repo=users_repos.UserRepo)
     agents_users_search = use_cases.AgentClientsLookupCase(**resources)
     return await agents_users_search(agent_id=agent_id, lookup=lookup, init_filters=init_filters)
+
+
+@router.get(
+    "/agent/clients/phone_lookup",
+    status_code=HTTPStatus.OK,
+    response_model=models.ResponseAgentsUsersPhoneLookupModel,
+    dependencies=[Depends(dependencies.DeletedUserCheck())],
+)
+async def agent_clients_phone_lookup_view(
+    phone: str = Query(str(), alias="search"),
+    agent_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT)),
+):
+    """
+    Поиск пользователей агента по началу телефона
+    """
+    resources: dict[str, Any] = dict(user_repo=users_repos.UserRepo)
+    agents_users_search = use_cases.AgentClientsPhoneLookupCase(**resources)
+
+    return await agents_users_search(agent_id=agent_id, phone=phone)
 
 
 @router.get(

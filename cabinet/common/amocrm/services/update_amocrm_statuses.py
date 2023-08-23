@@ -86,7 +86,7 @@ class AmoUpdateStatusesService(BaseAmocrmService):
             pipeline_dict = pipeline.dict()
             filters: dict = dict(id=pipeline_dict.pop('id'))
             await self.pipelines_repo.update_or_create(filters=filters, data=pipeline_dict)
-        # Создаем доплнительную воронку "Все вороноки"
+        # Создаем дополнительную воронку "Все воронки"
         data = dict(
             name="Все воронки",
             is_archive=False,

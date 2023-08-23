@@ -13,10 +13,6 @@ class Sberbank(SberbankPay, SberbankStatus):
     Sberbank integration
     """
 
-    _cities_mapping: dict[str, str] = {
-        "spb": "spb", "tyumen": "tmn", "moskva": "msk", "ekb": "ekb", "test_case": "test_case"
-    }
-
     def __init__(
         self,
         city: str,
@@ -61,8 +57,8 @@ class Sberbank(SberbankPay, SberbankStatus):
 
         self._pay_url: str = sberbank_config["url"] + "register.do"
         self._status_url: str = sberbank_config["url"] + "getOrderStatusExtended.do"
-        self._username: str = sberbank_config.get(f"{self._cities_mapping.get(city)}_username")
-        self._password: str = sberbank_config.get(f"{self._cities_mapping.get(city)}_password")
+        self._username: str = sberbank_config.get(f"{city}_username")
+        self._password: str = sberbank_config.get(f"{city}_password")
         self._fail_url: str = (
             f"https://{site_config['site_host']}"
             f"{sberbank_config['return_url'].format(sberbank_config['secret'], 'fail')}"

@@ -1,13 +1,17 @@
 query allNews{
     allNews(
-        type: "action",
+        kind: "action",
         first: 16,
         order: "order",
         projectsCity: %s
     ) {
         edges {
             node {
-                shortDescription
+                id
+                title
+                end
+                slug
+                cardImageDisplay
             }
         }
     }

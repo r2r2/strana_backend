@@ -1,36 +1,46 @@
 # pylint: disable=unused-argument
-from documents import models as documents_models
+from artefacts import models as artefacts_models
 from booking import models as booking_models
 from contents import models as contents_models
-from references import models as references_models
-from disputes import models as disputes_models
-from managers import models as managers_models
-from artefacts import models as artefacts_models
-from properties import models as properties_models
-from users import models as users_models
-from questionnaire import models as questionnaire_models
-from task_management import models as task_management_models
-from notifications import models as notifications_models
-from meetings import models as meetings_models
-from events import models as event_models
 from dashboard import models as dashboard_models
-from settings import models as settings_models
+from disputes import models as disputes_models
+from documents import models as documents_models
+from events import models as event_models
+from main_page import models as main_page_models
+from managers import models as managers_models
+from notifications import models as notifications_models
+from properties import models as properties_models
+from questionnaire import models as questionnaire_models
+from references import models as references_models
+from task_management import models as task_management_models
+from users import models as users_models
 
+from settings import models as settings_models
 
 cabinet_models: list = [
     booking_models.Booking,
     booking_models.BookingLog,
+    booking_models.BookingTag,
     booking_models.AmocrmPipeline,
     booking_models.AmocrmStatus,
     booking_models.AmocrmAction,
     booking_models.AmocrmGroupStatus,
     booking_models.GroupStatusActionThrough,
+    booking_models.BookingFixingConditionsMatrix,
+    booking_models.BookingFixingConditionsMatrixProjects,
+    booking_models.BookingReservationMatrix,
+    booking_models.BookingReservationMatrixProjects,
+    booking_models.GroupStatusTagThrough,
     properties_models.Property,
     properties_models.Building,
+    properties_models.Section,
     properties_models.Project,
     properties_models.Floor,
+    properties_models.PropertyType,
+    properties_models.PropertyTypePipelineThrough,
     users_models.CabinetUser,
     users_models.CabinetAgent,
+    users_models.CabinetAdmin,
     users_models.CabinetClient,
     documents_models.AgencyAct,
     documents_models.AgencyAgreement,
@@ -64,16 +74,19 @@ cabinet_models: list = [
     disputes_models.PipelinesThrough,
     disputes_models.StatusesThrough,
     references_models.Cities,
+    references_models.CityMenuThrough,
+    references_models.RoleMenuThrough,
     references_models.Menu,
     users_models.UserLog,
     users_models.UserRole,
-    users_models.CityUserThrough,
     users_models.UserNotificationMute,
     users_models.RealIpUsers,
     users_models.FakeUserPhone,
     users_models.Agency,
+    users_models.AgencyGeneralType,
     users_models.AgencyLog,
     users_models.HistoricalDisputeData,
+    users_models.CityUserThrough,
     contents_models.Caution,
     contents_models.CautionMute,
     contents_models.TextBlock,
@@ -97,16 +110,26 @@ cabinet_models: list = [
     task_management_models.TaskChain,
     task_management_models.TaskChainStatusThrough,
     task_management_models.TaskChainTaskVisibilityStatusThrough,
+    task_management_models.TaskField,
+    task_management_models.TaskChainTaskFieldsThrough,
+    task_management_models.TaskStatusButtonsThrough,
     notifications_models.LogEmail,
     notifications_models.LogSms,
     notifications_models.EmailTemplate,
     notifications_models.SmsTemplate,
     notifications_models.AssignClientTemplate,
-    meetings_models.Meeting,
+    notifications_models.BookingNotification,
+    notifications_models.BookingNotificationsProjectThrough,
+    notifications_models.BookingFixationNotification,
+    notifications_models.BookingFixationNotificationsProjectThrough,
     event_models.Event,
+    event_models.CalendarEvent,
+    event_models.CalendarEventTypeSettings,
+    event_models.MeetingStatus,
+    event_models.CalendarEventTagThrough,
     event_models.EventTag,
     event_models.EventParticipant,
-    event_models.EventTagThrough,
+    event_models.Meeting,
     dashboard_models.Ticket,
     dashboard_models.TicketCityThrough,
     dashboard_models.Block,
@@ -116,6 +139,11 @@ cabinet_models: list = [
     dashboard_models.Link,
     dashboard_models.LinkCityThrough,
     settings_models.BookingSettings,
+    main_page_models.MainPageContent,
+    main_page_models.MainPageOffer,
+    main_page_models.MainPagePartnerLogo,
+    main_page_models.MainPageSellOnline,
+    main_page_models.MainPageManager,
 ]
 
 

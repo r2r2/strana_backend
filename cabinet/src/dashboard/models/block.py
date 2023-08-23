@@ -1,18 +1,17 @@
 from datetime import datetime
-from typing import Optional, Any
+from typing import Optional, Any, Union
 
-from src.dashboard import constants as dashboard_constants
 from src.dashboard.entities import BaseDashboardModel
 
 
 class _ElementRetrieveModel(BaseDashboardModel):
-    id: int
+    id: Union[int, str]
     type: str
-    width: Optional[dashboard_constants.WidthType.serializer]
+    width: Optional[int]
     title: Optional[str]
     description: Optional[str]
     image: Optional[dict[str, Any]]
-    link: Optional[list[str]]
+    link: Optional[str]
     expires: Optional[datetime]
 
     class Config:

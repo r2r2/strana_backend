@@ -15,6 +15,7 @@ from src.users.constants import UserType
 from src.users.repos.user import User, UserRepo
 from src.booking.loggers.wrappers import booking_changes_logger
 from src.amocrm.repos import AmocrmStatus, AmocrmStatusRepo
+from src.booking.utils import get_booking_reserv_time
 
 from ...users.services import CreateContactService
 from ..constants import BookingCreatedSources, BookingStagesMapping
@@ -41,7 +42,6 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
     def __init__(
         self,
         backend_config: dict[str, Any],
-        booking_config: dict[str, Any],
         check_booking_task: Any,
         sms_class: Type[BookingSms],
         email_class: Type[BookingEmail],
@@ -86,7 +86,6 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
         self.building_booking_type_repo: buildings_repos.BuildingBookingTypeRepo = building_booking_type_repo
 
         self.site_host: str = site_config["site_host"]
-        self.fast_booking_time_hours: int = booking_config["fast_time_hours"]
         self.get_sms_template_service: GetSmsTemplateService = get_sms_template_service
         self.get_email_template_service: GetEmailTemplateService = get_email_template_service
 
@@ -126,7 +125,7 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
             )
 
         if self.booking:
-            await self.booking_repo.update(model=booking, data=dict(tags=[tag.name for tag in lead.embedded.tags]))
+            await self.booking_update(booking=booking, data=dict(tags=[tag.name for tag in lead.embedded.tags]))
 
         self.logger.info(
             'Parsed data',
@@ -212,7 +211,7 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
         booking_property: Property = await self.property_repo.update_or_create(filters=filters, data=data)
         await self.import_property_service(property=booking_property)
         filters = dict(id=booking_property.id)
-        related_fields = ["building"]
+        related_fields = ["building", "project"]
         booking_property: Property = await self.property_repo.retrieve(
             filters=filters,
             related_fields=related_fields
@@ -252,13 +251,13 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
             raise BookingRequestValidationError(message=f"Не заполнены поля: {', '.join(errors)}")
 
     async def _create_new_booking_from_amo(
-            self,
-            *,
-            lead: AmoLead,
-            lead_custom_fields: dict[int, Any],
-            user: User,
-            booking_property: Property,
-            booking_type_id: Optional[str],
+        self,
+        *,
+        lead: AmoLead,
+        lead_custom_fields: dict[int, Any],
+        user: User,
+        booking_property: Property,
+        booking_type_id: Optional[str],
     ) -> Booking:
         """
         New booking creation
@@ -274,8 +273,16 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
 
         amocrm_substage: Optional[str] = AmoCRM.get_lead_substage(lead.status_id)
         amocrm_stage: Optional[str] = BookingStagesMapping()[amocrm_substage]
+        amocrm_status: Optional[AmocrmStatus] = await self.statuses_repo.retrieve(
+            filters=dict(id=lead.status_id)
+        )
 
-        expires = datetime.now(tz=UTC) + timedelta(hours=self.fast_booking_time_hours)
+        created_source = BookingCreatedSources.FAST_BOOKING
+        booking_reserv_time: float = await get_booking_reserv_time(
+            created_source=created_source,
+            booking_property=booking_property,
+        )
+        expires = datetime.now(tz=UTC) + timedelta(hours=booking_reserv_time)
         should_be_deactivated_by_timer = True
         booking_data: dict[str, Any] = dict(
             floor_id=booking_property.floor_id,
@@ -293,10 +300,11 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
             origin=f"https://{self.site_host}",
             amocrm_stage=amocrm_stage,
             amocrm_substage=amocrm_substage,
+            amocrm_status=amocrm_status,
             expires=expires,
             should_be_deactivated_by_timer=should_be_deactivated_by_timer,
             profitbase_booked=True,
-            created_source=BookingCreatedSources.FAST_BOOKING,
+            created_source=created_source,
             active=True,
         )
 
@@ -313,15 +321,14 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
             )
 
         if self.booking:
-            booking: Booking = await self.booking_repo.update(model=self.booking, data=booking_data)
+            booking: Booking = await self.booking_update(booking=self.booking, data=booking_data)
             self.logger.info('Booking updated', lead_id=lead.id, booking_id=booking.id, tags=booking.tags)
         else:
-            booking = await self.booking_repo.create(data=booking_data)
+            booking = await self.booking_create(data=booking_data)
             self.logger.info('New Booking created', lead_id=lead.id, booking_id=booking.id, tags=booking.tags)
 
         await self._property_backend_booking(booking=booking)
-        await self._update_booking_status(booking, lead.status_id)
-        
+
         if property_final_price or price_with_sale:
             data = dict(final_price=price_with_sale or property_final_price)
             await self.property_repo.update(model=booking_property, data=data)
@@ -384,14 +391,3 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
             )
             email_service: BookingEmail = self.email_class(**email_options)
             return email_service.as_task()
-
-    async def _update_booking_status(self, booking: Booking, new_status_id: int) -> None:
-        """
-        update booking status
-        """
-        status: Optional[AmocrmStatus] = await self.statuses_repo.retrieve(
-            filters=dict(id=new_status_id)
-        )
-        if status:
-            data = dict(amocrm_status_id=status.id, amocrm_status=status)
-            await self.booking_update(booking=booking, data=data)

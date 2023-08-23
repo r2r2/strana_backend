@@ -81,7 +81,7 @@ class AdminsAgentsRetrieveCase(BaseAgentCase):
         closed_clients_qs: Any = self.user_repo.list(filters=filters, annotations=annotations)
 
         filters: dict[str, Any] = dict(agent_id=agent_id)
-        check_qs: Any = self.check_repo.list(filters=filters)
+        check_qs: Any = self.check_repo.list(filters=filters, related_fields=["unique_status"])
         prefetch_fields: list[Any] = [
             dict(relation="users_checks", queryset=check_qs, to_attr="checks")
         ]

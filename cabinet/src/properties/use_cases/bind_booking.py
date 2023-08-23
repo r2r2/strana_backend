@@ -1,19 +1,22 @@
 import asyncio
+import structlog
 from asyncio import Task
+from pytz import UTC
 from typing import Type, Any, Callable, Union, Optional, Awaitable
 from datetime import datetime, timedelta
 
-import structlog
-from pytz import UTC
-
 from common.amocrm.types import AmoTag
-from common.settings.repos import BookingSettings, BookingSettingsRepo
 from config import booking_config, site_config, MaintenanceSettings, EnvTypes
 from common.security import create_access_token
 from src.booking.repos import BookingRepo, Booking
 from src.booking.services import ActivateBookingService, SendSmsToMskClientService
-from src.booking.constants import BookingStages, BookingSubstages, BookingCreatedSources
-from src.booking.exceptions import BookingNotFoundError, BookingPropertyUnavailableError, BookingPropertyMissingError
+from src.booking.constants import BookingStages, BookingSubstages
+from src.booking.exceptions import (
+    BookingNotFoundError,
+    BookingPropertyUnavailableError,
+    BookingPropertyMissingError,
+)
+from src.booking.utils import get_booking_reserv_time
 from src.properties.services import CheckProfitbasePropertyService
 from src.booking.loggers import booking_changes_logger
 from src.booking.types import BookingAmoCRM, BookingEmail, BookingSms
@@ -22,23 +25,25 @@ from src.task_management.constants import PaidBookingSlug
 from src.task_management.services import UpdateTaskInstanceStatusService
 from src.users.services import CheckPinningStatusService
 from src.amocrm.repos import AmocrmStatus, AmocrmStatusRepo
-from ..entities import BasePropertyCase
-from ..exceptions import PropertyNotFoundError
-from ..models import RequestBindBookingPropertyModel
-from ..repos import Property, PropertyRepo
 from src.notifications.services import GetSmsTemplateService
+from src.properties.entities import BasePropertyCase
+from src.properties.exceptions import PropertyNotFoundError
+from src.properties.models import RequestBindBookingPropertyModel
+from src.properties.repos import Property, PropertyRepo
 
 
 class BindBookingPropertyCase(BasePropertyCase):
     """
-    Создание объекта недвижимости
+    Создание объекта недвижимости [Платная бронь]
     """
     AGENT_DISCOUNT: int = 0  # % скидки для агентов
     STRANA_OZERNAYA_GLOBALID_DEV: str = "R2xvYmFsUHJvamVjdFR5cGU6c2VyZHRjaGUtc2liaXJp"
     STRANA_OZERNAYA_GLOBALID_PROD: str = "R2xvYmFsUHJvamVjdFR5cGU6c3RyYW5hb3plcm5heWE="
     sms_event_slug = "properties_bind"
     lk_client_auth_link_template: str = "https://{site_host}/booking/{booking_id}/{booking_step}?token={token}"
-    TAG: str = "Платная бронь"
+    aggregator_slug = "aggregator"
+    TAG: str = "Платная бронь от агента"
+    AGGREGATOR_TAG: str = "Платная бронь агрегатор"
 
     def __init__(
         self,
@@ -47,7 +52,6 @@ class BindBookingPropertyCase(BasePropertyCase):
         building_booking_type_repo: Type[BuildingBookingTypeRepo],
         amocrm_status_repo: Type[AmocrmStatusRepo],
         amocrm_class: Type[BookingAmoCRM],
-        booking_settings_repo: Type[BookingSettingsRepo],
         activate_bookings_service: ActivateBookingService,
         check_profitbase_property_service: CheckProfitbasePropertyService,
         sms_class: Type[BookingSms],
@@ -68,7 +72,6 @@ class BindBookingPropertyCase(BasePropertyCase):
         )
         self.building_booking_type_repo: BuildingBookingTypeRepo = building_booking_type_repo()
         self.amocrm_status_repo: AmocrmStatusRepo = amocrm_status_repo()
-        self.booking_settings_repo: BookingSettingsRepo = booking_settings_repo()
 
         self.amocrm_class: Type[BookingAmoCRM] = amocrm_class
         self.activate_bookings_service: ActivateBookingService = activate_bookings_service
@@ -118,26 +121,18 @@ class BindBookingPropertyCase(BasePropertyCase):
 
         booking_filter: dict = dict(id=payload.booking_id)
         booking: Booking = await self.booking_repo.retrieve(
-            filters=booking_filter, prefetch_fields=["property", "building", "agent", "user", "project"]
+            filters=booking_filter,
+            prefetch_fields=["property", "building", "agent", "agency", "agency__general_type", "user", "project"]
         )
         if not booking:
             raise BookingNotFoundError
 
-        if booking_property.building and booking_property.building.flats_reserv_time:
-            booking_reserv_time: float = booking_property.building.flats_reserv_time
-
-        elif booking_property.project and booking_property.project.flats_reserv_time:
-            booking_reserv_time: float = booking_property.project.flats_reserv_time
-
-        else:
-            booking_settings: BookingSettings = await self.booking_settings_repo.retrieve(
-                filters=dict(),
-            )
-            booking_reserv_time: float = booking_settings.default_flats_reserv_time
+        booking_reserv_time: float = await get_booking_reserv_time(
+            created_source=booking.created_source,
+            booking_property=booking_property,
+        )
 
         expires: datetime = datetime.now(tz=UTC) + timedelta(hours=booking_reserv_time)
-        if not booking.is_agent_assigned():
-            expires: datetime = datetime.now(tz=UTC) + timedelta(hours=booking_reserv_time)
 
         filters = dict(
             name__iexact=BookingSubstages.BOOKING_LABEL,
@@ -146,7 +141,10 @@ class BindBookingPropertyCase(BasePropertyCase):
         actual_amocrm_status: AmocrmStatus = await self.amocrm_status_repo.retrieve(filters=filters)
         self.logger.debug(f"Actual booking status: id={actual_amocrm_status.id} "
                           f"pipeline={actual_amocrm_status.pipeline}")
-        tags: list[str] = [self.TAG] + booking.tags if booking.tags else []
+        if booking.agency and booking.agency.general_type and booking.agency.general_type.slug == self.aggregator_slug:
+            tags: list[str] = [self.AGGREGATOR_TAG] + booking.tags if booking.tags else []
+        else:
+            tags: list[str] = [self.TAG] + booking.tags if booking.tags else []
         booking_data: dict = dict(
             expires=expires,
             property_id=booking_property.id,

@@ -14,3 +14,10 @@ class ProjectSkyColor(mixins.Choices):
     DARK_BLUE: str = 'dark_blue', 'Синее'
     LIGHT_BLUE: str = 'light_blue', 'Голубое'
     AQUAMARINE: str = 'aquamarine', 'Аквамариновое'
+
+
+class PropertyBackendType(mixins.Choices):
+    """
+    Тип объекта недвижимости на бекенде портала.
+    """
+    FLAT: str = "flat", "Квартира"

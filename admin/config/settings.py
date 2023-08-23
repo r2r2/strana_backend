@@ -51,10 +51,10 @@ INSTALLED_APPS = [
     "task_management.apps.TaskManagementAppConfig",
     "admincharts",
     "notifications.apps.NotificationsAppConfig",
-    "meetings.apps.MeetingsAppConfig",
     "events.apps.EventAppConfig",
     "dashboard.apps.DashboardAppConfig",
     "settings.apps.SettingsAppConfig",
+    "main_page.apps.MainPageAppConfig",
 ]
 
 MIDDLEWARE = [

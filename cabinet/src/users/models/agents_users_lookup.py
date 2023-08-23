@@ -1,4 +1,5 @@
-from typing import Optional, Any
+from typing import Any, Optional
+
 from pydantic import root_validator as method_field
 
 from ..constants import SearchType
@@ -61,6 +62,16 @@ class ResponseAgentsUsersLookupModel(BaseUserModel):
     """
 
     type: Optional[SearchType.serializer]
+    result: Optional[list[_UserListModel]]
+
+    class Config:
+        orm_mode = True
+
+
+class ResponseAgentsUsersPhoneLookupModel(BaseUserModel):
+    """
+    Модель ответа поиска пользователя агента по началу телефона
+    """
     result: Optional[list[_UserListModel]]
 
     class Config:

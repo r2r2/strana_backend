@@ -1,11 +1,10 @@
 from datetime import date
 from decimal import Decimal
 from typing import Optional, Any, Union
-from pydantic import root_validator as method_field
+from pydantic import root_validator
 
 from common.utils import get_hyperlink
-from ..constants import UserStatus
-from ..entities import BaseUserModel
+from src.users.entities import BaseUserModel
 
 
 class RequestAgentsUsersListModel(BaseUserModel):
@@ -35,7 +34,7 @@ class _CheckListModel(BaseUserModel):
     """
 
     agent_id: Optional[int]
-    status: Optional[UserStatus.serializer]
+    unique_status: Optional[Any]
 
     class Config:
         orm_mode = True
@@ -61,7 +60,7 @@ class _UserListModel(BaseUserModel):
 
     # Method fields
     agency: Optional[_AgencyRetrieveModel]
-    status: Optional[UserStatus.serializer]
+    status: Optional[Any]
 
     # Totally overrided fields
     checks: Optional[list[_CheckListModel]]
@@ -69,7 +68,7 @@ class _UserListModel(BaseUserModel):
     # Hyperlinks
     hyper_info: Optional[dict[str, Any]]
 
-    @method_field
+    @root_validator
     def get_agency(cls, values: dict[str, Any]) -> dict[str, Any]:
         agency: Union[_AgencyRetrieveModel, None] = values.get("agency")
         if agency:
@@ -79,17 +78,21 @@ class _UserListModel(BaseUserModel):
         values["agency"]: Union[str, None] = agency
         return values
 
-    @method_field
+    @root_validator
     def get_status(cls, values: dict[str, Any]) -> dict[str, Any]:
         checks: Union[list[Any], None] = values.pop("checks", None)
         if checks:
-            status: dict[str, Any] = checks[0].status.dict()
+            check: _CheckListModel = checks[0]
+            status: dict[str, Any] = {
+                "value": check.unique_status.slug,
+                "label": f"{check.unique_status.title} {check.unique_status.subtitle or ''}".strip(),
+            }
         else:
             status = None
         values["status"]: Union[dict[str, Any], None] = status
         return values
 
-    @method_field
+    @root_validator
     def get_hyper_info(cls, values: dict[str, Any]) -> dict[str, Any]:
         id: int = values.get("id")
         values["hyper_info"]: dict[str, Any] = dict(retrieve=get_hyperlink(f"/users/agents/{id}"))

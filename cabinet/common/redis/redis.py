@@ -4,11 +4,12 @@ from json import dumps, loads
 from config import redis_config
 from typing import Any, Union, Optional
 from aioredis import RedisConnection, create_connection, ReplyError
+from aioredis.commands.transaction import TransactionsCommandsMixin, Pipeline
 
 from .decorators import avoid_disconnect
 
 
-class Redis(object):
+class Redis(TransactionsCommandsMixin):
     """
     Redis service
     """
@@ -112,6 +113,20 @@ class Redis(object):
         """
         self._connection.close()
         await self._connection.wait_closed()
+
+    async def pipeline(self):
+        """
+        Create a pipeline context manager using multi_exec()
+        """
+        async with self.multi_exec() as pipe:
+            yield pipe
+
+    async def execute_pipeline(self, pipe: Pipeline):
+        """
+        Execute a pipeline
+        """
+        results = await pipe.execute()
+        return results
 
 
 broker: Redis = Redis()

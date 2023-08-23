@@ -6,8 +6,10 @@ from tortoise import Tortoise
 from common import amocrm, profitbase, requests, utils, email, messages, security
 from common.amocrm import repos as amo_repos
 from common.backend import repos as backend_repos
+from common.settings.repos import BookingSettingsRepo
 from config import amocrm_config, backend_config, celery, tortoise_config, site_config
 from src.agents import repos as agents_repos
+from src.amocrm import repos as src_amocrm_repos
 from src.booking import loggers
 from src.booking import repos as booking_repos
 from src.booking import services
@@ -15,17 +17,19 @@ from src.buildings import repos as buildings_repos
 from src.cities import repos as cities_repos
 from src.floors import repos as floors_repos
 from src.notifications import repos as notifications_repos
+from src.notifications import services as notification_services
+from src.notifications import tasks as notification_tasks
 from src.projects import repos as projects_repos
 from src.properties import repos as properties_repos
 from src.properties import services as property_services
 from src.task_management import repos as task_management_repos
 from src.task_management import services as task_management_services
+from src.task_management.tasks import update_task_instance_status_task
+from src.notifications.tasks import booking_fixation_notification_email_task
 from src.users import constants as users_constants
 from src.users import repos as users_repos
 from src.users import services as user_services
 from src.amocrm.repos import AmocrmStatusRepo
-from src.notifications import services as notification_services
-from src.notifications import repos as notification_repos
 
 
 @celery.app.task
@@ -72,13 +76,16 @@ def check_booking_task(booking_id: int, status: Optional[str] = None) -> None:
         task_instance_repo=task_management_repos.TaskInstanceRepo,
         task_status_repo=task_management_repos.TaskStatusRepo,
         booking_repo=booking_repos.BookingRepo,
+        booking_settings_repo=BookingSettingsRepo,
+        update_task_instance_status_task=update_task_instance_status_task,
+        booking_fixation_notification_email_task=booking_fixation_notification_email_task,
     )
     update_task_instance_status_service = task_management_services.UpdateTaskInstanceStatusService(
         **resources
     )
     get_email_template_service: notification_services.GetEmailTemplateService = \
         notification_services.GetEmailTemplateService(
-            email_template_repo=notification_repos.EmailTemplateRepo,
+            email_template_repo=notifications_repos.EmailTemplateRepo,
         )
     resources: dict[str, Any] = dict(
         orm_class=Tortoise,
@@ -95,6 +102,7 @@ def check_booking_task(booking_id: int, status: Optional[str] = None) -> None:
         update_task_instance_status_service=update_task_instance_status_service,
         email_class=email.EmailService,
         get_email_template_service=get_email_template_service,
+        booking_notification_sms_task=notification_tasks.booking_notification_sms_task,
     )
     check_booking: services.CheckBookingService = services.CheckBookingService(**resources)
     loop: Any = get_event_loop()
@@ -162,6 +170,9 @@ def import_bookings_task(user_id: int) -> None:
         import_property_service=import_property_service,
         statuses_repo=amo_repos.AmoStatusesRepo,
         amocrm_config=amocrm_config,
+        amocrm_status_repo=src_amocrm_repos.AmocrmStatusRepo,
+        update_task_instance_status_task=update_task_instance_status_task,
+        check_booking_task=check_booking_task,
     )
     import_bookings_service = services.ImportBookingsService(**resources)
     loop: Any = get_event_loop()

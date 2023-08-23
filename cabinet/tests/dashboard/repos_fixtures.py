@@ -7,7 +7,7 @@ from src.dashboard.repos import TicketRepo, Ticket
 @fixture(scope="function")
 def ticket_repo() -> TicketRepo:
     ticket_repo: TicketRepo = getattr(
-        import_module("src.main_page.repos"), "TicketRepo"
+        import_module("src.dashboard.repos"), "TicketRepo"
     )()
     return ticket_repo
 

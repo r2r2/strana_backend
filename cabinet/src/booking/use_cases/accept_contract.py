@@ -6,10 +6,10 @@ from typing import Any, Callable, NamedTuple, Optional, Type, Union
 import sentry_sdk
 from pytz import UTC
 
-from common.settings.repos import BookingSettingsRepo, BookingSettings
 from src.buildings.repos.building import Building, BuildingBookingType
 from src.properties.repos import Property
 from src.properties.services import CheckProfitbasePropertyService
+from src.booking.utils import get_booking_reserv_time
 
 from ...properties.constants import PropertyStatuses
 from ..constants import (FORBIDDEN_FOR_BOOKING_PROPERTY_PARAMS,
@@ -34,7 +34,7 @@ class BookingTypeNamedTuple(NamedTuple):
 
 class AcceptContractCase(BaseBookingCase, BookingLogMixin):
     """
-    Принятие оферты
+    Принятие оферты [Обычная бронь]
     """
 
     # NOTE: Технический долг. Проверку делать по запросу к бэку, а не смотреть тип бронирования в бд
@@ -42,28 +42,23 @@ class AcceptContractCase(BaseBookingCase, BookingLogMixin):
         self,
         check_booking_task: Any,
         create_booking_log_task: Any,
-        booking_config: dict[str, Any],
+        booking_notification_sms_task: Any,
         backend_config: dict[str, Any],
         booking_repo: Type[BookingRepo],
         property_repo: Type[BookingPropertyRepo],
-        booking_settings_repo: Type[BookingSettingsRepo],
         request_class: Type[BookingSqlUpdateRequest],
         global_id_decoder: Callable,
         check_profitbase_property_service: CheckProfitbasePropertyService,
     ) -> None:
         self.booking_repo: BookingRepo = booking_repo()
         self.property_repo: BookingPropertyRepo = property_repo()
-        self.booking_settings_repo: BookingSettingsRepo = booking_settings_repo()
         self.check_profitbase_property_service: CheckProfitbasePropertyService = check_profitbase_property_service
 
         self.check_booking_task: Any = check_booking_task
+        self.booking_notification_sms_task: Any = booking_notification_sms_task
         self.create_booking_log_task: Any = create_booking_log_task
         self.request_class: Type[BookingSqlUpdateRequest] = request_class
         self.global_id_decoder: Callable = global_id_decoder
-
-        self.period_days: int = booking_config["period_days"]
-        self.booking_time_minutes: int = booking_config["time_minutes"]
-        self.booking_time_seconds: int = booking_config["time_seconds"]
 
         self.connection_options: dict[str, Any] = dict(
             user=backend_config["db_user"],
@@ -100,7 +95,7 @@ class AcceptContractCase(BaseBookingCase, BookingLogMixin):
             filters: dict[str, Any] = dict(active=True, id=booking.id, user_id=user_id)
             booking: Booking = await self.booking_repo.retrieve(
                 filters=filters,
-                related_fields=["project", "project__city", "property", "floor", "building", "ddu", "agent", "agency"],
+                related_fields=["project__city", "property", "floor", "building", "ddu", "agent", "agency"],
                 prefetch_fields=["ddu__participants"],
             )
             return booking
@@ -199,17 +194,11 @@ class AcceptContractCase(BaseBookingCase, BookingLogMixin):
                 price=building.booking_price, period=building.booking_period
             )
 
-        if building and building.flats_reserv_time:
-            booking_reserv_time: float = booking_property.building.flats_reserv_time
-
-        elif booking_property.project and booking_property.project.flats_reserv_time:
-            booking_reserv_time: float = booking_property.project.flats_reserv_time
-
-        else:
-            booking_settings: BookingSettings = await self.booking_settings_repo.retrieve(
-                filters=dict(),
-            )
-            booking_reserv_time: float = booking_settings.default_flats_reserv_time
+        created_source = BookingCreatedSources.LK
+        booking_reserv_time: float = await get_booking_reserv_time(
+            created_source=created_source,
+            booking_property=booking_property,
+        )
 
         expires: datetime = datetime.now(tz=UTC) + timedelta(hours=booking_reserv_time)
         extra_data: dict[str, Any] = dict(
@@ -217,7 +206,7 @@ class AcceptContractCase(BaseBookingCase, BookingLogMixin):
             amocrm_stage=BookingStages.START,
             amocrm_substage=BookingSubstages.START,
             expires=expires,
-            created_source=BookingCreatedSources.LK
+            created_source=created_source
         )
         if booking_property.building_id:
             additional_data: dict[str, Any] = dict(
@@ -249,11 +238,12 @@ class AcceptContractCase(BaseBookingCase, BookingLogMixin):
         await self._backend_booking(booking=booking)
         await self.property_repo.update(booking_property, data=property_data)
         self.check_booking_task.apply_async((booking.id,), eta=expires)
+        self.booking_notification_sms_task.delay(booking.id)
 
         filters: dict[str, Any] = dict(active=True, id=booking.id, user_id=user_id)
         booking: Booking = await self.booking_repo.retrieve(
             filters=filters,
-            related_fields=["project", "project__city", "property", "floor", "building", "ddu", "agent", "agency"],
+            related_fields=["project__city", "property", "floor", "building", "ddu", "agent", "agency"],
             prefetch_fields=["ddu__participants"],
         )
         return booking

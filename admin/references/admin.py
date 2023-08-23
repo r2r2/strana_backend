@@ -11,6 +11,7 @@ class CitiesAdmin(admin.ModelAdmin):
     list_display = (
         "name",
         "slug",
+        "phone"
     )
     search_fields = ("name",)
 
@@ -52,7 +53,7 @@ class MenuAdminForm(forms.ModelForm):
 
 @admin.register(Menu)
 class MenuAdmin(admin.ModelAdmin):
-    list_display = ("name", "link", "priority", "icon", "hide_mobile")
+    list_display = ("name", "link", "priority", "icon", "hide_desktop")
 
     def get_cities_on_list(self, obj):
         if obj.cities.exists():

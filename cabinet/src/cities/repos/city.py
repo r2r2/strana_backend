@@ -12,6 +12,7 @@ class City(Model):
     name: str = fields.CharField(max_length=150)
     slug: str = fields.CharField(max_length=100)
     short_name: str = fields.CharField(max_length=50, null=True, description="Короткое название")
+    timezone_offset: int = fields.IntField(default=0, description="Разница временного пояса с UTC")
     users = fields.ManyToManyField(
         model_name="models.User",
         on_delete=fields.SET_NULL,
@@ -23,6 +24,7 @@ class City(Model):
         description="Пользователи",
     )
     color: str = fields.CharField(default="#FFFFFF", max_length=8, description="Цвет")
+    phone: str = fields.CharField(description="Номер отдела продаж", max_length=20, null=True)
     global_id: str = fields.CharField(max_length=50, description="ID из портала", null=True)
 
     projects: fields.ReverseRelation["Project"]

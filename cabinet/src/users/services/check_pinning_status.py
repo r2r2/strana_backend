@@ -11,16 +11,16 @@ from common.redis import Redis, broker as redis
 from common.utils import partition_list
 from src.users.constants import UserPinningStatusType
 from src.users.entities import BaseUserService
-from src.users.exceptions import UserNotFoundError, UniqueStatusNotFoundError
+from src.users.exceptions import UserNotFoundError
 from src.users.repos import (
     PinningStatusRepo,
     PinningStatus,
     UserPinningStatusRepo,
     User,
     UserRepo,
-    UniqueStatusRepo,
     UniqueStatus,
 )
+from src.users.utils import get_unique_status
 
 
 class TokenBucketRateLimiter:
@@ -106,8 +106,6 @@ class CheckPinningStatusService(BaseUserService):
         self.amocrm_class: type[AmoCRM] = amocrm_class
         self.partition_limit: int = amocrm_config["partition_limit"]
 
-        self.unique_status_repo: UniqueStatusRepo = UniqueStatusRepo()
-
         self.logger = structlog.get_logger(__name__)
         self.request_limit = 5
         self.amocrm_rate_limiter = TokenBucketRateLimiter(max_tokens=self.request_limit, refill_rate=self.request_limit)
@@ -132,7 +130,7 @@ class CheckPinningStatusService(BaseUserService):
                     user_phone=user.phone, query_with=[AmoContactQueryWith.leads]
                 )
             if len(contacts) == 0:
-                return await self._get_unique_status(slug=UserPinningStatusType.UNKNOWN)
+                return await get_unique_status(slug=UserPinningStatusType.UNKNOWN)
             elif len(contacts) == 1:
                 leads = await self._one_contact_case(contacts=contacts)
             else:
@@ -176,7 +174,7 @@ class CheckPinningStatusService(BaseUserService):
             if status and status.slug in (UserPinningStatusType.PINNED, UserPinningStatusType.PARTIALLY_PINNED):
                 return status
 
-        return await self._get_unique_status(slug=UserPinningStatusType.NOT_PINNED)
+        return await get_unique_status(slug=UserPinningStatusType.NOT_PINNED)
 
     async def _check_lead_status(self, lead: AmoLead) -> Optional[UniqueStatus]:
         """
@@ -220,12 +218,3 @@ class CheckPinningStatusService(BaseUserService):
         Wrap into a task object
         """
         return asyncio.create_task(self(user_id=user_id))
-
-    async def _get_unique_status(self, slug: str) -> UniqueStatus:
-        """
-        Получаем статус закрепления по slug
-        """
-        status: UniqueStatus = await self.unique_status_repo.retrieve(filters=dict(slug=slug))
-        if not status:
-            raise UniqueStatusNotFoundError
-        return status

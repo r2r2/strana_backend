@@ -10,12 +10,15 @@ from config import (amocrm_config, backend_config, email_recipients_config,
 from fastapi import (APIRouter, BackgroundTasks, Body, Depends, Header, Path,
                      Query, Request, Response)
 from fastapi.responses import RedirectResponse
+from common.settings.repos import BookingSettingsRepo
 from src.admins import repos as admins_repos
 from src.agencies import repos as agencies_repos
+from src.amocrm import repos as src_amocrm_repos
 from src.agents import repos as agents_repos
 from src.booking import repos as booking_repos
 from src.booking import services as booking_services
 from src.booking import tasks as bookings_tasks
+from src.booking.models import ResponseBookingRetrieveModel
 from src.buildings import repos as buildings_repos
 from src.cities import repos as cities_repos
 from src.floors import repos as floors_repos
@@ -30,6 +33,7 @@ from src.users import repos as users_repos
 from src.users import services as user_services
 from src.users import tasks as users_tasks
 from src.users import use_cases
+from src.task_management.tasks import update_task_instance_status_task
 from src.represes import repos as represes_repos
 from tortoise import Tortoise
 from config import auth_config, session_config, site_config
@@ -60,6 +64,7 @@ async def send_code_view(
         hasher=security.get_hasher,
         sms_class=messages.SmsService,
         user_repo=users_repos.UserRepo,
+        role_repo=users_repos.UserRoleRepo,
         background_tasks=background_tasks,
         code_generator=utils.generate_code,
         password_generator=utils.generate_password,
@@ -124,6 +129,8 @@ async def validate_code_view(
         amocrm_config=amocrm_config,
         check_pinning=check_pinning,
         check_booking_task=bookings_tasks.check_booking_task,
+        amocrm_status_repo=src_amocrm_repos.AmocrmStatusRepo,
+        update_task_instance_status_task=update_task_instance_status_task,
     )
     import_bookings_service: booking_services.ImportBookingsService = booking_services.ImportBookingsService(
         **resources,
@@ -622,6 +629,7 @@ async def represes_users_facets_view(
         Depends(dependencies.DeletedUserCheck()),
         Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.REPRES)),
     ],
+    deprecated=True,
 )
 async def represes_users_check_view(
     payload: models.RequestUsersCheckModel = Body(...),
@@ -643,20 +651,24 @@ async def represes_users_check_view(
         notification_services.GetEmailTemplateService(
             email_template_repo=notifications_repos.EmailTemplateRepo,
         )
+    send_check_admins_email: user_services.SendCheckAdminsEmailService = \
+        user_services.SendCheckAdminsEmailService(
+            admin_repo=admins_repos.AdminRepo,
+            booking_repo=booking_repos.BookingRepo,
+            email_class=email.EmailService,
+            get_email_template_service=get_email_template_service,
+        )
 
     resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
         check_repo=users_repos.CheckRepo,
         check_unique_service=check_unique_service,
-        unique_status_repo=users_repos.UniqueStatusRepo,
+        history_check_repo=users_repos.CheckHistoryRepo,
         email_class=email.EmailService,
-        get_email_template_service=get_email_template_service,
         booking_repo=booking_repos.BookingRepo,
-        historical_dispute_repo=users_repos.HistoricalDisputeDataRepo,
+        send_check_admins_email=send_check_admins_email,
     )
-    repres_users_check: use_cases.UsersCheckCase = use_cases.UsersCheckCase(
-        **resources
-    )
+    repres_users_check: use_cases.UsersCheckCase = use_cases.UsersCheckCase(**resources)
     return await repres_users_check(agency_id=agency_id, payload=payload)
 
 
@@ -682,7 +694,6 @@ async def represes_users_check_view_v2(
         check_repo=users_repos.CheckRepo,
         agent_repo=agents_repos.AgentRepo,
         check_term_repo=users_repos.CheckTermRepo,
-        unique_status_repo=users_repos.UniqueStatusRepo,
         amocrm_config=amocrm_config,
     )
     check_unique_service: user_services.CheckUniqueServiceV2 = user_services.CheckUniqueServiceV2(**resources)
@@ -691,21 +702,24 @@ async def represes_users_check_view_v2(
         notification_services.GetEmailTemplateService(
             email_template_repo=notifications_repos.EmailTemplateRepo,
         )
+    send_check_admins_email: user_services.SendCheckAdminsEmailService = \
+        user_services.SendCheckAdminsEmailService(
+            admin_repo=admins_repos.AdminRepo,
+            booking_repo=booking_repos.BookingRepo,
+            email_class=email.EmailService,
+            get_email_template_service=get_email_template_service,
+        )
 
     resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
         check_repo=users_repos.CheckRepo,
         check_unique_service=check_unique_service,
         history_check_repo=users_repos.CheckHistoryRepo,
-        unique_status_repo=users_repos.UniqueStatusRepo,
         email_class=email.EmailService,
-        get_email_template_service=get_email_template_service,
         booking_repo=booking_repos.BookingRepo,
-        historical_dispute_repo=users_repos.HistoricalDisputeDataRepo,
+        send_check_admins_email=send_check_admins_email,
     )
-    represes_users_check: use_cases.UsersCheckCase = use_cases.UsersCheckCase(
-        **resources
-    )
+    represes_users_check: use_cases.UsersCheckCase = use_cases.UsersCheckCase(**resources)
     return await represes_users_check(agency_id=agency_id, payload=payload)
 
 
@@ -881,6 +895,7 @@ async def agents_users_list_view(
     status_code=HTTPStatus.OK,
     response_model=models.ResponseUsersCheckModel,
     dependencies=[Depends(dependencies.DeletedUserCheck())],
+    deprecated=True,
 )
 async def agents_users_check_view(
     payload: models.RequestUsersCheckModel = Body(...),
@@ -903,16 +918,22 @@ async def agents_users_check_view(
         notification_services.GetEmailTemplateService(
             email_template_repo=notifications_repos.EmailTemplateRepo,
         )
+    send_check_admins_email: user_services.SendCheckAdminsEmailService = \
+        user_services.SendCheckAdminsEmailService(
+            admin_repo=admins_repos.AdminRepo,
+            booking_repo=booking_repos.BookingRepo,
+            email_class=email.EmailService,
+            get_email_template_service=get_email_template_service,
+        )
 
     resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
         check_repo=users_repos.CheckRepo,
         check_unique_service=check_unique_service,
-        unique_status_repo=users_repos.UniqueStatusRepo,
+        history_check_repo=users_repos.CheckHistoryRepo,
         email_class=email.EmailService,
-        get_email_template_service=get_email_template_service,
         booking_repo=booking_repos.BookingRepo,
-        historical_dispute_repo=users_repos.HistoricalDisputeDataRepo,
+        send_check_admins_email=send_check_admins_email,
     )
     agents_users_check: use_cases.UsersCheckCase = use_cases.UsersCheckCase(**resources)
     return await agents_users_check(agent_id=agent_id, payload=payload)
@@ -937,7 +958,6 @@ async def agents_users_check_view_v2(
         check_repo=users_repos.CheckRepo,
         agent_repo=agents_repos.AgentRepo,
         check_term_repo=users_repos.CheckTermRepo,
-        unique_status_repo=users_repos.UniqueStatusRepo,
         amocrm_config=amocrm_config,
     )
     check_unique_service: user_services.CheckUniqueServiceV2 = user_services.CheckUniqueServiceV2(**resources)
@@ -946,17 +966,22 @@ async def agents_users_check_view_v2(
         notification_services.GetEmailTemplateService(
             email_template_repo=notifications_repos.EmailTemplateRepo,
         )
+    send_check_admins_email: user_services.SendCheckAdminsEmailService = \
+        user_services.SendCheckAdminsEmailService(
+            admin_repo=admins_repos.AdminRepo,
+            booking_repo=booking_repos.BookingRepo,
+            email_class=email.EmailService,
+            get_email_template_service=get_email_template_service,
+        )
 
     resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
         check_repo=users_repos.CheckRepo,
         check_unique_service=check_unique_service,
         history_check_repo=users_repos.CheckHistoryRepo,
-        unique_status_repo=users_repos.UniqueStatusRepo,
         email_class=email.EmailService,
-        get_email_template_service=get_email_template_service,
         booking_repo=booking_repos.BookingRepo,
-        historical_dispute_repo=users_repos.HistoricalDisputeDataRepo,
+        send_check_admins_email=send_check_admins_email,
     )
     agents_users_check: use_cases.UsersCheckCase = use_cases.UsersCheckCase(**resources)
     return await agents_users_check(agent_id=agent_id, payload=payload)
@@ -978,6 +1003,14 @@ async def agents_users_check_dispute_view(
         notification_services.GetEmailTemplateService(
             email_template_repo=notifications_repos.EmailTemplateRepo,
         )
+    send_check_admins_email: user_services.SendCheckAdminsEmailService = \
+        user_services.SendCheckAdminsEmailService(
+            admin_repo=admins_repos.AdminRepo,
+            booking_repo=booking_repos.BookingRepo,
+            email_class=email.EmailService,
+            get_email_template_service=get_email_template_service,
+        )
+
     resources: dict = dict(
         check_repo=users_repos.CheckRepo,
         email_class=email.EmailService,
@@ -985,9 +1018,8 @@ async def agents_users_check_dispute_view(
         user_repo=users_repos.UserRepo,
         admin_repo=admins_repos.AdminRepo,
         email_recipients=email_recipients_config,
-        get_email_template_service=get_email_template_service,
-        unique_status_repo=users_repos.UniqueStatusRepo,
         historical_dispute_repo=users_repos.HistoricalDisputeDataRepo,
+        send_check_admins_email=send_check_admins_email,
     )
 
     agents_users_check_dispute: use_cases.CheckDisputeCase = use_cases.CheckDisputeCase(**resources)
@@ -1010,6 +1042,14 @@ async def agents_users_check_dispute_view(
         notification_services.GetEmailTemplateService(
             email_template_repo=notifications_repos.EmailTemplateRepo,
         )
+    send_check_admins_email: user_services.SendCheckAdminsEmailService = \
+        user_services.SendCheckAdminsEmailService(
+            admin_repo=admins_repos.AdminRepo,
+            booking_repo=booking_repos.BookingRepo,
+            email_class=email.EmailService,
+            get_email_template_service=get_email_template_service,
+        )
+
     resources: dict = dict(
         check_repo=users_repos.CheckRepo,
         email_class=email.EmailService,
@@ -1017,9 +1057,8 @@ async def agents_users_check_dispute_view(
         user_repo=users_repos.UserRepo,
         admin_repo=admins_repos.AdminRepo,
         email_recipients=email_recipients_config,
-        get_email_template_service=get_email_template_service,
-        unique_status_repo=users_repos.UniqueStatusRepo,
         historical_dispute_repo=users_repos.HistoricalDisputeDataRepo,
+        send_check_admins_email=send_check_admins_email,
     )
 
     agents_users_check_dispute: use_cases.RepresCheckDisputeCase = use_cases.RepresCheckDisputeCase(**resources)
@@ -1096,7 +1135,108 @@ async def agents_users_unbound_view(
     agents_users_unbound: use_cases.AgentsUsersUnboundCase = use_cases.AgentsUsersUnboundCase(
         **resources
     )
-    return await agents_users_unbound(agent_id=agent_id, user_id=user_id)
+    await agents_users_unbound(agent_id=agent_id, user_id=user_id)
+
+
+@router.post(
+    "/agent/booking_current_client",
+    status_code=HTTPStatus.OK,
+    dependencies=[Depends(dependencies.DeletedUserCheck())],
+    response_model=ResponseBookingRetrieveModel,
+    response_model_by_alias=False
+)
+async def agent_booking_current_client(
+    agent_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT)),
+    payload: models.RequestBookingCurrentClient = Body(...),
+    request: Request = Request,
+):
+    """Сделка действующего клиента за агентом"""
+    resources: dict[str, Any] = dict(
+        booking_repo=booking_repos.BookingRepo,
+        task_instance_repo=task_management_repos.TaskInstanceRepo,
+        task_chain_repo=task_management_repos.TaskChainRepo,
+        task_status_repo=task_management_repos.TaskStatusRepo,
+        booking_settings_repo=BookingSettingsRepo,
+        update_task_instance_status_task=update_task_instance_status_task,
+    )
+    create_task_instance_service = task_management_services.CreateTaskInstanceService(
+        **resources
+    )
+
+    resources: dict[str, Any] = dict(
+        amocrm_class=amocrm.AmoCRM,
+        user_repo=users_repos.UserRepo,
+        check_pinning_repo=users_repos.PinningStatusRepo,
+        user_pinning_repo=users_repos.UserPinningStatusRepo,
+        amocrm_config=amocrm_config,
+    )
+    check_pinning: user_services.CheckPinningStatusService = user_services.CheckPinningStatusService(**resources)
+
+    resources: dict[str, Any] = dict(
+        user_repo=users_repos.UserRepo,
+        project_repo=projects_repos.ProjectRepo,
+        booking_repo=booking_repos.BookingRepo,
+        amo_statuses_repo=amocrm_repos.AmoStatusesRepo,
+        amocrm_config=amocrm_config,
+        amocrm_class=amocrm.AmoCRM,
+        site_config=site_config,
+        request=request,
+        create_task_instance_service=create_task_instance_service,
+        check_pinning=check_pinning,
+    )
+
+    use_case: use_cases.BookingCurrentClientCase = use_cases.BookingCurrentClientCase(**resources)
+    return await use_case(payload=payload, agent_id=agent_id)
+
+
+@router.post(
+    "/repres/booking_current_client",
+    status_code=HTTPStatus.OK,
+    dependencies=[Depends(dependencies.DeletedUserCheck())],
+    response_model=ResponseBookingRetrieveModel,
+    response_model_by_alias=False
+)
+async def repres_booking_current_client(
+    repres_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.REPRES)),
+    payload: models.RequestBookingCurrentClient = Body(...),
+    request: Request = Request,
+):
+    """Сделка действующего клиента за представителем агентства"""
+    resources: dict[str, Any] = dict(
+        booking_repo=booking_repos.BookingRepo,
+        task_instance_repo=task_management_repos.TaskInstanceRepo,
+        task_chain_repo=task_management_repos.TaskChainRepo,
+        task_status_repo=task_management_repos.TaskStatusRepo,
+        booking_settings_repo=BookingSettingsRepo,
+        update_task_instance_status_task=update_task_instance_status_task,
+    )
+    create_task_instance_service = task_management_services.CreateTaskInstanceService(
+        **resources
+    )
+
+    resources: dict[str, Any] = dict(
+        amocrm_class=amocrm.AmoCRM,
+        user_repo=users_repos.UserRepo,
+        check_pinning_repo=users_repos.PinningStatusRepo,
+        user_pinning_repo=users_repos.UserPinningStatusRepo,
+        amocrm_config=amocrm_config,
+    )
+    check_pinning: user_services.CheckPinningStatusService = user_services.CheckPinningStatusService(**resources)
+
+    resources: dict[str, Any] = dict(
+        user_repo=users_repos.UserRepo,
+        project_repo=projects_repos.ProjectRepo,
+        booking_repo=booking_repos.BookingRepo,
+        amo_statuses_repo=amocrm_repos.AmoStatusesRepo,
+        amocrm_config=amocrm_config,
+        amocrm_class=amocrm.AmoCRM,
+        site_config=site_config,
+        request=request,
+        create_task_instance_service=create_task_instance_service,
+        check_pinning=check_pinning,
+    )
+    use_case: use_cases.BookingCurrentClientCase = use_cases.BookingCurrentClientCase(**resources)
+    return await use_case(payload=payload, repres_id=repres_id)
 
 
 @router.post(
@@ -1117,6 +1257,8 @@ async def assign_client_to_agent(
         task_instance_repo=task_management_repos.TaskInstanceRepo,
         task_chain_repo=task_management_repos.TaskChainRepo,
         task_status_repo=task_management_repos.TaskStatusRepo,
+        booking_settings_repo=BookingSettingsRepo,
+        update_task_instance_status_task=update_task_instance_status_task,
     )
     create_task_instance_service = task_management_services.CreateTaskInstanceService(
         **resources
@@ -1127,21 +1269,13 @@ async def assign_client_to_agent(
         )
 
     resources: dict[str, Any] = dict(
-        amocrm_class=amocrm.AmoCRM,
-        user_repo=users_repos.UserRepo,
-        check_pinning_repo=users_repos.PinningStatusRepo,
-        user_pinning_repo=users_repos.UserPinningStatusRepo,
-        amocrm_config=amocrm_config,
-    )
-    check_pinning: user_services.CheckPinningStatusService = user_services.CheckPinningStatusService(**resources)
-
-    resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
         check_repo=users_repos.CheckRepo,
         project_repo=projects_repos.ProjectRepo,
         booking_repo=booking_repos.BookingRepo,
         amo_statuses_repo=amocrm_repos.AmoStatusesRepo,
         template_repo=notifications_repos.AssignClientTemplateRepo,
+        booking_fixing_condition_repo=booking_repos.BookingFixingConditionsMatrixRepo,
         amocrm_config=amocrm_config,
         email_class=email.EmailService,
         amocrm_class=amocrm.AmoCRM,
@@ -1152,7 +1286,7 @@ async def assign_client_to_agent(
         get_email_template_service=get_email_template_service,
         create_task_instance_service=create_task_instance_service,
         confirm_client_assign_repo=users_repos.ConfirmClientAssignRepo,
-        check_pinning=check_pinning,
+        user_pinning_repo=users_repos.UserPinningStatusRepo,
     )
     use_case: use_cases.AssignClientCase = use_cases.AssignClientCase(**resources)
     return await use_case(payload=payload, agent_id=agent_id)
@@ -1176,6 +1310,8 @@ async def assign_client_to_repres(
         task_instance_repo=task_management_repos.TaskInstanceRepo,
         task_chain_repo=task_management_repos.TaskChainRepo,
         task_status_repo=task_management_repos.TaskStatusRepo,
+        booking_settings_repo=BookingSettingsRepo,
+        update_task_instance_status_task=update_task_instance_status_task,
     )
     create_task_instance_service = task_management_services.CreateTaskInstanceService(
         **resources
@@ -1186,21 +1322,13 @@ async def assign_client_to_repres(
         )
 
     resources: dict[str, Any] = dict(
-        amocrm_class=amocrm.AmoCRM,
-        user_repo=users_repos.UserRepo,
-        check_pinning_repo=users_repos.PinningStatusRepo,
-        user_pinning_repo=users_repos.UserPinningStatusRepo,
-        amocrm_config=amocrm_config,
-    )
-    check_pinning: user_services.CheckPinningStatusService = user_services.CheckPinningStatusService(**resources)
-
-    resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
         check_repo=users_repos.CheckRepo,
         project_repo=projects_repos.ProjectRepo,
         booking_repo=booking_repos.BookingRepo,
         amo_statuses_repo=amocrm_repos.AmoStatusesRepo,
         template_repo=notifications_repos.AssignClientTemplateRepo,
+        booking_fixing_condition_repo=booking_repos.BookingFixingConditionsMatrixRepo,
         amocrm_config=amocrm_config,
         email_class=email.EmailService,
         amocrm_class=amocrm.AmoCRM,
@@ -1211,7 +1339,7 @@ async def assign_client_to_repres(
         create_task_instance_service=create_task_instance_service,
         confirm_client_assign_repo=users_repos.ConfirmClientAssignRepo,
         get_email_template_service=get_email_template_service,
-        check_pinning=check_pinning,
+        user_pinning_repo=users_repos.UserPinningStatusRepo,
     )
     use_case: use_cases.AssignClientCase = use_cases.AssignClientCase(**resources)
     return await use_case(payload=payload, repres_id=repres_id)
@@ -1354,7 +1482,7 @@ async def represes_users_bound_view(
     repres_users_bound: use_cases.RepresesUsersBoundCase = use_cases.RepresesUsersBoundCase(
         **resources
     )
-    return await repres_users_bound(agency_id=agency_id, user_id=user_id, payload=payload)
+    await repres_users_bound(agency_id=agency_id, user_id=user_id, payload=payload)
 
 
 @router.patch(
@@ -1382,7 +1510,7 @@ async def represes_users_unbound_view(
     repres_users_unbound: use_cases.RepresesUsersUnboundCase = use_cases.RepresesUsersUnboundCase(
         **resources
     )
-    return await repres_users_unbound(agency_id=agency_id, user_id=user_id, payload=payload)
+    await repres_users_unbound(agency_id=agency_id, user_id=user_id, payload=payload)
 
 
 @router.patch(
@@ -1410,7 +1538,6 @@ async def represes_users_rebound_view(
     change_agent_service: user_services.ChangeAgentService = user_services.ChangeAgentService(**resources)
     resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
-        check_repo=users_repos.CheckRepo,
         agent_repo=agents_repos.AgentRepo,
         booking_repo=booking_repos.BookingRepo,
         change_agent_service=change_agent_service,
@@ -1418,7 +1545,7 @@ async def represes_users_rebound_view(
     represes_users_rebound_case: use_cases.RepresesUsersReboundCase = (
         use_cases.RepresesUsersReboundCase(**resources)
     )
-    return await represes_users_rebound_case(user_id=user_id, payload=payload, agency_id=agency_id)
+    await represes_users_rebound_case(user_id=user_id, payload=payload, agency_id=agency_id)
 
 
 
@@ -1550,6 +1677,8 @@ async def create_ticket(
     resources: dict[str, Any] = dict(
         ticket_repo=dashboard_repos.TicketRepo,
         city_repo=cities_repos.CityRepo,
+        amocrm_class=amocrm.AmoCRM,
+        amocrm_config=amocrm_config,
     )
     create_ticket_case: dashboard_use_cases.CreateTicketCase = dashboard_use_cases.CreateTicketCase(**resources)
     return await create_ticket_case(payload=payload)

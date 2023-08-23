@@ -24,7 +24,9 @@ from .agents_users_facets import (RequestAgentsUsersFacetsModel,
 from .agents_users_list import (RequestAgentsUsersListModel,
                                 ResponseAgentsUsersListModel)
 from .agents_users_lookup import (RequestAgentsUsersLookupModel,
-                                  ResponseAgentsUsersLookupModel)
+                                  ResponseAgentsUsersLookupModel,
+                                  ResponseAgentsUsersPhoneLookupModel,
+                                  )
 from .agents_users_specs import (RequestAgentsUsersSpecsModel,
                                  ResponseAgentsUsersSpecsModel)
 from .agents_users_unbound import (RequestAgentsUsersUnboundModel,
@@ -36,6 +38,7 @@ from .client_retrieve import (RequestAgentsUsersRetrieveModel,
                               ResponseClientRetrieveModel)
 from .client_unassign import ResponseUnassignClient, ResponseUnAssigned
 from .clients_assign import RequestAssignClient, ResponseAssignClient
+from .booking_current_clients import RequestBookingCurrentClient
 from .clients_list import ResponseClientsListModel
 from .common_user_data import CurrentUserData
 from .confirm_email import RequestConfirmEmailModel, ResponseConfirmEmailModel
@@ -45,7 +48,7 @@ from .manager_retrieve import (ResponseManagerRetrieveModel,
                                ResponseManagersListModel)
 from .partial_update import (RequestPartialUpdateModel,
                              ResponsePartialUpdateModel)
-from .process_login import RequestProcessLoginModel, ResponseProcessLoginModel
+from .process_login import RequestProcessLoginModel, ResponseProcessLoginModel, RequestSuperuserLoginModel
 from .process_logout import (RequestProcessLogoutModel,
                              ResponseProcessLogoutModel)
 from .represes_agents_users_retrieve import (

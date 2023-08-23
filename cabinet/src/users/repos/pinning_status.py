@@ -1,17 +1,7 @@
 from tortoise import Model, fields
 
-from common import cfields, mixins
 from common.orm.mixins import CRUDMixin
 from src.users.entities import BaseUserRepo
-
-
-class PinningStatusType(mixins.Choices):
-    """
-    Статус закрепления
-    """
-    PINNED = "pinned", "Закреплен"
-    NOT_PINNED = "not_pinned", "Не закреплен"
-    PARTIALLY_PINNED = "partially_pinned", "Частично закреплен"
 
 
 class PinningStatusCity(Model):
@@ -83,22 +73,13 @@ class PinningStatus(Model):
         related_name="pinning_status_statuses",
     )
     priority: int = fields.IntField(description="Приоритет", null=False)
-    result: str = cfields.CharChoiceField(
-        description="Статус закрепления",
-        max_length=36,
-        choice_class=PinningStatusType,
-    )
-    assigned_to_agent: bool = fields.BooleanField(default=False, description="Закреплен за проверяющим агентом")
-    assigned_to_another_agent: bool = fields.BooleanField(
-        default=False,
-        description="Закреплен за другим агентом проверяющего агентства",
-    )
     unique_status: fields.ForeignKeyNullableRelation["UniqueStatus"] = fields.ForeignKeyField(
         description="Уникальный статус",
         model_name="models.UniqueStatus",
         related_name="pinning_status",
         null=True,
     )
+    comment: str = fields.TextField(description="Комментарий", null=True)
 
     class Meta:
         table = "users_pinning_status"

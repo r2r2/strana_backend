@@ -36,18 +36,17 @@ class CabinetUser(models.Model):
     """
     Пользователь ЛК
     """
-    username = models.CharField(unique=True, max_length=100, blank=True, null=True)
-    password = models.CharField(
-        max_length=200,
-        blank=True,
-        null=True,
-        help_text="В шифрованном виде. Используется только для авторизации агентов/агентств/администраторов "
-                  "(клиенты авторизуются по коду)",
-    )
+    class OriginType(models.TextChoices):
+        AMOCRM = "amocrm", _("AMOCRM")
+        LK = "lk_booking", _("Бронирование через личный кабинет")
+        FAST_BOOKING = "fast_booking", _("Быстрое бронирование")
+        LK_ASSIGN = "lk_booking_assign", _("Закреплен в ЛК Брокера")
+
     email = models.CharField(unique=True, max_length=100, blank=True, null=True)
     phone = models.CharField(
         unique=True, max_length=20, blank=True, null=True, help_text="Должен быть в формате “'+7XXXXXXXXXX"
     )
+    password = models.CharField(_('password'), max_length=128)
     code = models.CharField(
         max_length=4, blank=True, null=True, help_text="Отправленный при авторизации клиента SMS-код"
     )
@@ -60,10 +59,12 @@ class CabinetUser(models.Model):
     patronymic = models.CharField(max_length=50, blank=True, null=True)
     birth_date = models.DateField(blank=True, null=True)
     is_active = models.BooleanField()
-    is_superuser = models.BooleanField()
     is_deleted = models.BooleanField(help_text="Удаленные пользователи не могут войти на сайт")
     amocrm_id = models.BigIntegerField(blank=True, null=True)
     type = models.CharField(max_length=20, help_text="Роль пользователя в системе")
+    origin = models.CharField(
+        choices=OriginType.choices, max_length=30, default=None, null=True, verbose_name="Источник"
+    )
     role = models.ForeignKey(
         "users.UserRole",
         models.SET_NULL,
@@ -95,11 +96,13 @@ class CabinetUser(models.Model):
         verbose_name="Агентство",
         help_text="Для клиента агентство, за которым он закреплен; для агента - агентство, в котором он работает",
     )
-    duty_type = models.CharField(
-        max_length=20,
+    maintained = models.OneToOneField(
+        "users.Agency",
+        models.SET_NULL,
+        verbose_name="Главный агентства",
+        related_name="maintainer",
         blank=True,
         null=True,
-        help_text="Должность представителя агентства. Используется только для вывода в интерфейсе",
     )
     is_approved = models.BooleanField(
         help_text="Подтвержден пользователь (при авторизации) или нет, не подтвержденные пользователи не имеют "
@@ -109,15 +112,6 @@ class CabinetUser(models.Model):
     discard_token = models.CharField(max_length=100, blank=True, null=True)
     work_end = models.DateField(blank=True, null=True)
     reset_time = models.DateTimeField(blank=True, null=True)
-    maintained = models.OneToOneField(
-        "users.Agency",
-        models.SET_NULL,
-        related_name="maintainer",
-        blank=True,
-        null=True,
-        help_text="Для представителей: ID агентства, к которому он привязан. "
-                  "Влияет на отображение в карточке ЛК администратора",
-    )
     agent = models.ForeignKey(
         "self",
         models.SET_NULL,
@@ -146,11 +140,6 @@ class CabinetUser(models.Model):
                   "с застройщиком (т.е. они не связаны с каким-то агентом)",
     )
     is_test_user = models.BooleanField(help_text="Сделки с тестовым клиентом будут отмечаться тегом 'Тест' в АМО")
-    receive_admin_emails = models.BooleanField(
-        verbose_name="Получать письма администратора",
-        help_text="При отмеченном флаге, если пользователь имеет роль 'Администратор', "
-                  "он будет получать письма администратора на указанный Email",
-    )
     sms_send = models.BooleanField(verbose_name="СМС отправлено", default=False)
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
     auth_first_at = models.DateTimeField(verbose_name="Дата первой авторизации", blank=True, null=True)
@@ -164,12 +153,12 @@ class CabinetUser(models.Model):
     )
     user_cities = models.ManyToManyField(
         to="references.Cities",
-        through="users.CityUserThrough",
+        through="CityUserThrough",
         through_fields=(
             "user",
             "city",
         ),
-        verbose_name="Города пользователей",
+        verbose_name="Город пользователей",
         null=True,
         blank=True,
         related_name="user_cities",
@@ -185,7 +174,6 @@ class CabinetUser(models.Model):
         info = map(lambda user_info: str(user_info) if user_info else "", user_info_list)
         return " ".join(info) + f" (AMOCRMID {self.amocrm_id})"
 
-    @property
     def full_name(self):
         return f'{self.name or ""} {self.surname or ""} {self.patronymic or ""}'.strip()
 
@@ -193,7 +181,7 @@ class CabinetUser(models.Model):
         managed = False
         db_table = "users_user"
         verbose_name = "Пользователь"
-        verbose_name_plural = "2.1. Пользователи"
+        verbose_name_plural = " 2.1. [Пользователи] Все"
         ordering = ["-created_at"]
 
 
@@ -204,7 +192,7 @@ class CabinetClient(CabinetUser):
     class Meta:
         proxy = True
         verbose_name = "Клиент"
-        verbose_name_plural = "2.8. Клиенты"
+        verbose_name_plural = " 2.8. [Пользователи] Клиенты"
 
 
 class CabinetAgent(CabinetUser):
@@ -214,4 +202,14 @@ class CabinetAgent(CabinetUser):
     class Meta:
         proxy = True
         verbose_name = "Агент"
-        verbose_name_plural = "2.9. Агенты"
+        verbose_name_plural = " 2.9. [Пользователи] Агенты"
+
+
+class CabinetAdmin(CabinetUser):
+    """
+    Прокси модель Администраторов
+    """
+    class Meta:
+        proxy = True
+        verbose_name = "Администраторы"
+        verbose_name_plural = "2.10. [Пользователи] Администраторы"

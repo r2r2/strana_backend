@@ -1,24 +1,17 @@
-from datetime import datetime, date
+from datetime import date, datetime
 from decimal import Decimal
-from typing import Optional, Literal, Awaitable, Any
-
-from pydantic import validator, constr, root_validator
+from typing import Any, Awaitable, Literal, Optional
 
 from common.files.models import FileCategoryListModel
-
-from src.agents.models import AgentRetrieveModel
+from pydantic import constr, root_validator, validator
 from src.agencies.models import AgencyRetrieveModel
-
-from ..constants import (
-    BookingStages,
-    BookingSubstages,
-    BookingCreatedSources,
-    MaritalStatus,
-    PaymentMethods,
-    RelationStatus,
-)
-from ..entities import BaseBookingModel
+from src.agents.models import AgentRetrieveModel
 from src.properties.models import PropertyRetrieveModel
+
+from ..constants import (BookingCreatedSources, BookingStages,
+                         BookingSubstages, MaritalStatus, PaymentMethods,
+                         RelationStatus)
+from ..entities import BaseBookingModel
 
 
 class _BookingProjectRetrieveModel(BaseBookingModel):
@@ -61,6 +54,23 @@ class _BookingFloorRetrieveModel(BaseBookingModel):
     """
 
     number: Optional[str]
+
+    class Config:
+        orm_mode = True
+
+
+class BookingTagRetrieveModel(BaseBookingModel):
+    """
+    Модель тега бронирований
+    """
+
+    label: str
+    style: str
+    slug: str
+
+    @validator("style", pre=True)
+    def get_style(cls, style) -> str:
+        return str(style)
 
     class Config:
         orm_mode = True
@@ -156,6 +166,7 @@ class ResponseBookingRetrieveModel(BaseBookingModel):
     ddu: Optional[_BookingDDURetrieveModel]
     amocrm_stage: Optional[BookingStages.serializer]
     amocrm_substage: Optional[BookingSubstages.serializer]
+    booking_tags: Optional[list[BookingTagRetrieveModel]]
 
     payment_method: Optional[PaymentMethods.serializer]
     maternal_capital: bool

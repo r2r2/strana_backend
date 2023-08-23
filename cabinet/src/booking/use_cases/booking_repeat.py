@@ -14,7 +14,7 @@ from ..loggers import booking_changes_logger
 from ..mixins import BookingLogMixin
 from ..repos import Booking, BookingRepo
 from ..services import ActivateBookingService
-from ..types import (BookingPropertyRepo, BookingSqlUpdateRequest)
+from ..types import BookingPropertyRepo
 
 
 class BookingRepeat(BaseBookingCase, BookingLogMixin):
@@ -26,7 +26,6 @@ class BookingRepeat(BaseBookingCase, BookingLogMixin):
             backend_config: dict[str, Any],
             booking_repo: Type[BookingRepo],
             property_repo: Type[BookingPropertyRepo],
-            request_class: Type[BookingSqlUpdateRequest],
             global_id_decoder: Callable,
             check_profitbase_property_service: CheckProfitbasePropertyService,
             activate_booking_class: ActivateBookingService,
@@ -40,7 +39,6 @@ class BookingRepeat(BaseBookingCase, BookingLogMixin):
 
         self.check_booking_task: Any = check_booking_task
         self.create_booking_log_task: Any = create_booking_log_task
-        self.request_class: Type[BookingSqlUpdateRequest] = request_class
         self.global_id_decoder: Callable = global_id_decoder
 
         self.period_days: int = booking_config["period_days"]
@@ -61,7 +59,6 @@ class BookingRepeat(BaseBookingCase, BookingLogMixin):
             user_id: int,
             booking_id: int,
     ) -> Booking:
-        print("***BookingRepeat***")
         filters: dict[str, Any] = dict(id=booking_id)
         if not await self.booking_repo.exists(filters=filters):
             raise BookingNotFoundError
@@ -69,9 +66,6 @@ class BookingRepeat(BaseBookingCase, BookingLogMixin):
         booking: Booking = await self.booking_repo.retrieve(
             filters=filters, related_fields=["user", "project", "property", "building"]
         )
-        print(f"{booking=}")
-        print(f'{booking.active=}')
-        print(f"{booking.property=}")
         if await booking.property.bookings.filter(active=True).count() > 0:
             raise BookingUnfinishedExistsError
 
@@ -86,13 +80,8 @@ class BookingRepeat(BaseBookingCase, BookingLogMixin):
 
         property_status, property_available = await self.check_profitbase_property_service(
             booking.property)
-        print(f"{property_status=}")
-        print(f"{property_available=}")
         property_status_bool = property_status == booking.property.statuses.FREE
-        print(f"{property_status_bool=}")
-        print(f"{property_status=}")
         if not property_available or not property_status_bool:
-            print("if not property_available or not property_status_bool:")
             property_data: dict[str, Any] = dict(status=property_status)
             await self.property_repo.update(booking.property, data=property_data)
             raise BookingPropertyUnavailableError(property_status_bool, property_available)
@@ -112,8 +101,7 @@ class BookingRepeat(BaseBookingCase, BookingLogMixin):
         filters: dict[str, Any] = dict(active=True, id=booking.id, user_id=user_id)
         booking: Booking = await self.booking_repo.retrieve(
             filters=filters,
-            related_fields=["project", "project__city", "property", "floor", "building", "ddu", "agent", "agency"],
+            related_fields=["project__city", "property", "floor", "building", "ddu", "agent", "agency"],
             prefetch_fields=["ddu__participants"],
         )
-        print(f"BookingRepeat done: {booking=}")
         return booking

@@ -5,6 +5,7 @@ from uuid import UUID
 from common import (amocrm, dependencies, email, messages, paginations, redis,
                     security, utils)
 from common.amocrm import tasks as amocrm_tasks
+from common.settings.repos import BookingSettingsRepo
 from config import auth_config, redis_config, session_config, site_config
 from fastapi import (APIRouter, Body, Depends, File, Path, Query, Request,
                      Response, UploadFile)
@@ -19,6 +20,8 @@ from src.booking import constants as booking_constants
 from src.questionnaire import repos as questionnaire_repos
 from src.task_management import repos as task_management_repos
 from src.task_management import services as task_management_services
+from src.task_management.tasks import update_task_instance_status_task
+from src.notifications.tasks import booking_fixation_notification_email_task
 from src.users import constants as users_constants
 from src.users import use_cases as users_cases
 from src.users.filters import BookingUserFilter
@@ -1066,6 +1069,9 @@ async def agents_bookings_send_upload_documents(
         task_instance_repo=task_management_repos.TaskInstanceRepo,
         task_status_repo=task_management_repos.TaskStatusRepo,
         booking_repo=booking_repos.BookingRepo,
+        booking_settings_repo=BookingSettingsRepo,
+        update_task_instance_status_task=update_task_instance_status_task,
+        booking_fixation_notification_email_task=booking_fixation_notification_email_task,
     )
     update_task_instance_status_service = task_management_services.UpdateTaskInstanceStatusService(
         **resources

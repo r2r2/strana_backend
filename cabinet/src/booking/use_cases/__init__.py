@@ -9,6 +9,7 @@ from .amocrm_webhook_send_sms import AmoCRMSmsWebhookCase
 from .booking_delete import BookingDeleteCase
 from .booking_list import BookingListCase
 from .booking_retrieve import BookingRetrieveCase
+from .booking_building_type_list import BookingBuildingTypeListCase
 from .check_documents_recognized import CheckDocumentsRecognizedCase
 from .check_params import CheckParamsCase
 from .ddu_accept import DDUAcceptCase
@@ -32,3 +33,5 @@ from .sberbank_status import SberbankStatusCase
 from .single_email import SingleEmailCase
 from .stream_file_base64 import StreamFileBase64Case
 from .superuser_booking_fill_data import SuperuserBookingFillDataCase
+from .booking_payment_conditions import BookingPaymentConditionsCase
+from .extend_deal_fixation import ExtendDeaFixationCase

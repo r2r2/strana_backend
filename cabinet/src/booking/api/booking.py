@@ -2,34 +2,39 @@
 from http import HTTPStatus
 from typing import Any, Literal, Optional, cast
 from urllib.parse import parse_qs, unquote
-import structlog
 
-from fastapi.responses import RedirectResponse, StreamingResponse
-from tortoise import Tortoise
-from pydantic import Json, conint
-from starlette.requests import ClientDisconnect
-from fastapi import APIRouter, BackgroundTasks, Body, Depends, File, Form, Header, Path, Query, Request, UploadFile
-
-from common import amocrm, dependencies, email, files, messages, profitbase, requests, sberbank, security, utils
+from common import (amocrm, dependencies, email, files, messages, profitbase,
+                    requests, sberbank, security, utils)
 from common.amocrm import repos as amocrm_repos
+from common.amocrm.decorators import handle_amocrm_webhook_errors
 from common.backend import repos as backend_repos
 from common.bazis import Bazis
-from common.settings import repos as settings_repos
-from common.types import IAsyncFile
 from common.kontur_talk.kontur_talk import KonturTalkAPI
-from config import (
-    amocrm_config, backend_config, booking_config, sberbank_config, session_config, site_config, tortoise_config
-)
+from common.types import IAsyncFile
+from common.settings.repos import BookingSettingsRepo
+from config import (amocrm_config, backend_config, booking_config,
+                    sberbank_config, session_config, site_config,
+                    tortoise_config)
+from fastapi import (APIRouter, BackgroundTasks, Body, Depends, File, Form,
+                     Header, Path, Query, Request, UploadFile)
+from fastapi.responses import RedirectResponse, StreamingResponse
+from pydantic import Json, conint
+from src.agents.repos import AgentRepo
+from src.amocrm import repos as src_amocrm_repos
 from src.booking import models
 from src.booking import repos as booking_repos
-from src.meetings import repos as meeting_repos
 from src.booking import services as booking_services
 from src.booking import tasks, use_cases
 from src.booking import validations as booking_validators
 from src.buildings import repos as buildings_repos
-from src.floors import repos as floors_repos
-from src.notifications import repos as notifications_repos
 from src.cities import repos as cities_repos
+from src.floors import repos as floors_repos
+from src.meetings import repos as meeting_repos
+from src.meetings.repos import MeetingRepo
+from src.meetings.services import CreateRoomService, ImportMeetingFromAmoService
+from src.notifications import repos as notifications_repos
+from src.notifications import services as notification_services
+from src.notifications import tasks as notification_tasks
 from src.projects import repos as projects_repos
 from src.properties import repos as properties_repos
 from src.properties import services as property_services
@@ -37,19 +42,34 @@ from src.properties.services import CheckProfitbasePropertyService
 from src.task_management import repos as task_management_repos
 from src.task_management import services as task_management_services
 from src.task_management import use_cases as task_management_use_cases
+from src.events import repos as event_repo
 from src.users import constants as users_constants
 from src.users import repos as users_repos
 from src.users import services as users_services
-from src.amocrm import repos as src_amocrm_repos
-from src.meetings.repos import MeetingRepo
-from src.meetings.services import CreateRoomService
-from src.notifications import services as notification_services
-from src.agents.repos import AgentRepo
-from ..maintenance import amocrm_webhook_maintenance
-from ..tasks import create_booking_log_task, check_booking_task
+from src.task_management.tasks import update_task_instance_status_task
+from src.notifications.tasks import booking_fixation_notification_email_task
+from starlette.requests import ClientDisconnect
+from tortoise import Tortoise
 
+from ..maintenance import amocrm_webhook_maintenance
+from ..tasks import create_booking_log_task
 
 router = APIRouter(prefix="/booking", tags=["Booking"])
+
+
+@router.get("/types", status_code=HTTPStatus.OK,
+            response_model=list[models.BookingBuildingTypeDetailResponse])
+async def booking_type_list_view(building_id: int = Query(..., alias="building")):
+    """
+    Список типов условий оплаты
+    """
+    resources: dict[str, Any] = dict(
+        building_repo=buildings_repos.BuildingRepo,
+        building_booking_type_repo=buildings_repos.BuildingBookingTypeRepo,
+    )
+    building_booking_type_list: use_cases.BookingBuildingTypeListCase = use_cases.BookingBuildingTypeListCase(
+        **resources)
+    return await building_booking_type_list(building_id=building_id)
 
 
 @router.post(
@@ -73,7 +93,6 @@ async def accept_contract_view(
 
     resources: dict[str, Any] = dict(
         backend_config=backend_config,
-        booking_config=booking_config,
         global_id_decoder=utils.from_global_id,
         booking_repo=booking_repos.BookingRepo,
         request_class=requests.UpdateSqlRequest,
@@ -81,7 +100,7 @@ async def accept_contract_view(
         property_repo=properties_repos.PropertyRepo,
         create_booking_log_task=tasks.create_booking_log_task,
         check_profitbase_property_service=check_profitbase_property_service,
-        booking_settings_repo=settings_repos.BookingSettingsRepo,
+        booking_notification_sms_task=notification_tasks.booking_notification_sms_task,
     )
     accept_contract: use_cases.AcceptContractCase = use_cases.AcceptContractCase(**resources)
     return await accept_contract(payload=payload, user_id=user_id, origin=origin)
@@ -122,7 +141,6 @@ async def booking_repeat_view(
         booking_repo=booking_repos.BookingRepo,
         global_id_decoder=utils.from_global_id,
         property_repo=properties_repos.PropertyRepo,
-        request_class=requests.UpdateSqlRequest,
         backend_config=backend_config,
         booking_config=booking_config,
         check_booking_task=tasks.check_booking_task,
@@ -247,6 +265,8 @@ async def sberbank_status_view(
         statuses_repo=amocrm_repos.AmoStatusesRepo,
         amocrm_config=amocrm_config,
         check_booking_task=tasks.check_booking_task,
+        amocrm_status_repo=src_amocrm_repos.AmocrmStatusRepo,
+        update_task_instance_status_task=update_task_instance_status_task,
     )
     import_bookings_service: booking_services.ImportBookingsService = booking_services.ImportBookingsService(
         **resources
@@ -259,6 +279,9 @@ async def sberbank_status_view(
         task_instance_repo=task_management_repos.TaskInstanceRepo,
         task_status_repo=task_management_repos.TaskStatusRepo,
         booking_repo=booking_repos.BookingRepo,
+        booking_settings_repo=BookingSettingsRepo,
+        update_task_instance_status_task=update_task_instance_status_task,
+        booking_fixation_notification_email_task=booking_fixation_notification_email_task,
     )
     update_task_instance_status_service = task_management_services.UpdateTaskInstanceStatusService(
         **resources
@@ -299,6 +322,7 @@ async def sberbank_status_view(
     status_code=HTTPStatus.OK,
     response_model=models.ResponseAmoCRMWebhookModel,
 )
+@handle_amocrm_webhook_errors
 async def amocrm_webhook_access_deal_view(request: Request):
     """
     Вебхук АМО.
@@ -341,6 +365,7 @@ async def amocrm_webhook_access_deal_view(request: Request):
 
 
 @router.post("/amocrm/date_deal", status_code=HTTPStatus.OK)
+@handle_amocrm_webhook_errors
 async def amocrm_webhook_date_deal_view(request: Request):
     """
     Вебхук АМО. Назначение дня подписания договора.
@@ -379,6 +404,7 @@ async def amocrm_webhook_date_deal_view(request: Request):
 
 
 @router.post("/amocrm/deal_success", status_code=HTTPStatus.OK)
+@handle_amocrm_webhook_errors
 async def amocrm_webhook_deal_success_view(request: Request):
     """
     Вебхук АМО. Договор был подписан.
@@ -417,22 +443,24 @@ async def amocrm_webhook_deal_success_view(request: Request):
 
 
 @router.post("/amocrm/documents_check", status_code=HTTPStatus.OK)
+@handle_amocrm_webhook_errors
 async def amocrm_webhook_change_status(request: Request) -> None:
     """
     Вебхук от АМО для обновления статуса задания
     """
-    logger = structlog.get_logger("amocrm_webhook_change_status")
     try:
         payload: bytes = await request.body()
     except ClientDisconnect:
         return
     data: dict[str, list[str]] = parse_qs(unquote(payload.decode("utf-8")))
-    logger.info(f"Decoded payload from AMO: {data}")
 
     resources: dict[str, Any] = dict(
         task_instance_repo=task_management_repos.TaskInstanceRepo,
         task_status_repo=task_management_repos.TaskStatusRepo,
         booking_repo=booking_repos.BookingRepo,
+        booking_settings_repo=BookingSettingsRepo,
+        update_task_instance_status_task=update_task_instance_status_task,
+        booking_fixation_notification_email_task=booking_fixation_notification_email_task,
     )
     update_task_instance_status_service = task_management_services.UpdateTaskInstanceStatusService(
         **resources
@@ -447,6 +475,7 @@ async def amocrm_webhook_change_status(request: Request) -> None:
 
 
 @router.post("/amocrm/fast_booking")
+@handle_amocrm_webhook_errors
 async def amocrm_webhook_fast_booking_view(request: Request):
     """
     Вебхук для быстрого бронирования [Sensei]
@@ -502,6 +531,8 @@ async def amocrm_webhook_fast_booking_view(request: Request):
         statuses_repo=amocrm_repos.AmoStatusesRepo,
         amocrm_config=amocrm_config,
         check_booking_task=tasks.check_booking_task,
+        amocrm_status_repo=src_amocrm_repos.AmocrmStatusRepo,
+        update_task_instance_status_task=update_task_instance_status_task,
     )
     import_bookings_service: booking_services.ImportBookingsService = booking_services.ImportBookingsService(
         **resources
@@ -517,7 +548,6 @@ async def amocrm_webhook_fast_booking_view(request: Request):
     )
     resources: dict[str, Any] = dict(
         backend_config=backend_config,
-        booking_config=booking_config,
         check_booking_task=tasks.check_booking_task,
         sms_class=messages.SmsService,
         email_class=email.EmailService,
@@ -547,10 +577,11 @@ async def amocrm_webhook_fast_booking_view(request: Request):
     )
     fast_booking: use_cases.AmoCRMSmsWebhookCase = use_cases.AmoCRMSmsWebhookCase(**resources)
 
-    return await fast_booking(amocrm_id=amocrm_id)
+    await fast_booking(amocrm_id=amocrm_id)
 
 
 @router.post("/amocrm/notify_contact")
+@handle_amocrm_webhook_errors
 async def amocrm_webhook_notify_view(request: Request):
     """
     Вебхук для оповещения контакта [АМО]
@@ -605,6 +636,8 @@ async def amocrm_webhook_notify_view(request: Request):
         statuses_repo=amocrm_repos.AmoStatusesRepo,
         amocrm_config=amocrm_config,
         check_booking_task=tasks.check_booking_task,
+        amocrm_status_repo=src_amocrm_repos.AmocrmStatusRepo,
+        update_task_instance_status_task=update_task_instance_status_task,
     )
     import_bookings_service: booking_services.ImportBookingsService = booking_services.ImportBookingsService(
         **resources
@@ -620,7 +653,6 @@ async def amocrm_webhook_notify_view(request: Request):
     )
     resources: dict[str, Any] = dict(
         backend_config=backend_config,
-        booking_config=booking_config,
         check_booking_task=tasks.check_booking_task,
         sms_class=messages.SmsService,
         email_class=email.EmailService,
@@ -649,11 +681,12 @@ async def amocrm_webhook_notify_view(request: Request):
     )
     notify_case: use_cases.AmoCRMSmsWebhookCase = use_cases.AmoCRMSmsWebhookCase(**resources)
 
-    return await notify_case(amocrm_id=amocrm_id)
+    await notify_case(amocrm_id=amocrm_id)
 
 
 @router.post("/amocrm/{secret}", status_code=HTTPStatus.OK)
 @amocrm_webhook_maintenance
+@handle_amocrm_webhook_errors
 async def amocrm_webhook_view(request: Request, background_tasks: BackgroundTasks, secret: str = Path(...)):
     """
     Вебхук АМО
@@ -663,7 +696,9 @@ async def amocrm_webhook_view(request: Request, background_tasks: BackgroundTask
     except ClientDisconnect:
         payload: bytes = bytes()
         secret: str = "wrong_secret"
-
+    print("*" * 1000)
+    print(payload)
+    # todo: remove all commented code during refactoring
     # import_property_service: property_services.ImportPropertyService = property_services.ImportPropertyService(
     #     floor_repo=floors_repos.FloorRepo,
     #     global_id_decoder=utils.from_global_id,
@@ -746,8 +781,22 @@ async def amocrm_webhook_view(request: Request, background_tasks: BackgroundTask
         task_status_repo=task_management_repos.TaskStatusRepo,
         task_chain_repo=task_management_repos.TaskChainRepo,
         booking_repo=booking_repos.BookingRepo,
+        booking_settings_repo=BookingSettingsRepo,
+        update_task_instance_status_task=update_task_instance_status_task,
     )
     create_task_instance_service = task_management_services.CreateTaskInstanceService(
+        **resources
+    )
+
+    resources: dict[str, Any] = dict(
+        task_instance_repo=task_management_repos.TaskInstanceRepo,
+        task_status_repo=task_management_repos.TaskStatusRepo,
+        booking_repo=booking_repos.BookingRepo,
+        booking_settings_repo=BookingSettingsRepo,
+        update_task_instance_status_task=update_task_instance_status_task,
+        booking_fixation_notification_email_task=booking_fixation_notification_email_task,
+    )
+    update_task_instance_service = task_management_services.UpdateTaskInstanceStatusService(
         **resources
     )
 
@@ -768,6 +817,18 @@ async def amocrm_webhook_view(request: Request, background_tasks: BackgroundTask
     )
     check_pinning: users_services.CheckPinningStatusService = users_services.CheckPinningStatusService(**resources)
 
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notifications_repos.EmailTemplateRepo,
+        )
+    import_contact_service: users_services.ImportContactFromAmoService = users_services.ImportContactFromAmoService(
+        amocrm_class=amocrm.AmoCRM,
+        user_repo=users_repos.UserRepo,
+    )
+    import_meeting_service: ImportMeetingFromAmoService = ImportMeetingFromAmoService(
+        meeting_repo=MeetingRepo,
+        amocrm_class=amocrm.AmoCRM,
+    )
     resources: dict[str, Any] = dict(
         amocrm_class=amocrm.AmoCRM,
         amocrm_config=amocrm_config,
@@ -775,9 +836,11 @@ async def amocrm_webhook_view(request: Request, background_tasks: BackgroundTask
         request_class=requests.GraphQLRequest,
         booking_repo=booking_repos.BookingRepo,
         meeting_repo=meeting_repos.MeetingRepo,
+        meeting_status_repo=meeting_repos.MeetingStatusRepo,
         user_repo=users_repos.UserRepo,
         project_repo=projects_repos.ProjectRepo,
         amocrm_status_repo=src_amocrm_repos.AmocrmStatusRepo,
+        calendar_event_repo=event_repo.CalendarEventRepo,
         statuses_repo=amocrm_repos.AmoStatusesRepo,
         property_repo=properties_repos.PropertyRepo,
         create_booking_log_task=create_booking_log_task,
@@ -785,12 +848,16 @@ async def amocrm_webhook_view(request: Request, background_tasks: BackgroundTask
         # fast_booking_webhook_case=fast_booking_webhook_case,
         background_tasks=background_tasks,
         create_task_instance_service=create_task_instance_service,
+        update_task_instance_service=update_task_instance_service,
         create_meeting_room_service=create_meeting_room_service,
         check_pinning=check_pinning,
+        email_class=email.EmailService,
+        get_email_template_service=get_email_template_service,
+        import_contact_service=import_contact_service,
+        import_meeting_service=import_meeting_service,
     )
     amocrm_webhook: use_cases.AmoCRMWebhookCase = use_cases.AmoCRMWebhookCase(**resources)
     await amocrm_webhook(secret=secret, payload=payload)
-    return None
 
 
 @router.get("/single_email/{booking_id}", status_code=HTTPStatus.NO_CONTENT)
@@ -841,13 +908,22 @@ async def booking_list_view(
     user_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.CLIENT)),
     statuses: list[str] = Query([], description="Фильтры по статусам сделок", alias='status'),
     init_filters: models.BookingListFilters = Depends(),
+    property_types_filter: list[str] = Query([], description="Фильтры по типу нежвижимости", alias="propertyType")
 ):
     """
     Список бронирований
     """
-    resources: dict[str, Any] = dict(booking_repo=booking_repos.BookingRepo)
+    resources: dict[str, Any] = dict(
+        booking_repo=booking_repos.BookingRepo,
+        booking_tag_repo=booking_repos.BookingTagRepo,
+    )
     booking_list: use_cases.BookingListCase = use_cases.BookingListCase(**resources)
-    return await booking_list(user_id=user_id, statuses=statuses, init_filters=init_filters)
+    return await booking_list(
+        user_id=user_id,
+        statuses=statuses,
+        init_filters=init_filters,
+        property_types_filter=property_types_filter,
+    )
 
 
 @router.patch(
@@ -860,7 +936,7 @@ async def admins_booking_charge_view(
     booking_id: int = Path(...), payload: models.RequestAdminsBookingChargeModel = Body(...)
 ):
     """
-    Изменение коммиссии администратором
+    Изменение комиссии администратором
     """
     resources: dict[str, Any] = dict(
         booking_repo=booking_repos.BookingRepo,
@@ -904,6 +980,7 @@ async def booking_retrieve_view(
         session=request.session,
         session_config=session_config,
         booking_repo=booking_repos.BookingRepo,
+        booking_tag_repo=booking_repos.BookingTagRepo,
     )
     booking_retrieve: use_cases.BookingRetrieveCase = use_cases.BookingRetrieveCase(**resources)
     return await booking_retrieve(booking_id=booking_id, user_id=user_id)
@@ -1392,3 +1469,53 @@ def superuser_bookings_fill_data_view(
         export_booking_in_amo_task=tasks.export_booking_in_amo,
     )
     return superuser_booking_fill_data_case(booking_id=booking_id, data=data)
+
+
+@router.patch(
+    "/payment_conditions/{bookingId}",
+    status_code=HTTPStatus.OK,
+    response_model=models.ResponseBookingPaymentConditionsModel
+)
+async def booking_payment_conditions_view(
+    booking_id: int = Path(..., alias="bookingId"),
+    payload: models.RequestBookingPaymentConditionsModel = Body(...),
+):
+    """
+    Выбор условий оплаты
+    """
+    resources: dict[str, Any] = dict(
+        booking_repo=booking_repos.BookingRepo,
+        building_booking_type_repo=buildings_repos.BuildingBookingTypeRepo,
+    )
+    set_payment_conditions: use_cases.BookingPaymentConditionsCase = use_cases.BookingPaymentConditionsCase(**resources)
+    return await set_payment_conditions(booking_id=booking_id, payload=payload)
+
+
+@router.patch(
+    "/extend_client_fixation/{booking_id}",
+    status_code=HTTPStatus.OK,
+)
+async def extend_deal_fixation_view(
+    booking_id: int = Path(...),
+    user_id: int = Depends(dependencies.CurrentAnyTypeUserId()),
+):
+    """
+    Продление фиксации клиента в сделке.
+    """
+    resources: dict[str, Any] = dict(
+        task_instance_repo=task_management_repos.TaskInstanceRepo,
+        task_status_repo=task_management_repos.TaskStatusRepo,
+        booking_repo=booking_repos.BookingRepo,
+        booking_settings_repo=BookingSettingsRepo,
+        update_task_instance_status_task=update_task_instance_status_task,
+        booking_fixation_notification_email_task=booking_fixation_notification_email_task,
+    )
+    update_task_instance_service = task_management_services.UpdateTaskInstanceStatusService(
+        **resources
+    )
+    extend_deal_fixation_case: use_cases.ExtendDeaFixationCase = use_cases.ExtendDeaFixationCase(
+        booking_repo=booking_repos.BookingRepo,
+        user_repo=users_repos.UserRepo,
+        update_task_instance_service=update_task_instance_service,
+    )
+    return await extend_deal_fixation_case(booking_id=booking_id, user_id=user_id)

@@ -2,7 +2,7 @@ from importlib import import_module
 
 from pytest import fixture
 
-from src.agreements.repos import AgencyAgreementRepo, AgreementTypeRepo, AgreementStatus, AgencyAgreement
+from src.agreements.repos import AgencyAgreementRepo, AgreementTypeRepo, AgreementStatus, AgencyAgreement, AgreementType
 
 
 @fixture(scope="function")
@@ -22,13 +22,13 @@ def agreement_type_repo() -> AgreementTypeRepo:
 
 
 @fixture(scope="function")
-async def agreement_type(agreement_type_repo, faker):
+async def agreement_type(agreement_type_repo, faker) -> AgreementType:
     data = {
         "name": f"test_{faker.word()}",
         "description": faker.text(),
         "priority": 100,
     }
-    agreement_type = await agreement_type_repo.create(data)
+    agreement_type: AgreementType = await agreement_type_repo.create(data)
     return agreement_type
 
 
@@ -58,7 +58,6 @@ async def agreement(
         "agreement_type_id": agreement_type.id,
         "booking_id": booking.id,
         "number": faker.bothify(letters="ABCDE"),
-        "date": faker.date(),
         "status_id": agreement_status.id,
         "template_name": "Договор",
         "files": [{"name": "Договор", "slug": "agreement_file", "count": 1, "files": [{"aws": "https://storage.yandexcloud.net/", "kb_size": 53.6, "mb_size": 0.1, "extension": "docx", "bytes_size": 54881, "content_type": ""}]}],

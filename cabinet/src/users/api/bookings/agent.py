@@ -1,9 +1,10 @@
 from http import HTTPStatus
 from typing import Any
 
-from fastapi import Depends, Path, Query
-
 from common import dependencies, paginations
+from common.settings.repos import BookingSettingsRepo
+from fastapi import Depends, Path, Query
+from src.agents import repos as agents_repos
 from src.amocrm.repos import AmocrmGroupStatusRepo
 from src.booking import repos as booking_repos
 from src.users import constants as users_constants
@@ -11,7 +12,7 @@ from src.users import filters, models
 from src.users import repos as users_repos
 from src.users import use_cases
 from src.agents import repos as agents_repos
-from ..user import router
+from src.users.api.user import router
 
 __all__ = ('agents_bookings_specs_view', 'agents_bookings_facets_view', 'agents_bookings_lookup_view',
            'agents_booking_retrieve_view', 'agents_bookings_list_view')
@@ -89,10 +90,11 @@ async def agents_bookings_list_view(
     """
     resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
-        check_repo=users_repos.CheckRepo,
         booking_repo=booking_repos.BookingRepo,
+        booking_tag_repo=booking_repos.BookingTagRepo,
         amocrm_group_status_repo=AmocrmGroupStatusRepo,
-        user_type=users_constants.UserType.AGENT
+        user_type=users_constants.UserType.AGENT,
+        booking_settings_repo=BookingSettingsRepo,
     )
     agents_users_list: use_cases.UsersBookingsCase = use_cases.UsersBookingsCase(**resources)
     return await agents_users_list(agent_id=agent_id, pagination=pagination, init_filters=init_filters)
@@ -116,6 +118,7 @@ async def agents_booking_retrieve_view(
         booking_repo=booking_repos.BookingRepo,
         agent_repo=agents_repos.AgentRepo,
         user_pinning_repo=users_repos.UserPinningStatusRepo,
+        booking_settings_repo=BookingSettingsRepo,
     )
     booking_retrieve: use_cases.UserBookingRetrieveCase = use_cases.UserBookingRetrieveCase(**resources)
     return await booking_retrieve(booking_id=booking_id, agent_id=agent_id)

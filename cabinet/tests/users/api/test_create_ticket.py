@@ -1,4 +1,5 @@
 from http import HTTPStatus
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -19,15 +20,18 @@ class TestCreateTicket:
         test_payload = dict(
             name="test",
             phone="+79999999999",
-            user_amocrm_id=1,
-            booking_amocrm_id=1,
-            note="test",
             type="test",
             city="spb",
         )
-        response = await async_client.post(
-            "users/ticket",
-            headers=headers,
-            json=test_payload,
-        )
-        assert response.status_code == HTTPStatus.CREATED
+
+        with patch(
+            "src.dashboard.use_cases.create_ticket.CreateTicketCase.amocrm_handler",
+            new_callable=AsyncMock
+        ) as mock_amo_calls:
+            response = await async_client.post(
+                "users/ticket",
+                headers=headers,
+                json=test_payload,
+            )
+            assert response.status_code == HTTPStatus.CREATED
+            mock_amo_calls.assert_called()

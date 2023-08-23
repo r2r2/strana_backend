@@ -24,9 +24,12 @@ class TestCreateContactService:
         expected,
         should_raise_exception,
         expected_exception,
+        amocrm_config,
     ):
         service = create_contact_service_class(
-            user_repo=user_repo.__class__, amocrm_class=amocrm_class
+            user_repo=user_repo.__class__,
+            amocrm_class=amocrm_class,
+            amocrm_config=amocrm_config,
         )
 
         contact = AmoContact(
@@ -65,9 +68,12 @@ class TestCreateContactService:
         expected,
         should_raise_exception,
         expected_exception,
+        amocrm_config,
     ):
         service = create_contact_service_class(
-            user_repo=user_repo.__class__, amocrm_class=amocrm_class
+            user_repo=user_repo.__class__,
+            amocrm_class=amocrm_class,
+            amocrm_config=amocrm_config,
         )
 
         contact = AmoContact(
@@ -81,8 +87,7 @@ class TestCreateContactService:
             # Exception checks should be outside of context manager
             assert exc_info.type is expected_exception
         else:
-            name, patronymic, surname = service._get_personal_names(contact)
-
-            assert name == expected[0]
-            assert patronymic == expected[1]
-            assert surname == expected[2]
+            surname, name, patronymic = service._get_personal_names(contact)
+            assert surname == expected[0]
+            assert name == expected[1]
+            assert patronymic == expected[2]

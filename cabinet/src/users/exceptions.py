@@ -226,3 +226,9 @@ class UniqueStatusNotFoundError(BaseUserException):
     message: str = "Статус не найден."
     status: int = HTTPStatus.NOT_FOUND
     reason: str = "unique_status_not_found"
+
+
+class WrongSuperuserAuthAsUserDataError(BaseUserException):
+    message: str = "Неверные данные для авторизации суперюзера под пользователем"
+    status: int = HTTPStatus.BAD_REQUEST
+    reason: str = "wrong_superuser_auth_user_data"

@@ -5,6 +5,7 @@ query allCities{
             node {
                 id
                 slug
+                phone
                 %s
             }
         }

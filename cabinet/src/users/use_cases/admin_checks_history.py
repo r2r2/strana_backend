@@ -5,9 +5,11 @@ from tortoise.functions import Count, Q
 from tortoise.queryset import QuerySet
 
 from common.paginations import PagePagination
+from src.users.constants import UserStatus
 from src.users.entities import BaseUserCase
 from src.users.models import HistoryCheckSearchFilters
-from src.users.repos import CheckHistory, CheckHistoryRepo
+from src.users.repos import CheckHistory, CheckHistoryRepo, UniqueStatus
+from src.users.utils import get_unique_status
 
 
 class AdminChecksHistoryCase(BaseUserCase):
@@ -30,6 +32,7 @@ class AdminChecksHistoryCase(BaseUserCase):
             "agent",
             "agency",
         ]
+        status_error: UniqueStatus = await get_unique_status(slug=UserStatus.ERROR)
         check_history_qs: QuerySet = self.history_check_repo.list(
             filters=filters,
             q_filters=q_filters,
@@ -37,13 +40,13 @@ class AdminChecksHistoryCase(BaseUserCase):
             ordering=ordering,
             start=pagination.start,
             end=pagination.end,
-        ).exclude(status="error")
+        ).exclude(unique_status=status_error)
 
         check_history_count_qs: QuerySet = self.history_check_repo.list(
             filters=filters,
             q_filters=q_filters,
             prefetch_fields=prefetch_fields,
-        ).exclude(status="error")
+        ).exclude(unique_status=status_error)
 
         count: int = await check_history_count_qs.count()
 
@@ -113,10 +116,15 @@ class AdminChecksHistoryCase(BaseUserCase):
         Получение агрегаторов
         """
         total_aggregators: dict = dict()
+        # todo: We can refactor it to one query
+        status_unique: UniqueStatus = await get_unique_status(slug=UserStatus.UNIQUE)
+        status_not_unique: UniqueStatus = await get_unique_status(slug=UserStatus.NOT_UNIQUE)
+        status_can_dispute: UniqueStatus = await get_unique_status(slug=UserStatus.CAN_DISPUTE)
+
         aggregators: list[dict] = await check_history_qs.annotate(
-            unique_count=Count('status', _filter=Q(status='unique')),
-            not_unique_count=Count('status', _filter=Q(status='not_unique')),
-            can_dispute_count=Count('status', _filter=Q(status='can_dispute')),
+            unique_count=Count('unique_status_id', _filter=Q(unique_status=status_unique)),
+            not_unique_count=Count('unique_status_id', _filter=Q(unique_status=status_not_unique)),
+            can_dispute_count=Count('unique_status_id', _filter=Q(unique_status=status_can_dispute)),
         ).values('unique_count', 'not_unique_count', 'can_dispute_count')
 
         for aggregator in aggregators:

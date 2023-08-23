@@ -4,6 +4,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query
 
 from common import paginations, dependencies
+from common.backend import repos as backend_repos
 from src.projects import models, use_cases
 from src.projects import repos as projects_repos
 from src.properties import repos as properties_repos
@@ -52,6 +53,7 @@ async def projects_list_view_v3():
     resources: dict[str, Any] = dict(
         project_repo=projects_repos.ProjectRepo,
         property_repo=properties_repos.PropertyRepo,
+        backend_properties_repo=backend_repos.BackendPropertiesRepo,
     )
     projects_list: use_cases.ProjectsListV3Case = use_cases.ProjectsListV3Case(**resources)
     return await projects_list()
@@ -65,6 +67,7 @@ async def projects_detail_view_v3(project_id: int):
     resources: dict[str, Any] = dict(
         project_repo=projects_repos.ProjectRepo,
         property_repo=properties_repos.PropertyRepo,
+        backend_properties_repo=backend_repos.BackendPropertiesRepo,
     )
     get_project: use_cases.ProjectDetailCase = use_cases.ProjectDetailCase(**resources)
     return await get_project(project_id=project_id)

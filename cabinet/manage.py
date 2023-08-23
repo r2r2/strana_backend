@@ -34,7 +34,6 @@ def unknown(
         available_actions += "* " + action + "\n"
     for coroutine, _ in coroutines.items():
         available_coroutines += "* " + coroutine + "\n"
-    print()
     print(
         (
             f"Unknown command called.\n"

@@ -1,4 +1,6 @@
 # pylint: disable=protected-access
+import traceback
+from functools import wraps
 from typing import Callable, Coroutine
 
 import structlog
@@ -26,3 +28,19 @@ def refresh_on_status(method: Callable[..., Coroutine]) -> Callable[..., Corouti
     decorated.__name__ = method.__name__
 
     return decorated
+
+
+def handle_amocrm_webhook_errors(func: Callable[..., Coroutine]) -> Callable[..., Coroutine]:
+    """
+    Decorator for AmoCRM webhook errors handling
+    """
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        logger = structlog.get_logger(func.__name__)
+        try:
+            return await func(*args, **kwargs)
+        except Exception as e:
+            exception_message = str(e)
+            traceback_str = traceback.format_exc()
+            logger.error(f"AmoCRM webhook error: {exception_message}\nTraceback:\n{traceback_str}")
+    return wrapper

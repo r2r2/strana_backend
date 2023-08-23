@@ -18,7 +18,7 @@ from ..types import UserAgentRepo, UserORM
 
 class CheckUniqueService(BaseUserService):
     """
-    Проверка на уникальность
+    [Deprecated] Проверка на уникальность
     """
 
     def __init__(

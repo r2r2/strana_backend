@@ -3,6 +3,7 @@ version: '3.7'
 x-app_environment: &app_environment
   environment:
     - DEBUG
+    - MC_BACKEND_URL
     - POSTGRES_PASSWORD
     - POSTGRES_HOST
     - POSTGRES_PORT
@@ -30,9 +31,9 @@ x-app_environment: &app_environment
     - CRM_URL
     - FLOWER_BASIC_AUTH
     - SESSION_COOKIE_DOMAIN
-    - LK_DEBUG
-    - LK_HOST
-    - LK_PORT
+    #- LK_DEBUG
+    #- LK_HOST
+    #- LK_PORT
     - DOCS_HTPASSWD
     - LK_LOG_LEVEL
     - LK_USE_COLORS
@@ -128,11 +129,6 @@ services:
     build:
       context: ./cabinet
     <<: *app_environment
-    logging:
-      driver: "journald"
-      options:
-        #fluentd-address: localhost:24224
-        tag: cabinet
     networks:
       - strana
 
@@ -142,11 +138,6 @@ services:
     build:
       context: ./admin
     <<: *app_environment
-    logging:
-      driver: "journald"
-      options:
-        #fluentd-address: localhost:24224
-        tag: admin
     networks:
       - strana
 
@@ -155,10 +146,6 @@ services:
     image: redis:6.0-alpine
     volumes:
       - redisdata-lk-broker:/data
-    logging:
-      driver: journald
-      options:
-        tag: redis-lk-broker
     networks:
       strana:
         aliases:
@@ -172,11 +159,6 @@ services:
     depends_on:
       - redis
     <<: *app_environment
-    logging:
-      driver: "journald"
-      options:
-        #fluentd-address: localhost:24224
-        tag: tasks
     networks:
       - strana
 

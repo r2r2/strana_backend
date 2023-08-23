@@ -24,11 +24,12 @@ def send_email_to_agent_on_record(
 def send_email_to_agent_on_refused(
     sender, instance, using, *args, **kwargs
 ):
-    try:
-        send_email_to_agent(
-            agent_id=instance.agent.id,
-            event_id=instance.event.id,
-            agent_status=EventParticipantStatus.REFUSED,
-        )
-    except Exception:
-        pass
+    if instance.status == EventParticipantStatus.RECORDED:
+        try:
+            send_email_to_agent(
+                agent_id=instance.agent.id,
+                event_id=instance.event.id,
+                agent_status=EventParticipantStatus.REFUSED,
+            )
+        except Exception:
+            pass

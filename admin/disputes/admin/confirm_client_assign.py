@@ -10,6 +10,7 @@ class ConfirmClientAssignAdmin(ModelAdmin):
         "client",
         "agent",
         "agency",
+        "agency_type",
         "assigned_at",
         "assign_confirmed_at",
         "unassigned_at",
@@ -18,6 +19,7 @@ class ConfirmClientAssignAdmin(ModelAdmin):
         "client",
         "agent",
         "agency",
+        "agency__general_type",
         "assigned_at",
         "assign_confirmed_at",
         "unassigned_at",
@@ -30,6 +32,7 @@ class ConfirmClientAssignAdmin(ModelAdmin):
         "assign_confirmed_at",
         "unassigned_at",
         "comment",
+        "agency_type",
     )
     search_fields = (
         "agent__name",
@@ -51,5 +54,15 @@ class ConfirmClientAssignAdmin(ModelAdmin):
         "agency",
         "client",
     )
+    date_hierarchy = "assigned_at"
     save_on_top = True
     list_per_page = 15
+
+    def agency_type(self, obj):
+        if obj.agency:
+            return obj.agency.general_type.label if obj.agency.general_type else "-"
+        else:
+            return "-"
+
+    agency_type.short_description = 'Тип агентства'
+    agency_type.admin_order_field = 'agency__general_type__sort'

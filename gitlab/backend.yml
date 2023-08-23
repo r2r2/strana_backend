@@ -1,5 +1,7 @@
 build-cabinet:
   stage: build
+  before_script:
+    - !reference [.docker_login_template,before_script]
   script:
     - TAG=${CI_COMMIT_REF_SLUG} docker-compose -f docker-compose.yml -f docker-compose.production.yml pull cabinet || true
     - TAG=${CI_COMMIT_SHA} CACHE_FROM_TAG=${CI_COMMIT_REF_SLUG} docker-compose -f docker-compose.yml -f docker-compose.production.yml build --build-arg PYTHON_CABINET=${PYTHON_CABINET} cabinet
@@ -20,6 +22,8 @@ build-cabinet:
 
 build-admin:
   stage: build
+  before_script:
+    - !reference [.docker_login_template,before_script]
   script:
     - TAG=${CI_COMMIT_REF_SLUG} docker-compose -f docker-compose.yml -f docker-compose.production.yml pull admin || true
     - TAG=${CI_COMMIT_SHA} CACHE_FROM_TAG=${CI_COMMIT_REF_SLUG} docker-compose -f docker-compose.yml -f docker-compose.production.yml build --build-arg PYTHON_ADMIN=${PYTHON_ADMIN} admin

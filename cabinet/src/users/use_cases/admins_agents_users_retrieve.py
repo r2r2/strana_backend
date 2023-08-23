@@ -26,7 +26,7 @@ class AdminsAgentsUsersRetrieveCase(BaseUserCase):
 
     async def __call__(self, user_id: int, agent_id: int) -> User:
         filters: dict[str, Any] = dict(agent_id=agent_id)
-        check_qs: Any = self.check_repo.list(filters=filters)
+        check_qs: Any = self.check_repo.list(filters=filters, related_fields=["unique_status"])
         filters: dict[str, Any] = dict(id=user_id, checkers=agent_id, type=UserType.CLIENT)
         user: User = await self.user_repo.retrieve(
             filters=filters,

@@ -1,5 +1,5 @@
-from typing import NamedTuple, Optional, Any
 from enum import IntEnum
+from typing import Any, NamedTuple, Optional
 
 from common import mixins
 from common.amocrm.constants import BaseLeadSalesStatuses
@@ -273,3 +273,30 @@ DDU_ALLOWED_FILE_EXTENSIONS = {'application/pdf', 'image/jpeg', 'image/png', 'im
 class BookingTypeNamedTuple(NamedTuple):
     price: int
     amocrm_id: Optional[int] = None
+
+
+class BookingTagStyle(mixins.Choices):
+    """
+    Стили тегов
+    """
+    PRIMARY: str = "primary", "Основной"
+    SECONDARY: str = "secondary", "Второстепенный"
+    DANGER: str = "danger", "Опасный"
+    WARNING: str = "warning", "Предупреждение"
+    INFO: str = "info", "Информация"
+    LIGHT: str = "light", "Светлый"
+    DARK: str = "dark", "Темный"
+    LINK: str = "link", "Ссылка"
+
+    DEFAULT: str = "default", "По умолчанию"
+    SUCCESS: str = "success", "Успешно"
+    WHITE: str = "white", "Белый"
+    TRANSPARENT: str = "transparent", "Прозрачный"
+
+
+class BookingFixationNotificationType(mixins.Choices):
+    """
+    Типы событий уведомления об окончании фиксации.
+    """
+    EXTEND: str = "extend", "Продление фиксации"
+    FINISH: str = "finish", "Окончании фиксации"

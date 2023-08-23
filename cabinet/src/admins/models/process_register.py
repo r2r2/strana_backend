@@ -7,12 +7,13 @@ from ..entities import BaseAdminModel
 from ..exceptions import AdminIncorrectPhoneFormat
 
 
-class RequestProcessRegisterModel(BaseAdminModel):
+class RequestProcessAdminRegisterModel(BaseAdminModel):
     """
     Модель запроса регистрации администратора
     """
 
     phone: str
+    password: str
     email: EmailStr
     name: constr(max_length=50)
     surname: constr(max_length=50)
@@ -29,10 +30,15 @@ class RequestProcessRegisterModel(BaseAdminModel):
         orm_mode = True
 
 
-class ResponseProcessRegisterModel(BaseAdminModel):
+class ResponseProcessRegisterModel(RequestProcessAdminRegisterModel):
     """
     Модель ответа регистрации администратора
     """
+    phone: str
+    email: EmailStr
+    name: str
+    surname: str
+    patronymic: str
 
     class Config:
         orm_mode = True

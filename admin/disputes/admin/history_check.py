@@ -7,20 +7,21 @@ from django.contrib.admin import register, SimpleListFilter
 from django.contrib.admin.views.main import ChangeList
 from django.db.models.query import QuerySet
 
-from ..models import CheckHistory
+from disputes.models import CheckHistory
 
 
-class StatusCheckFilter(SimpleListFilter):
+class UniqueStatusFilter(SimpleListFilter):
     title = "Статус проверки"
-    parameter_name = "status"
+    parameter_name = "unique_status"
 
     def lookups(self, request, model_admin):
-        statuses = CheckHistory.StatusCheck.choices
-        return list(statuses)
+        statuses = CheckHistory.objects.values_list("unique_status__id", "unique_status__title").distinct()
+
+        return set(statuses)
 
     def queryset(self, request, queryset):
         if self.value():
-            return queryset.filter(status=self.value())
+            return queryset.filter(unique_status__id=self.value())
         return queryset
 
 
@@ -33,17 +34,24 @@ class AdminCheckHistory(AdminChartMixin, admin.ModelAdmin):
         "agency",
     )
     list_display = (
-        "status", "agent", "client",
-        "client_phone", "agency", "created_at",
-        "agency_city", "client_interested_project",
         "unique_status",
+        "agent",
+        "client",
+        "client_phone",
+        "agency",
+        "created_at",
+        "agency_city",
+        "client_interested_project",
+        "term_uid",
+        "term_comment",
+        "lead_link",
     )
     readonly_fields = (
-        "status", "agent", "client",
+        "unique_status", "agent", "client",
         "agency", "client_phone", "created_at",
         "agency_city", "client_interested_project",
     )
-    list_filter = (StatusCheckFilter, "agency__city", "client__interested_project", "status")
+    list_filter = (UniqueStatusFilter, "agency__city", "client__interested_project", "unique_status")
     search_fields = (
         "client__phone__icontains",
         "client__surname__icontains",
@@ -52,7 +60,7 @@ class AdminCheckHistory(AdminChartMixin, admin.ModelAdmin):
         "agent__surname__icontains",
         "agent__amocrm_id",
         "agency__name__icontains",
-        "agency__city__name",
+        "agency__city",
         "agency__inn",
         "agency__amocrm_id",
         "client__interested_project__name"
@@ -64,7 +72,7 @@ class AdminCheckHistory(AdminChartMixin, admin.ModelAdmin):
         return obj.agency.city if obj.agency else "–"
 
     agency_city.short_description = "Город агентства"
-    agency_city.admin_order_field = 'agency__city__name'
+    agency_city.admin_order_field = 'agency__city'
 
     def client_interested_project(self, obj: CheckHistory) -> str:
         if obj.client and obj.client.interested_project:
@@ -78,8 +86,13 @@ class AdminCheckHistory(AdminChartMixin, admin.ModelAdmin):
         """
         Get charts for agency cities and checks
         """
-        checks: Counter = Counter([check.status for check in queryset])
-        self._mapping_checks(checks)
+        checks: Counter = Counter(
+            [
+                f"{check.unique_status.title} "
+                f"{check.unique_status.subtitle or ''}".strip()
+                for check in queryset if check.unique_status
+            ]
+        )
 
         result: dict[str, Any] = {
             "datasets": [
@@ -98,11 +111,3 @@ class AdminCheckHistory(AdminChartMixin, admin.ModelAdmin):
         Отключение статистики с пагинацией
         """
         return changelist.queryset
-
-    def _mapping_checks(self, checks: Counter) -> Counter:
-        """
-        Маппинг статусов проверок
-        """
-        for status in CheckHistory.StatusCheck.choices:
-            checks[str(status[1])] = checks.pop(status[0], 0)
-        return checks

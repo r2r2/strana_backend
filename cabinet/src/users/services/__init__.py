@@ -12,4 +12,6 @@ from .clean_logs import CleanLogsService
 from .check_unique_in_base import UserCheckUniqueService
 from .update_contact_in_amo import UpdateContactService
 from .check_pinning_status import CheckPinningStatusService
+from .send_check_admins_email import SendCheckAdminsEmailService
 from .get_agent_client_from_query import GetAgentClientFromQueryService
+from .import_client_from_amo import ImportContactFromAmoService

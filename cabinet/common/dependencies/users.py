@@ -106,7 +106,6 @@ class CurrentOptionalUserId(object):
         return user_id
 
 
-
 class DeletedUserCheck(object):
     """
     Проверка пользователя на удаление

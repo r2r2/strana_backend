@@ -165,7 +165,6 @@ async def admins_users_update(
 
     resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
-        check_repo=users_repos.CheckRepo,
         agent_repo=agents_repos.AgentRepo,
         agency_repo=agencies_repos.AgencyRepo,
         booking_repo=booking_repos.BookingRepo,

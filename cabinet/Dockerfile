@@ -2,6 +2,7 @@ ARG PYTHON_CABINET
 FROM ${PYTHON_CABINET} AS PYTHON_CABINET
 ENV TZ Europe/Moscow
 COPY / /app/
+COPY ./utils.py /usr/local/lib/python3.9/site-packages/sentry_sdk/
 RUN chmod +x entrypoint.* \
     && cat /app/certs-sber/Cert_CA.pem >> /etc/ssl/certs/ca-certificates.crt \
     && cp /app/certs-sber/russian_trusted_sub_ca_pem.crt /usr/share/ca-certificates/mozilla/ \

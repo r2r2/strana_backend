@@ -25,5 +25,4 @@ class GetAgencyForAgentProfile(BaseAgencyCase):
 		agency: Agency = agent.agency
 		if not agency:
 			raise AgentAgencyNotFoundError
-		
 		return agency

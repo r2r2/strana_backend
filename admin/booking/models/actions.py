@@ -37,4 +37,4 @@ class AmocrmAction(models.Model):
         managed = False
         db_table = "amocrm_actions"
         verbose_name = "Действие в сделках"
-        verbose_name_plural = "1.5. [Справочник] Действия в сделках в ЛК Брокера"
+        verbose_name_plural = "1.4. [Справочник] Действия в сделках в ЛК Брокера"

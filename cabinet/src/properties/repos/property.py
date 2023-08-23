@@ -31,6 +31,13 @@ class Property(Model):
     type: Optional[str] = cfields.CharChoiceField(
         description="Тип", max_length=50, null=True, choice_class=PropertyTypes
     )
+    property_type: Optional[str] = fields.ForeignKeyField(
+        description="Тип (модель)",
+        model_name="models.PropertyType",
+        related_name="properties",
+        on_delete=fields.SET_NULL,
+        null=True,
+    )
     article: Optional[str] = fields.CharField(description="Артикул", max_length=50, null=True)
     plan: Annotated[str, Field(max_length=300)] = cfields.MediaField(
         description="Планировка", max_length=300, null=True

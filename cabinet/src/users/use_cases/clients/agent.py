@@ -5,7 +5,7 @@ from ...constants import SearchType, UserType
 from ...entities import BaseUserCase
 from ...repos import User, UserRepo
 
-__all__ = ('AgentClientsSpecsCase', 'AgentClientsFacetsCase', 'AgentClientsLookupCase')
+__all__ = ('AgentClientsSpecsCase', 'AgentClientsFacetsCase', 'AgentClientsLookupCase', 'AgentClientsPhoneLookupCase')
 
 
 class AgentClientsSpecsCase(BaseUserCase):
@@ -85,3 +85,19 @@ class AgentClientsLookupCase(BaseUserCase):
         users: list[User] = await self.user_repo.list(filters=filters, q_filters=q_filters)
         data: dict[str, Any] = dict(type=SearchType(value=lookup_type), result=users)
         return data
+
+
+class AgentClientsPhoneLookupCase(BaseUserCase):
+    """
+    Поиск пользователя агента по началу телефона
+    """
+
+    def __init__(self, user_repo: Type[UserRepo]) -> None:
+        self.user_repo: UserRepo = user_repo()
+
+    async def __call__(self, agent_id: int, phone: str) -> dict[str, list[User]]:
+        lookup: str = phone.replace("+", "").replace("-", "").replace("(", "").replace(")", "").replace(" ", "")
+        filters: dict[str, Any] = dict(agent_id=agent_id, type=UserType.CLIENT, phone__startswith=f"+{lookup}")
+        users: list[User] = await self.user_repo.list(filters=filters)
+
+        return dict(result=users)

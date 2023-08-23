@@ -34,7 +34,7 @@ class TaskStatus(BaseTaskModel):
     )
 
     task_instances: fields.ReverseRelation["TaskInstance"]
-    button: fields.ReverseRelation["Button"]
+    buttons: fields.ManyToManyRelation["Button"]
 
     def __str__(self) -> str:
         return self.name

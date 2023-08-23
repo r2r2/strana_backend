@@ -85,16 +85,6 @@ class Event(Model):
         description="Мепроприятие активно",
         default=True,
     )
-    tags: fields.ManyToManyRelation["EventTag"] = fields.ManyToManyField(
-        description="Теги мероприятий",
-        model_name="models.EventTag",
-        related_name="events",
-        on_delete=fields.SET_NULL,
-        through="event_event_tag_and_event",
-        backward_key="event_id",
-        forward_key="tag_id",
-        null=True,
-    )
 
     def __repr__(self):
         return self.name

@@ -20,13 +20,13 @@ from src.users.loggers.wrappers import user_changes_logger
 from src.notifications.services import GetEmailTemplateService
 
 from ...booking.constants import BookingSubstages
-from ...booking.loggers import booking_changes_logger
 from ...booking.repos import Booking, BookingRepo
 from ..entities import BaseAgentService
 from ..exceptions import AgentNotFoundError
 from ..repos import AgentRepo, User
 from ..types import (AgentAmoCRM, AgentCheck, AgentCheckRepo, AgentORM,
                      AgentUserRepo)
+from src.users.utils import get_unique_status
 
 
 class LeadStatuses(int, Enum):
@@ -293,7 +293,7 @@ class ImportClientsService(BaseAgentService):
             agent_id=agent.id,
             agency_id=agent.agency_id,
             requested=datetime.now(tz=UTC),
-            status=self.user_statuses.UNIQUE,
+            unique_status=await get_unique_status(slug=self.user_statuses.UNIQUE),
         )
         await self.check_repo.create(data=data)
         return user
@@ -321,7 +321,7 @@ class ImportClientsService(BaseAgentService):
                 agent_id=agent.id,
                 agency_id=agent.agency_id,
                 requested=datetime.now(tz=UTC),
-                status=self.user_statuses.UNIQUE,
+                unique_status=await get_unique_status(slug=self.user_statuses.UNIQUE),
             )
             await self.check_repo.create(data=data)
 
@@ -426,10 +426,14 @@ class ImportClientsService(BaseAgentService):
             user_id=client.id,
             active=True,
         )
+        exclude_filters: list[dict] = [
+            dict(amocrm_status_id=LeadStatuses.REALIZED),
+            dict(amocrm_status_id=LeadStatuses.UNREALIZED),
+        ]
         data = dict(
             active=False,
             agent_id=None,
+            agency_id=None,
             amocrm_status_id=LeadStatuses.UNREALIZED,
         )
-
-        await self.booking_repo.bulk_update(filters=filters, data=data)
+        await self.booking_repo.bulk_update(filters=filters, data=data, exclude_filters=exclude_filters)

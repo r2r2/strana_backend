@@ -8,6 +8,7 @@ from .check_params import RequestCheckParamsModel, ResponseCheckParamsModel
 from .fill_personal import RequestFillPersonalModel, ResponseFillPersonalModel
 from .booking_list import RequestBookingListModel, ResponseBookingListModel, BookingListFilters
 from .booking_retrieve import RequestBookingRetrieveModel, ResponseBookingRetrieveModel
+from .booking_building_type_list import BookingBuildingTypeDetailResponse
 from .sberbank_status import RequestSberbankStatusModel, ResponseSberbankStatusModel
 from .amocrm_webhook import RequestAmoCRMWebhookModel, ResponseAmoCRMWebhookModel
 from .sberbank_link import RequestSberbankLinkModel, ResponseSberbankLinkModel
@@ -33,3 +34,4 @@ from .ddu_upload_retrieve import ResponseDDUUploadRetrieveModel
 from .check_documents_recognized import ResponseCheckDocumentsRecognizedModel
 from .recognize_documents import ResponseRecognizeDocumentsModel
 from .history import ResponseBookingHistoryModel
+from .booking_payment_conditions import RequestBookingPaymentConditionsModel, ResponseBookingPaymentConditionsModel

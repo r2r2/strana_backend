@@ -11,15 +11,9 @@ from src.agencies.entities import BaseAgencyModel
 class ResponseGetAgencyProfile(BaseAgencyModel):
     name: Optional[str]
     inn: Optional[str]
-    city: Optional[Any]
+    city: Optional[str]
     type: Optional[AgencyType.serializer]
     files: Optional[list[FileCategoryListModel]]
-
-    @validator("city", pre=True)
-    def get_city_name(cls, value):
-        if value:
-            return value.name
-        return None
 
     class Config:
         orm_mode = True

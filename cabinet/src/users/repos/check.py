@@ -1,15 +1,14 @@
 from datetime import datetime
 from typing import Optional
 
-from common import cfields, orm
+from common import orm
 from common.orm.mixins import CRUDMixin
 from src.agencies.repos import Agency
 from tortoise import Model, fields
 from tortoise.fields import ForeignKeyNullableRelation
 
-from ..constants import UserStatus
-from ..entities import BaseUserRepo
-from .user import User
+from src.users.entities import BaseUserRepo
+from src.users.repos.user import User
 
 
 class Check(Model):
@@ -21,9 +20,6 @@ class Check(Model):
     requested: Optional[datetime] = fields.DatetimeField(description="Запрошено", null=True)
     dispute_requested: Optional[datetime] = fields.DatetimeField(description="Время оспаривания", null=True)
     status_fixed: bool = fields.BooleanField(description="Закрепить статус за клиентом", default=False)
-    status: Optional[str] = cfields.CharChoiceField(
-        description="Статус", max_length=20, choice_class=UserStatus, null=True, index=True
-    )
     unique_status: fields.ForeignKeyNullableRelation["UniqueStatus"] = fields.ForeignKeyField(
         description="Статус уникальности",
         model_name="models.UniqueStatus",
@@ -73,6 +69,15 @@ class Check(Model):
         description="Отправлено письмо администраторам",
     )
     amocrm_id: Optional[int] = fields.IntField(description="ID сделки в amoCRM, по которой была проверка", null=True)
+    term_uid: Optional[str] = fields.CharField(
+        description="UID условия проверки на уникальность",
+        max_length=255,
+        null=True,
+    )
+    term_comment: Optional[str] = fields.TextField(
+        description="Комментарий к условию проверки на уникальность",
+        null=True,
+    )
 
     agent_id: Optional[int]
     dispute_agent_id: Optional[int]

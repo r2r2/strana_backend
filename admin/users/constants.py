@@ -1,6 +1,7 @@
 CABINET_MODEL_NAMES = [
     'booking',
     'bookinglog',
+    'bookingtag',
     'amocrmpipeline',
     'amocrmstatus',
     'amocrmaction',
@@ -11,6 +12,7 @@ CABINET_MODEL_NAMES = [
     'floor',
     'cabinetuser',
     'cabinetagent',
+    'cabinetadmin',
     'cabinetclient',
     'agencyact',
     'agencyagreement',
@@ -79,4 +81,5 @@ CABINET_MODEL_NAMES = [
     'block',
     'element',
     'link',
+    'main_page',
 ]

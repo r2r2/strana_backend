@@ -11,7 +11,7 @@ def instruction_repo() -> InstructionRepo:
 
 
 @pytest.fixture(scope="function")
-async def instruction_fixture(instruction_repo, city) -> None:
+async def instruction_fixture(instruction_repo) -> None:
     instruction_data: dict = dict(
         slug="slug",
         link_text="text",

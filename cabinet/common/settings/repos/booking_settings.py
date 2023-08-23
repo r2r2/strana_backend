@@ -15,6 +15,10 @@ class BookingSettings(Model):
         default=24,
         null=True,
     )
+    lifetime: int = fields.FloatField(description="Время жизни сделки, дней", null=True)
+    updated_lifetime: int = fields.FloatField(description="Время жизни сделки после продления в амо, дней", null=True)
+    extension_deadline = fields.FloatField(description="Дедлайн продления сделки до закрытия, дней", null=True)
+    max_extension_number: int = fields.IntField(description="Количество попыток продления", null=True)
     created_at: str = fields.DatetimeField(auto_now_add=True, description="Дата создания")
     updated_at: str = fields.DatetimeField(auto_now=True, description="Дата обновления")
 

@@ -20,6 +20,8 @@
 
 test-cabinet:
   stage: test
+  before_script:
+    - !reference [.docker_login_template,before_script]
   script:
     - docker pull ${CI_REGISTRY_IMAGE}/cabinet:${CI_COMMIT_SHA}
     - >

@@ -1,7 +1,17 @@
 from common.mixins import Choices
 
+BOOKING_MEETING_STATUSES = [
+    "Первичный контакт",
+    "Назначить встречу",
+    "Фиксация клиента за АН",
+    "Встреча назначена",
+    "Идет встреча",
+    "Принимают решение",
+    "Повторная встреча",
+]
 
-class MeetingStatus(Choices):
+
+class MeetingStatusChoice(Choices):
     """
     Статус встречи
     """
@@ -9,6 +19,7 @@ class MeetingStatus(Choices):
     NOT_CONFIRM: str = "not_confirm", "Не подтверждена"
     START: str = "start", "Встреча началась"
     FINISH: str = "finish", "Завершена"
+    CANCELLED: str = "cancelled", "Отменена"
 
 
 class MeetingType(Choices):

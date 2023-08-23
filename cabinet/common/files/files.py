@@ -28,7 +28,7 @@ class ProcessedFile(object):
         extension: Optional[str] = None,
         content_type: Optional[str] = None,
     ) -> None:
-        self.aws: Optional[str] = aws
+        self.aws: Optional[str] = f'{aws_config["custom_domain"]}/{aws_config["storage_bucket_name"]}/{source}'
         self.name: Optional[str] = name
         self.hash: Optional[str] = hash
         self.source: Optional[str] = source

@@ -10,7 +10,7 @@ class UserRole(Model):
     """
 
     id: int = fields.IntField(description="ID", pk=True, index=True)
-    name: str = fields.CharField(max_length=150, description="Название роли", null=True)
+    name: str = fields.CharField(max_length=150, description='Название роли', null=True)
     slug: str = fields.CharField(max_length=50, description="slug", null=True)
 
     def __str__(self) -> str:

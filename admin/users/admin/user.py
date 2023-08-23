@@ -1,16 +1,21 @@
 # pylint: disable=unused-argument,protected-access
 import csv
 from json import dumps
-
+import os
 from requests import post
-from django.http import HttpResponse
-from django.contrib.admin import ModelAdmin, SimpleListFilter, StackedInline, register, TabularInline
+
+from django.contrib.admin import (ModelAdmin, SimpleListFilter, StackedInline,
+                                  TabularInline, register)
 from django.contrib.admin.widgets import FilteredSelectMultiple
+from django.http import HttpResponse, HttpResponseRedirect
+from django.db.models import OuterRef, Subquery
 
 from common.loggers.models import BaseLogInline
 from booking.models import Booking
-from users.models import CabinetUser, UserLog, UserRole, CabinetAgent, CabinetClient
 from disputes.models import ConfirmClientAssign
+
+from users.models import (CabinetAdmin, CabinetAgent, CabinetClient,
+                          CabinetUser, UserLog, UserRole, CityUserThrough)
 
 
 class BookingInline(StackedInline):
@@ -92,6 +97,7 @@ class TypeFilter(SimpleListFilter):
 
 @register(CabinetUser)
 class CabinetUserAdmin(ModelAdmin):
+    change_form_template = "users/forms/user_change_form.html"
     inlines = (BookingInline, UserLogInline, ConfirmClientAssignInline,)
     list_display = (
         "user",
@@ -139,6 +145,7 @@ class CabinetUserAdmin(ModelAdmin):
         "created_at",
         "auth_first_at",
         "auth_last_at",
+        "origin",
     )
     list_per_page = 15
     show_full_result_count = False
@@ -173,7 +180,7 @@ class CabinetUserAdmin(ModelAdmin):
         return obj.agency.city if obj.agency else "–"
 
     agency_city.short_description = "Город агентства"
-    agency_city.admin_order_field = 'agency__city__name'
+    agency_city.admin_order_field = 'agency__city'
 
     def project_city(self, obj: CabinetUser):
         return obj.interested_project.city if obj.interested_project else "–"
@@ -225,8 +232,127 @@ class CabinetUserAdmin(ModelAdmin):
             writer.writerow(row)
 
         return response
+    exclude = ("user_cities",)
+
+    def response_change(self, request, obj):
+        if "_auth" in request.POST:
+            superuser_auth_link: str = "https://{}/login/as?user_id={}"
+            site_host = os.getenv("LK_SITE_HOST")
+            broker_site_host = os.getenv("BROKER_LK_SITE_HOST")
+
+            if obj.type == "client":
+                auth_link = superuser_auth_link.format(site_host, obj.id)
+            else:
+                auth_link = superuser_auth_link.format(broker_site_host, obj.id)
+
+            return HttpResponseRedirect(auth_link)
+
+        return super().response_change(request, obj)
+
+
+@register(UserRole)
+class UserRoleAdmin(ModelAdmin):
+    list_display = ("name",)
+
+
+@register(CabinetAgent)
+class CabinetAgentAdmin(CabinetUserAdmin):
+    """
+    Агенты в админке
+    """
+    list_display = (
+        "user",
+        "full_name",
+        "email",
+        "type",
+        "role",
+        "amocrm_id",
+        "agency_in_list",
+        "auth_last_at",
+    )
+
+    exclude = (
+        "code",
+        "code_time",
+        "passport_series",
+        "passport_number",
+        "work_start",
+        "work_end",
+        "interested_project",
+        "interested_type",
+        "is_brokers_client",
+        "is_independent_client",
+        "sms_send",
+        "interested_sub",
+        "assignation_comment",
+        "project_city",
+        "user_cities",
+    )
+    date_hierarchy = "created_at"
+
+    def get_queryset(self, request):
+        return CabinetAgent.objects.filter(type__in=["agent", "repres"])
+
+    class Meta:
+        proxy = True
+
+
+@register(CabinetClient)
+class CabinetClientAdmin(CabinetUserAdmin):
+    """
+    Клиенты в админке
+    """
+    def get_queryset(self, request):
+        return CabinetClient.objects.filter(type="client")
+
+    class Meta:
+        proxy = True
+
+
+@register(CabinetAdmin)
+class CabinetAdminAdmin(CabinetAgentAdmin):
+    """
+    Админы в админке
+    """
+    list_display = (
+        "user",
+        "full_name",
+        "email",
+        "type",
+        "role",
+        "amocrm_id",
+        "agency_in_list",
+        "get_user_cities_on_list",
+        "auth_last_at",
+    )
+
+    exclude = (
+        "code",
+        "code_time",
+        "passport_series",
+        "passport_number",
+        "work_start",
+        "work_end",
+        "interested_project",
+        "interested_type",
+        "is_brokers_client",
+        "is_independent_client",
+        "sms_send",
+        "interested_sub",
+        "assignation_comment",
+        "project_city",
+    )
 
     filter_horizontal = ("user_cities",)
+
+    def get_user_cities_on_list(self, obj):
+        if obj.user_cities.exists():
+            return [city.name for city in obj.user_cities.all()]
+        else:
+            return "-"
+
+    get_user_cities_on_list.short_description = 'Города пользователей'
+    get_user_cities_on_list.admin_order_field = 'user_cities_info'
 
     def formfield_for_manytomany(self, db_field, request, **kwargs):
         if db_field.name == "user_cities":
@@ -240,31 +366,11 @@ class CabinetUserAdmin(ModelAdmin):
         form_field.help_text = msg
         return form_field
 
-
-@register(UserRole)
-class UserRoleAdmin(ModelAdmin):
-    list_display = ("name",)
-
-
-@register(CabinetAgent)
-class CabinetAgentAdmin(CabinetUserAdmin):
-    """
-    Агенты в админке
-    """
     def get_queryset(self, request):
-        return CabinetAgent.objects.filter(type="agent")
-
-    class Meta:
-        proxy = True
-
-
-@register(CabinetClient)
-class CabinetClientAdmin(CabinetUserAdmin):
-    """
-    Клиенты в админке
-    """
-    def get_queryset(self, request):
-        return CabinetClient.objects.filter(type="client")
+        qs = CabinetAdmin.objects.filter(type="admin")
+        user_cities_qs = CityUserThrough.objects.filter(user__id=OuterRef("id"))
+        qs = qs.annotate(user_cities_info=Subquery(user_cities_qs.values("city__name")[:1]))
+        return qs
 
     class Meta:
         proxy = True

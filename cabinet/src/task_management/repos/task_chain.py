@@ -34,6 +34,16 @@ class TaskChain(BaseTaskModel):
         backward_key="task_chain_visibility_id",
         forward_key="status_visibility_id",
     )
+    task_fields: fields.ManyToManyRelation["TaskFields"] = fields.ManyToManyField(
+        model_name="models.TaskField",
+        related_name="taskchains",
+        through="taskchain_taskfields_through",
+        description="Поля задания",
+        null=True,
+        on_delete=fields.CASCADE,
+        backward_key="task_chain_field_id",
+        forward_key="task_field_id",
+    )
 
     task_statuses: fields.ReverseRelation["TaskStatus"]
 

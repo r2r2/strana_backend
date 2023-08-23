@@ -3,6 +3,7 @@
 import re
 from datetime import date, datetime
 from typing import Any, List, Optional, Union
+from tortoise.fields import ForeignKeyRelation
 
 from common import cfields, orm
 from common.files import FileCategory, FileContainer
@@ -39,10 +40,18 @@ class Agency(Model):
 
     id: int = fields.IntField(description="ID", pk=True)
     inn: str = fields.CharField(description="ИНН", max_length=30)
+    city: str = fields.CharField(description="Город", max_length=30)
     name: Optional[str] = fields.CharField(description="Имя", max_length=100, null=True)
 
     type: Optional[str] = cfields.CharChoiceField(
         description="Тип", max_length=20, choice_class=AgencyType, null=True
+    )
+    general_type: ForeignKeyRelation["AgencyGeneralType"] = fields.ForeignKeyField(
+        description="Тип агентства (агрегатор/АН)",
+        model_name="models.AgencyGeneralType",
+        on_delete=fields.SET_NULL,
+        related_name="agencies",
+        null=True,
     )
     files: Union[list, dict] = cfields.MutableDocumentContainerField(description="Файлы", null=True)
 
@@ -71,9 +80,7 @@ class Agency(Model):
     signatory_registry_number: str = fields.CharField(description="Номер регистрации в реестре",
                                                       max_length=100, null=True)
     signatory_sign_date: date = fields.DateField(description="Дата подписания", null=True)
-    city: fields.ForeignKeyNullableRelation["City"] = fields.ForeignKeyField(
-        description="Город агентства", model_name="models.City", related_name="agency_city", null=True
-    )
+
     maintainer: fields.ReverseRelation['User']
     agreements: fields.ReverseRelation["AgencyAgreement"]
     acts: fields.ReverseRelation["AgencyAct"]

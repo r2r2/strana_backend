@@ -21,12 +21,15 @@ class Button(BaseTaskModel):
         description="Чем меньше приоритет - тем выше выводится кнопка в интерфейсе задания",
         null=True
     )
-    status: fields.ForeignKeyRelation["TaskStatus"] = fields.ForeignKeyField(
+    statuses: fields.ManyToManyRelation["TaskStatus"] = fields.ManyToManyField(
         model_name="models.TaskStatus",
-        related_name="button",
-        on_delete=fields.CASCADE,
-        description="Статус задачи, к которой привязана кнопка",
+        related_name="buttons",
+        through="task_management_taskstatus_buttons",
+        description="Статусы задачи, к которым привязана кнопка",
         null=True,
+        on_delete=fields.CASCADE,
+        backward_key="button_id",
+        forward_key="task_status_id",
     )
 
     def __repr__(self) -> str:
@@ -34,6 +37,25 @@ class Button(BaseTaskModel):
 
     class Meta:
         table = "task_management_button"
+
+
+class TaskStatusButtonsThrough(BaseTaskModel):
+    id: int = fields.IntField(description="ID", pk=True)
+    button: fields.ForeignKeyRelation[Button] = fields.ForeignKeyField(
+        model_name="models.Button",
+        related_name="task_status_buttons_through",
+        on_delete=fields.CASCADE,
+        description="Кнопка",
+    )
+    task_status: fields.ForeignKeyRelation["TaskStatus"] = fields.ForeignKeyField(
+        model_name="models.TaskStatus",
+        related_name="task_status_buttons_through",
+        on_delete=fields.CASCADE,
+        description="Статус задачи",
+    )
+
+    class Meta:
+        table = "task_management_taskstatus_buttons"
 
 
 class ButtonRepo(BaseTaskRepo, ReadWriteMixin):

@@ -1,3 +1,4 @@
+from django import forms
 from django.contrib.admin import register, ModelAdmin
 from django.contrib.admin.widgets import FilteredSelectMultiple
 from django.db.models import OuterRef, Subquery
@@ -11,8 +12,8 @@ class PinningStatusAdmin(ModelAdmin):
         "id",
         "get_cities_on_list",
         "priority",
-        "result",
         "unique_status",
+        "comment",
     )
     filter_horizontal = ("cities", "pipelines", "statuses")
     save_as = True
@@ -44,3 +45,15 @@ class PinningStatusAdmin(ModelAdmin):
         msg = "Зажмите 'Ctrl' ('Cmd') или проведите мышкой, с зажатой левой кнопкой, чтобы выбрать несколько элементов."
         form_field.help_text = msg
         return form_field
+
+    def formfield_for_dbfield(self, db_field, request, **kwargs):
+        formfield = super().formfield_for_dbfield(db_field, request, **kwargs)
+
+        if db_field.name in ('assigned_to_agent', 'assigned_to_another_agent'):
+            formfield.widget = forms.Select(choices=[
+                (None, 'Не важно'),
+                (True, 'Да'),
+                (False, 'Нет'),
+            ])
+
+        return formfield

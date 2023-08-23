@@ -3,13 +3,13 @@ from decimal import Decimal
 from typing import Literal, Optional
 
 from pydantic import validator
-
-from ..constants import BookingStages, BookingSubstages
-from ..entities import BaseBookingModel
-
-from src.properties.models import PropertyRetrieveModel
-from src.agents.models import AgentRetrieveModel
 from src.agencies.models import AgencyRetrieveModel
+from src.agents.models import AgentRetrieveModel
+from src.booking.constants import (BookingCreatedSources, BookingStages,
+                                   BookingSubstages)
+from src.properties.models import PropertyRetrieveModel
+
+from ..entities import BaseBookingModel
 
 
 class _BookingFloorListModel(BaseBookingModel):
@@ -52,10 +52,27 @@ class _BookingProjectListModel(BaseBookingModel):
 
 class _BookingStatusListModel(BaseBookingModel):
     """
-    Модель проекта списка бронирований
+    Модель статуса списка бронирований
     """
 
     name: Optional[str]
+
+    class Config:
+        orm_mode = True
+
+
+class BookingTagListModel(BaseBookingModel):
+    """
+    Модель тега списка бронирований
+    """
+
+    label: str
+    style: str
+    slug: str
+
+    @validator("style", pre=True)
+    def get_style(cls, style) -> str:
+        return str(style)
 
     class Config:
         orm_mode = True
@@ -89,6 +106,7 @@ class _BookingListModel(BaseBookingModel):
     amocrm_signing_date_set: bool
     amocrm_signed: bool
     amocrm_status: Optional[_BookingStatusListModel]
+    booking_tags: Optional[list[BookingTagListModel]]
 
     origin: Optional[str]
     until: Optional[datetime]
@@ -102,6 +120,7 @@ class _BookingListModel(BaseBookingModel):
     amocrm_substage: Optional[BookingSubstages.serializer]
     final_payment_amount: Optional[Decimal]
     payment_amount: Optional[Decimal]
+    created_source: Optional[BookingCreatedSources.serializer]
 
     agent: Optional[AgentRetrieveModel]
     agency: Optional[AgencyRetrieveModel]

@@ -131,20 +131,20 @@ class CreateContactServiceTestData:
         """
         test_cases: list[dict[str: Any]] = [
             dict(
-                name_components="Иван Иванович Иванов",
-                expected=("Иван", "Иванович", "Иванов"),
+                name_components="Иванов Иван Иванович",
+                expected=("Иванов", "Иван", "Иванович"),
                 should_raise_exception=False,
                 expected_exception=None,
             ),
             dict(
-                name_components="Иван Иванович",
-                expected=("Иван", "Иванович", None),
+                name_components="Иванов Иван",
+                expected=("Иванов", "Иван", None),
                 should_raise_exception=False,
                 expected_exception=None,
             ),
             dict(
                 name_components="Иван",
-                expected=("Иван", None, None),
+                expected=(None, "Иван", None),
                 should_raise_exception=False,
                 expected_exception=None,
             ),

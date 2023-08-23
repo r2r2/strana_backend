@@ -98,12 +98,6 @@ class _IndentProjectListModel(BaseUserModel):
     name: Optional[str]
     city: Optional[str]
 
-    @validator("city", pre=True)
-    def get_city_name(cls, value):
-        if value:
-            return value.name
-        return None
-
     class Config:
         orm_mode = True
 

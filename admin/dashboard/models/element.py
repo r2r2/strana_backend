@@ -7,14 +7,21 @@ class Element(models.Model):
     """
     Элемент
     """
-    type: str = models.CharField(verbose_name="Тип", max_length=255, null=True, blank=True)
+    class ElementType(models.TextChoices):
+        SEPARATE_CARD_SLIDER: tuple[str] = "separate_card_slider", "слайдер на 3 карточки в ряд"
+        CARD_WITH_TIMEOUT_LINE_SLIDER: tuple[str] = "card_with_timeout_line_slider", "Слайдер для предложений"
+        BACKGROUND_IMAGE_SLIDER: tuple[str] = "background_image_slider", "Как происходит покупка"
+        STOCK_SLIDER: tuple[str] = "stock_slider", "Слайдер акции"
+        PARKING: tuple[str] = "parking", "Паркинг"
+        CARD: tuple[str] = "card", "Одиночная карточка"
+
+    type: str = models.CharField(verbose_name="Тип", max_length=255, null=True, blank=True, choices=ElementType.choices)
     width: int = models.IntegerField(verbose_name="Ширина", null=True, blank=True)
     title: str = models.CharField(verbose_name="Заголовок", max_length=255, null=True, blank=True)
     description: str = models.TextField(verbose_name="Описание", null=True, blank=True)
     image: str = models.ImageField(verbose_name="Изображение", max_length=500, null=True, blank=True)
     expires: datetime = models.DateTimeField(verbose_name="Истекает", null=True, blank=True)
     has_completed_booking: bool = models.BooleanField(verbose_name="Бронирование завершено", default=False)
-    slug: str = models.CharField(max_length=15, null=True)
 
     block: models.ForeignKey = models.ForeignKey(
         to='dashboard.Block',
@@ -42,7 +49,7 @@ class Element(models.Model):
     )
 
     def __str__(self) -> str:
-        return self.type
+        return self.title
 
     class Meta:
         managed = False

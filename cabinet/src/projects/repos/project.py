@@ -29,7 +29,7 @@ class Project(Model):
     transport: fields.ForeignKeyRelation["Transport"] = fields.ForeignKeyField(
         "models.Transport", on_delete=fields.SET_NULL, null=True
     )
-    transport_time = fields.IntField(description="Время в пути", blank=True, null=True)
+    transport_time = fields.IntField(description="Время в пути", null=True)
     project_color = fields.CharField(default="#FFFFFF", description="Цвет", null=True, max_length=8)
     title = fields.CharField(description="Заголовок", max_length=200, null=True)
     card_image = cfields.MediaField(description="Изображение на карточке", max_length=255, null=True)
@@ -63,8 +63,10 @@ class Project(Model):
         description="Статус", max_length=200, default=ProjectStatus.CURRENT, choice_class=ProjectStatus
     )
     show_in_paid_booking: bool = fields.BooleanField(description="Отображать в платном бронировании", default=True)
-    flats_reserv_time: float = fields.FloatField(description="Время резервирования квартир (ч)", null=True)
     discount: int = fields.SmallIntField(description="Скидка в %", default=0)
+
+    booking_reservation_matrix: fields.ManyToManyRelation["BookingReservationMatrix"]
+    booking_fixing_conditions_matrix: fields.ManyToManyRelation["BookingFixingConditionsMatrix"]
 
     @property
     def flat_area_range(self) -> dict[str, fields.DecimalField]:

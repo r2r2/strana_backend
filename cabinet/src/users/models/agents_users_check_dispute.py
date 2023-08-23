@@ -1,11 +1,12 @@
-from typing import Optional
+from typing import Optional, Any
 
-from ..constants import UserStatus
-from ..entities import BaseCheckModel
+from pydantic import Field, root_validator
+
+from src.users.entities import BaseCheckModel
 
 
 class RequestAgentsUsersCheckDisputeModel(BaseCheckModel):
-    user_id: int
+    user_id: int = Field(alias="userId")
     comment: Optional[str]
 
     class Config:
@@ -14,7 +15,21 @@ class RequestAgentsUsersCheckDisputeModel(BaseCheckModel):
 
 class ResponseAgentUsersCheckDisputeModel(BaseCheckModel):
     user_id: int
-    status: UserStatus.serializer
+    unique_status: Optional[Any]
+    status: Optional[Any]
+
+    @root_validator
+    def set_status(cls, values):
+        if unique_status := values.pop("unique_status"):
+            values["status"] = {
+                "value": unique_status.slug,
+                "label": f"{unique_status.title} {unique_status.subtitle or ''}".strip(),
+            }
+        return values
 
     class Config:
         orm_mode = True
+
+        # @staticmethod
+        # def schema_extra(schema: dict[str, Any]) -> None:
+        #     schema["properties"].pop("unique_status")

@@ -1,5 +1,5 @@
 from .process_login import RequestProcessLoginModel, ResponseProcessLoginModel
-from .process_register import RequestProcessRegisterModel, ResponseProcessRegisterModel
+from .process_register import RequestProcessAdminRegisterModel, ResponseProcessRegisterModel
 from .session_token import RequestSessionTokenModel, ResponseSessionTokenModel
 from .confirm_email import RequestConfirmEmailModel, ResponseConfirmEmailModel
 from .get_me import RequestGetMeModel, ResponseGetMeModel

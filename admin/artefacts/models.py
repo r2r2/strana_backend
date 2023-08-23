@@ -17,7 +17,7 @@ class CheckUnique(models.Model):
         managed = False
         db_table = "pages_check_unique"
         verbose_name = "Проверка на уникальность"
-        verbose_name_plural = "15.6. Проверка на уникальность"
+        verbose_name_plural = "14.6. Проверка на уникальность"
 
 
 class ShowtimeRegistration(models.Model):
@@ -34,7 +34,7 @@ class ShowtimeRegistration(models.Model):
         managed = False
         db_table = "pages_showtime_registration"
         verbose_name = "Запись на показ"
-        verbose_name_plural = "15.5. Запись на показ"
+        verbose_name_plural = "14.5. Запись на показ"
 
 
 class Document(models.Model):
@@ -53,7 +53,7 @@ class Document(models.Model):
         managed = False
         db_table = "documents_document"
         verbose_name = "Документ"
-        verbose_name_plural = "15.2. Документы"
+        verbose_name_plural = "14.2. Документы"
 
 
 class Escrow(models.Model):
@@ -75,7 +75,7 @@ class Escrow(models.Model):
         managed = False
         db_table = "documents_escrow"
         verbose_name = "Памятка Эскроу"
-        verbose_name_plural = "15.3. Памятки Эскроу"
+        verbose_name_plural = "14.3. Памятки Эскроу"
 
 
 class BookingHelpText(models.Model):
@@ -121,7 +121,7 @@ class BookingHelpText(models.Model):
         managed = False
         db_table = "booking_purchase_help_text"
         verbose_name = 'Текст для страницы "Как купить онлайн?"'
-        verbose_name_plural = '15.1. Тексты для страницы "Как купить онлайн?"'
+        verbose_name_plural = '14.1. Тексты для страницы "Как купить онлайн?"'
         ordering = [
             "default",
             "booking_online_purchase_step",
@@ -144,5 +144,5 @@ class Tip(models.Model):
         managed = False
         db_table = "tips_tip"
         verbose_name = "Подсказка"
-        verbose_name_plural = "15.4. Подсказки"
+        verbose_name_plural = "14.4. Подсказки"
         ordering = ("order",)

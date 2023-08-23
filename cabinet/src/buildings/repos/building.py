@@ -28,6 +28,7 @@ class BuildingBookingType(Model):
     period: int = fields.IntField(verbose_name="Длительность бронирования")
     price: int = fields.IntField(verbose_name="Стоимость бронирования")
     amocrm_id: Optional[int] = fields.BigIntField(description="Идентификатор АМОЦРМ", null=True)
+    priority: Optional[int] = fields.IntField(description="Приоритет вывода (чем меньше чем, тем раньше)", null=True)
 
     def __str__(self) -> str:
         return f"Длительность: {self.period}, стоимость: {self.price}"
@@ -78,7 +79,6 @@ class Building(Model):
     flats_4_min_price = fields.DecimalField(description="Мин цена 4-комн", max_digits=14, decimal_places=2, null=True)
     show_in_paid_booking: bool = fields.BooleanField(description="Отображать в платном бронировании", default=True)
     discount: int = fields.SmallIntField(description="Скидка в %", default=0)
-    flats_reserv_time: float = fields.FloatField(description="Время резервирования квартир (ч)", null=True)
 
     def __str__(self) -> str:
         if self.name:

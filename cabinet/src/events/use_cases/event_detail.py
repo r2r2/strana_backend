@@ -33,7 +33,7 @@ class EventDetailCase(BaseEventCase):
     ) -> Event:
         user: User = await self.agent_repo.retrieve(
             filters=dict(id=user_id),
-            related_fields=["agency", "agency__city", "maintained", "maintained__city"],
+            related_fields=["agency", "maintained"],
         )
 
         if user.type not in [UserType.AGENT, UserType.REPRES]:
@@ -50,7 +50,7 @@ class EventDetailCase(BaseEventCase):
                 or_filters=[
                     dict(type=EventType.ONLINE),
                     dict(type=EventType.OFFLINE, show_in_all_cities=True),
-                    dict(type=EventType.OFFLINE, city__name=user.agency.city.name),
+                    dict(type=EventType.OFFLINE, city__name=user.agency.city),
                 ]
             )]
         else:
@@ -58,7 +58,7 @@ class EventDetailCase(BaseEventCase):
                 or_filters=[
                     dict(type=EventType.ONLINE),
                     dict(type=EventType.OFFLINE, show_in_all_cities=True),
-                    dict(type=EventType.OFFLINE, city__name=user.maintained.city.name),
+                    dict(type=EventType.OFFLINE, city__name=user.maintained.city),
                 ]
             )]
 
@@ -78,7 +78,7 @@ class EventDetailCase(BaseEventCase):
         event: Event = await self.event_repo.retrieve(
             filters=filters,
             q_filters=q_filters,
-            prefetch_fields=["city", "participants", "tags"],
+            prefetch_fields=["city", "participants"],
             annotations=dict(
                 agent_recorded=self.event_repo.a_builder.build_exists(agent_exist_in_participants_qs),
                 participants_count=self.event_repo.a_builder.build_scount(participants_count_qs),

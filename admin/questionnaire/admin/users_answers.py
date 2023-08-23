@@ -11,6 +11,7 @@ class UserAnswerAdmin(admin.ModelAdmin):
         "user__name",
         "user__surname",
         "user__patronymic",
+        "user__phone",
         "question_group__title",
         "question__title",
         "answer__title",

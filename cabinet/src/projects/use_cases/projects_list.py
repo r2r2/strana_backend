@@ -2,6 +2,7 @@ from typing import Any, Optional, Type
 
 from tortoise.query_utils import Q
 
+from common.backend.repos import BackendPropertiesRepo
 from src.properties.repos import PropertyRepo
 from src.properties.constants import PropertyStatuses, PropertyTypes
 from ..constants import ProjectStatus
@@ -9,6 +10,7 @@ from ..entities import BaseProjectCase
 from ..models import Status
 from ..repos import Project, ProjectRepo
 from ..types import ProjectPagination
+from ..constants import PropertyBackendType
 
 from src.getdoc.repos import AdditionalAgreementTemplateRepo
 
@@ -81,11 +83,13 @@ class ProjectsListV3Case(BaseProjectCase):
     """
     def __init__(
         self,
-            project_repo: Type[ProjectRepo],
-            property_repo: Type[PropertyRepo]
+        project_repo: Type[ProjectRepo],
+        property_repo: Type[PropertyRepo],
+        backend_properties_repo: Type[BackendPropertiesRepo],
     ) -> None:
         self.project_repo: ProjectRepo = project_repo()
         self.property_repo: PropertyRepo = property_repo()
+        self.backend_properties_repo: BackendPropertiesRepo = backend_properties_repo()
 
     async def __call__(self) -> list[Project]:
         filters = dict(
@@ -100,6 +104,18 @@ class ProjectsListV3Case(BaseProjectCase):
             annotations=self.get_projects_annotations,
         )
 
+        # количество свободных квартир проекта из бекенда портала
+        for project in projects:
+            flats_count = await self.backend_properties_repo.list(
+                filters=dict(
+                    project__slug=project.slug,
+                    type=PropertyBackendType.FLAT,
+                    status=PropertyStatuses.FREE,
+                ),
+                related_fields=["project"],
+            ).count()
+            project.flats_count = flats_count
+
         return projects
 
     @property
@@ -113,14 +129,6 @@ class ProjectsListV3Case(BaseProjectCase):
                 "properties",
                 filter=Q(
                     properties__type=PropertyTypes.COMMERCIAL,
-                    properties__status=PropertyStatuses.FREE
-                )
-            ),
-            # количество свободных квартир
-            flats_count=self.project_repo.a_builder.build_count(
-                "properties",
-                filter=Q(
-                    properties__type=PropertyTypes.FLAT,
                     properties__status=PropertyStatuses.FREE
                 )
             ),

@@ -18,10 +18,10 @@ from ..constants import AmoLeadQueryWith, BaseLeadSalesStatuses
 from ..exceptions import AmocrmHookError
 from ..leads.payment_method import (AmoCRMPaymentMethod,
                                     AmoCRMPaymentMethodMapping)
+from ..models import Entity
 from ..types import AmoCustomField, AmoCustomFieldValue, AmoLead, AmoTag
 from ..types.lead import AmoLeadCompany, AmoLeadContact, AmoLeadEmbedded
 from .decorators import user_tag_test_wrapper
-from ..models import Entity
 
 
 class AmoCRMLeads(AmoCRMInterface, ABC):
@@ -42,9 +42,9 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         TEST: int = 4623009
 
     city_name_mapping: dict[str, Any] = {
-        "Тюмень": "tyumen",
+        "Тюмень": "tmn",
         "Санкт-Петербург": "spb",
-        "Москва": "moskva",
+        "Москва": "msk",
         "Екатеринбург": "ekb",
         "Не определен": "test_case",
     }
@@ -94,6 +94,10 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
     booking_discount_price_field_id: int = 823704
     # Размер скидки/акции
     booking_discounts_and_promotions: int = 575381
+    # Общий размер скидки
+    booking_final_discount_field_id = 831658
+    # Общая стоимость доп. опций
+    booking_final_additional_options_field_id = 831660
     #: Статус онлайн-покупки
     booking_online_purchase_status_field_id: int = 823792
     #: Дата и время начала онлайн-покупки
@@ -115,14 +119,22 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
     #: Были ли на статусе Фиксация за АН
     assign_agency_status_field_id: int = 828940
     booking_until_datetime_field_id: int = 643043
+    booking_is_agency_deal_field_id: int = 814164  # Сделка с Агентством?
 
     # ID полей для встреч
     meeting_type_field_id = 815568
+    meeting_date_next_contact_field_id = 694314
     meeting_date_sensei_field_id = 689581
+    meeting_link_field_id = 831180
     meeting_date_zoom_field_id = 688593
     meeting_address_field_id = 831168
     meeting_property_type_field_id = 366965
     meeting_user_name_field_id = 676461
+    meeting_type_next_contact_field_id = 694316
+    meeting_types_next_contact_map: dict[str, int] = {
+        "Meet": {"enum_id": 1323738, "value": "Встреча"},
+        "ZOOM": {"enum_id": 1325614, "value": "Назначить ZOOM КЦ"},
+    }
     meeting_types: dict[str, str] = {
         "1326776": "online",
         "1326774": "offline",
@@ -506,10 +518,10 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         self,
         city_slug: str,
         user_amocrm_id: int,
-        project_amocrm_name: str,
-        project_amocrm_enum: int,
         project_amocrm_pipeline_id: Union[str, int],
         project_amocrm_responsible_user_id: Union[str, int],
+        project_amocrm_name: Optional[str] = None,
+        project_amocrm_enum: Optional[int] = None,
         project_amocrm_organization: Optional[str] = None,
         property_id: Optional[int] = None,
         property_type: Optional[str] = None,
@@ -519,6 +531,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         tags: list[str] = [],
         booking_type_id: Optional[int] = None,
         companies: Optional[list[int]] = None,
+        is_agency_deal: Optional[bool] = None,
     ) -> list[AmoLead]:
         """
         Lead creation
@@ -537,13 +550,10 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         @param tags: list[str]. Список тегов.
         @param booking_type_id: int
         @param companies: Optional[list[int]]. Список id компаний из амо
+        @param is_agency_deal: Сделка с Агентством?
         @return: list[AmoLead]
         """
         route: str = "/leads"
-        print("*" * 100)
-        print("city_slug: ", city_slug)
-        print("self.lead_city_mapping[city_slug]: ", self.lead_city_mapping[city_slug])
-        print("status_id: ", status_id)
         if not status_id:
             status_id = getattr(self, f"{self.lead_city_mapping[city_slug]}_status_ids")[status]
         tags: list[AmoTag] = [AmoTag(name=tag) for tag in (tags + self._lead_tags)]
@@ -563,6 +573,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
             project_amocrm_enum=project_amocrm_enum,
             project_amocrm_organization=project_amocrm_organization,
             booking_type_id=booking_type_id,
+            is_agency_deal=is_agency_deal,
         )
         self.logger.debug("AmoCRM create lead", custom_fields=custom_fields)
         payload: AmoLead = AmoLead(
@@ -645,6 +656,8 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         project_amocrm_organization: Optional[str] = None,
         meeting_date_sensei: Optional[datetime.timestamp] = None,
         meeting_date_zoom: Optional[datetime.timestamp] = None,
+        meeting_date_next_contact: Optional[datetime.timestamp] = None,
+        meeting_type_next_contact: Optional[str] = None,
         tags: Optional[list[AmoTag]] = None,
     ):
         route: str = f"/leads/{lead_id}"
@@ -726,6 +739,21 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
                 dict(
                     field_id=self.meeting_date_zoom_field_id,
                     values=[dict(value=int(meeting_date_zoom))]
+                )
+            )
+        if meeting_date_next_contact:
+            custom_fields.append(
+                dict(
+                    field_id=self.meeting_date_next_contact_field_id,
+                    values=[dict(value=int(meeting_date_next_contact))]
+                )
+            )
+
+        if meeting_type_next_contact:
+            custom_fields.append(
+                dict(
+                    field_id=self.meeting_type_next_contact_field_id,
+                    values=[self.meeting_types_next_contact_map.get(meeting_type_next_contact, {})]
                 )
             )
 
@@ -886,6 +914,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         property_id: Optional[int] = None,
         property_type: Optional[str] = None,
         booking_type_id: Optional[int] = None,
+        is_agency_deal: Optional[bool] = None,
     ) -> list[Any]:
         """
         Lead mutation
@@ -980,6 +1009,9 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
                     values=[payment_method_value],
                 )
             )
+
+        custom_fields = self._append_is_agency_deal(custom_fields, is_agency_deal)
+
         # Ипотека одобрена?
         if is_mortgage_approved is not None:
             custom_fields.append(
@@ -1027,6 +1059,17 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         else:
             data: list[Any] = []
         return data
+
+    def _append_is_agency_deal(self, custom_fields, is_agency_deal):
+        if is_agency_deal is not None:
+            custom_fields.append(
+                dict(
+                    id=self.booking_is_agency_deal_field_id,
+                    values=[dict(value="да" if is_agency_deal else "нет")],
+                )
+            )
+
+        return custom_fields
 
     async def update_showtime(self, lead_id: int) -> list[Any]:
         """
@@ -1107,40 +1150,51 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
     def _get_lead_default_custom_fields(
         self,
         city_slug: str,
-        property_id: int,
-        property_type: str,
-        project_amocrm_name: str,
-        project_amocrm_enum: int,
-        project_amocrm_organization: str,
+        property_id: Optional[int],
+        property_type: Optional[str],
+        project_amocrm_name: Optional[str],
+        project_amocrm_enum: Optional[int],
+        project_amocrm_organization: Optional[str],
         booking_type_id: Optional[int],
+        is_agency_deal: Optional[bool],
     ) -> list[AmoCustomField]:
         """
         get lead default custom fields
         """
 
         custom_fields: list[AmoCustomField] = [
-            AmoCustomField(field_id=self.property_field_id, values=[
-                AmoCustomFieldValue(value=property_id)
-            ]),
             AmoCustomField(field_id=self.city_field_id, values=[
                 AmoCustomFieldValue(**self.city_field_values.get(city_slug, {}))
             ]),
             AmoCustomField(field_id=self.booking_start_field_id, values=[
                 AmoCustomFieldValue(value=int(datetime.now(tz=UTC).timestamp()))
             ]),
-            AmoCustomField(field_id=self.organization_field_id, values=[
-                AmoCustomFieldValue(value=project_amocrm_organization)
-            ]),
-            AmoCustomField(field_id=self.project_field_id, values=[
-                AmoCustomFieldValue(value=project_amocrm_name, enum_id=project_amocrm_enum)
-            ]),
-            AmoCustomField(field_id=self.property_type_field_id, values=[
-                AmoCustomFieldValue(**self.property_type_field_values.get(property_type, {}))
-            ]),
-            AmoCustomField(field_id=self.booking_type_field_id, values=[
-                AmoCustomFieldValue(enum_id=booking_type_id)
-            ])
         ]
+        if property_id:
+            custom_fields.append(AmoCustomField(field_id=self.property_field_id, values=[
+                AmoCustomFieldValue(value=property_id)
+            ]))
+        if property_type:
+            custom_fields.append(AmoCustomField(field_id=self.property_type_field_id, values=[
+                AmoCustomFieldValue(**self.property_type_field_values.get(property_type, {}))
+            ]))
+        if project_amocrm_name and project_amocrm_enum:
+            custom_fields.append(AmoCustomField(field_id=self.project_field_id, values=[
+                AmoCustomFieldValue(value=project_amocrm_name, enum_id=project_amocrm_enum)
+            ]))
+        if project_amocrm_organization:
+            custom_fields.append(AmoCustomField(field_id=self.organization_field_id, values=[
+                AmoCustomFieldValue(value=project_amocrm_organization)
+            ]))
+        if booking_type_id:
+            custom_fields.append(AmoCustomField(field_id=self.booking_type_field_id, values=[
+                AmoCustomFieldValue(enum_id=booking_type_id)
+            ]))
+        if is_agency_deal is not None:
+            custom_fields.append(AmoCustomField(field_id=self.booking_is_agency_deal_field_id, values=[
+                AmoCustomFieldValue(value="да" if is_agency_deal else "нет")
+            ]))
+
         return custom_fields
 
     def _get_showtime_custom_fields(

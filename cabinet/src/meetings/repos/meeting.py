@@ -6,7 +6,7 @@ from tortoise import fields
 from common import cfields, orm
 from common.orm.mixins import CRUDMixin
 from ..entities import BaseMeetingDatabaseModel, BaseMeetingRepo
-from ..constants import MeetingStatus, MeetingType, MeetingPropertyType, MeetingTopicType
+from ..constants import MeetingType, MeetingPropertyType, MeetingTopicType
 
 
 class Meeting(BaseMeetingDatabaseModel):
@@ -35,8 +35,12 @@ class Meeting(BaseMeetingDatabaseModel):
         on_delete=fields.SET_NULL,
         null=True,
     )
-    status: str = cfields.CharChoiceField(
-        max_length=20, choice_class=MeetingStatus, default=MeetingStatus.NOT_CONFIRM, description="Статус"
+    status: fields.ForeignKeyNullableRelation['MeetingStatus'] = fields.ForeignKeyField(
+        description="Статус встречи",
+        model_name="models.MeetingStatus",
+        related_name="meetings",
+        on_delete=fields.SET_NULL,
+        null=True,
     )
     record_link: Optional[str] = fields.CharField(max_length=255, description="Ссылка на запись", null=True)
     meeting_link: Optional[str] = fields.CharField(max_length=255, description="Ссылка на встречу", null=True)

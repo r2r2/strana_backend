@@ -8,7 +8,7 @@ from ..entities import BaseUserCase
 from ..exceptions import UserNoAgentError, UserNotFoundError
 from ..loggers.wrappers import user_changes_logger
 from ..models import RequestRepresesUsersReboundModel
-from ..repos import CheckRepo, User, UserRepo
+from src.users.repos import User, UserRepo
 from ..types import UserAgentRepo, UserBooking, UserBookingRepo
 
 
@@ -28,13 +28,11 @@ class RepresesUsersReboundCase(BaseUserCase):
     def __init__(
         self,
         user_repo: Type[UserRepo],
-        check_repo: Type[CheckRepo],
         agent_repo: Type[UserAgentRepo],
         booking_repo: Type[UserBookingRepo],
         change_agent_service: user_services.ChangeAgentService,
     ) -> None:
         self.user_repo: UserRepo = user_repo()
-        self.check_repo: CheckRepo = check_repo()
         self.agent_repo: UserAgentRepo = agent_repo()
         self.booking_repo: UserBookingRepo = booking_repo()
         self.change_agent_service: user_services.ChangeAgentService = change_agent_service
@@ -48,7 +46,7 @@ class RepresesUsersReboundCase(BaseUserCase):
 
     async def __call__(
         self, user_id: int, agency_id: int, payload: RequestRepresesUsersReboundModel
-    ) -> User:
+    ) -> None:
         data: dict[str, Any] = payload.dict()
         to_agent_id: int = data["to_agent_id"]
         from_agent_id: int = data["from_agent_id"]
@@ -80,4 +78,3 @@ class RepresesUsersReboundCase(BaseUserCase):
             )
             await self.booking_update(booking=booking, data=data)
         self.change_agent_service.as_task(user_id=user_id, agent_id=to_agent_id)
-        return user

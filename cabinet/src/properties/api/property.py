@@ -1,9 +1,16 @@
 # pylint: disable=no-member
 from typing import Any
 
-from http import HTTPStatus
-from fastapi import APIRouter, Body, Request, Depends
+from fastapi import APIRouter, Body, Request, Depends, status
 
+from common import utils, amocrm, requests, profitbase, dependencies, email, messages, security
+from common.backend import repos as backend_repos
+from config import session_config, site_config, amocrm_config
+
+from src.booking import tasks
+from src.booking import repos as booking_repos
+from src.booking.services import ActivateBookingService, SendSmsToMskClientService
+from common.settings.repos import BookingSettingsRepo
 from src.booking.services.deactivate_booking import DeactivateBookingService
 from src.buildings import repos as buildings_repos
 from src.floors import repos as floors_repos
@@ -11,28 +18,23 @@ from src.projects import repos as projects_repos
 from src.properties import constants, models
 from src.properties import repos as properties_repos
 from src.properties import services, use_cases
-from src.booking import repos as booking_repos
 from src.amocrm import repos as amocrm_repos
-from src.booking import tasks
-from src.booking.services import ActivateBookingService, SendSmsToMskClientService
 from src.task_management import services as task_management_services
 from src.task_management import repos as task_management_repos
+from src.task_management.tasks import update_task_instance_status_task
+from src.notifications.tasks import booking_fixation_notification_email_task
 from src.users import repos as users_repos
 from src.users import services as user_services
-from src.properties.services import CheckProfitbasePropertyService
-
-from common import utils, amocrm, requests, profitbase, dependencies, email, messages, security
-from common.backend import repos as backend_repos
-from common.settings import repos as settings_repos
-from config import session_config, site_config, amocrm_config
+from src.users import constants as users_constants
 from src.notifications import services as notification_services
 from src.notifications import repos as notification_repos
+from src.notifications import tasks as notification_tasks
 
 
 router = APIRouter(prefix="/properties", tags=["Properties"])
 
 
-@router.post("", status_code=HTTPStatus.CREATED, response_model=models.ResponseCreatePropertyModel)
+@router.post("", status_code=status.HTTP_201_CREATED, response_model=models.ResponseCreatePropertyModel)
 async def create_property_view(
     request: Request, payload: models.RequestCreatePropertyModel = Body(...)
 ):
@@ -79,9 +81,25 @@ async def list_property_types():
     ]
 
 
+@router.get(
+    "/type_specs",
+    status_code=status.HTTP_200_OK,
+    response_model=list[models.ResponsePropertyTypeModel],
+)
+async def property_types_list_view():
+    """
+    Список типов объектов недвижимости из админки.
+    """
+    resources: dict[str, Any] = dict(
+        property_type_repo=properties_repos.PropertyTypeRepo,
+    )
+    property_types_list: use_cases.PropertyTypeListCase = use_cases.PropertyTypeListCase(**resources)
+    return await property_types_list()
+
+
 @router.patch(
     "/bind",
-    status_code=HTTPStatus.OK,
+    status_code=status.HTTP_200_OK,
     response_model=models.ResponseBindBookingPropertyModel,
     dependencies=[Depends(dependencies.CurrentAnyTypeUserId())],
 )
@@ -102,18 +120,22 @@ async def bind_booking_property(
         create_amocrm_log_task=tasks.create_amocrm_log_task,
         profitbase_class=profitbase.ProfitBase,
         create_booking_log_task=tasks.create_booking_log_task,
+        booking_notification_sms_task=notification_tasks.booking_notification_sms_task,
     )
     activate_bookings_service: ActivateBookingService = ActivateBookingService(**resources)
     resources: dict[str, Any] = dict(
         global_id_decoder=utils.from_global_id,
         profitbase_class=profitbase.ProfitBase,
     )
-    check_profitbase_property_service = CheckProfitbasePropertyService(**resources)
+    check_profitbase_property_service = services.CheckProfitbasePropertyService(**resources)
 
     resources: dict[str, Any] = dict(
         task_instance_repo=task_management_repos.TaskInstanceRepo,
         task_status_repo=task_management_repos.TaskStatusRepo,
         booking_repo=booking_repos.BookingRepo,
+        booking_settings_repo=BookingSettingsRepo,
+        update_task_instance_status_task=update_task_instance_status_task,
+        booking_fixation_notification_email_task=booking_fixation_notification_email_task,
     )
     update_status_service = task_management_services.UpdateTaskInstanceStatusService(
         **resources
@@ -160,7 +182,6 @@ async def bind_booking_property(
         get_sms_template_service=get_sms_template_service,
         send_sms_to_msk_client_service=send_sms_to_msk_client,
         check_pinning=check_pinning,
-        booking_settings_repo=settings_repos.BookingSettingsRepo,
     )
     bind_property: use_cases.BindBookingPropertyCase = use_cases.BindBookingPropertyCase(**resources)
     return await bind_property(payload=payload)
@@ -168,7 +189,7 @@ async def bind_booking_property(
 
 @router.patch(
     "/unbind",
-    status_code=HTTPStatus.OK,
+    status_code=status.HTTP_200_OK,
     dependencies=[Depends(dependencies.CurrentAnyTypeUserId())],
 )
 async def unbind_booking_property(
@@ -192,6 +213,9 @@ async def unbind_booking_property(
         task_instance_repo=task_management_repos.TaskInstanceRepo,
         task_status_repo=task_management_repos.TaskStatusRepo,
         booking_repo=booking_repos.BookingRepo,
+        booking_settings_repo=BookingSettingsRepo,
+        update_task_instance_status_task=update_task_instance_status_task,
+        booking_fixation_notification_email_task=booking_fixation_notification_email_task,
     )
     update_status_service = task_management_services.UpdateTaskInstanceStatusService(
         **resources
@@ -205,3 +229,33 @@ async def unbind_booking_property(
     )
     unbind_property: use_cases.UnbindBookingPropertyCase = use_cases.UnbindBookingPropertyCase(**resources)
     await unbind_property(payload=payload)
+
+
+@router.post("/viewed", status_code=status.HTTP_201_CREATED, response_model=list[models.ViewedPropertyResponse])
+async def add_viewed_properties_view(
+    viewed_global_ids: list[str],
+    user_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.CLIENT)),
+):
+    """
+    Добавление объектов недвижимости в просмотренное
+    """
+    resources: dict[str, Any] = dict(
+        property_repo=properties_repos.PropertyRepo,
+        viewed_property_repo=users_repos.UserViewedPropertyRepo,
+    )
+    add_viewed_properties: use_cases.AddViewedPropertiesCase = use_cases.AddViewedPropertiesCase(**resources)
+    return await add_viewed_properties(user_id=user_id, viewed_global_ids=viewed_global_ids)
+
+
+@router.get("/viewed", status_code=status.HTTP_200_OK)
+async def get_viewed_properties_list_view(
+    user_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.CLIENT)),
+):
+    """
+    Получение просмотренных объектов недвижимости
+    """
+    resources: dict[str, Any] = dict(
+        property_repo=properties_repos.PropertyRepo,
+    )
+    add_viewed_properties: use_cases.GetViewedPropertiesCase = use_cases.GetViewedPropertiesCase(**resources)
+    return await add_viewed_properties(user_id=user_id)

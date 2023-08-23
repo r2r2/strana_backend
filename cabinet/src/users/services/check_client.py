@@ -11,8 +11,9 @@ from common.utils import partition_list
 from ..constants import UserStatus, UserType
 from ..entities import BaseUserService
 from ..loggers.wrappers import user_changes_logger
-from ..repos import Check, CheckRepo, User, UserRepo
+from ..repos import Check, CheckRepo, User, UserRepo, UniqueStatus
 from ..types import UserAgentRepo, UserORM
+from src.users.utils import get_unique_status
 
 
 class CheckClientService(BaseUserService):
@@ -59,7 +60,8 @@ class CheckClientService(BaseUserService):
             async for user in self.user_repo.list(
                 filters=filters, related_fields=["agency", "agent"]
             ):
-                filters: dict[str, Any] = dict(user_id=user.id, status=UserStatus.UNIQUE)
+                unique_status: UniqueStatus = await get_unique_status(slug=UserStatus.UNIQUE)
+                filters: dict[str, Any] = dict(user_id=user.id, unique_status=unique_status)
                 check: Check = await self.check_repo.retrieve(filters=filters)
                 if not check:
                     continue

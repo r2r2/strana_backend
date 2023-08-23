@@ -1,5 +1,5 @@
 from typing import Optional, Any, Union
-from pydantic import root_validator as method_field
+from pydantic import root_validator
 from src.users import constants as users_constants
 from ..entities import BaseAgentModel
 
@@ -18,7 +18,7 @@ class _CheckListModel(BaseAgentModel):
     Модель проверки пользователя в списке
     """
 
-    status: Optional[users_constants.UserStatus.serializer]
+    unique_status: Optional[Any]
 
     class Config:
         orm_mode = True
@@ -36,19 +36,23 @@ class _UserListModel(BaseAgentModel):
     patronymic: Optional[str]
 
     # Method fields
-    status: Optional[users_constants.UserStatus.serializer]
+    status: Optional[Any]
 
     # Totally overrided fields
     checks: Optional[list[_CheckListModel]]
 
-    @method_field
+    @root_validator
     def get_status(cls, values: dict[str, Any]) -> dict[str, Any]:
         checks: Union[list[_CheckListModel], None] = values.pop("checks")
         result: Any = None
         if checks:
             for check in checks:
-                result: dict[str, Any] = check.status.dict()
-                if check.status == users_constants.UserStatus.UNIQUE:
+                unique_status = check.unique_status
+                result: dict[str, Any] = {
+                    "value": check.unique_status.slug,
+                    "label": f"{check.unique_status.title} {check.unique_status.subtitle or ''}".strip(),
+                }
+                if unique_status.slug == users_constants.UserStatus.UNIQUE:
                     break
         values["status"]: dict[str, Any] = result
         return values

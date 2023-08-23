@@ -1,3 +1,5 @@
+from typing import Optional
+
 from ..entities import BaseCityModel
 
 
@@ -8,6 +10,7 @@ class CityModel(BaseCityModel):
     id: int
     name: str
     slug: str
+    phone: Optional[str]
 
 
 class CityPortalModel(BaseCityModel):
@@ -17,3 +20,4 @@ class CityPortalModel(BaseCityModel):
     id: str
     name: str
     slug: str
+    phone: Optional[str]

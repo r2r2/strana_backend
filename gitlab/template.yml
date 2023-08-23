@@ -22,17 +22,7 @@
   - ssh-keyscan -p22 -t rsa 172.16.120.5 >> /root/.ssh/known_hosts
   - chmod 644 ~/.ssh/known_hosts
 
-.before_script_configure_ssh_production_yandex:
-  - '[[ ! -d /root/.ssh ]] && mkdir /root/.ssh && chmod 700 /root/.ssh'
-  - '[[ -f /.dockerenv ]] && echo -e "Host *\\n\\tStrictHostKeyChecking no\\n\\n" > ~/.ssh/config'
-  - 'which ssh-agent || ( apk --update add openssh-client )'
-  - echo "$SSH_PRIVATE_KEY_FRONT_PROD" | tr -d '\r' > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
-  - eval "$(ssh-agent -s)"
-  - ssh-add /root/.ssh/id_rsa
-  - ssh-keyscan -p22 -t rsa 51.250.40.140 >> /root/.ssh/known_hosts
-  - chmod 644 ~/.ssh/known_hosts
-
-.before_script_configure_ssh_production_sber:
+.before_script_configure_ssh_production:
   - '[[ ! -d /root/.ssh ]] && mkdir /root/.ssh && chmod 700 /root/.ssh'
   - '[[ -f /.dockerenv ]] && echo -e "Host *\\n\\tStrictHostKeyChecking no\\n\\n" > ~/.ssh/config'
   - 'which ssh-agent || ( apk --update add openssh-client )'

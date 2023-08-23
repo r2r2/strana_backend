@@ -151,9 +151,9 @@ class MediaField(CharField):
                     src=value,
                     s3=f's3://{aws_config["storage_bucket_name"]}/{value}',
                     aws=f'{aws_config["custom_domain"]}/{aws_config["storage_bucket_name"]}/{value}',
-                    proxy=ImageProxy(
-                        s3_source=f's3://{aws_config["storage_bucket_name"]}/{value}'
-                    ).svg_to_png(),
+                    # proxy=ImageProxy(
+                    #     s3_source=f's3://{aws_config["storage_bucket_name"]}/{value}'
+                    # ).svg_to_png(),
                 )
             )
         return value

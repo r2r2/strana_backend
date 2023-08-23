@@ -151,3 +151,15 @@ class BookingPurchaseHelpTextNotFound(BaseBookingException):
 
 class BookingIdWasNotFoundError(BookingWebhookFatalError):
     message = "Ошибка вебхука; id не найдено"
+
+
+class BookingReservationMatrixNotFoundError(BaseBookingException):
+    message = "Матрица бронирования не найдена"
+    status = HTTPStatus.NOT_FOUND
+    reason = "booking_reservation_matrix_not_found"
+
+
+class BookingHasNoCorrectFixationTaskError(BaseBookingException):
+    message = "Бронирование не имеет корректной задачи для продления фиксации клиента"
+    status = HTTPStatus.NOT_FOUND
+    reason = "booking_has_no_correct_fixation_task"

@@ -38,6 +38,7 @@ class CheckBookingService(BaseBookingService):
         amocrm_status_repo: Type[AmocrmStatusRepo],
         email_class: Type[EmailService],
         update_task_instance_status_service: Any,
+        booking_notification_sms_task: Any,
         get_email_template_service: GetEmailTemplateService,
         orm_class: Optional[BookingORM] = None,
         check_booking_task: Optional[Any] = None,
@@ -57,6 +58,7 @@ class CheckBookingService(BaseBookingService):
         self.profitbase_class: Type[BookingProfitBase] = profitbase_class
         self.create_booking_log_task: Union[Any, None] = create_booking_log_task
         self.update_task_instance_status_service = update_task_instance_status_service
+        self.booking_notification_sms_task: Any = booking_notification_sms_task
 
         self.login: str = backend_config["internal_login"]
         self.password: str = backend_config["internal_password"]
@@ -130,6 +132,7 @@ class CheckBookingService(BaseBookingService):
                 await self.booking_deactivate(booking=booking, data=data)
                 await self.property_repo.update(booking.property, data=property_data)
                 await self._backend_unbooking(booking)
+                self.booking_notification_sms_task.delay(booking.id)
                 result: bool = False
                 await self.update_task_instance_status(
                         booking_id=booking.id, status_slug=PaidBookingSlug.RE_BOOKING.value

@@ -1,14 +1,4 @@
 from django.db import models
-from django.utils.translation import gettext_lazy as _
-
-
-class PinningStatusType(models.TextChoices):
-    """
-    Статус закрепления
-    """
-    PINNED: str = "pinned", _("Закреплен")
-    NOT_PINNED: str = "not_pinned", _("Не закреплен")
-    PARTIALLY_PINNED: str = "partially_pinned", _("Частично закреплен")
 
 
 class PinningStatusCity(models.Model):
@@ -89,30 +79,22 @@ class PinningStatus(models.Model):
         null=False,
         help_text="Чем меньше приоритет тем раньше проверяется условие",
     )
-    result: str = models.CharField(
+    unique_status: models.ForeignKey = models.ForeignKey(
         verbose_name="Статус закрепления",
-        choices=PinningStatusType.choices,
-        max_length=36,
-        null=False,
+        to="disputes.UniqueStatus",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
         help_text="Определяет статус закрепления конкретной сделки, соответствующий описанным выше условиям. "
                   "Проверяется при каждом изменении статуса сделки (и при ее создании). "
                   "Если хотя бы одна сделка клиента получает статус “Закреплен” (или аналогичный ему) - "
                   "проверка прекращается, в противном случае проверяются все сделки клиента",
     )
-    assigned_to_agent: bool = models.BooleanField(
-        verbose_name="Закреплен за проверяющим агентом",
-        default=False,
-    )
-    assigned_to_another_agent: bool = models.BooleanField(
-        verbose_name="Закреплен за другим агентом проверяющего агентства",
-        default=False,
-    )
-    unique_status: models.ForeignKey = models.ForeignKey(
-        verbose_name="Уникальный статус",
-        to="disputes.UniqueStatus",
-        on_delete=models.CASCADE,
+    comment = models.TextField(
+        verbose_name="Комментарий",
         null=True,
         blank=True,
+        help_text="Внутренний комментарий по назначению статуса",
     )
 
     def _cities(self):

@@ -5,7 +5,7 @@ Booking repo
 from collections import OrderedDict
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Optional, Union, Any
+from typing import Optional, Union, Any, Iterable
 from uuid import UUID, uuid4
 
 from common import cfields, orm
@@ -21,6 +21,8 @@ from tortoise import Model, fields
 from tortoise.queryset import QuerySet
 from tortoise.fields import (ForeignKeyNullableRelation,
                              OneToOneNullableRelation)
+from tortoise.backends.base.client import BaseDBAsyncClient
+from tortoise.queryset import QuerySet
 
 from ..constants import (BookingCreatedSources, BookingStages,
                          BookingSubstages, OnlinePurchaseStatuses,
@@ -54,6 +56,7 @@ class Booking(Model):
         description="Создано", auto_now_add=True, null=True
     )
     expires: Optional[datetime] = fields.DatetimeField(description="Истекает", null=True)
+    fixation_expires: Optional[datetime] = fields.DatetimeField(description="Фиксация истекает", null=True)
     should_be_deactivated_by_timer: bool = fields.BooleanField(
         description="Бронирование должно быть деактивировано по таймеру", default=False
     )
@@ -103,6 +106,12 @@ class Booking(Model):
     )
     final_payment_amount: Optional[Decimal] = fields.DecimalField(
         description="Итоговая стоимость платежа", decimal_places=2, max_digits=15, null=True
+    )
+    final_discount: Optional[Decimal] = fields.DecimalField(
+        description="Общий размер скидки", decimal_places=2, max_digits=15, null=True
+    )
+    final_additional_options: Optional[Decimal] = fields.DecimalField(
+        description="Общая стоимость доп. опций", decimal_places=2, max_digits=15, null=True
     )
     payment_url: Optional[str] = fields.CharField(
         description="Ссылка на оплату платежа", max_length=350, null=True
@@ -235,12 +244,19 @@ class Booking(Model):
     scanned_passports_data: list[ScannedPassportData] = fields.JSONField(
         description="Отсканированные данные паспортов", null=True
     )
-    created_source: bool = cfields.CharChoiceField(
+    created_source: str = cfields.CharChoiceField(
         description="Источник создания онлайн-бронирования",
         null=True,
         max_length=100,
         choice_class=BookingCreatedSources
     )
+    condition_chosen: bool = fields.BooleanField(
+        description='На стадии "Выбор условий"', default=False
+    )
+    send_notify: bool = fields.BooleanField(
+        description="Отправить уведомление", default=True
+    )
+    extension_number: int = fields.IntField(description="Оставшиеся количество попыток продления", null=True)
 
     task_instances: fields.ReverseRelation["TaskInstance"]
     property_id: Optional[int]
@@ -272,6 +288,12 @@ class Booking(Model):
 
     def is_agency_assigned(self) -> bool:
         return True if self.agency_id else False
+
+    def is_condition_chosen(self) -> bool:
+        """
+        Сделка находится на шаге "Выбор условий"
+        """
+        return self.condition_chosen
 
     def current_step(self) -> int:
         """
@@ -342,6 +364,21 @@ class Booking(Model):
     def time_valid(self) -> bool:
         return self.expires > datetime.now(tz=UTC)
 
+    async def save(
+        self,
+        using_db: Optional[BaseDBAsyncClient] = None,
+        update_fields: Optional[Iterable[str]] = None,
+        force_create: bool = False,
+        force_update: bool = False,
+    ) -> None:
+        if not force_create and (not self.expires or not self.payment_id):
+            booking: Booking = await BookingRepo().retrieve(filters=dict(id=self.id))
+            if not self.expires and booking.expires:
+                self.expires = booking.expires
+            if not self.payment_id and booking.payment_id:
+                self.payment_id = booking.payment_id
+        await super().save(using_db, update_fields, force_create, force_update)
+
     class Meta:
         table = "booking_booking"
 
@@ -357,6 +394,7 @@ class Booking(Model):
             "property",
             "amocrm_stage",
             "booking_logs",
+            "booking_tags",
             "payment_status",
             "amocrm_substage",
             "payment_page_view",

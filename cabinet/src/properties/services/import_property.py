@@ -21,7 +21,7 @@ from src.cities.repos import City, CityRepo, Metro, MetroRepo, MetroLineRepo, Me
 from src.properties.constants import PropertyStatuses
 from .import_building_booking_types import ImportBuildingBookingTypesService
 from ..entities import BasePropertyService
-from ..repos import Property, PropertyRepo
+from ..repos import Property, PropertyRepo, PropertyTypeRepo
 from ..types import PropertyBuildingRepo, PropertyFloorRepo, PropertyORM, PropertyProjectRepo
 
 
@@ -61,6 +61,7 @@ class ImportPropertyService(BasePropertyService):
         orm_config: Optional[dict[str, Any]] = None,
         import_building_booking_types_service: Optional[ImportBuildingBookingTypesService] = None,
         backend_special_offers_repo: Optional[Type[BackendSpecialOfferRepo]] = None,
+        property_type_repo: Optional[Type[PropertyTypeRepo]] = None,
         city_repo: Type[CityRepo] = CityRepo,
     ) -> None:
         self.floor_repo: PropertyFloorRepo = floor_repo()
@@ -86,6 +87,12 @@ class ImportPropertyService(BasePropertyService):
             self.backend_special_offers_repo: BackendSpecialOfferRepo = backend_special_offers_repo()
         else:
             self.backend_special_offers_repo = None
+
+        # if property_type_repo:
+        #     self.property_type_repo: PropertyTypeRepo = property_type_repo()
+        # else:
+        #     self.property_type_repo = None
+        self.property_type_repo: PropertyTypeRepo = PropertyTypeRepo()
 
         self.global_id_encoder: Callable[[str, str], str] = global_id_encoder
         self.global_id_decoder: Callable[[str], list[str]] = global_id_decoder
@@ -129,28 +136,35 @@ class ImportPropertyService(BasePropertyService):
         metro_line: MetroLine = await self.metro_line_repo.update_or_create(
             filters=dict(city__slug=city.slug),
             data=dict(
-                name=backend_city.metro_line.name,
-                color=backend_city.metro_line.color,
+                color=backend_metro_line.color,
                 city_id=city.id,
             )
         )
 
-        metro: Metro = await self.metro_repo.update_or_create(
-            filters=dict(name=backend_metro.name, line__name=backend_metro_line.name),
-            data=dict(
-                latitude=backend_metro.latitude,
-                longitude=backend_metro.longitude,
-                line_id=metro_line.id,
+        metro: Optional[Metro] = None
+        if backend_metro:
+            metro: Metro = await self.metro_repo.update_or_create(
+                filters=dict(
+                    name=backend_metro.name,
+                    line__name=backend_metro_line.name,
+                    line__city__id=city.id,
+                ),
+                data=dict(
+                    latitude=backend_metro.latitude,
+                    longitude=backend_metro.longitude,
+                    line_id=metro_line.id,
+                )
             )
-        )
 
-        transport: Transport = await self.transport_repo.update_or_create(
-            filters=dict(name=backend_transport.name),
-            data=dict(
-                icon=backend_transport.icon,
-                icon_content=backend_transport.icon_content,
+        transport: Optional[Transport] = None
+        if backend_transport:
+            transport: Transport = await self.transport_repo.update_or_create(
+                filters=dict(name=backend_transport.name),
+                data=dict(
+                    icon=backend_transport.icon,
+                    icon_content=backend_transport.icon_content,
+                )
             )
-        )
 
         project_global_id_type = self.related_types_mapping["project"][0]
         project_global_id_value = getattr(backend_project, self.related_types_mapping["project"][1], None)
@@ -165,8 +179,8 @@ class ImportPropertyService(BasePropertyService):
             amo_pipeline_id=backend_project.amo_pipeline_id,
             amo_responsible_user_id=backend_project.amo_responsible_user_id,
             city_id=city.id,
-            metro_id=metro.id,
-            transport_id=transport.id,
+            metro_id=metro.id if metro else None,
+            transport_id=transport.id if transport else None,
 
             is_active=backend_project.active,
             status=backend_project.status,
@@ -177,9 +191,9 @@ class ImportPropertyService(BasePropertyService):
             card_image=backend_project.card_image,
             card_image_night=backend_project.card_image_night,
             card_sky_color=backend_project.card_sky_color.value,
-            min_flat_price=float(backend_project.min_flat_price),
-            min_flat_area=float(backend_project.min_flat_area),
-            max_flat_area=float(backend_project.max_flat_area),
+            min_flat_price=float(backend_project.min_flat_price) if backend_project.min_flat_price else None,
+            min_flat_area=float(backend_project.min_flat_area) if backend_project.min_flat_area else None,
+            max_flat_area=float(backend_project.max_flat_area) if backend_project.max_flat_area else None,
         )
         # Создаём/обновляем проект
         project = await self.project_repo.update_or_create(filters=dict(global_id=project_global_id), data=project_data)
@@ -248,8 +262,23 @@ class ImportPropertyService(BasePropertyService):
         floor_data = dict(number=backend_floor.number, building=building, section=building_section)
         floor = await self.floor_repo.update_or_create(filters=dict(global_id=floor_global_id), data=floor_data)
 
+        # Привязываем модель типа объекта недвижимости из базы ЛК к объекту
+        if not self.property_type_repo:
+            property_type = None
+        else:
+            property_type = await self.property_type_repo.retrieve(filters=dict(slug=backend_property.type))
+            if not property_type:
+                # Импортируем новый тип недвижимости (только слаг, название ставим временное,
+                # помечаем как неактивный для дальнейшего заполнения в админке)
+                property_type_data: dict = dict(
+                    slug=backend_property.type,
+                    label=backend_property.type,
+                    is_active=False,
+                )
+                property_type = await self.property_type_repo.create(data=property_type_data)
+
         # Создаём/обновляем квартиру
-        property_global_id_type = self.property_types_mapping[backend_property.type]
+        property_global_id_type = self.property_types_mapping.get(backend_property.type)
         property_global_id_value = str(backend_property.id)
         property_global_id = self.global_id_encoder(
             property_global_id_type, property_global_id_value
@@ -259,7 +288,7 @@ class ImportPropertyService(BasePropertyService):
         if self.backend_special_offers_repo:
             similar_property = await self._get_similar_property_from_backend(backend_property)
             if similar_property:
-                similar_property_global_id_type = self.property_types_mapping[similar_property.type]
+                similar_property_global_id_type = self.property_types_mapping.get(similar_property.type)
                 similar_property_global_id_value = str(similar_property.id)
                 similar_property_global_id = self.global_id_encoder(
                     similar_property_global_id_type, similar_property_global_id_value
@@ -272,7 +301,7 @@ class ImportPropertyService(BasePropertyService):
             similar_property_global_id = None
             special_offers = None
         property_data = dict(
-            global_id=property_global_id,
+            # global_id=property_global_id,
             article=backend_property.article,
             plan=backend_property.plan,
             plan_png=backend_property.plan_png,
@@ -293,6 +322,7 @@ class ImportPropertyService(BasePropertyService):
             special_offers=special_offers,
             total_floors=backend_property.section.total_floors,
             section_id=building_section.id,
+            property_type_id=property_type.id if property_type else None,
         )
         property = await self.property_repo.update(property, data=property_data)
         return status, property

@@ -37,7 +37,6 @@ class TaskInstance(BaseTaskManagementModel):
         blank=True,
     )
 
-
     def __str__(self) -> str:
         return str(self.id)
 

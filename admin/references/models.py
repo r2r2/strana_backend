@@ -57,8 +57,8 @@ class Menu(models.Model):
     """
     Меню
     """
-    name: str = models.CharField(verbose_name="Название пункта меню", null=False, max_length=15)
-    link: str = models.CharField(verbose_name="Ссылка пункта меню", null=False, max_length=50)
+    name: str = models.CharField(verbose_name="Название пункта меню", null=False, max_length=50)
+    link: str = models.CharField(verbose_name="Ссылка пункта меню", null=False, max_length=100)
     priority: int = models.IntegerField(verbose_name="Приоритет", null=False)
     cities = models.ManyToManyField(
         verbose_name="Города",
@@ -68,7 +68,7 @@ class Menu(models.Model):
         through_fields=("menu_city", "city"),
         related_name="cities"
     )
-    icon = models.FileField(verbose_name="Иконка", null=True)
+    icon = models.FileField(verbose_name="Иконка", null=True, blank=True)
     roles = models.ManyToManyField(
         verbose_name="Роли",
         blank=True,
@@ -77,7 +77,7 @@ class Menu(models.Model):
         through_fields=("menu_role", "role"),
         related_name="roles"
     )
-    hide_mobile: bool = models.BooleanField(verbose_name="Скрывать на мобильной версии", default=False)
+    hide_desktop: bool = models.BooleanField(verbose_name="Скрыть на десктопе", default=False)
 
     def __str__(self) -> str:
         return self.name
@@ -92,7 +92,7 @@ class Menu(models.Model):
         managed = False
         db_table = "menus_menu"
         verbose_name = "Меню"
-        verbose_name_plural = "14.2. [Общее] Меню"
+        verbose_name_plural = "13.2. [Общее] Меню"
         ordering = ["priority"]
 
 
@@ -102,6 +102,7 @@ class Cities(models.Model):
     """
     name = models.CharField(verbose_name="Название", max_length=150)
     slug = models.CharField(max_length=100)
+    phone = models.CharField(max_length=20, null=True, blank=True)
     menus_city = models.ManyToManyField(
         verbose_name="Меню",
         blank=True,
@@ -129,4 +130,4 @@ class Cities(models.Model):
         managed = False
         db_table = "cities_city"
         verbose_name = "Город"
-        verbose_name_plural = "14.1. [Общее] Города"
+        verbose_name_plural = "13.1. [Общее] Города"

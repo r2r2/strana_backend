@@ -26,6 +26,16 @@ class TaskChain(BaseTaskManagementModel):
         through='TaskChainTaskVisibilityStatusThrough',
         through_fields=('task_chain_visibility', 'status_visibility'),
     )
+    task_fields: models.ManyToManyField = models.ManyToManyField(
+        to='task_management.TaskField',
+        verbose_name='Поля задания',
+        related_name='taskchains',
+        help_text='Поля задания',
+        through='TaskChainTaskFieldsThrough',
+        through_fields=('task_chain_field', 'task_field'),
+        blank=True,
+        null=True,
+    )
 
     def __str__(self) -> str:
         return self.name
@@ -91,3 +101,31 @@ class TaskChainTaskVisibilityStatusThrough(models.Model):
         db_table = 'taskchain_taskvisibility_status_through'
         verbose_name = 'Связь между цепочкой заданий и статусами сделок, в которых задание будет видно'
         verbose_name_plural = 'Связи между цепочками заданий и статусами сделок, в которых задание будет видно'
+
+
+class TaskChainTaskFieldsThrough(models.Model):
+    """
+    Связь между цепочкой заданий и полями заданий
+    """
+    task_chain_field: models.ForeignKey = models.ForeignKey(
+        to='task_management.TaskChain',
+        on_delete=models.CASCADE,
+        related_name='task_chain_field',
+        verbose_name='Цепочка заданий',
+    )
+    task_field: models.ForeignKey = models.ForeignKey(
+        to='task_management.TaskField',
+        on_delete=models.CASCADE,
+        related_name='task_field',
+        verbose_name='Поле задания',
+        null=True,
+    )
+
+    def __str__(self) -> str:
+        return f'{self.task_chain_field.name} - {self.task_field.name}'
+
+    class Meta:
+        managed = False
+        db_table = 'taskchain_taskfields_through'
+        verbose_name = 'Связь между цепочкой заданий и полями заданий'
+        verbose_name_plural = 'Связи между цепочками заданий и полями заданий'

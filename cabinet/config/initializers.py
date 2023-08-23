@@ -15,9 +15,15 @@ def initialize_application() -> FastAPI:
 def initialize_sentry(application: FastAPI) -> FastAPI:
     from config import sentry_config
     from config import application_config
+    from common.sentry import utils
 
     if not application_config["debug"]:
-        sentry_init(dsn=sentry_config["dsn"])
+        sentry_init(
+            dsn=sentry_config["dsn"],
+            send_default_pii=sentry_config["send_default_pii"],
+            before_send=utils.before_send,
+            # max_value_length=sentry_config["max_value_length"],
+        )
         application: FastAPI = SentryAsgiMiddleware(application)
     return application
 

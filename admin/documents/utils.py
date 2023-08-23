@@ -23,8 +23,8 @@ def additional_agency_email_notify(notify_data):
 
 def create_additional_agreements(additionaL_data_id):
     additionaL_data = AgencyAdditionalAgreementCreatingData.objects.get(id=additionaL_data_id)
-    agencies = additionaL_data.agencies.select_related("city")
-    projects = additionaL_data.projects.select_related("city")
+    agencies = additionaL_data.agencies.all()
+    projects = additionaL_data.projects.all()
 
     additional_agreements_ids = []
     superuser_additional_notify_agency_email_data = []

@@ -19,4 +19,4 @@ class FakeUserPhone(models.Model):
         managed = False
         db_table = "users_test_user_phones"
         verbose_name = "Тестовый телефон пользователя"
-        verbose_name_plural = "2.6. [Справочник] Телефоны тестовых пользователей (для отправки заглушки SMS)"
+        verbose_name_plural = " 2.6. [Справочник] Телефоны тестовых пользователей (для отправки заглушки SMS)"

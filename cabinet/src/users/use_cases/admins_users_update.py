@@ -12,7 +12,7 @@ from ..exceptions import (UserNoAgencyError,
                           UserNoAgentError, UserNotFoundError)
 from ..loggers.wrappers import user_changes_logger
 from ..models import RequestAdminsUsersUpdateModel
-from ..repos import CheckRepo, User, UserRepo
+from ..repos import User, UserRepo
 from ..types import (UserAgency, UserAgencyRepo, UserAgentRepo, UserBooking,
                      UserBookingRepo)
 from src.agents.types import AgentEmail
@@ -37,7 +37,6 @@ class AdminsUsersUpdateCase(BaseUserCase):
     def __init__(
         self,
         user_repo: Type[UserRepo],
-        check_repo: Type[CheckRepo],
         agent_repo: Type[UserAgentRepo],
         agency_repo: Type[UserAgencyRepo],
         booking_repo: Type[UserBookingRepo],
@@ -49,7 +48,6 @@ class AdminsUsersUpdateCase(BaseUserCase):
         self.user_update = user_changes_logger(
             self.user_repo.update, self, content="Изменение пользователя администратором"
         )
-        self.check_repo: CheckRepo = check_repo()
         self.agent_repo: UserAgentRepo = agent_repo()
         self.agency_repo: UserAgencyRepo = agency_repo()
         self.booking_repo: UserBookingRepo = booking_repo()
