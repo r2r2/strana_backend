@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import Field
 
-from ..entities import BaseBookingModel, BaseBookingCamelCaseBaseModel
+from ..entities import BaseBookingModel, BaseBookingCamelCaseModel
 
 
 class RequestBookingPaymentConditionsModel(BaseBookingModel):
@@ -12,7 +12,7 @@ class RequestBookingPaymentConditionsModel(BaseBookingModel):
     booking_type_id: int = Field(alias="bookingType")
 
 
-class ResponseBookingPaymentConditionsModel(BaseBookingCamelCaseBaseModel):
+class ResponseBookingPaymentConditionsCamelCaseModel(BaseBookingCamelCaseModel):
     """
     Модель ответа выбора условий оплаты
     """

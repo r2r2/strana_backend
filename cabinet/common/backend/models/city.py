@@ -8,7 +8,7 @@ class BackendCity(Model):
     active: bool = fields.BooleanField()
     color: str = fields.TextField(default="#FFFFFF", description="Цвет")
 
-    metro_line: fields.ForeignKeyRelation["BackendMetroLine"]
+    metro_line: fields.ReverseRelation["BackendMetroLine"]
 
     class Meta:
         app = "backend"
@@ -23,7 +23,7 @@ class BackendMetroLine(Model):
         "backend.BackendCity", null=True, on_delete=fields.CASCADE, related_name="metro_line"
     )
 
-    metro: fields.ForeignKeyRelation["BackendMetro"]
+    metro: fields.ReverseRelation["BackendMetro"]
 
     class Meta:
         app = "backend"

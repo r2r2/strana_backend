@@ -5,15 +5,19 @@ from asyncio import Task
 from datetime import datetime
 from typing import Any, Literal, Optional, Type, TypedDict, cast
 
+from fastapi import UploadFile
+from pydantic import BaseModel
+from pytz import UTC
+
 from common.amocrm import AmoCRM
 from common.amocrm.types import AmoContact, AmoLead, DDUData
 from common.files.files import FileContainer
 from common.utils import size_to_byte
-from fastapi import UploadFile
-from pydantic import BaseModel
-from pytz import UTC
 from src.booking.loggers.wrappers import booking_changes_logger
-
+from src.booking.repos import (DDU, Booking, BookingRepo, DDUParticipant,
+                               DDUParticipantRepo, DDURepo, BookingSource)
+from src.booking.utils import get_booking_source
+from src.notifications.services import GetSmsTemplateService
 from ..constants import (DDU_ALLOWED_FILE_EXTENSIONS, BookingCreatedSources,
                          BookingSubstages, DDUFileType, DDUParticipantFileType,
                          MaritalStatus, OnlinePurchaseStatuses,
@@ -23,8 +27,6 @@ from ..entities import BaseBookingCase
 from ..exceptions import (BookingBadRequestError, BookingNotFoundError,
                           BookingWrongStepError)
 from ..models import DDUParticipantCreateModel, RequestDDUCreateModel
-from ..repos import (DDU, Booking, BookingRepo, DDUParticipant,
-                     DDUParticipantRepo, DDURepo)
 from ..services import (DDUDataFromParticipantsService, HistoryService,
                         NotificationService)
 from ..services.generate_online_purchase_id import \
@@ -32,7 +34,6 @@ from ..services.generate_online_purchase_id import \
 from ..types import (BookingEmail, BookingFileProcessor, BookingSms,
                      ScannedPassportData)
 from ..validations import DDUUploadFileValidator
-from src.notifications.services import GetSmsTemplateService
 
 
 class DDUFiles(TypedDict):
@@ -166,13 +167,15 @@ class DDUCreateCase(BaseBookingCase):
             amocrm_contact=amocrm_contact,
         )
         ddu_upload_url_secret = await self._generate_ddu_upload_url_secret()
+        booking_source: BookingSource = await get_booking_source(slug=BookingCreatedSources.LK)
 
         booking_data = dict(
             ddu=ddu,
             ddu_created=True,
             ddu_upload_url_secret=ddu_upload_url_secret,
             online_purchase_status=OnlinePurchaseStatuses.DOCS_SENT,
-            created_source=BookingCreatedSources.LK,
+            created_source=BookingCreatedSources.LK,  # todo: deprecated
+            booking_source=booking_source,
         )
         # Повторно не изменяем ID онлайн-покупки, если он был сгенерирован ранее
         # (например, вручную откатили стадию сделки в админке)
@@ -198,7 +201,7 @@ class DDUCreateCase(BaseBookingCase):
 
         return await self.booking_repo.retrieve(
             filters=filters,
-            related_fields=["project", "project__city", "property", "floor", "building", "ddu"],
+            related_fields=["booking_source", "project__city", "property", "floor", "building", "ddu"],
             prefetch_fields=["ddu__participants"],
         )
 

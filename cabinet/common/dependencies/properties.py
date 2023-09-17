@@ -9,6 +9,7 @@ from src.floors.repos import FloorRepo
 from src.projects.repos import ProjectRepo
 from src.properties.repos import PropertyRepo
 from src.cities.repos import CityRepo
+from src.properties import repos as properties_repos
 from src.properties.services import ImportPropertyService
 from common.backend import repos as backend_repos
 
@@ -22,7 +23,7 @@ class PropertiesFromGlobalId:
     ):
         self.properties_repo = properties_repo()
         if not import_property_service:
-            # should be loaded from di-container but now its creating an instance if dep is not provided
+            # should be loaded from di-container but now it`s creating an instance if dep is not provided
             import_property_service = ImportPropertyService(
                 floor_repo=FloorRepo,
                 global_id_decoder=utils.from_global_id,
@@ -37,6 +38,7 @@ class PropertiesFromGlobalId:
                 backend_floors_repo=backend_repos.BackendFloorsRepo,
                 backend_sections_repo=backend_repos.BackendSectionsRepo,
                 backend_special_offers_repo=backend_repos.BackendSpecialOfferRepo,
+                feature_repo=properties_repos.FeatureRepo,
             )
         self.import_property_service: ImportPropertyService = import_property_service
 
@@ -51,12 +53,12 @@ class PropertiesFromGlobalId:
 
     async def _create_or_update_backend_property(self, global_id) -> int:
         """
-        Cоздаем или обновляем объект по данным из БД портала
+        Создаём или обновляем объект по данным из БД портала
         """
         data = dict(global_id=global_id)
-        property = await self.properties_repo.retrieve(filters=data)
-        if not property:
-            property = await self.properties_repo.create(data)
+        _property = await self.properties_repo.retrieve(filters=data)
+        if not _property:
+            _property = await self.properties_repo.create(data)
 
-        await self.import_property_service(property=property)
-        return property.id
+        await self.import_property_service(property=_property)
+        return _property.id

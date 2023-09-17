@@ -1,14 +1,17 @@
 # pylint: disable=arguments-differ
-from typing import Type, Any
+from typing import Any, Type
 
 from common.email import EmailService
-from src.booking.repos import Booking, BookingRepo
+from common.unleash.unleash_client import UnleashAdapter
+from config.feature_flags import FeatureFlags
 from src.admins.repos import AdminRepo
 from src.agents.types import AgentEmail
+from src.booking.repos import Booking, BookingRepo
 from src.cities.repos import City
-from src.users.repos import Check, User
 from src.notifications.services import GetEmailTemplateService
-from ..entities import BaseUserService
+from src.users import constants
+from src.users.entities import BaseUserService
+from src.users.repos import Check, CheckTerm, CheckTermRepo, User, UserRoleRepo
 
 
 class SendCheckAdminsEmailService(BaseUserService):
@@ -22,13 +25,23 @@ class SendCheckAdminsEmailService(BaseUserService):
         booking_repo: Type[BookingRepo],
         email_class: Type[AgentEmail],
         get_email_template_service: GetEmailTemplateService,
+        check_term_repo: Type[CheckTermRepo] = CheckTermRepo,
+        user_role_repo: Type[UserRoleRepo] = UserRoleRepo,
     ):
         self.admin_repo = admin_repo()
         self.booking_repo: BookingRepo = booking_repo()
         self.email_class: Type[AgentEmail] = email_class
         self.get_email_template_service: GetEmailTemplateService = get_email_template_service
+        self.check_term_repo = check_term_repo()
+        self.user_role_repo = user_role_repo()
 
-    async def __call__(self, *, check: Check, mail_event_slug: str, data: dict[str, Any]):
+    async def __call__(
+            self,
+            *,
+            check: Check,
+            mail_event_slug: str,
+            data: dict[str, Any],
+    ):
         recipients: list[str] = await self._get_recipients(check)
 
         email_notification_template = await self.get_email_template_service(
@@ -49,8 +62,9 @@ class SendCheckAdminsEmailService(BaseUserService):
 
     async def _get_recipients(self, check: Check) -> list[str]:
         """
-        Получаем список получателей письма администраторов
-        По умолчанию получатели - администраторы, которые привязаны к городу клиента
+        Получаем список получателей письма администраторов и РОПов.
+        По умолчанию получатели - администраторы, которые привязаны к городу клиента и
+        РОПы при нужном статусе.
         Получаем город клиента из сделки, по которой прошла проверка.
         """
         if not check.amocrm_id:
@@ -67,9 +81,38 @@ class SendCheckAdminsEmailService(BaseUserService):
             return []
 
         admins: list[User] = await self.admin_repo.list(
-            filters=dict(receive_admin_emails=True, users_cities__in=[client_city]),
+            filters=dict(
+                role=await self.user_role_repo.retrieve(filters=dict(slug=constants.UserType.ADMIN)),
+                receive_admin_emails=True,
+                users_cities__in=[client_city],
+            ),
         )
+        unleash_client = UnleashAdapter()
+        is_strana_lk_2257_enable = unleash_client.is_enabled(FeatureFlags.strana_lk_2257)
+
+        if is_strana_lk_2257_enable:
+            if await self.is_need_send_to_rop(check):
+                rop_role = await self.user_role_repo.retrieve(filters=dict(slug=constants.UserType.ROP))
+                admins += await self.admin_repo.list(
+                    filters=dict(
+                        role=rop_role,
+                        receive_admin_emails=True,
+                        users_cities__in=[client_city],
+                    ),
+                )
 
         recipients: list[str] = [admin.email for admin in admins if admin.email]
 
         return recipients
+
+    async def is_need_send_to_rop(self, check):
+        filters = dict(uid=check.term_uid)
+        check_term: CheckTerm = await self.check_term_repo.retrieve(
+            filters=filters,
+            ordering='priority',
+            related_fields=['unique_status'],
+        )
+        if check_term.priority in list(constants.CheckTermPriorityForSendToROP):
+            return True
+
+        return False

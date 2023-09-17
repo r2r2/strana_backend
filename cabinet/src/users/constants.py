@@ -7,12 +7,12 @@ class UserType(mixins.Choices):
     """
     Тип пользователя
     """
-
     ADMIN: str = "admin", "Админ"
     AGENT: str = "agent", "Агент"
     CLIENT: str = "client", "Клиент"
     REPRES: str = "repres", "Представитель"
     MANAGER: str = "manager", "Менеджер"
+    ROP: str = "rop", "Руководитель отдела продаж"
 
 
 class DutyType(mixins.Choices):
@@ -106,7 +106,28 @@ class OriginType(mixins.Choices):
     """
     Источник создания пользователя
     """
-    AMOCRM: str = "amocrm", "Импорт из АМО",
-    LK_BROKER: str = "lk_broker", "ЛК Брокера"
-    LK_CLIENT: str = "lk_client", "ЛК Клиента"
-    PORTAL: str = "portal", "Портал"
+    AMOCRM: str = "amocrm", "Импорт из АМО CRM",
+    SMS: str = "sms", "Авторизация через СМС"
+    AGENT_ASSIGN: str = "agent_assign", "Закрепление агентом"
+
+
+class UniqueStatusButtonSlug(str, Enum):
+    """
+    Слаг кнопки статуса уникальности
+    """
+    WANT_DISPUTE: str = "want_dispute"  # Хочу оспорить
+    WANT_WORK: str = "want_work"  # Хочу работать с клиентом
+
+
+DEFAULT_LIMIT = 20  # todo: refactor this
+
+
+class CheckTermPriorityForSendToROP(int, Enum):
+    """
+    Условия проверки оспаривания для отправки писем РОПам
+    """
+    CONDITION_1_1_2_1: int = 200  # Незавершенные до статуса Бронь Без агента
+    CONDITION_1_1_4_2_1_1: int = 700  # Закрыты и не реализованы Без агента Менее 15 дней в статусе Не проходила через
+    # статус Фиксация за АН
+    CONDITION_2_2_2: int = 1000  # КЦ Остальные незавершенные до брони
+

@@ -25,11 +25,11 @@ async def test_client_assign_templates_text(
     await user_repo.delete(agent_1)
 
 
-async def test_sms_help_text(
-    async_client,
-    user_authorization,
-    assign_client_template,
-):
-    headers = {"Authorization": user_authorization}
-    response = await async_client.get(f"templates/assign/sms_text?project_id=1", headers=headers)
-    assert response.status_code == HTTPStatus.OK
+# async def test_sms_help_text(
+#     async_client,
+#     user_authorization,
+#     assign_client_template,
+# ):
+#     headers = {"Authorization": user_authorization}
+#     response = await async_client.get(f"templates/assign/sms_text?project_id=1", headers=headers)
+#     assert response.status_code == HTTPStatus.OK

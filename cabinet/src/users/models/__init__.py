@@ -25,7 +25,7 @@ from .agents_users_list import (RequestAgentsUsersListModel,
                                 ResponseAgentsUsersListModel)
 from .agents_users_lookup import (RequestAgentsUsersLookupModel,
                                   ResponseAgentsUsersLookupModel,
-                                  ResponseAgentsUsersPhoneLookupModel,
+                                  ResponseUserLookupModel,
                                   )
 from .agents_users_specs import (RequestAgentsUsersSpecsModel,
                                  ResponseAgentsUsersSpecsModel)

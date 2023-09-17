@@ -16,7 +16,6 @@ class BookingFixingConditionsMatrix(models.Model):
         to="properties.Project",
         related_name="condition_projects",
         verbose_name="Проекты",
-        null=True,
         blank=True,
         through="BookingFixingConditionsMatrixProjects",
     )
@@ -39,7 +38,7 @@ class BookingFixingConditionsMatrix(models.Model):
         managed = False
         db_table = "booking_fixing_conditions_matrix"
         verbose_name = "Матрица условий закрепления"
-        verbose_name_plural = "1.8. [Справочник] Матрица условий закрепления"
+        verbose_name_plural = " 1.8. [Справочник] Матрица условий закрепления"
 
 
 class BookingFixingConditionsMatrixProjects(models.Model):

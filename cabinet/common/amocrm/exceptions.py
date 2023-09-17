@@ -35,3 +35,9 @@ class AmoForbiddenError(BaseAmocrmException):
     message: str = "Ошибка доступа АМО-ЦРМ"
     status: int = status.HTTP_403_FORBIDDEN
     reason: str = "forbidden_amo_error"
+
+
+class AmoTryAgainLaterError(BaseAmocrmException):
+    message: str = "Попробуйте позже"
+    status: int = status.HTTP_400_BAD_REQUEST
+    reason: str = "try_again_later"

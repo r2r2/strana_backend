@@ -22,7 +22,7 @@ class MainPageOffer(Model, TimeBasedMixin):
 
     class Meta:
         table = "main_page_offer"
-        ordering = ["-priority"]
+        ordering = ["priority"]
 
 
 class MainPageOfferRepo(BaseRepo, ListMixin):

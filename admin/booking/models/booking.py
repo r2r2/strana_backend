@@ -7,8 +7,18 @@ from pytz import UTC
 
 
 class Booking(models.Model):
+    __original_until = None
     __original_expires = None
     __original_payment_id = None
+    __original_payment_amount = None
+    __original_payment_url = None
+    __original_payment_order_number = None
+    __original_final_payment_amount = None
+    __original_property = None
+    __original_price_payed = False
+    __original_contract_accepted = False
+    __original_personal_filled = False
+    __original_params_checked = False
 
     class CreatedSourceChoices(models.TextChoices):
         AMOCRM = "amocrm", _("AMOCRM")
@@ -96,13 +106,35 @@ class Booking(models.Model):
     ddu_upload_url_secret = models.CharField(max_length=60, blank=True, null=True)
     signing_date = models.DateField(null=True, blank=True)
     created_source = models.CharField(choices=CreatedSourceChoices.choices, default=None, null=True,
-                                      max_length=100, blank=True)
+                                      max_length=100, blank=True, help_text="Deprecated")
+    booking_source = models.ForeignKey(
+        to="BookingSource",
+        on_delete=models.CASCADE,
+        blank=True, null=True,
+        related_name="bookings",
+        verbose_name="Источник бронирования"
+    )
     amocrm_status_id = models.IntegerField(null=True, blank=True)
     amocrm_status_name = models.CharField(null=True, blank=True, max_length=200)
     extension_number = models.IntegerField(
         verbose_name="Оставшиеся количество попыток продления",
         null=True,
         blank=True,
+    )
+    payment_method = models.ForeignKey(
+        "booking.PaymentMethod",
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="booking_payment_method",
+        verbose_name="Способ оплаты",
+        help_text="Способ оплаты",
+    )
+    price = models.ForeignKey(
+        "properties.PropertyPrice",
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="booking_price",
+        verbose_name="Цена",
     )
 
     def __str__(self) -> str:
@@ -128,17 +160,67 @@ class Booking(models.Model):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.__original_until = self.until
         self.__original_expires = self.expires
         self.__original_payment_id = self.payment_id
+        self.__original_payment_amount = self.payment_amount
+        self.__original_payment_url = self.payment_url
+        self.__original_payment_order_number = self.payment_order_number
+        self.__original_final_payment_amount = self.final_payment_amount
+        self.__original_property = self.property
+        self.__original_fixation_expires = self.fixation_expires
+        self.__original_extension_number = self.extension_number
+        self.__original_project = self.project
+        self.__original_contract_accepted = self.contract_accepted
+        self.__original_personal_filled = self.personal_filled
+        self.__original_params_checked = self.params_checked
+        self.__original_price_payed = self.price_payed
 
     def save(self, *args, **kwargs):
+        if self.__original_until and not self.until:
+            self.until = self.__original_until
         if self.__original_expires and not self.expires:
             self.expires = self.__original_expires
         if self.__original_payment_id and not self.payment_id:
             self.payment_id = self.__original_payment_id
+        if self.__original_payment_amount and not self.payment_amount:
+            self.payment_amount = self.__original_payment_amount
+        if self.__original_payment_url and not self.payment_url:
+            self.payment_url = self.__original_payment_url
+        if self.__original_payment_order_number and not self.payment_order_number:
+            self.payment_order_number = self.__original_payment_order_number
+        if self.__original_final_payment_amount and not self.final_payment_amount:
+            self.final_payment_amount = self.__original_final_payment_amount
+        if self.__original_property and not self.property:
+            self.property = self.__original_property
+        if self.__original_fixation_expires and not self.fixation_expires:
+            self.fixation_expires = self.__original_fixation_expires
+        if self.__original_extension_number and not self.extension_number:
+            self.extension_number = self.__original_extension_number
+        if self.__original_project and not self.project:
+            self.project = self.__original_project
+        if self.__original_contract_accepted and not self.contract_accepted:
+            self.contract_accepted = self.__original_contract_accepted
+        if self.__original_personal_filled and not self.personal_filled:
+            self.personal_filled = self.__original_personal_filled
+        if self.__original_params_checked and not self.params_checked:
+            self.params_checked = self.__original_params_checked
+        if self.__original_price_payed and not self.price_payed:
+            self.price_payed = self.__original_price_payed
+
         super().save()
+        self.__original_until = self.until
         self.__original_expires = self.expires
         self.__original_payment_id = self.payment_id
+        self.__original_payment_amount = self.payment_amount
+        self.__original_payment_url = self.payment_url
+        self.__original_payment_order_number = self.payment_order_number
+        self.__original_final_payment_amount = self.final_payment_amount
+        self.__original_property = self.property
+        self.__original_contract_accepted = self.contract_accepted
+        self.__original_personal_filled = self.personal_filled
+        self.__original_params_checked = self.params_checked
+        self.__original_price_payed = self.price_payed
 
     errors.short_description = "Есть ошибки"
     errors.boolean = True
@@ -153,5 +235,5 @@ class Booking(models.Model):
         managed = False
         db_table = "booking_booking"
         verbose_name = "Бронирование"
-        verbose_name_plural = "1.1. Бронирования (сделки)"
+        verbose_name_plural = " 1.1. Бронирования (сделки)"
         ordering = ['-id']

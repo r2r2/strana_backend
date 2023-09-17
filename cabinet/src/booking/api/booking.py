@@ -1,10 +1,17 @@
 # pylint: skip-file
-from http import HTTPStatus
 from typing import Any, Literal, Optional, cast
 from urllib.parse import parse_qs, unquote
 
-from common import (amocrm, dependencies, email, files, messages, profitbase,
-                    requests, sberbank, security, utils)
+from http import HTTPStatus
+from fastapi import (
+    APIRouter, status, BackgroundTasks, Body, Depends, File, Form, Header, Path, Query, Request, UploadFile
+)
+from fastapi.responses import RedirectResponse, StreamingResponse
+from pydantic import Json, conint
+from starlette.requests import ClientDisconnect
+from tortoise import Tortoise
+
+from common import amocrm, dependencies, email, files, messages, profitbase, requests, sberbank, security, utils
 from common.amocrm import repos as amocrm_repos
 from common.amocrm.decorators import handle_amocrm_webhook_errors
 from common.backend import repos as backend_repos
@@ -12,13 +19,15 @@ from common.bazis import Bazis
 from common.kontur_talk.kontur_talk import KonturTalkAPI
 from common.types import IAsyncFile
 from common.settings.repos import BookingSettingsRepo
-from config import (amocrm_config, backend_config, booking_config,
-                    sberbank_config, session_config, site_config,
-                    tortoise_config)
-from fastapi import (APIRouter, BackgroundTasks, Body, Depends, File, Form,
-                     Header, Path, Query, Request, UploadFile)
-from fastapi.responses import RedirectResponse, StreamingResponse
-from pydantic import Json, conint
+from config import (
+    amocrm_config,
+    backend_config,
+    booking_config,
+    sberbank_config,
+    session_config,
+    site_config,
+    tortoise_config
+)
 from src.agents.repos import AgentRepo
 from src.amocrm import repos as src_amocrm_repos
 from src.booking import models
@@ -26,6 +35,7 @@ from src.booking import repos as booking_repos
 from src.booking import services as booking_services
 from src.booking import tasks, use_cases
 from src.booking import validations as booking_validators
+from src.documents import repos as documents_repos
 from src.buildings import repos as buildings_repos
 from src.cities import repos as cities_repos
 from src.floors import repos as floors_repos
@@ -38,38 +48,113 @@ from src.notifications import tasks as notification_tasks
 from src.projects import repos as projects_repos
 from src.properties import repos as properties_repos
 from src.properties import services as property_services
-from src.properties.services import CheckProfitbasePropertyService
+from src.properties.services import CheckProfitbasePropertyService, ImportPropertyService
 from src.task_management import repos as task_management_repos
 from src.task_management import services as task_management_services
 from src.task_management import use_cases as task_management_use_cases
+from src.task_management import factories as task_management_factories
 from src.events import repos as event_repo
 from src.users import constants as users_constants
 from src.users import repos as users_repos
 from src.users import services as users_services
 from src.task_management.tasks import update_task_instance_status_task
 from src.notifications.tasks import booking_fixation_notification_email_task
-from starlette.requests import ClientDisconnect
-from tortoise import Tortoise
 
 from ..maintenance import amocrm_webhook_maintenance
 from ..tasks import create_booking_log_task
+from ..utils import get_booking_reserv_time
+
 
 router = APIRouter(prefix="/booking", tags=["Booking"])
 
 
-@router.get("/types", status_code=HTTPStatus.OK,
-            response_model=list[models.BookingBuildingTypeDetailResponse])
-async def booking_type_list_view(building_id: int = Query(..., alias="building")):
+@router.post("/create_booking", status_code=status.HTTP_201_CREATED)
+async def create_booking_view(
+        payload: models.RequestCreateBookingModel = Body(...),
+        user_id: Optional[int] = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.CLIENT)),
+):
+    """
+    Создание сделки
+    """
+    import_property_service: ImportPropertyService = ImportPropertyService(
+        floor_repo=floors_repos.FloorRepo,
+        global_id_decoder=utils.from_global_id,
+        global_id_encoder=utils.to_global_id,
+        project_repo=projects_repos.ProjectRepo,
+        building_repo=buildings_repos.BuildingRepo,
+        feature_repo=properties_repos.FeatureRepo,
+        property_repo=properties_repos.PropertyRepo,
+        building_booking_type_repo=buildings_repos.BuildingBookingTypeRepo,
+        backend_building_booking_type_repo=backend_repos.BackendBuildingBookingTypesRepo,
+        backend_properties_repo=backend_repos.BackendPropertiesRepo,
+        backend_floors_repo=backend_repos.BackendFloorsRepo,
+        backend_sections_repo=backend_repos.BackendSectionsRepo,
+    )
+
+    create_task_instance_service = task_management_factories.CreateTaskInstanceServiceFactory.create()
+
+    resources: dict = dict(
+        property_repo=properties_repos.PropertyRepo,
+        property_type_repo=properties_repos.PropertyTypeRepo,
+        booking_type_repo=buildings_repos.BuildingBookingTypeRepo,
+        booking_repo=booking_repos.BookingRepo,
+        user_repo=users_repos.UserRepo,
+        import_property_service=import_property_service,
+        get_booking_reserv_time=get_booking_reserv_time,
+        amocrm_class=amocrm.AmoCRM,
+        profit_base_class=profitbase.ProfitBase,
+        global_id_encoder=utils.from_global_id,
+        create_task_instance_service=create_task_instance_service,
+    )
+    create_booking: use_cases.CreateBookingCase = use_cases.CreateBookingCase(**resources)
+    return await create_booking(user_id=user_id, payload=payload)
+
+
+@router.get("/documents/{booking_id}", status_code=status.HTTP_200_OK)
+async def get_booking_documents_view(
+        booking_id: int,
+        user_id: Optional[int] = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.CLIENT))
+):
+    """
+    Получение договора оферты для сделки
+    """
+    resources: dict = dict(
+        booking_repo=booking_repos.BookingRepo,
+        document_repo=documents_repos.DocumentRepo,
+    )
+    get_document: use_cases.GetBookingDocumentCase = use_cases.GetBookingDocumentCase(**resources)
+    return await get_document(booking_id=booking_id, user_id=user_id)
+
+
+@router.patch("/rebooking/{booking_id}", status_code=status.HTTP_200_OK)
+async def rebooking_view(
+    booking_id: int,
+    user_id: int | None = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.CLIENT)),
+):
+    """
+    Повторное бронирование
+    """
+    resources: dict = dict(
+        booking_repo=booking_repos.BookingRepo,
+        get_booking_reserv_time=get_booking_reserv_time,
+        amocrm_class=amocrm.AmoCRM,
+        profit_base_class=profitbase.ProfitBase,
+        global_id_encoder=utils.from_global_id,
+    )
+    rebooking: use_cases.RebookingCase = use_cases.RebookingCase(**resources)
+    return await rebooking(user_id=user_id, booking_id=booking_id)
+
+
+@router.get("/types", status_code=HTTPStatus.OK, response_model=list[models.BookingBuildingTypeDetailResponse])
+async def booking_type_list_view(booking_id: int = Query(..., alias="bookingId")):
     """
     Список типов условий оплаты
     """
-    resources: dict[str, Any] = dict(
-        building_repo=buildings_repos.BuildingRepo,
-        building_booking_type_repo=buildings_repos.BuildingBookingTypeRepo,
-    )
+    resources: dict = dict(booking_repo=booking_repos.BookingRepo)
     building_booking_type_list: use_cases.BookingBuildingTypeListCase = use_cases.BookingBuildingTypeListCase(
-        **resources)
-    return await building_booking_type_list(building_id=building_id)
+        **resources
+    )
+    return await building_booking_type_list(booking_id=booking_id)
 
 
 @router.post(
@@ -129,6 +214,7 @@ async def booking_repeat_view(
         building_booking_type_repo=buildings_repos.BuildingBookingTypeRepo,
         property_repo=properties_repos.PropertyRepo,
         request_class=requests.UpdateSqlRequest,
+        booking_notification_sms_task=notification_tasks.booking_notification_sms_task,
     )
     activate_booking_class: booking_services.activate_booking = booking_services.ActivateBookingService(**resources)
     resources: dict[str, Any] = dict(
@@ -236,6 +322,7 @@ async def sberbank_status_view(
         global_id_decoder=utils.from_global_id,
         global_id_encoder=utils.to_global_id,
         project_repo=projects_repos.ProjectRepo,
+        feature_repo=properties_repos.FeatureRepo,
         city_repo=cities_repos.CityRepo,
         building_repo=buildings_repos.BuildingRepo,
         property_repo=properties_repos.PropertyRepo,
@@ -502,6 +589,7 @@ async def amocrm_webhook_fast_booking_view(request: Request):
         global_id_decoder=utils.from_global_id,
         global_id_encoder=utils.to_global_id,
         project_repo=projects_repos.ProjectRepo,
+        feature_repo=properties_repos.FeatureRepo,
         city_repo=cities_repos.CityRepo,
         building_repo=buildings_repos.BuildingRepo,
         property_repo=properties_repos.PropertyRepo,
@@ -607,6 +695,7 @@ async def amocrm_webhook_notify_view(request: Request):
         global_id_decoder=utils.from_global_id,
         global_id_encoder=utils.to_global_id,
         project_repo=projects_repos.ProjectRepo,
+        feature_repo=properties_repos.FeatureRepo,
         city_repo=cities_repos.CityRepo,
         building_repo=buildings_repos.BuildingRepo,
         property_repo=properties_repos.PropertyRepo,
@@ -696,8 +785,6 @@ async def amocrm_webhook_view(request: Request, background_tasks: BackgroundTask
     except ClientDisconnect:
         payload: bytes = bytes()
         secret: str = "wrong_secret"
-    print("*" * 1000)
-    print(payload)
     # todo: remove all commented code during refactoring
     # import_property_service: property_services.ImportPropertyService = property_services.ImportPropertyService(
     #     floor_repo=floors_repos.FloorRepo,
@@ -827,7 +914,35 @@ async def amocrm_webhook_view(request: Request, background_tasks: BackgroundTask
     )
     import_meeting_service: ImportMeetingFromAmoService = ImportMeetingFromAmoService(
         meeting_repo=MeetingRepo,
+        meeting_status_repo=meeting_repos.MeetingStatusRepo,
+        calendar_event_repo=event_repo.CalendarEventRepo,
+        booking_repo=booking_repos.BookingRepo,
         amocrm_class=amocrm.AmoCRM,
+        amocrm_status_repo=src_amocrm_repos.AmocrmStatusRepo,
+        project_repo=projects_repos.ProjectRepo,
+    )
+    import_property_service: property_services.ImportPropertyService = property_services.ImportPropertyService(
+        floor_repo=floors_repos.FloorRepo,
+        global_id_decoder=utils.from_global_id,
+        global_id_encoder=utils.to_global_id,
+        project_repo=projects_repos.ProjectRepo,
+        feature_repo=properties_repos.FeatureRepo,
+        city_repo=cities_repos.CityRepo,
+        building_repo=buildings_repos.BuildingRepo,
+        property_repo=properties_repos.PropertyRepo,
+        building_booking_type_repo=buildings_repos.BuildingBookingTypeRepo,
+        backend_building_booking_type_repo=backend_repos.BackendBuildingBookingTypesRepo,
+        backend_floors_repo=backend_repos.BackendFloorsRepo,
+        backend_sections_repo=backend_repos.BackendSectionsRepo,
+        backend_properties_repo=backend_repos.BackendPropertiesRepo,
+    )
+    booking_creation_service: booking_services.BookingCreationFromAmoService = booking_services.BookingCreationFromAmoService(
+        amocrm_class=amocrm.AmoCRM,
+        booking_repo=booking_repos.BookingRepo,
+        project_repo=projects_repos.ProjectRepo,
+        property_repo=properties_repos.PropertyRepo,
+        global_id_encoder=utils.to_global_id,
+        import_property_service=import_property_service,
     )
     resources: dict[str, Any] = dict(
         amocrm_class=amocrm.AmoCRM,
@@ -855,6 +970,7 @@ async def amocrm_webhook_view(request: Request, background_tasks: BackgroundTask
         get_email_template_service=get_email_template_service,
         import_contact_service=import_contact_service,
         import_meeting_service=import_meeting_service,
+        booking_creation_service=booking_creation_service,
     )
     amocrm_webhook: use_cases.AmoCRMWebhookCase = use_cases.AmoCRMWebhookCase(**resources)
     await amocrm_webhook(secret=secret, payload=payload)
@@ -916,6 +1032,7 @@ async def booking_list_view(
     resources: dict[str, Any] = dict(
         booking_repo=booking_repos.BookingRepo,
         booking_tag_repo=booking_repos.BookingTagRepo,
+        amocrm_group_status_repo=src_amocrm_repos.AmocrmGroupStatusRepo,
     )
     booking_list: use_cases.BookingListCase = use_cases.BookingListCase(**resources)
     return await booking_list(
@@ -981,6 +1098,7 @@ async def booking_retrieve_view(
         session_config=session_config,
         booking_repo=booking_repos.BookingRepo,
         booking_tag_repo=booking_repos.BookingTagRepo,
+        amocrm_group_status_repo=src_amocrm_repos.AmocrmGroupStatusRepo,
     )
     booking_retrieve: use_cases.BookingRetrieveCase = use_cases.BookingRetrieveCase(**resources)
     return await booking_retrieve(booking_id=booking_id, user_id=user_id)
@@ -1474,7 +1592,8 @@ def superuser_bookings_fill_data_view(
 @router.patch(
     "/payment_conditions/{bookingId}",
     status_code=HTTPStatus.OK,
-    response_model=models.ResponseBookingPaymentConditionsModel
+    response_model=models.ResponseBookingPaymentConditionsCamelCaseModel,
+    dependencies=[Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.CLIENT))]
 )
 async def booking_payment_conditions_view(
     booking_id: int = Path(..., alias="bookingId"),

@@ -38,6 +38,16 @@ class BookingTag(Model):
         forward_key="group_status_id",
     )
 
+    client_group_statuses: fields.ManyToManyRelation["ClientAmocrmGroupStatus"] = fields.ManyToManyField(
+        description="Теги сделок для клиентов",
+        model_name="models.ClientAmocrmGroupStatus",
+        related_name="booking_tags",
+        on_delete=fields.SET_NULL,
+        through="booking_tags_client_group_status_through",
+        backward_key="tag_id",
+        forward_key="client_group_status_id",
+    )
+
     def __str__(self):
         return self.label
 
@@ -70,3 +80,22 @@ class BookingTagsGroupStatusThrough(Model):
 
     class Meta:
         table = "booking_tags_group_status_through"
+
+
+class BookingTagsClientGroupStatusThrough(Model):
+    id: int = fields.IntField(description="ID", pk=True)
+    client_group_status: fields.ForeignKeyRelation["ClientAmocrmGroupStatus"] = fields.ForeignKeyField(
+        model_name="models.ClientAmocrmGroupStatus",
+        related_name="booking_tag_through",
+        description="Статус",
+        on_delete=fields.CASCADE,
+    )
+    tag: fields.ForeignKeyRelation[BookingTag] = fields.ForeignKeyField(
+        model_name="models.BookingTag",
+        related_name="client_group_status_through",
+        description="Тег",
+        on_delete=fields.CASCADE,
+    )
+
+    class Meta:
+        table = "booking_tags_client_group_status_through"

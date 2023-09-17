@@ -21,7 +21,7 @@ from src.booking.loggers.wrappers import booking_changes_logger
 from src.booking.constants import BookingCreatedSources
 from src.buildings.repos import Building, BuildingRepo
 from src.floors.repos import FloorRepo
-from src.projects.repos import ProjectRepo
+from src.projects.repos import ProjectRepo, Project
 from src.properties.constants import PremiseType, PropertyTypes
 from src.properties.repos import Property, PropertyRepo
 from src.properties.services import ImportPropertyService
@@ -32,8 +32,9 @@ from src.task_management.constants import FixationExtensionSlug, BOOKING_UPDATE_
 from ..constants import BookingStagesMapping, BookingSubstages
 from ..entities import BaseBookingService
 from ..mixins import BookingLogMixin
-from ..repos import Booking, BookingRepo
+from src.booking.repos import Booking, BookingRepo, BookingSource
 from ..types import BookingGraphQLRequest, BookingORM
+from src.booking.utils import get_booking_source
 
 
 class LeadStatuses(int, Enum):
@@ -217,6 +218,7 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
             related_fields=["group_status"],
         )
         if (
+            booking and
             amocrm_cabinet_status.group_status
             and amocrm_cabinet_status.group_status.name not in BOOKING_UPDATE_FIXATION_STATUSES
         ):
@@ -238,10 +240,12 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
         lead_booking_price: Optional[str] = None
         lead_booking_final_price: Optional[str] = None
         lead_booking_price_with_sale: Optional[str] = None
+        lead_project_enum: Optional[int] = None
         lead_created: int = lead.created_at
         if not lead.custom_fields_values:
             self.logger.error("Booking fatal error")
             return
+
         for custom_field in lead.custom_fields_values:
             custom_field: AmoCustomField
             if custom_field.field_id == amocrm.property_field_id:
@@ -272,9 +276,11 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
                 lead_booking_final_price = custom_field.values[0].value
             if custom_field.field_id == amocrm.property_price_with_sale_field_id:
                 lead_booking_price_with_sale = custom_field.values[0].value
-            if custom_field.field_id == amocrm.booking_until_datetime_field_id:
+            if custom_field.field_id == amocrm.booking_expires_datetime_field_id:
                 lead_expires_amo_timestamp = custom_field.values[0].value
                 lead_expires: datetime = datetime.fromtimestamp(lead_expires_amo_timestamp, tz=UTC)
+            if custom_field.field_id == amocrm.project_field_id:
+                lead_project_enum: int = custom_field.values[0].enum_id
 
         property_type: str = property_type or property_str_type
         if property_id and property_type:
@@ -300,6 +306,10 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
             datetime.fromtimestamp(int(lead_until)) if lead_until else booking.until if booking else None
         )
 
+        project = None
+        if lead_project_enum:
+            project: Optional[Project] = await self.project_repo.retrieve(filters=dict(amocrm_enum=lead_project_enum))
+
         stages_valid: bool = self._is_stage_valid(amocrm_substage=amocrm_substage)
         if not stages_valid:
             booking_active = False
@@ -309,7 +319,7 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
         data: dict[str, Any] = dict(
             user=user,
             floor=booking_property.floor if booking_property else None,
-            project=booking_property.project if booking_property else None,
+            project=project,
             building=booking_property.building if booking_property else None,
             property=booking_property,
             until=booking_until,
@@ -345,9 +355,11 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
         if booking:
             await self.booking_repo.update(model=booking, data=data)
         else:
+            booking_source: BookingSource = await get_booking_source(slug=BookingCreatedSources.AMOCRM)
             data.update(
                 amocrm_id=lead.id,
-                created_source=BookingCreatedSources.AMOCRM,
+                created_source=BookingCreatedSources.AMOCRM,  # todo: deprecated
+                booking_source=booking_source,
             )
             booking: Booking = await self.booking_repo.create(data=data)
             self.check_booking_task.apply_async((booking.id,), eta=booking.expires)

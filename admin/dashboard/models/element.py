@@ -62,7 +62,7 @@ class ElementCityThrough(models.Model):
     """
     Связь элемента и города
     """
-    element: models.ForeignKey = models.ForeignKey(
+    element: models.ForeignKey = models.OneToOneField(
         to='dashboard.Element',
         verbose_name='Элемент',
         related_name='element_city_through',

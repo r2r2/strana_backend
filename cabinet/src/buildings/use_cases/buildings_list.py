@@ -1,4 +1,4 @@
-from tortoise.query_utils import Q
+from tortoise.expressions import Q
 from tortoise.queryset import QuerySet
 
 from common.backend.repos import BackendPropertiesRepo

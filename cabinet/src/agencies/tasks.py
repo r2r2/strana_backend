@@ -79,7 +79,7 @@ def create_agency_log_task(log_data: dict[str, Any]) -> None:
     Создание лога агентства
     """
     resources: dict[str, Any] = dict(
-        orm_class=Tortoise, orm_config=tortoise_config, booking_repo=agencies_repos.AgencyLogRepo
+        orm_class=Tortoise, orm_config=tortoise_config, agency_log_repo=agencies_repos.AgencyLogRepo
     )
     create_log: loggers.CreateAgencyLogger = loggers.CreateAgencyLogger(**resources)
     loop: Any = get_event_loop()

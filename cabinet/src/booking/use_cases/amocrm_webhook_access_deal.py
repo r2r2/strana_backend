@@ -75,7 +75,7 @@ class AmoCRMWebhookAccessDealCase(BaseBookingCase, BookingLogMixin):
             filters=dict(amocrm_id=booking_amocrm_id), related_fields=["user"]
         )
         if booking is None:
-            logger.warning('Booking does mot found', amocrm_id=booking_amocrm_id)
+            logger.warning('Booking not found', amocrm_id=booking_amocrm_id)
             raise BookingNotFoundError
 
         previous_online_purchase_step = booking.online_purchase_step()

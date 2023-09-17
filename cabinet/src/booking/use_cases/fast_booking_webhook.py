@@ -15,7 +15,7 @@ from src.users.constants import UserType
 from src.users.repos.user import User, UserRepo
 from src.booking.loggers.wrappers import booking_changes_logger
 from src.amocrm.repos import AmocrmStatus, AmocrmStatusRepo
-from src.booking.utils import get_booking_reserv_time
+from src.booking.utils import get_booking_reserv_time, get_booking_source
 
 from ...users.services import CreateContactService
 from ..constants import BookingCreatedSources, BookingStagesMapping
@@ -23,7 +23,7 @@ from ..entities import BaseBookingCase
 from ..exceptions import BookingRequestValidationError
 from ..maintenance.amocrm_leed_note import amocrm_note
 from ..mixins import BookingLogMixin
-from ..repos import Booking, BookingRepo
+from src.booking.repos import Booking, BookingRepo, BookingSource
 from ..types import (BookingAmoCRM, BookingEmail, BookingPropertyRepo,
                      BookingSms, BookingSqlUpdateRequest,
                      BookingTypeNamedTuple, CustomFieldValue)
@@ -278,8 +278,9 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
         )
 
         created_source = BookingCreatedSources.FAST_BOOKING
+        booking_source: BookingSource = await get_booking_source(slug=BookingCreatedSources.FAST_BOOKING)
         booking_reserv_time: float = await get_booking_reserv_time(
-            created_source=created_source,
+            created_source=booking_source.slug,
             booking_property=booking_property,
         )
         expires = datetime.now(tz=UTC) + timedelta(hours=booking_reserv_time)
@@ -304,7 +305,8 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
             expires=expires,
             should_be_deactivated_by_timer=should_be_deactivated_by_timer,
             profitbase_booked=True,
-            created_source=created_source,
+            created_source=created_source,  # todo: deprecated
+            booking_source=booking_source,
             active=True,
         )
 

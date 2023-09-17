@@ -22,7 +22,7 @@ class Project(Model):
     city: ForeignKeyNullableRelation["City"] = fields.ForeignKeyField(
         "models.City", related_name="projects", null=True, on_delete=fields.SET_NULL,
     )
-    address: str = fields.CharField(description="Адрес", max_length=250)
+    address: str = fields.CharField(description="Адрес", max_length=250, null=True)
     metro: fields.ForeignKeyRelation["Metro"] = fields.ForeignKeyField(
         "models.Metro", on_delete=fields.SET_NULL, null=True
     )

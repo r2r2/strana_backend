@@ -1,5 +1,7 @@
 from typing import Any
+
 from pydantic import BaseModel
+from tortoise import Model
 
 from common.orm.entities import BaseRepo
 from common.pydantic import CamelCaseBaseModel
@@ -11,7 +13,13 @@ class BaseBookingModel(BaseModel):
     """
 
 
-class BaseBookingCamelCaseBaseModel(CamelCaseBaseModel):
+class BaseBookingDatabaseModel(Model):
+    """
+    Базовая модель бд бронирования
+    """
+
+
+class BaseBookingCamelCaseModel(CamelCaseBaseModel):
     """
     Базовая модель бронирования в camelCase
     """

@@ -1,6 +1,7 @@
 from asyncio import Task
 from http import HTTPStatus
 from typing import Any, Type
+from datetime import timedelta, datetime
 
 from common.amocrm import AmoCRM
 from common.email import EmailService
@@ -64,11 +65,12 @@ class UpdateMeetingCase(BaseMeetingCase):
             filters=dict(id=meeting_id),
             related_fields=[
                 "status",
-                "booking",
                 "project",
                 "project__city",
                 "city",
                 "calendar_event",
+                "booking",
+                "booking__user",
                 "booking__agent",
                 "booking__agency",
                 "booking__property",
@@ -112,11 +114,13 @@ class UpdateMeetingCase(BaseMeetingCase):
         await self.booking_repo.update(model=meeting.booking, data=booking_data)
 
         async with await self.amocrm_class() as amocrm:
+            amo_date: float = self.amo_date_formatter(update_meeting.date)
             lead_options: dict[str, Any] = dict(
                 lead_id=meeting.booking.amocrm_id,
                 status_id=amocrm_status.id,
-                meeting_date_sensei=update_meeting.date.timestamp(),
-                meeting_date_zoom=update_meeting.date.timestamp(),
+                meeting_date_sensei=amo_date,
+                meeting_date_zoom=amo_date,
+                meeting_date_next_contact=amo_date,
             )
             await amocrm.update_lead_v4(**lead_options)
 
@@ -131,19 +135,24 @@ class UpdateMeetingCase(BaseMeetingCase):
                 booking_id=update_meeting.booking_id,
                 status_slug=MeetingsSlug.RESCHEDULED.value,
             )
-        elif update_meeting.booking.agent:
-            await self.update_task_instance_status_service(
-                booking_id=update_meeting.booking_id,
-                status_slug=MeetingsSlug.CLIENT_RESCHEDULED.value,
-            )
             await self.send_email_to_broker(
                 meeting=update_meeting,
                 user=user,
             )
+        elif user.type == UserType.CLIENT:
+            await self.update_task_instance_status_service(
+                booking_id=update_meeting.booking_id,
+                status_slug=MeetingsSlug.CLIENT_RESCHEDULED.value,
+            )
+            if update_meeting.booking.agent:
+                await self.send_email_to_broker(
+                    meeting=update_meeting,
+                    user=user,
+                )
 
         await self.send_email_to_client(
             meeting=update_meeting,
-            user=user,
+            user=update_meeting.booking.user,
         )
 
         return update_meeting
@@ -203,3 +212,12 @@ class UpdateMeetingCase(BaseMeetingCase):
             email_service: EmailService = self.email_class(**email_options)
 
             return email_service.as_task()
+
+    def amo_date_formatter(self, date: datetime) -> float:
+        """
+        Форматирование datetime для Амо
+        """
+        # Амо почему-то накидывает +2 часа
+        amo_date_diff: datetime = date.replace(tzinfo=None) - timedelta(hours=2)
+        amo_date_timestamp: float = amo_date_diff.timestamp()
+        return amo_date_timestamp

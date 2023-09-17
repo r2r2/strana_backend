@@ -1,7 +1,7 @@
 from typing import Any
 
-from src.users.exceptions import UniqueStatusNotFoundError
-from src.users.repos import UniqueStatus, UniqueStatusRepo
+from src.users.exceptions import UniqueStatusNotFoundError, UniqueStatusButtonNotFoundError
+from src.users.repos import UniqueStatus, UniqueStatusRepo, UniqueStatusButton, UniqueStatusButtonRepo
 
 
 async def get_unique_status(slug: str) -> UniqueStatus:
@@ -22,3 +22,13 @@ async def get_list_unique_status(filters: dict[str, Any]) -> list[UniqueStatus]:
         filters=filters,
     )
     return stop_check_statuses
+
+
+async def get_unique_status_button(slug: str) -> UniqueStatusButton:
+    """
+    Получаем кнопку статуса закрепления по slug
+    """
+    button: UniqueStatusButton = await UniqueStatusButtonRepo().retrieve(filters=dict(slug=slug))
+    if not button:
+        raise UniqueStatusButtonNotFoundError
+    return button

@@ -2,12 +2,23 @@ from collections import Counter
 from typing import Any
 
 from admincharts.admin import AdminChartMixin
+from disputes.models import CheckHistory, AmoCrmCheckLog
 from django.contrib import admin
 from django.contrib.admin import register, SimpleListFilter
 from django.contrib.admin.views.main import ChangeList
 from django.db.models.query import QuerySet
 
-from disputes.models import CheckHistory
+
+class AmoCrmCheckLogInline(admin.StackedInline):
+    classes = ['collapse']
+    readonly_fields = (
+        "route",
+        "status",
+        "query",
+        "data"
+    )
+    model = AmoCrmCheckLog
+    extra = 0
 
 
 class UniqueStatusFilter(SimpleListFilter):
@@ -29,6 +40,7 @@ class UniqueStatusFilter(SimpleListFilter):
 class AdminCheckHistory(AdminChartMixin, admin.ModelAdmin):
     list_chart_type = "bar"  # вид статистики (bar, line)
     list_chart_options = {"aspectRatio": 5}
+    inlines = (AmoCrmCheckLogInline,)
     autocomplete_fields = (
         "agent",
         "agency",

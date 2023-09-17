@@ -1,67 +1,36 @@
 version: '3.7'
 
+x-app_environment: &app_environment
+  environment:
+    - DEBUG
+    - LK_POSTGRES_PORT
+    - LK_POSTGRES_USER
+    - LK_POSTGRES_HOST
+    - LK_POSTGRES_PASSWORD
+    - LK_POSTGRES_DATABASE=postgres
+    - LK_POSTGRES_DATABASE_TEST=cabinet_test
+    - POSTGRES_PORT_TEST
+    - POSTGRES_HOST_TEST
+    - POSTGRES_USER_TEST
+    - POSTGRES_PASSWORD_TEST
+    - PORTAL_POSTGRES_HOST
+    - PORTAL_POSTGRES_PORT
+    - PORTAL_POSTGRES_USER
+    - PORTAL_POSTGRES_DATABASE
+    - PORTAL_POSTGRES_PASSWORD
+    - LK_REDDIS_URL=redis://cabinet-redis-test:6379/0
+    - LK_RESULT_BACKEND=redis://cabinet-redis-test:6379/0
+    - LK_BROKER_URL=redis://cabinet-redis-test:6379/0
+    - LK_SENTRY_DSN
+    - LK_UNLEASH_URL
+    - LK_UNLEASH_INSTANCE_ID
 services:
-  nginx:
-    restart: "no"
-    environment:
-      - NGINX_MOD=development
-
-  backend:
-    build:
-      context: ./backend
-      cache_from: ["${DOCKER_REGISTRY}backend"]
-      args:
-        POETRY_PARAMS: "--no-dev"
-    entrypoint: sh wait-for db:5432 -- ./entrypoint.test.sh
-    restart: "no"
-    depends_on:
-      - db
-      - redis
-    environment:
-      - DEBUG=False
-      - POSTGRES_HOST=db
-      - POSTGRES_PORT=5432
-      - POSTGRES_NAME=postgres
-      - POSTGRES_USER=postgres
-
-  cabinet:
-    build:
-      context: ./cabinet
-      cache_from: ["${DOCKER_REGISTRY}cabinet"]
-      args:
-        POETRY_PARAMS: "--no-dev"
-    entrypoint: sh wait-for db_cabinet:5432 -- ./entrypoint.test.sh
-    restart: "no"
-    depends_on:
-      - db_cabinet
-      - redis
-    environment:
-      - LK_DEBUG=False
-      - LK_POSTGRES_HOST=db_cabinet
-      - LK_POSTGRES_PORT=5432
-      - LK_POSTGRES_NAME=postgres
-      - LK_POSTGRES_USER=postgres
-
-  db:
+  cabinet-pytest:
+    image: ${CI_REGISTRY_IMAGE}/cabinet:${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHA}
+    <<: *app_environment
+    entrypoint: "pytest"
     restart: "no"
 
-  db_cabinet:
-    restart: "no"
+  cabinet-redis-test:
+    image: redis:6.0-alpine
 
-  redis:
-    restart: "no"
-
-  celery:
-    restart: "no"
-
-  beat:
-    restart: "no"
-
-  tasks:
-    restart: "no"
-
-  amo_tasks:
-    restart: "no"
-
-  realy:
-    restart: "no"

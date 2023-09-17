@@ -51,7 +51,7 @@ class ProcessRegisterCase(BaseRepresCase):
         file_processor: Type[FileProcessor],
         create_contact_service: Union[Callable, PromiseProxy],
         create_organization_service: Union[Callable, PromiseProxy],
-        bind_contact_to_company: Union[Callable, PromiseProxy],
+        bind_contact_to_company_service: Any,
         get_email_template_service: GetEmailTemplateService,
         check_user_unique_service: UserCheckUniqueService,
         logger: Optional[Any] = structlog.getLogger(__name__),
@@ -86,7 +86,7 @@ class ProcessRegisterCase(BaseRepresCase):
         self.create_contact_service = create_contact_service
         self.create_organization_service = create_organization_service
         self.check_user_unique_service: UserCheckUniqueService = check_user_unique_service
-        self.bind_contact_to_company = bind_contact_to_company
+        self.bind_contact_to_company_service = bind_contact_to_company_service
         self.get_email_template_service: GetEmailTemplateService = get_email_template_service
         self.logger = logger
 
@@ -228,8 +228,8 @@ class ProcessRegisterCase(BaseRepresCase):
             f"AMO created, linking. Agency (id, amo_id): {agency.id}, {agency.amocrm_id}; "
             f"Repres (id, amo_id): {repres.id}, {repres.amocrm_id} "
         )
-        self.bind_contact_to_company.delay(
+        await self.bind_contact_to_company_service(
             agent_amocrm_id=repres.amocrm_id,
-            agency_amocrm_id=agency.amocrm_id
+            agency_amocrm_id=agency.amocrm_id,
         )
         self.logger.warning(f"AMO link started to create with Agency ({agency.amocrm_id}) and Repres ({repres.amocrm_id})")

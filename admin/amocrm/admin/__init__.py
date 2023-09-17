@@ -1,0 +1,1 @@
+from .amocrm_settings import AmoCRMSettingsAdmin

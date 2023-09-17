@@ -47,6 +47,7 @@ async def create_property_view(
         global_id_encoder=utils.to_global_id,
         project_repo=projects_repos.ProjectRepo,
         building_repo=buildings_repos.BuildingRepo,
+        feature_repo=properties_repos.FeatureRepo,
         property_repo=properties_repos.PropertyRepo,
         building_booking_type_repo=buildings_repos.BuildingBookingTypeRepo,
         backend_building_booking_type_repo=backend_repos.BackendBuildingBookingTypesRepo,
@@ -229,33 +230,3 @@ async def unbind_booking_property(
     )
     unbind_property: use_cases.UnbindBookingPropertyCase = use_cases.UnbindBookingPropertyCase(**resources)
     await unbind_property(payload=payload)
-
-
-@router.post("/viewed", status_code=status.HTTP_201_CREATED, response_model=list[models.ViewedPropertyResponse])
-async def add_viewed_properties_view(
-    viewed_global_ids: list[str],
-    user_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.CLIENT)),
-):
-    """
-    Добавление объектов недвижимости в просмотренное
-    """
-    resources: dict[str, Any] = dict(
-        property_repo=properties_repos.PropertyRepo,
-        viewed_property_repo=users_repos.UserViewedPropertyRepo,
-    )
-    add_viewed_properties: use_cases.AddViewedPropertiesCase = use_cases.AddViewedPropertiesCase(**resources)
-    return await add_viewed_properties(user_id=user_id, viewed_global_ids=viewed_global_ids)
-
-
-@router.get("/viewed", status_code=status.HTTP_200_OK)
-async def get_viewed_properties_list_view(
-    user_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.CLIENT)),
-):
-    """
-    Получение просмотренных объектов недвижимости
-    """
-    resources: dict[str, Any] = dict(
-        property_repo=properties_repos.PropertyRepo,
-    )
-    add_viewed_properties: use_cases.GetViewedPropertiesCase = use_cases.GetViewedPropertiesCase(**resources)
-    return await add_viewed_properties(user_id=user_id)

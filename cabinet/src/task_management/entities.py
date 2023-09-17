@@ -1,4 +1,5 @@
-from typing import Any
+from datetime import datetime
+from typing import Any, Optional
 from pydantic import BaseModel
 from tortoise import Model
 
@@ -56,3 +57,26 @@ class BaseTaskException(Exception):
     message: str
     status: int
     reason: str
+
+
+class TaskContextDTO:
+    __slots__ = ('status_slug', 'meeting_new_date')
+
+    class __TaskContextDTO(BaseModel):
+        status_slug: Optional[str]
+        meeting_new_date: Optional[datetime]
+
+    def __init__(self):
+        self.status_slug: Optional[str] = None
+        self.meeting_new_date: Optional[datetime] = None
+
+    def update(self, **kwargs) -> None:
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
+    def __setattr__(self, key, value):
+        self.__TaskContextDTO(**{key: value})
+        super().__setattr__(key, value)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {attr: getattr(self, attr) for attr in self.__slots__}

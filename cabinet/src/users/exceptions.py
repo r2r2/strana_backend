@@ -232,3 +232,9 @@ class WrongSuperuserAuthAsUserDataError(BaseUserException):
     message: str = "Неверные данные для авторизации суперюзера под пользователем"
     status: int = HTTPStatus.BAD_REQUEST
     reason: str = "wrong_superuser_auth_user_data"
+
+
+class UniqueStatusButtonNotFoundError(BaseUserException):
+    message: str = "Кнопка статуса не найдена. Заполни админку"
+    status: int = HTTPStatus.NOT_FOUND
+    reason: str = "unique_status_button_not_found"

@@ -9,12 +9,14 @@ from src.notifications import use_cases
 from src.projects import repos as project_repo
 from src.text_blocks import models as text_block_models
 from src.text_blocks import repos as text_block_repos
+from src.text_blocks.exceptions import TextBlockNotFoundError
 from src.text_blocks.services import TextBlockHandlerService
 from src.text_blocks.use_cases import TextBlockCase
 from src.users import services as users_services
 from src.users import repos as users_repos
 from src.users import use_cases as users_use_cases
-
+from src.main_page import repos as main_page_repos
+from src.main_page import use_cases as main_page_use_cases
 
 router = APIRouter(prefix="/templates", tags=["Templates"])
 
@@ -22,7 +24,7 @@ router = APIRouter(prefix="/templates", tags=["Templates"])
 @router.get(
     "/assign/sms_text",
     status_code=HTTPStatus.OK,
-    response_model=models.ResponseSMSText,
+    response_model=models.ResponseSMSText | None,
     dependencies=[Depends(dependencies.CurrentAnyTypeUserId())],
 )
 async def sms_help_text(
@@ -80,11 +82,24 @@ async def get_text_block(
         text_block_repo=text_block_repos.TextBlockRepo,
         handlers_service=handlers_service,
     )
+
     get_text_block_case: TextBlockCase = TextBlockCase(
         **resources
     )
-    return await get_text_block_case(
-        slug=slug,
-        user_id=user_id,
-        agent_id=agent_id,
+
+    main_page_text_resources: dict[str, Any] = dict(
+        main_page_text_repo=main_page_repos.MainPageTextRepo,
     )
+    main_page_text: main_page_use_cases.MainPageTextCase = main_page_use_cases.MainPageTextCase(
+        **main_page_text_resources
+    )
+
+    try:
+        return await get_text_block_case(
+            slug=slug,
+            user_id=user_id,
+            agent_id=agent_id,
+        )
+    except TextBlockNotFoundError:
+        return await main_page_text(slug=slug)
+

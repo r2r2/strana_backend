@@ -1,8 +1,12 @@
+import logging
 from typing import Any
+
 from fastapi import FastAPI
 from sentry_sdk import init as sentry_init
 from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
 from tortoise.contrib.starlette import register_tortoise
+
+from .feature_flags import FeatureFlags
 
 
 def initialize_application() -> FastAPI:
@@ -22,7 +26,7 @@ def initialize_sentry(application: FastAPI) -> FastAPI:
             dsn=sentry_config["dsn"],
             send_default_pii=sentry_config["send_default_pii"],
             before_send=utils.before_send,
-            # max_value_length=sentry_config["max_value_length"],
+            max_value_length=sentry_config["max_value_length"],
         )
         application: FastAPI = SentryAsgiMiddleware(application)
     return application
@@ -77,3 +81,12 @@ def initialize_logger() -> None:
     import structlog
     logging.config.dictConfig(LOGGER_CONFIG)
     structlog.configure(**STRUCTLOG_CONFIG)
+
+
+def initialize_unleash(application: FastAPI) -> None:
+    from common.unleash.unleash_client import UnleashAdapter
+
+    client = UnleashAdapter()
+    application.unleash = client
+    application.feature_flags = FeatureFlags
+    logging.getLogger('apscheduler.executors.default').propagate = False

@@ -1,5 +1,5 @@
 from tortoise import Model
-from tortoise.query_utils import Q
+from tortoise.expressions import Q
 from typing import Any, Optional, Type, Union
 
 

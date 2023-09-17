@@ -11,4 +11,5 @@ class MainPageManagerAdmin(admin.ModelAdmin):
     list_display = (
         "id",
         "manager",
+        "position",
     )

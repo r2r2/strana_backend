@@ -1,6 +1,6 @@
 from typing import Any, Optional, Type
 
-from tortoise.query_utils import Q
+from tortoise.expressions import Q
 
 from common.backend.repos import BackendPropertiesRepo
 from src.properties.repos import PropertyRepo

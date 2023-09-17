@@ -118,7 +118,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
     status_from_datetime_field_id: int = 828938
     #: Были ли на статусе Фиксация за АН
     assign_agency_status_field_id: int = 828940
-    booking_until_datetime_field_id: int = 643043
+    booking_expires_datetime_field_id: int = 643043
     booking_is_agency_deal_field_id: int = 814164  # Сделка с Агентством?
 
     # ID полей для встреч
@@ -131,7 +131,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
     meeting_property_type_field_id = 366965
     meeting_user_name_field_id = 676461
     meeting_type_next_contact_field_id = 694316
-    meeting_types_next_contact_map: dict[str, int] = {
+    meeting_types_next_contact_map: dict[str, dict] = {
         "Meet": {"enum_id": 1323738, "value": "Встреча"},
         "ZOOM": {"enum_id": 1325614, "value": "Назначить ZOOM КЦ"},
     }
@@ -238,8 +238,17 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         """
         Call Center statuses
         """
+        UNASSEMBLED: int = 37592454  # Неразобранное
         START: int = 37592457  # Первичный контракт
+        START_2: int = 55148413  # Первичный контракт 2
+        THINKING_ABOUT_PRICE: int = 51568512  # думает над ценой
+        SEEKING_MONEY: int = 51568509  # ищет деньги
+        CONTACT_AFTER_BOT: int = 60225745  # связаться после бота
+        SUCCESSFUL_BOT_CALL_TRANSFER: int = 57451585  # Успешный перевод звонка бота
+        REFUSE_MANGO_BOT: int = 59857493  # Отказ Mango бота
         REDIAL: int = 39338919  # Автодозвон
+        RESUSCITATED_CLIENT: int = 51568251  # Реанимированный клиент
+        SUBMIT_SELECTION: int = 51568125  # Отправить подборку
         ROBOT_CHECK: int = 39339075  # Проверка робота
         TRY_CONTACT: int = 37592460  # Попытка связаться
         QUALITY_CONTROL: int = 39394839  # Контроль качества
@@ -248,6 +257,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         MAKE_APPOINTMENT: int = 37592463  # Назначить встречу
         APPOINTED_ZOOM: int = 40127292  # Назначен ZOOM
         ZOOM_CALL: int = 40127295  # Идет ZOOM
+        THINKING_OF_MORTGAGE: int = 51568506  # Думает над ипотекой
         MAKE_DECISION: int = 40127307  # Принимают решение
         BOOKING: int = 40127310  # Бронь
         PAID_BOOKING: int = 0  # платная бронь
@@ -262,6 +272,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         """
         START: int = 21189703  # первичный контакт
         MAKE_APPOINTMENT: int = 40850073  # Назначить встречу
+        ASSIGN_AGENT: int = 51489690  # фиксация клиента за ан
         MEETING: int = 21189706  # Встреча назначена
         MEETING_IN_PROGRESS: int = 21189709  # Идёт встреча
         MAKE_DECISION: int = 21189712  # Принимают решение
@@ -278,13 +289,13 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         REALIZED: int = 142  # успешно реализовано
         TERMINATION: int = 34654647  # расторжение
         UNREALIZED: int = 143  # Закрыто и не реализовано
-        ASSIGN_AGENT: int = 51489690  # фиксация клиента за ан
 
     class MSKStatuses(int, BaseLeadSalesStatuses, Enum):
         """
         MSK statuses
         """
         START: int = 29096287  # Первичный контакт
+        ASSIGN_AGENT: int = 51105825  # фиксация клиента за ан
         MAKE_APPOINTMENT: int = 29096290  # Назначить встречу
         MEETING: int = 45598248  # Встреча назначена
         MEETING_IN_PROGRESS: int = 45598251  # Идёт встреча
@@ -300,7 +311,6 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         MONEY_PROCESS: int = 29096419  # Зачисление денег
         REALIZED: int = 142  # Успешно реализовано
         UNREALIZED: int = 143  # Закрыто и не реализовано
-        ASSIGN_AGENT: int = 51105825  # фиксация клиента за ан
 
     class SPBStatuses(int, BaseLeadSalesStatuses, Enum):
         """
@@ -365,6 +375,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         ASSIGN_AGENT: int = 50284815  # Фиксация клиента за агентом
         MAKE_APPOINTMENT: int = 50228688  # Назначить встречу
         APPOINTED_ZOOM: int = 50284818  # Назначен ZOOM
+        MEETING_IS_SET: int = 50228691  # встреча назначена
         ZOOM_CALL: int = 40127295  # Идет ZOOM
         MEETING_IN_PROGRESS: int = 50228694  # Идёт встреча
         MAKE_DECISION: int = 42477867  # Принимают решение
@@ -478,15 +489,10 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         try:
             return AmoLead.parse_obj(getattr(response, "data", {}))
         except ValidationError as err:
-            self.logger.error(
+            self.logger.warning(
                 f"cabinet/amocrm/fetch_lead: Status {response.status}: "
                 f"Пришли неверные данные: {response.data}"
                 f"Exception: {err}"
-            )
-            print(
-                f"FetchLead:"
-                f"Status: {response.status}"
-                f"Data: {response.data}"
             )
             return None
 
@@ -518,10 +524,10 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         self,
         city_slug: str,
         user_amocrm_id: int,
-        project_amocrm_pipeline_id: Union[str, int],
         project_amocrm_responsible_user_id: Union[str, int],
         project_amocrm_name: Optional[str] = None,
         project_amocrm_enum: Optional[int] = None,
+        project_amocrm_pipeline_id: Union[str, int, None] = None,
         project_amocrm_organization: Optional[str] = None,
         property_id: Optional[int] = None,
         property_type: Optional[str] = None,
@@ -901,7 +907,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         tags: Optional[list[str]] = None,
         booking_end: Optional[int] = None,
         booking_price: Optional[int] = None,
-        booking_until_datetime: Optional[int] = None,
+        booking_expires_datetime: Optional[int] = None,
         contacts: Optional[list[int]] = None,
         online_purchase_status: Optional[str] = None,
         online_purchase_start_datetime: Optional[int] = None,
@@ -976,11 +982,11 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
             )
 
         # Дата и время окончания бронирования
-        if booking_until_datetime:
+        if booking_expires_datetime:
             custom_fields.append(
                 dict(
-                    id=self.booking_until_datetime_field_id,
-                    values=[dict(value=booking_until_datetime)],
+                    id=self.booking_expires_datetime_field_id,
+                    values=[dict(value=booking_expires_datetime)],
                 )
             )
 
@@ -1192,7 +1198,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
             ]))
         if is_agency_deal is not None:
             custom_fields.append(AmoCustomField(field_id=self.booking_is_agency_deal_field_id, values=[
-                AmoCustomFieldValue(value="да" if is_agency_deal else "нет")
+                AmoCustomFieldValue(value="Да" if is_agency_deal else "Нет")
             ]))
 
         return custom_fields
@@ -1253,7 +1259,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
             message = (f"{method_name}: Status {response.status}: "
                        f"Пришли неверные данные: {response.data}"
                        f"Exception: {err}")
-            self.logger.error(message)
+            self.logger.warning(message)
             raise AmocrmHookError(reason=message) from err
 
     async def lead_link_entities(

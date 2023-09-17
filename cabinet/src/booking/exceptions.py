@@ -15,6 +15,12 @@ class BookingNotFoundError(BaseBookingException):
     reason: str = "booking_not_found"
 
 
+class InactiveBookingNotFoundError(BaseBookingException):
+    message: str = "Неактивное бронирование не найдено."
+    status: int = HTTPStatus.NOT_FOUND
+    reason: str = "inactive_booking_not_found"
+
+
 class BookingWrongPipelineIDError(BaseBookingException):
     message: str = "Воронка не участвует в логике ЛК."
     status: int = HTTPStatus.BAD_REQUEST
@@ -31,6 +37,12 @@ class BookingTimeOutRepeatError(BaseBookingException):
     message: str = "Время бронирования истекло."
     status: int = HTTPStatus.BAD_REQUEST
     reason: str = "booking_time_out_repeat"
+
+
+class BookingProjectMissingError(BaseBookingException):
+    message: str = "Жилой комплекс бронирования не найден."
+    status: int = HTTPStatus.BAD_REQUEST
+    reason: str = "booking_project_missing_error"
 
 
 class BookingPropertyMissingError(BaseBookingException):
@@ -163,3 +175,9 @@ class BookingHasNoCorrectFixationTaskError(BaseBookingException):
     message = "Бронирование не имеет корректной задачи для продления фиксации клиента"
     status = HTTPStatus.NOT_FOUND
     reason = "booking_has_no_correct_fixation_task"
+
+
+class BookingSourceNotFoundError(BaseBookingException):
+    message = "Источник бронирования не найден"
+    status = HTTPStatus.NOT_FOUND
+    reason = "booking_source_not_found"

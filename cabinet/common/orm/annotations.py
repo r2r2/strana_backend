@@ -1,9 +1,8 @@
 from typing import Optional, Type, Any
 
 from tortoise import Model
-from tortoise.expressions import F, Subquery
+from tortoise.expressions import F, Subquery, Q
 from tortoise.functions import Count, Max, Sum, Min, Avg, Trim, Coalesce
-from tortoise.query_utils import Q
 from tortoise.queryset import AwaitableQuery
 
 from ..tortoise import OuterRef, Exists, SCount

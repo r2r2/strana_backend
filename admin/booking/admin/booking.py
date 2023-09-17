@@ -1,26 +1,151 @@
-import os
 import urllib.parse
 from datetime import datetime
-from pytz import UTC
+from enum import Enum
 
 import requests
-from django.contrib import admin
-from django.db.models import OuterRef, Subquery, Exists, When, Q, Case, BooleanField
-
 from common.loggers.models import BaseLogInline
+from django.contrib import admin
+from django.db.models import OuterRef, Subquery, Exists, When, Q, Case, BooleanField, QuerySet
+from pytz import UTC
+
+from questionnaire.models import TaskInstanceLog
 from ..exceptions import InvalidURLException, ConnectCabinetError
+from ..models import AmocrmStatus, AmocrmGroupStatus
 from ..models import Booking, BookingLog
-from ..models import AmocrmStatus
+
+
+class IsCompletedFilter(admin.SimpleListFilter):
+    title = 'Завершено'
+    parameter_name = 'is_completed_filter'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('Yes', 'Да'),
+            ('No', 'Нет'),
+        )
+
+    def queryset(self, request, queryset):
+        value = self.value()
+        if value == 'Yes':
+            return queryset.filter(price_payed=True, contract_accepted=True, personal_filled=True,
+                                   params_checked=True, profitbase_booked=True)
+        elif value == 'No':
+            return queryset.exclude(price_payed=True, contract_accepted=True, personal_filled=True,
+                                    params_checked=True, profitbase_booked=True)
+        return queryset
+
+
+class IsExpiredFilter(admin.SimpleListFilter):
+    title = 'Истекло'
+    parameter_name = 'is_expired_filter'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('Yes', 'Да'),
+            ('No', 'Нет'),
+        )
+
+    def queryset(self, request, queryset):
+        value = self.value()
+        if value == 'Yes':
+            return queryset.filter(expires__isnull=False, expires__lt=datetime.now(tz=UTC))
+        elif value == 'No':
+            return queryset.exclude(expires__isnull=False, expires__lt=datetime.now(tz=UTC))
+        return queryset
+
+
+class IsOveredFilter(admin.SimpleListFilter):
+    title = 'Закончилось'
+    parameter_name = 'is_overed_filter'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('Yes', 'Да'),
+            ('No', 'Нет'),
+        )
+
+    def queryset(self, request, queryset):
+        value = self.value()
+        if value == 'Yes':
+            return queryset.filter(until__isnull=False, until__lt=datetime.now(tz=UTC))
+        elif value == 'No':
+            return queryset.exclude(until__isnull=False, until__lt=datetime.now(tz=UTC))
+        return queryset
+
+
+class GroupStatusFilter(admin.SimpleListFilter):
+    title = 'Групповой статус'
+    parameter_name = 'group_status_filter'
+
+    def lookups(self, request, model_admin):
+        return [(status['name'], status['name']) for status in list(AmocrmGroupStatus.objects.all().values('name'))]
+
+    def queryset(self, request, queryset):
+        if self.value() is None:
+            return queryset
+        return queryset.filter(group_status=self.value())
+
+
+class IsErrorsFilter(admin.SimpleListFilter):
+    title = 'Есть Ошибки'
+    parameter_name = 'is_errors_filter'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('Yes', 'Да'),
+            ('No', 'Нет'),
+        )
+
+    def queryset(self, request, queryset):
+        value = self.value()
+        if value == 'Yes':
+            return queryset.filter(errors=True)
+        elif value == 'No':
+            return queryset.exclude(errors=True)
+        return queryset
 
 
 class BookingLogInline(BaseLogInline):
     model = BookingLog
 
 
+class TaskInstanceLogInline(BaseLogInline):
+    model = TaskInstanceLog
+    readonly_fields = (
+        'created',
+        'state_before',
+        'state_after',
+        'state_difference',
+        'content',
+        'error_data',
+        'response_data',
+        'use_case',
+        'task_instance',
+        'booking',
+        'task_chain',
+    )
+
+    class OnlineBookingSlug(str, Enum):
+        """
+        Слаги для Онлайн бронирования
+        """
+        ACCEPT_OFFER: str = "online_booking_accept_offer"  # 1. Ознакомьтесь с договором офертой
+        FILL_PERSONAL_DATA: str = "online_booking_fill_personal_data"  # 2. Заполните персональные данные
+        CONFIRM_BOOKING: str = "online_booking_confirm_booking"  # 3. Подтвердите параметры бронирования
+        PAYMENT: str = "online_booking_payment"  # 4. Оплатите бронирование
+        PAYMENT_SUCCESS: str = "online_booking_payment_success"  # 5. Бронирование успешно оплачено
+        TIME_IS_UP: str = "online_booking_time_is_up"  # 6. Время истекло
+
+    def get_queryset(self, request) -> QuerySet:
+        qs: QuerySet = super().get_queryset(request)
+        qs: QuerySet = qs.filter(task_chain__task_statuses__slug=self.OnlineBookingSlug.ACCEPT_OFFER)
+        return qs
+
+
 @admin.register(Booking)
 class BookingAdmin(admin.ModelAdmin):
     date_hierarchy = "created"
-    inlines = (BookingLogInline, )
+    inlines = (TaskInstanceLogInline, BookingLogInline,)
     autocomplete_fields = (
         "property",
         "user",
@@ -66,10 +191,12 @@ class BookingAdmin(admin.ModelAdmin):
         "until",
         "expires",
         "property_in_list",
-        "created_source",
+        "booking_source",
         "group_status",
     )
-    list_filter = ("created", "agency__general_type")
+    list_filter = (
+        "created", "agency__general_type", "active", IsCompletedFilter, IsExpiredFilter, IsOveredFilter,
+        "booking_source__name", GroupStatusFilter, IsErrorsFilter)
     readonly_fields = ("agency_type",)
     save_on_top = True
     list_per_page = 15

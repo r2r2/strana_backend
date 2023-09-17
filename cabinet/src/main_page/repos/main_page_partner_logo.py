@@ -20,7 +20,7 @@ class MainPagePartnerLogo(Model, TimeBasedMixin):
 
     class Meta:
         table = "main_page_partner_logo"
-        ordering = ["-priority"]
+        ordering = ["priority"]
 
 
 class MainPagePartnerLogoRepo(BaseRepo, ListMixin):

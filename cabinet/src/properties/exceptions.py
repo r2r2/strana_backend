@@ -25,3 +25,9 @@ class PropertyNotAvailableError(BasePropertyException):
     message: str = "Объект недвижимости недоступен."
     status: int = status.HTTP_400_BAD_REQUEST
     reason: str = "property_not_available"
+
+
+class PropertyImportError(BasePropertyException):
+    message: str = "Ошибка импорта объекта недвижимости."
+    status: int = status.HTTP_400_BAD_REQUEST
+    reason: str = "property_import_error"

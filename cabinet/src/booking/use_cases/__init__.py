@@ -35,3 +35,6 @@ from .stream_file_base64 import StreamFileBase64Case
 from .superuser_booking_fill_data import SuperuserBookingFillDataCase
 from .booking_payment_conditions import BookingPaymentConditionsCase
 from .extend_deal_fixation import ExtendDeaFixationCase
+from .create_booking import CreateBookingCase
+from .get_booking_document import GetBookingDocumentCase
+from .rebooking import RebookingCase

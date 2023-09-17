@@ -125,7 +125,7 @@ class BookingNotificationService(BaseNotificationService):
                 amocrm_status__group_status__is_final=False,
                 expires__gt=datetime.now(tz=UTC),
             ),
-            related_fields=["project"],
+            related_fields=["project", "booking_source"],
         )
         if not booking:
             return False
@@ -140,7 +140,7 @@ class BookingNotificationService(BaseNotificationService):
             projects = [project for project in condition.project]
             if (
                 booking.project in projects
-                and booking.created_source == condition.created_source
+                and booking.booking_source and booking.booking_source.slug == condition.created_source
                 and booking.send_notify
             ):
                 eta: datetime = booking.expires - timedelta(hours=condition.hours_before_send)

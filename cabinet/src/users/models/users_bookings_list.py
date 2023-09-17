@@ -58,10 +58,6 @@ class _StatusModel(BaseCheckModel):
     class Config:
         orm_mode = True
 
-        # @staticmethod
-        # def schema_extra(schema: dict[str, Any]) -> None:
-        #     schema["properties"].pop("unique_status")
-
 
 class _PinningStatusModel(BaseCheckModel):
     title: Optional[str]
@@ -86,10 +82,6 @@ class _PinningStatusModel(BaseCheckModel):
 
     class Config:
         orm_mode = True
-
-        # @staticmethod
-        # def schema_extra(schema: dict[str, Any]) -> None:
-        #     schema["properties"].pop("unique_status")
 
 
 class _BookingUserModel(BaseUserModel):

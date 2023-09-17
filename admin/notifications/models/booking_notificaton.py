@@ -32,7 +32,6 @@ class BookingNotification(models.Model):
         related_name='booking_notifications',
         through='BookingNotificationsProjectThrough',
         verbose_name='Проект (ЖК)',
-        null=True,
         blank=True,
     )
     hours_before_send: models.FloatField = models.FloatField(

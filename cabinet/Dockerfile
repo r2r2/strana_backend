@@ -1,5 +1,6 @@
 ARG PYTHON_CABINET
 FROM ${PYTHON_CABINET} AS PYTHON_CABINET
+ENV PATH="${PATH}:/root/.local/bin"
 ENV TZ Europe/Moscow
 COPY / /app/
 COPY ./utils.py /usr/local/lib/python3.9/site-packages/sentry_sdk/
@@ -11,3 +12,5 @@ RUN chmod +x entrypoint.* \
     && ln -s /usr/share/ca-certificates/mozilla/russian_trusted_root_ca_pem.crt /etc/ssl/certs/russian_trusted_root_ca_pem.pem
 
 ENTRYPOINT ["sh", "entrypoint.sh"]
+
+

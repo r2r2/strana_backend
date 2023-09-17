@@ -18,6 +18,10 @@ class AmocrmStatus(Model):
     group_status: fields.ForeignKeyRelation = fields.ForeignKeyField(
         model_name="models.AmocrmGroupStatus", related_name='statuses', null=True, on_delete=fields.SET_NULL
     )
+    client_group_status: fields.ForeignKeyRelation = fields.ForeignKeyField(
+        model_name="models.ClientAmocrmGroupStatus", related_name='client_statuses', null=True,
+        on_delete=fields.SET_NULL
+    )
 
     taskchain_booking_substages: fields.ManyToManyRelation["TaskChain"]
     taskchain_task_visibilities: fields.ManyToManyRelation["TaskChain"]

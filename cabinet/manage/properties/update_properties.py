@@ -7,7 +7,7 @@ from common.backend import repos as backend_repos
 from common.utils import from_global_id, to_global_id
 from config import tortoise_config
 from src.buildings import repos as building_repos
-from src.cities import repos as cities_repo
+from src.cities import repos as cities_repos
 from src.floors import repos as floors_repos
 from src.projects import repos as projects_repos
 from src.properties import repos as properties_repos
@@ -27,12 +27,13 @@ class UpdatePropertiesManage:
             project_repo=projects_repos.ProjectRepo,
             building_repo=building_repos.BuildingRepo,
             property_repo=properties_repos.PropertyRepo,
-            city_repo=cities_repo.CityRepo,
+            city_repo=cities_repos.CityRepo,
             building_booking_type_repo=building_repos.BuildingBookingTypeRepo,
             backend_building_booking_type_repo=backend_repos.BackendBuildingBookingTypesRepo,
             backend_properties_repo=backend_repos.BackendPropertiesRepo,
             backend_floors_repo=backend_repos.BackendFloorsRepo,
             backend_sections_repo=backend_repos.BackendSectionsRepo,
+            feature_repo=properties_repos.FeatureRepo,
         )
         self.property_repo: properties_repos.PropertyRepo = properties_repos.PropertyRepo()
 
@@ -44,8 +45,8 @@ class UpdatePropertiesManage:
         await self.orm_class.init(config=self.orm_config)
         futures: list[Future] = []
         properties: list[Model] = await self.property_repo.list()
-        for property in properties:
-            futures.append(ensure_future(self.import_property(property_id=property.id)))
+        for _property in properties:
+            futures.append(ensure_future(self.import_property(property_id=_property.id)))
         await gather(*futures)
         await self.orm_class.close_connections()
 

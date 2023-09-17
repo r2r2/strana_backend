@@ -9,98 +9,80 @@ class Dispute(models.Model):
     Оспаривание статуса клиента
     """
 
-    user = models.ForeignKey(
-        "users.CabinetUser",
-        models.DO_NOTHING,
-        blank=True,
+    requested = models.DateTimeField(verbose_name="Запрошено", null=True, blank=True)
+    dispute_requested = models.DateTimeField(verbose_name="Время оспаривания", null=True, blank=True)
+    status_fixed: bool = models.BooleanField(verbose_name="Закрепить статус за клиентом", default=False)
+    unique_status = models.ForeignKey(
+        verbose_name="Статус уникальности",
+        to="disputes.UniqueStatus",
+        on_delete=models.CASCADE,
+        related_name="user_check_checks",
         null=True,
-        related_name='client',
-        verbose_name='Клиент',
-        help_text='Проверяемый клиент',
+        blank=True,
+    )
+    user = models.ForeignKey(
+        verbose_name="Пользователь",
+        to="users.CabinetUser",
+        on_delete=models.SET_NULL,
+        related_name="users_checks",
+        null=True,
+        blank=True,
     )
     agent = models.ForeignKey(
-        "users.CabinetUser",
-        models.DO_NOTHING,
-        blank=True,
+        verbose_name="Агент",
+        to="users.CabinetUser",
+        on_delete=models.SET_NULL,
+        related_name="agents_checks",
         null=True,
-        related_name='client_agent',
-        verbose_name='Текущий агент',
-        help_text='Агент, который в настоящее время закреплен за клиентом',
-    )
-    agency = models.ForeignKey(
-        "users.Agency",
-        models.DO_NOTHING,
         blank=True,
-        null=True,
-        related_name='agency',
-        verbose_name='Текущее агентство клиента',
-        help_text='Агентство, которое в настоящее время закреплено за клиентом',
     )
     dispute_agent = models.ForeignKey(
-        "users.CabinetUser",
-        models.DO_NOTHING,
-        verbose_name='Оспаривающий агент',
-        blank=True,
+        verbose_name="Оспаривающий агент",
+        to="users.CabinetUser",
+        on_delete=models.SET_NULL,
+        related_name="dispute_agents_checks",
         null=True,
-        related_name='dispute_agent',
-        help_text='Агент, оспаривающий статус клиента',
+        blank=True,
+    )
+    agency = models.ForeignKey(
+        verbose_name="Агентство",
+        to="users.Agency",
+        on_delete=models.SET_NULL,
+        related_name="agencies_checks",
+        null=True,
+        blank=True
     )
     admin = models.ForeignKey(
-        "users.CabinetUser",
-        models.DO_NOTHING,
-        blank=True,
+        verbose_name="Админ",
+        to="users.CabinetUser",
+        on_delete=models.SET_NULL,
+        related_name="admin_checks",
         null=True,
-        related_name='admin',
-        verbose_name='Обновлено администратором'
-    )
-    requested = models.DateTimeField(blank=True, null=True, verbose_name='Запрошено')
-    dispute_requested = models.DateTimeField(
         blank=True,
-        null=True,
-        verbose_name='Время оспаривания',
     )
-    status_fixed = models.BooleanField(
-        verbose_name="Закрепить статус за клиентом",
-        help_text='При отметке этого чекбокса агент будет считаться “Уникальным” до момента следующего закрепления '
-                  '(чтобы агент мог самостоятельно его закрепить)',
+    comment = models.TextField(verbose_name="Комментарий агента", blank=True)
+    admin_comment = models.TextField(verbose_name="Комментарий менеджера", blank=True)
+    send_admin_email = models.BooleanField(
+        default=False,
+        verbose_name="Отправлено письмо администраторам",
     )
-    comment = models.TextField(
-        blank=True,
-        null=True,
-        verbose_name='Комментарий агента',
-        help_text='Причина, по которой оспаривающий агент считает клиента своим',
-    )
-    admin_comment = models.TextField(
-        blank=True,
-        null=True,
-        verbose_name='Комментарий менеджера',
-        help_text="Внутренний комментарий (не отправляется агенту/клиенту)"
-    )
-    unique_status: models.ForeignKey = models.ForeignKey(
-        to="disputes.UniqueStatus",
-        verbose_name="Статус уникальности",
-        on_delete=models.CASCADE,
-        blank=True,
-        null=True,
-        related_name="checks",
-    )
-    send_admin_email: bool = models.BooleanField(default=False, verbose_name="Отправлено письмо администратору")
-    amocrm_id: Optional[int] = models.IntegerField(
-        blank=True,
-        null=True,
-        verbose_name="ID сделки в amoCRM",
-    )
+    amocrm_id = models.IntegerField(verbose_name="ID сделки в amoCRM, по которой была проверка", null=True, blank=True)
     term_uid = models.CharField(
+        verbose_name="UID условия проверки на уникальность",
         max_length=255,
         blank=True,
-        null=True,
-        verbose_name='UID условия проверки на уникальность',
     )
     term_comment = models.TextField(
+        verbose_name="Комментарий к условию проверки на уникальность",
         blank=True,
-        null=True,
-        verbose_name='Комментарий к условию проверки на уникальность',
     )
+    button_slug = models.CharField(
+        verbose_name="Слаг кнопки",
+        max_length=255,
+        blank=True,
+    )
+
+    button_pressed = models.BooleanField(verbose_name="Кнопка была нажата", default=False)
 
     def __str__(self) -> str:
         return str(self.id)

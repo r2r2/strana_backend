@@ -5,7 +5,7 @@ from src.booking.constants import BookingSubstages
 from src.users.entities import BaseUserCase
 from src.users.repos import CheckRepo, User, UserRepo, UserPinningStatusRepo
 from src.users.types import UserPagination
-from tortoise.query_utils import Q
+from tortoise.expressions import Q
 
 from ..constants import UserType
 from ..exceptions import UserNotFoundError

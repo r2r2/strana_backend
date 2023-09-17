@@ -1,11 +1,9 @@
 # pylint: disable=unused-argument,protected-access
-import csv
-from json import dumps
 import os
-from requests import post
+import csv
 
-from django.contrib.admin import (ModelAdmin, SimpleListFilter, StackedInline,
-                                  TabularInline, register)
+from django.contrib import messages
+from django.contrib.admin import ModelAdmin, StackedInline, TabularInline, register
 from django.contrib.admin.widgets import FilteredSelectMultiple
 from django.http import HttpResponse, HttpResponseRedirect
 from django.db.models import OuterRef, Subquery
@@ -13,9 +11,15 @@ from django.db.models import OuterRef, Subquery
 from common.loggers.models import BaseLogInline
 from booking.models import Booking
 from disputes.models import ConfirmClientAssign
-
-from users.models import (CabinetAdmin, CabinetAgent, CabinetClient,
-                          CabinetUser, UserLog, UserRole, CityUserThrough)
+from users.models import (
+    CabinetAdmin,
+    CabinetAgent,
+    CabinetClient,
+    CabinetUser,
+    UserLog, UserRole,
+    CityUserThrough,
+    CabinetUserQuerySet
+)
 
 
 class BookingInline(StackedInline):
@@ -53,46 +57,46 @@ class ConfirmClientAssignInline(TabularInline):
     fk_name = 'client'
 
 
-class RoleFilter(SimpleListFilter):
-    title = "Роль"
-    parameter_name = "role"
-
-    def lookups(self, request, model_admin):
-        roles = {u.type for u in model_admin.model.objects.all()}
-        return [(r, r) for r in roles]
-
-    def queryset(self, request, queryset):
-        if self.value():
-            return queryset.filter(type=self.value())
-        return queryset
-
-
-class DBRoleFilter(SimpleListFilter):
-    title = "Роль из бд"
-    parameter_name = "role"
-
-    def lookups(self, request, model_admin):
-        all_roles = [
-            (role.id, role.name) for role in UserRole.objects.all()
-        ]
-        return all_roles
-
-    def queryset(self, request, queryset):
-        params: dict = request.GET.dict()
-        return queryset.filter(**params)
+# class RoleFilter(SimpleListFilter):
+#     title = "Роль"
+#     parameter_name = "role"
+#
+#     def lookups(self, request, model_admin):
+#         roles = {u.type for u in model_admin.model.objects.all()}
+#         return [(r, r) for r in roles]
+#
+#     def queryset(self, request, queryset):
+#         if self.value():
+#             return queryset.filter(type=self.value())
+#         return queryset
 
 
-class TypeFilter(SimpleListFilter):
-    title = "Тип"
-    parameter_name = "type"
+# class DBRoleFilter(SimpleListFilter):
+#     title = "Роль из бд"
+#     parameter_name = "role"
+#
+#     def lookups(self, request, model_admin):
+#         all_roles = [
+#             (role.id, role.name) for role in UserRole.objects.all()
+#         ]
+#         return all_roles
+#
+#     def queryset(self, request, queryset):
+#         params: dict = request.GET.dict()
+#         return queryset.filter(**params)
 
-    def lookups(self, request, model_admin):
-        return [("is_brokers_client", "ЛК Брокера"), ("is_independent_client", "ЛК Клиента")]
 
-    def queryset(self, request, queryset):
-        if self.value():
-            return queryset.filter(**{self.value(): True})
-        return queryset
+# class TypeFilter(SimpleListFilter):
+#     title = "Тип"
+#     parameter_name = "type"
+#
+#     def lookups(self, request, model_admin):
+#         return [("is_brokers_client", "ЛК Брокера"), ("is_independent_client", "ЛК Клиента")]
+#
+#     def queryset(self, request, queryset):
+#         if self.value():
+#             return queryset.filter(**{self.value(): True})
+#         return queryset
 
 
 @register(CabinetUser)
@@ -139,13 +143,15 @@ class CabinetUserAdmin(ModelAdmin):
     readonly_fields = ("created_at", "agency_city", "project_city", "auth_first_at", "auth_last_at")
     date_hierarchy = "auth_first_at"
     list_filter = (
-        RoleFilter,
-        TypeFilter,
+        # RoleFilter,
+        # TypeFilter,
         "agency__city",
         "created_at",
         "auth_first_at",
         "auth_last_at",
         "origin",
+        "type",
+        "role",
     )
     list_per_page = 15
     show_full_result_count = False
@@ -188,24 +194,32 @@ class CabinetUserAdmin(ModelAdmin):
     project_city.short_description = "Город проекта"
     project_city.admin_order_field = 'interested_project__city__name'
 
-    def adminify(self, request, queryset):
-        """adminify"""
-        if len(queryset) == 1:
-            user = queryset[0]
-            payload = {
-                "phone": str(user.phone),
-                "email": str(user.email),
-                "name": str(user.name or '')[:50],
-                "surname": str(user.surname or '')[:50],
-                "patronymic": str(user.patronymic or '')[:50],
-            }
-            user.delete()
-            post("http://cabinet:1800/api/admins/register", data=dumps(payload))
+    def adminify(self, request, queryset: CabinetUserQuerySet):
+        """
+        Сделать пользователя админом
+        """
+        if not queryset:
+            messages.error(request, message="Необходимо их выбрать объект(ы). Объекты не были изменены.")
+        user_type = CabinetUser.UserType
+        for user in queryset:
+            if user.type == user_type.CLIENT:
+                messages.error(request, message=f"Недопустимо для {user.full_name()}")
+            elif user.type == user_type.ADMIN:
+                messages.warning(request, message=f"Пользователь {user.full_name()} уже администратор.")
+            elif user.type in [user_type.AGENT, user_type.REPRES]:
+                user.agency = None
+                user.type = user_type.ADMIN
+                admin_role = UserRole.objects.get(slug=user_type.ADMIN)
+                user.role_id = admin_role.id if admin_role else None
+                user.save()
+                messages.success(request, f"Пользователь {user.full_name()} теперь администратор.")
 
     adminify.short_description = "Сделать администратором"
 
     def export_csv(self, request, queryset):
-        """export_csv"""
+        """
+        export_csv
+        """
         meta = self.model._meta
         response = HttpResponse(content_type="text/csv")
         response["Content-Disposition"] = "attachment; filename={}.csv".format(meta)
@@ -302,6 +316,8 @@ class CabinetClientAdmin(CabinetUserAdmin):
     """
     Клиенты в админке
     """
+    exclude = ("username", "password")
+
     def get_queryset(self, request):
         return CabinetClient.objects.filter(type="client")
 

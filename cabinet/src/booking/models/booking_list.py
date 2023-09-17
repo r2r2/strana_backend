@@ -1,15 +1,16 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal, Optional
+from typing import Literal, Optional, Any
 
-from pydantic import validator
+from pydantic import validator, root_validator, parse_obj_as
 from src.agencies.models import AgencyRetrieveModel
 from src.agents.models import AgentRetrieveModel
 from src.booking.constants import (BookingCreatedSources, BookingStages,
                                    BookingSubstages)
 from src.properties.models import PropertyRetrieveModel
 
-from ..entities import BaseBookingModel
+from src.booking.entities import BaseBookingModel, BaseBookingCamelCaseModel
+from src.task_management.constants import TaskStatusType
 
 
 class _BookingFloorListModel(BaseBookingModel):
@@ -50,12 +51,26 @@ class _BookingProjectListModel(BaseBookingModel):
         orm_mode = True
 
 
-class _BookingStatusListModel(BaseBookingModel):
+class AmoCRMAction(BaseBookingCamelCaseModel):
+    id: Optional[int]
+    name: Optional[str]
+    slug: Optional[str]
+    role_id: Optional[int]
+
+
+class _BookingStatusListModel(BaseBookingCamelCaseModel):
     """
     Модель статуса списка бронирований
     """
-
+    id: int
+    group_id: Optional[int]
     name: Optional[str]
+    color: Optional[str]
+    show_reservation_date: Optional[bool]
+    show_booking_date: Optional[bool]
+    steps_numbers: Optional[int]
+    current_step: Optional[int]
+    actions: Optional[list[AmoCRMAction]]
 
     class Config:
         orm_mode = True
@@ -82,6 +97,61 @@ class BookingListFilters(BaseBookingModel):
     project_id: Optional[int]
     property_id: Optional[int]
     agent_id: Optional[int]
+
+
+class ButtonAction(BaseBookingCamelCaseModel):
+    type: str
+    id: str
+
+    class Config:
+        orm_mode = True
+
+
+class Button(BaseBookingCamelCaseModel):
+    label: str
+    type: str
+    action: ButtonAction
+
+    class Config:
+        orm_mode = True
+
+
+class TaskInstanceResponseSchema(BaseBookingCamelCaseModel):
+    type: str
+    title: str
+    hint: Optional[str]
+    text: str
+    buttons: Optional[list[Button]]
+
+    class Config:
+        orm_mode = True
+
+
+class TaskStatusSchema(BaseBookingCamelCaseModel):
+    name: str
+    description: str
+    type: TaskStatusType.serializer
+    priority: int
+    slug: str
+
+    class Config:
+        orm_mode = True
+
+
+class _BookingSourceSchema(BaseBookingCamelCaseModel):
+    slug: str
+    name: str
+    value: Optional[str]
+    label: Optional[str]
+
+    @root_validator
+    def build_response(cls, values: dict[str, Any]) -> dict[str, Any]:
+        values['value'] = values.pop('slug')
+        values['label'] = values.pop('name')
+        return values
+
+    class Config:
+        orm_mode = True
 
 
 class _BookingListModel(BaseBookingModel):
@@ -121,9 +191,12 @@ class _BookingListModel(BaseBookingModel):
     final_payment_amount: Optional[Decimal]
     payment_amount: Optional[Decimal]
     created_source: Optional[BookingCreatedSources.serializer]
+    booking_source: Optional[Any]
 
     agent: Optional[AgentRetrieveModel]
     agency: Optional[AgencyRetrieveModel]
+    tasks: Optional[list[TaskInstanceResponseSchema]]
+    task_statuses: Optional[list[TaskStatusSchema]]
 
     # Method fields
     current_step: Optional[int]
@@ -144,6 +217,13 @@ class _BookingListModel(BaseBookingModel):
             "finished",
         ]
     ]
+
+    @root_validator
+    def build_response(cls, values: dict[str, Any]):
+        booking_source = values.pop('booking_source', None)
+        if booking_source:
+            values['created_source'] = parse_obj_as(_BookingSourceSchema, booking_source)
+        return values
 
     @validator("is_fast_booking", pre=True, always=True)
     def get_is_fast_booking(cls, is_fast_booking) -> bool:

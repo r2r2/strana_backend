@@ -13,9 +13,13 @@ from src.users import use_cases
 from ..user import router
 
 __all__ = (
-    'repres_clients_specs_view', 'repres_clients_facets_view',
-    'repres_clients_lookup_view', 'agent_clients_phone_lookup_view',
-    'repres_clients_view', 'represes_users_retrieve_view', 'repres_agents_users_retrieve_view')
+    'repres_clients_specs_view',
+    'repres_clients_facets_view',
+    'repres_clients_lookup_view',
+    'repres_clients_view',
+    'represes_users_retrieve_view',
+    'repres_agents_users_retrieve_view',
+)
 
 
 @router.get(
@@ -79,28 +83,6 @@ async def repres_clients_lookup_view(
     resources: dict[str, Any] = dict(user_repo=users_repos.UserRepo)
     repres_users_lookup = use_cases.RepresClientsLookupCase(**resources)
     return await repres_users_lookup(agency_id=agency_id, lookup=lookup, init_filters=init_filters)
-
-
-@router.get(
-    "/repres/clients/phone_lookup",
-    status_code=HTTPStatus.OK,
-    response_model=models.ResponseAgentsUsersPhoneLookupModel,
-    dependencies=[
-        Depends(dependencies.DeletedUserCheck()),
-        Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.REPRES)),
-    ],
-)
-async def agent_clients_phone_lookup_view(
-    phone: str = Query(str(), alias="search"),
-    agency_id: int = Depends(dependencies.CurrentUserExtra(key="agency_id")),
-):
-    """
-    Поиск пользователей агента по началу телефона
-    """
-    resources: dict[str, Any] = dict(user_repo=users_repos.UserRepo)
-    repres_users_phone_lookup = use_cases.RepresClientsPhoneLookupCase(**resources)
-    users = await repres_users_phone_lookup(agency_id=agency_id, phone=phone)
-    return users
 
 
 @router.get(

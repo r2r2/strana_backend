@@ -9,7 +9,7 @@ from pytz import UTC
 from src.buildings.repos.building import Building, BuildingBookingType
 from src.properties.repos import Property
 from src.properties.services import CheckProfitbasePropertyService
-from src.booking.utils import get_booking_reserv_time
+from src.booking.utils import get_booking_reserv_time, get_booking_source
 
 from ...properties.constants import PropertyStatuses
 from ..constants import (FORBIDDEN_FOR_BOOKING_PROPERTY_PARAMS,
@@ -22,7 +22,7 @@ from ..exceptions import (BookingForbiddenError, BookingPropertyMissingError,
                           BookingUnfinishedExistsError)
 from ..mixins import BookingLogMixin
 from ..models import RequestAcceptContractModel
-from ..repos import Booking, BookingRepo
+from src.booking.repos import Booking, BookingRepo, BookingSource
 from ..types import (BookingPropertyRepo, BookingQuerySet,
                      BookingSqlUpdateRequest)
 
@@ -195,8 +195,9 @@ class AcceptContractCase(BaseBookingCase, BookingLogMixin):
             )
 
         created_source = BookingCreatedSources.LK
+        booking_source: BookingSource = await get_booking_source(slug=BookingCreatedSources.LK)
         booking_reserv_time: float = await get_booking_reserv_time(
-            created_source=created_source,
+            created_source=booking_source.slug,
             booking_property=booking_property,
         )
 
@@ -206,7 +207,8 @@ class AcceptContractCase(BaseBookingCase, BookingLogMixin):
             amocrm_stage=BookingStages.START,
             amocrm_substage=BookingSubstages.START,
             expires=expires,
-            created_source=created_source
+            created_source=created_source,  # todo: deprecated
+            booking_source=booking_source,
         )
         if booking_property.building_id:
             additional_data: dict[str, Any] = dict(

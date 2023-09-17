@@ -22,7 +22,7 @@ class AmocrmAction(models.Model):
         help_text="Код действия определяет инициируемое на стороне front-end действие и задается только разработчиком"
     )
     group_statuses = models.ManyToManyField(
-        null=True, blank=True,
+        blank=True,
         verbose_name="Групповые статусы по действиям",
         to="booking.AmocrmGroupStatus",
         through="GroupStatusActionThrough",
@@ -37,4 +37,4 @@ class AmocrmAction(models.Model):
         managed = False
         db_table = "amocrm_actions"
         verbose_name = "Действие в сделках"
-        verbose_name_plural = "1.4. [Справочник] Действия в сделках в ЛК Брокера"
+        verbose_name_plural = " 1.4. [Справочник] Действия в сделках в ЛК Брокера"

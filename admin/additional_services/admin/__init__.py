@@ -1,0 +1,5 @@
+from .categories import AdditionalServiceCategoryAdmin
+from .conditions import AdditionalServiceConditionAdmin
+from .services import AdditionalServiceAdmin
+from .steps import AdditionalServiceConditionStepAdmin
+from .tickets import AdditionalServiceTicketAdmin

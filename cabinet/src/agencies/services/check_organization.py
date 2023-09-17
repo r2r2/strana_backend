@@ -145,4 +145,5 @@ class CheckOrganizationService(BaseAgencyService):
         filters: dict[str, Any] = dict(amocrm_id=company.id)
         agency: Agency = await self.agency_repo.retrieve(filters=filters)
         additional_fields = self._parse_custom_fields(company)
-        await self.agency_update(agency=agency, data=additional_fields)
+        if agency and additional_fields:
+            await self.agency_update(agency=agency, data=additional_fields)

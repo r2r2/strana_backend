@@ -13,13 +13,13 @@ class MainPageManagerRetrieveCase(BaseMainPageCase):
     def __init__(self, main_page_manager_repo: Type[MainPageManagerRepo]) -> None:
         self.main_page_manager_repo: MainPageManagerRepo = main_page_manager_repo()
 
-    async def __call__(self, manager_id: int) -> Manager:
-        filters: dict[str, Any] = dict(id=manager_id)
-        main_page_manager: Manager = await self.main_page_manager_repo.retrieve(
-            filters=filters,
-            related_fields=["manager"],
-        )
-        if not main_page_manager:
+    async def __call__(self) -> Manager:
+        main_page_managers: Manager = await self.main_page_manager_repo.list(related_fields=["manager"], end=1)
+        if not main_page_managers:
             raise ManagerNotFoundError
 
-        return main_page_manager.manager
+        main_page_manager = main_page_managers[0].manager
+        main_page_manager.position = main_page_managers[0].position
+        main_page_manager.photo = main_page_managers[0].photo
+
+        return main_page_manager

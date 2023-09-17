@@ -34,4 +34,8 @@ from .ddu_upload_retrieve import ResponseDDUUploadRetrieveModel
 from .check_documents_recognized import ResponseCheckDocumentsRecognizedModel
 from .recognize_documents import ResponseRecognizeDocumentsModel
 from .history import ResponseBookingHistoryModel
-from .booking_payment_conditions import RequestBookingPaymentConditionsModel, ResponseBookingPaymentConditionsModel
+from .booking_payment_conditions import (
+    RequestBookingPaymentConditionsModel,
+    ResponseBookingPaymentConditionsCamelCaseModel
+)
+from .create_booking import RequestCreateBookingModel

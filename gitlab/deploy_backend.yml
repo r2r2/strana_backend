@@ -18,7 +18,11 @@ development:cabinet:
   tags:
     - docker-sber
   needs:
-    - job: build-cabinet
+    - job: build:cabinet
+    - job: test:cabinet
+    - job: test:sonarqube
+      optional: true
+
 
 development:admin:
   stage: deploy:development
@@ -39,7 +43,9 @@ development:admin:
   tags:
     - docker-sber
   needs:
-    - job: build-admin
+    - job: build:admin
+    - job: test:sonarqube
+      optional: true
 
 
 # --- STAGE ---
@@ -62,6 +68,12 @@ pre-production:cabinet:
     - TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.yml -f docker-compose.production.yml   --env-file .env up -d cabinet tasks
   tags:
     - docker-sber
+  needs:
+    - job: build:cabinet
+    - job: test:cabinet
+    - job: test:sonarqube
+      optional: true
+
 
 pre-production:admin:
   stage: deploy:pre-production
@@ -103,7 +115,11 @@ production:cabinet:
   tags:
     - docker-sber
   when: manual
-
+  needs:
+    - job: build:cabinet
+    - job: test:cabinet
+    - job: test:sonarqube
+      optional: true
 
 production:admin:
   stage: deploy:production

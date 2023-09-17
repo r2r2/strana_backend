@@ -7,6 +7,7 @@ from fastapi import HTTPException
 from pytz import UTC
 from src.agents.repos import AgentRepo, User
 from src.users.constants import UserType
+from src.meetings.constants import MeetingStatusChoice
 
 from ..entities import BaseEventCase
 from ..repos import (CalendarEventRepo, CalendarEventTypeSettingsRepo, Event,
@@ -69,6 +70,7 @@ class CalendarEventListCase(BaseEventCase):
         # общие q-фильтры событий календаря
         q_filters = self.get_q_filter_data(
             user=user,
+            meeting_statuses=meeting_statuses,
             meeting_client=meeting_client,
         )
 
@@ -167,6 +169,7 @@ class CalendarEventListCase(BaseEventCase):
     def get_q_filter_data(
         self,
         user: User,
+        meeting_statuses: list[str],
         meeting_client: Optional[str] = None,
     ) -> list:
         if meeting_client:
@@ -210,10 +213,19 @@ class CalendarEventListCase(BaseEventCase):
                     event__city__name=user.maintained.city,
                 )
 
+            if meeting_statuses:
+                meetings_q_filter = dict(meeting__booking__agent_id=user.id)
+            else:
+                # не показываем отмененные встречи в общем календаре событий (если не выбраны фильтры по статусам)
+                meetings_q_filter = dict(
+                    meeting__booking__agent_id=user.id,
+                    meeting__status__slug__not_in=[MeetingStatusChoice.CANCELLED],
+                )
+
             q_filters = [self.calendar_event_repo.q_builder(
                 or_filters=[
                     event_city_q_filter,
-                    dict(meeting__booking__agent_id=user.id),
+                    meetings_q_filter,
                     dict(event__is_active=True, event__type=EventType.ONLINE),
                     dict(event__is_active=True, event__type=EventType.OFFLINE, event__show_in_all_cities=True),
                 ]

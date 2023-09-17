@@ -48,7 +48,7 @@ class AgencyAdditionalAgreementCreatingData(models.Model):
 
 
 class AdditionalProjectThrough(models.Model):
-    additional_data = models.ForeignKey(
+    additional_data = models.OneToOneField(
         verbose_name="Данные ДС",
         to="documents.AgencyAdditionalAgreementCreatingData",
         on_delete=models.CASCADE,
@@ -71,7 +71,7 @@ class AdditionalProjectThrough(models.Model):
 
 
 class AdditionalAgencyThrough(models.Model):
-    additional_data = models.ForeignKey(
+    additional_data = models.OneToOneField(
         verbose_name="Данные ДС",
         to="documents.AgencyAdditionalAgreementCreatingData",
         on_delete=models.CASCADE,

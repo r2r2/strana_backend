@@ -37,7 +37,7 @@ def periodic_notification_logs_clean() -> None:
 
 
 @celery.app.task
-def booking_notification_sms_task(booking_id: int) -> None:
+def booking_notification_sms_task(booking_id: int) -> bool:
     """
     Запускаем отложенные таски по отправке смс за N часов до конца бронирования.
     """
@@ -50,13 +50,13 @@ def booking_notification_sms_task(booking_id: int) -> None:
     )
     booking_sms_notification_service: BookingNotificationService = BookingNotificationService(**resources)
     loop: Any = get_event_loop()
-    loop.run_until_complete(
+    return loop.run_until_complete(
         celery.sentry_catch(celery.init_orm(booking_sms_notification_service))(booking_id=booking_id)
     )
 
 
 @celery.app.task
-def send_booking_notify_sms_task(data: dict[str, Any]) -> None:
+def send_booking_notify_sms_task(data: dict[str, Any]) -> bool:
     """
     Уведомление о бронировании по смс за N часов до конца бронирования.
     """
@@ -70,7 +70,7 @@ def send_booking_notify_sms_task(data: dict[str, Any]) -> None:
     )
     send_booking_notify_service: SendSMSBookingNotifyService = SendSMSBookingNotifyService(**resources)
     loop: Any = get_event_loop()
-    loop.run_until_complete(
+    return loop.run_until_complete(
         celery.sentry_catch(celery.init_orm(send_booking_notify_service))(data=data)
     )
 

@@ -1,3 +1,4 @@
+from ckeditor.fields import RichTextField
 from django.db import models
 
 
@@ -6,7 +7,7 @@ class MainPageOffer(models.Model):
     Блок: Что мы предлагаем
     """
     title: str = models.CharField(verbose_name="Заголовок", max_length=255, null=True, blank=True)
-    description: str = models.TextField(verbose_name="Описание", null=True, blank=True)
+    description: str = RichTextField(verbose_name="Описание", null=True, blank=True)
     image: str = models.ImageField(verbose_name="Изображение", max_length=500, null=True, blank=True)
     priority: int = models.IntegerField(
         verbose_name="Приоритет",

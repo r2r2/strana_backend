@@ -1,7 +1,8 @@
 from datetime import datetime, time
 from typing import Type, Optional
 
-from tortoise.functions import Count, Q
+from tortoise.functions import Count
+from tortoise.expressions import Q
 from tortoise.queryset import QuerySet
 
 from common.paginations import PagePagination

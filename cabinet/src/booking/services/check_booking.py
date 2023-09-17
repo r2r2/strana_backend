@@ -10,18 +10,25 @@ from common.email import EmailService
 from src.task_management.constants import PaidBookingSlug
 from src.booking.constants import BookingStages, BookingSubstages
 from src.amocrm.repos import AmocrmStatus, AmocrmStatusRepo
+from src.notifications.services import GetEmailTemplateService
+from src.properties.constants import PropertyStatuses
 from ..entities import BaseBookingService
 from ..repos import Booking, BookingRepo
-from ..types import BookingAmoCRM, BookingORM, BookingProfitBase, BookingPropertyRepo, BookingRequest
+from ..types import (
+    BookingAmoCRM,
+    BookingORM,
+    BookingProfitBase,
+    BookingPropertyRepo,
+    BookingRequest,
+)
 from ..loggers.wrappers import booking_changes_logger
-from src.notifications.services import GetEmailTemplateService
-from ...properties.constants import PropertyStatuses
 
 
 class CheckBookingService(BaseBookingService):
     """
     Проверка онлайн бронирования
     """
+
     mail_event_slug = "expired_booking_agent_notification"
     query_type: str = "changePropertyStatus"
     query_name: str = "changePropertyStatus.graphql"
@@ -63,7 +70,9 @@ class CheckBookingService(BaseBookingService):
         self.login: str = backend_config["internal_login"]
         self.password: str = backend_config["internal_password"]
         self.backend_url: str = backend_config["url"] + backend_config["graphql"]
-        self.get_email_template_service: GetEmailTemplateService = get_email_template_service
+        self.get_email_template_service: GetEmailTemplateService = (
+            get_email_template_service
+        )
 
         self.orm_class: Union[Type[BookingORM], None] = orm_class
         self.orm_config: Union[dict[str, Any], None] = copy(orm_config)
@@ -83,7 +92,15 @@ class CheckBookingService(BaseBookingService):
         """
         filters: dict[str, Any] = dict(id=booking_id, should_be_deactivated_by_timer=True)
         booking: Booking = await self.booking_repo.retrieve(
-            filters=filters, related_fields=["user", "agent", "project", "project__city", "property", "building"]
+            filters=filters,
+            related_fields=[
+                "user",
+                "agent",
+                "project",
+                "project__city",
+                "property",
+                "building",
+            ],
         )
         result: bool = True
         if booking:
@@ -94,8 +111,9 @@ class CheckBookingService(BaseBookingService):
             elif booking.time_valid():
                 task_delay: int = (booking.expires - datetime.now(tz=UTC)).seconds
                 if self.check_booking_task:
-
-                    self.check_booking_task.apply_async((booking.id, status), countdown=task_delay)
+                    self.check_booking_task.apply_async(
+                        (booking.id, status), countdown=task_delay
+                    )
                 result: bool = False
             else:
                 if not status:
@@ -106,9 +124,14 @@ class CheckBookingService(BaseBookingService):
                     name__iexact=status_label,
                     pipeline_id=booking.project.amo_pipeline_id,
                 )
-                actual_amocrm_status: AmocrmStatus = await self.amocrm_status_repo.retrieve(filters=filters)
+                actual_amocrm_status: AmocrmStatus = (
+                    await self.amocrm_status_repo.retrieve(filters=filters)
+                )
                 data: dict[str, Any] = dict(
                     active=False,
+                    project_id=None,
+                    building_id=None,
+                    property_id=None,
                     profitbase_booked=False,
                     params_checked=False,
                     should_be_deactivated_by_timer=False,
@@ -121,7 +144,11 @@ class CheckBookingService(BaseBookingService):
                     await self._profitbase_unbooking(booking)
                     await self._amocrm_unbooking(booking, actual_amocrm_status.id)
                 else:
-                    if booking.step_one() and not booking.step_two() and booking.amocrm_id:
+                    if (
+                        booking.step_one()
+                        and not booking.step_two()
+                        and booking.amocrm_id
+                    ):
                         await self._amocrm_unbooking(booking, actual_amocrm_status.id)
                         await self._send_agent_email(booking=booking)
                     elif booking.step_two():
@@ -129,14 +156,20 @@ class CheckBookingService(BaseBookingService):
                         await self._amocrm_unbooking(booking, actual_amocrm_status.id)
 
                 self.logger.debug(f"Booking deactivation data: {data}")
-                await self.booking_deactivate(booking=booking, data=data)
+                booking = await self.booking_deactivate(booking=booking, data=data)
+                await booking.refresh_from_db()
+                print(f"{booking=}")
+                print(f"{booking.active=}")
+                print(f"{booking.amocrm_status=}")
+                print(f"{booking.amocrm_stage=}")
+                print(f"{booking.amocrm_substage=}")
                 await self.property_repo.update(booking.property, data=property_data)
                 await self._backend_unbooking(booking)
                 self.booking_notification_sms_task.delay(booking.id)
                 result: bool = False
                 await self.update_task_instance_status(
-                        booking_id=booking.id, status_slug=PaidBookingSlug.RE_BOOKING.value
-                    )
+                    booking_id=booking.id, status_slug=PaidBookingSlug.RE_BOOKING.value
+                )
         return result
 
     async def _amocrm_unbooking(self, booking: Booking, status_id: int) -> int:
@@ -193,7 +226,9 @@ class CheckBookingService(BaseBookingService):
 
         if email_notification_template and email_notification_template.is_active:
             email_options: dict[str, Any] = dict(
-                topic=email_notification_template.template_topic.format(booking_id=booking.id),
+                topic=email_notification_template.template_topic.format(
+                    booking_id=booking.id
+                ),
                 content=email_notification_template.content,
                 recipients=[booking.agent.email],
                 lk_type=email_notification_template.lk_type.value,
@@ -202,8 +237,12 @@ class CheckBookingService(BaseBookingService):
             email_service: Any = self.email_class(**email_options)
             return email_service.as_task()
 
-    async def update_task_instance_status(self, booking_id: int, status_slug: str) -> None:
+    async def update_task_instance_status(
+        self, booking_id: int, status_slug: str
+    ) -> None:
         """
         Обновление статуса задачи
         """
-        await self.update_task_instance_status_service(booking_id=booking_id, status_slug=status_slug)
+        await self.update_task_instance_status_service(
+            booking_id=booking_id, status_slug=status_slug
+        )

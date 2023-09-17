@@ -1,9 +1,10 @@
 # pylint: disable=broad-except,import-outside-toplevel,lost-exception
+import re
+import traceback
 from functools import wraps
 from typing import Any, Optional, Tuple, Type
 
-from asyncpg import UniqueViolationError
-from tortoise.exceptions import IntegrityError
+from tortoise.exceptions import IntegrityError, TransactionManagementError
 
 from common.amocrm import AmoCRM
 from common.amocrm.exceptions import BaseAmocrmException
@@ -56,21 +57,30 @@ async def _get_note_message(func, *args, **kwargs) -> Tuple[Any, Any, str]:
         # note: class method execution
         kwargs.update(**args[1])
         result = await func(args[0], **kwargs)
-    except BaseAmocrmException as amo_exception:
-        exception = amo_exception
-        text += amo_exception.message
-    except BaseBookingException as booking_exception:
-        exception = booking_exception
-        text += booking_exception.message
-    except IntegrityError as tortoise_exception:
-        if isinstance(uniq_error := tortoise_exception.args[0], UniqueViolationError):
-            if uniq_error.constraint_name == "users_user_unique_together_email_type":
-                text += "Данная почта уже закреплена за другим клиентом"
+    except (BaseAmocrmException, BaseBookingException, IntegrityError, TransactionManagementError) as e:
+        exception = e
+        text += _format_exception_message(e)
     except Exception as e:
         exception = e
-        import traceback
-        text += traceback.format_exc().splitlines()[-1]
+        text += _format_exception_message(e)
     else:
         text = "Смс с быстрой бронью успешно отправлено"
     finally:
         return result, exception, text
+
+
+def _format_exception_message(exception) -> str:
+    if isinstance(exception, (BaseAmocrmException, BaseBookingException)):
+        return exception.message
+
+    elif isinstance(exception, (IntegrityError, TransactionManagementError)):
+        traceback_str = traceback.format_exc()
+
+        constraint_match = re.search(r'constraint "(.*?)"', traceback_str)
+        if constraint_match:
+            constraint_name = constraint_match.group(1)
+
+            if constraint_name == "users_user_unique_together_email_type":
+                return "Найден пользователь с такой же почтой."
+
+    return traceback.format_exc().splitlines()[-1]

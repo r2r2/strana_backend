@@ -40,7 +40,7 @@ class ResponseMeetingModel(BaseMeetingModel):
     Модель встречи
     """
     id: int
-    city_id: int
+    city_id: Optional[int]
     project_id: Optional[int]
     booking: Optional[BookingMeetingModel]
     status: ResponseStatusMeetingModel

@@ -56,22 +56,28 @@ class _UserListModel(BaseUserModel):
             schema["properties"].pop("patronymic")
 
 
+class ResponseUserLookupModel(BaseUserModel):
+    """
+    Модель ответа пользователя с раздельным ФИО
+    """
+
+    id: int
+    email: Optional[str]
+    phone: Optional[str]
+    name: Optional[str]
+    surname: Optional[str]
+    patronymic: Optional[str]
+
+    class Config:
+        orm_mode = True
+
+
 class ResponseAgentsUsersLookupModel(BaseUserModel):
     """
     Модель ответа поиска пользователя агента
     """
 
     type: Optional[SearchType.serializer]
-    result: Optional[list[_UserListModel]]
-
-    class Config:
-        orm_mode = True
-
-
-class ResponseAgentsUsersPhoneLookupModel(BaseUserModel):
-    """
-    Модель ответа поиска пользователя агента по началу телефона
-    """
     result: Optional[list[_UserListModel]]
 
     class Config:

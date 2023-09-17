@@ -2,6 +2,8 @@ from .paginations import Pagination
 from .users import (
     CurrentUserId,
     CurrentAnyTypeUserId,
+    CurrentInTypesUserId,
+    CurrentUserType,
     WSCurrentUserId,
     CurrentUserExtra,
     DeletedUserCheck,

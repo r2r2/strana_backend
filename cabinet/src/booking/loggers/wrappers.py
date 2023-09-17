@@ -19,7 +19,7 @@ def booking_changes_logger(booking_change: BookingRepo(), use_case: BaseBookingC
         exclude_filters: list[dict] = None
     ):
         booking_after, response_data = dict(), dict()
-        booking_before: str = dumps_dict(dict(booking)) if booking else dict()
+        booking_before: str = dumps_dict(dict(booking) if booking else dict())
         booking_difference_json: str = ""
         error_data, booking_id = None, None
 
@@ -35,16 +35,13 @@ def booking_changes_logger(booking_change: BookingRepo(), use_case: BaseBookingC
         try:
             booking: Booking = await update_booking
             booking_id: int = booking.id if booking else None
-            booking_after: str = dumps_dict(
-                dict(booking)
-            ) if booking else dict()
+            booking_after: str = dumps_dict(dict(booking) if booking else dict())
             booking_difference: dict = get_difference_between_two_dicts(
                 json.loads(booking_before), json.loads(booking_after)
             )
             booking_difference_json: str = json.dumps(booking_difference, indent=4, sort_keys=True, default=str)
         except Exception as error:
             error_data = str(error)
-
 
         log_data: dict = dict(
             state_before=booking_before,

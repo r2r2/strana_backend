@@ -1,7 +1,8 @@
 from typing import Any, Optional, Union
 
 from tortoise import fields, Model
-from tortoise.query_utils import Prefetch, Q
+from tortoise.expressions import Q
+from tortoise.query_utils import Prefetch
 from tortoise.queryset import QuerySet, QuerySetSingle
 
 from common import cfields, orm

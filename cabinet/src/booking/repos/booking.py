@@ -7,6 +7,8 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional, Union, Any, Iterable
 from uuid import UUID, uuid4
+import structlog
+import traceback
 
 from common import cfields, orm
 from common.orm.mixins import CRUDMixin, FacetsMixin, SCountMixin, SpecsMixin
@@ -70,7 +72,21 @@ class Booking(Model):
     params_checked: bool = fields.BooleanField(
         description="Параметры проверены (шаг 3)", default=False
     )
-    price_payed: bool = fields.BooleanField(description="Стоиомсть оплачена (шаг 4)", default=False)
+    payment_method = fields.ForeignKeyField(
+        model_name="models.PaymentMethod",
+        on_delete=fields.SET_NULL,
+        null=True,
+        related_name="booking_payment_method",
+        description="Способ оплаты",
+    )
+    price = fields.ForeignKeyField(
+        model_name="models.PropertyPrice",
+        on_delete=fields.SET_NULL,
+        null=True,
+        related_name="booking_price",
+        description="Цена",
+    )
+    price_payed: bool = fields.BooleanField(description="Стоимость оплачена (шаг 4)", default=False)
     online_purchase_started: bool = fields.BooleanField(
         description="Клиент приступил к онлайн-покупке", default=False
     )
@@ -126,7 +142,6 @@ class Booking(Model):
         default=PaymentView.DESKTOP,
         choice_class=PaymentView,
     )
-
     payment_method: str = cfields.CharChoiceField(
         description="Способ покупки",
         max_length=20,
@@ -245,10 +260,17 @@ class Booking(Model):
         description="Отсканированные данные паспортов", null=True
     )
     created_source: str = cfields.CharChoiceField(
+        # todo: deprecated. New field is booking_source(ForeignKey)
         description="Источник создания онлайн-бронирования",
         null=True,
         max_length=100,
-        choice_class=BookingCreatedSources
+        choice_class=BookingCreatedSources,
+    )
+    booking_source: ForeignKeyNullableRelation["BookingSource"] = fields.ForeignKeyField(
+        description="Источник создания онлайн-бронирования",
+        model_name="models.BookingSource",
+        related_name="bookings",
+        null=True,
     )
     condition_chosen: bool = fields.BooleanField(
         description='На стадии "Выбор условий"', default=False
@@ -371,12 +393,57 @@ class Booking(Model):
         force_create: bool = False,
         force_update: bool = False,
     ) -> None:
-        if not force_create and (not self.expires or not self.payment_id):
+        if not force_create and (
+            not self.until
+            or not self.expires
+            or not self.payment_id
+            or not self.payment_amount
+            or not self.payment_url
+            or not self.payment_order_number
+            or not self.final_payment_amount
+            or not self.property_id
+            or not self.property
+            or not self.fixation_expires
+            or not self.extension_number
+            or not self.project_id
+            or not self.contract_accepted
+            or not self.personal_filled
+            or not self.params_checked
+            or not self.price_payed
+        ):
             booking: Booking = await BookingRepo().retrieve(filters=dict(id=self.id))
+            if not self.until and booking.until:
+                self.until = booking.until
             if not self.expires and booking.expires:
                 self.expires = booking.expires
             if not self.payment_id and booking.payment_id:
                 self.payment_id = booking.payment_id
+            if not self.payment_amount and booking.payment_amount:
+                self.payment_amount = booking.payment_amount
+            if not self.payment_url and booking.payment_url:
+                self.payment_url = booking.payment_url
+            if not self.payment_order_number and booking.payment_order_number:
+                self.payment_order_number = booking.payment_order_number
+            if not self.final_payment_amount and booking.final_payment_amount:
+                self.final_payment_amount = booking.final_payment_amount
+            if not self.property_id and booking.property_id:
+                self.property_id = booking.property_id
+            if not self.property and booking.property:
+                self.property = await booking.property
+            if not self.fixation_expires and booking.fixation_expires:
+                self.fixation_expires = booking.fixation_expires
+            if not self.extension_number and booking.extension_number:
+                self.extension_number = booking.extension_number
+            if not self.project_id and booking.project_id:
+                self.project_id = booking.project_id
+            if not self.contract_accepted and booking.contract_accepted:
+                self.contract_accepted = booking.contract_accepted
+            if not self.personal_filled and booking.personal_filled:
+                self.personal_filled = booking.personal_filled
+            if not self.params_checked and booking.params_checked:
+                self.params_checked = booking.params_checked
+            if not self.price_payed and booking.price_payed:
+                self.price_payed = booking.price_payed
         await super().save(using_db, update_fields, force_create, force_update)
 
     class Meta:
@@ -423,8 +490,14 @@ class BookingRepo(BaseBookingRepo, CRUDMixin, SCountMixin, FacetsMixin, SpecsMix
         "final_payment_amount",
         "property_id",
         "property",
+        "fixation_expires",
+        "extension_number",
+        "project_id",
     )
     non_false_fields = (
+        "contract_accepted",
+        "personal_filled",
+        "params_checked",
         "price_payed",
     )
 
@@ -432,6 +505,8 @@ class BookingRepo(BaseBookingRepo, CRUDMixin, SCountMixin, FacetsMixin, SpecsMix
     q_builder: orm.QBuilder = orm.QBuilder(Booking)
     c_builder: orm.ConverterBuilder = orm.ConverterBuilder(Booking)
     a_builder: orm.AnnotationBuilder = orm.AnnotationBuilder(Booking)
+
+    logger = structlog.get_logger("booking_repo")
 
     async def update_or_create(
         self,
@@ -441,6 +516,8 @@ class BookingRepo(BaseBookingRepo, CRUDMixin, SCountMixin, FacetsMixin, SpecsMix
         """
         Создание или обновление модели
         """
+        self.logger.debug("Booking update_or_create: ", filters=filters, data=data)
+        self.logger.debug(traceback.print_stack(limit=5))
         for non_nullable_field in self.non_nullable_fields:
             if non_nullable_field in data:
                 if data.get(non_nullable_field) is None:
@@ -458,6 +535,8 @@ class BookingRepo(BaseBookingRepo, CRUDMixin, SCountMixin, FacetsMixin, SpecsMix
         """
         Обновление модели
         """
+        self.logger.debug("Booking update: ", id=model.id, data=data)
+        self.logger.debug(traceback.print_stack(limit=5))
         for field, value in data.items():
             if field in self.non_false_fields and value is False:
                 continue
@@ -477,7 +556,8 @@ class BookingRepo(BaseBookingRepo, CRUDMixin, SCountMixin, FacetsMixin, SpecsMix
         """
         Обновление пачки бронирований
         """
-
+        self.logger.debug("Booking bulk_update: ", filters=filters, data=data)
+        self.logger.debug(traceback.print_stack(limit=5))
         for non_nullable_field in self.non_nullable_fields:
             if non_nullable_field in data:
                 if data.get(non_nullable_field) is None:

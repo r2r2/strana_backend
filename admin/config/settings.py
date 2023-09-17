@@ -13,13 +13,14 @@ SECRET_KEY = os.getenv("LK_SECRET_KEY", "rw+t6fn87n-r+9%$s^rfsdjfaa2yux(rz#!8th3
 
 TESTING = len(sys.argv) > 1 and sys.argv[1] == "test"
 
-DEBUG = "True"
+DEBUG = os.getenv("DEBUG", "True") == "True" and not TESTING
 
 ALLOWED_HOSTS = ["*"]
 
 # Application definition
 INSTALLED_APPS = [
     "grappelli",
+    "solo.apps.SoloAppConfig",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -55,6 +56,8 @@ INSTALLED_APPS = [
     "dashboard.apps.DashboardAppConfig",
     "settings.apps.SettingsAppConfig",
     "main_page.apps.MainPageAppConfig",
+    "amocrm.apps.AmocrmAppConfig",
+    "additional_services.apps.AdditionalServiceConfig",
 ]
 
 MIDDLEWARE = [
@@ -223,6 +226,9 @@ CKEDITOR_CONFIGS = {
         ],
         "toolbar": "Custom",
         "extraPlugins": ["liststyle"],
+        "allowedContent": True,
+        "autoParagraph": False,
+        "extraAllowedContent": 'span(*)',
     }
 }
 
@@ -253,7 +259,7 @@ INTERNAL_LOGIN = os.getenv("INTERNAL_LOGIN")
 INTERNAL_PASSWORD = os.getenv("INTERNAL_PASSWORD")
 
 # CORS
-CORS_ALLOWED_ORIGINS = json.loads(os.getenv("CORS_ORIGINS", "['http://localhost']"))
+CORS_ALLOWED_ORIGINS = json.loads(os.getenv("CORS_ORIGINS", '["http://localhost"]'))
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

@@ -42,5 +42,5 @@ def handle_amocrm_webhook_errors(func: Callable[..., Coroutine]) -> Callable[...
         except Exception as e:
             exception_message = str(e)
             traceback_str = traceback.format_exc()
-            logger.error(f"AmoCRM webhook error: {exception_message}\nTraceback:\n{traceback_str}")
+            logger.error(f"AmoCRM webhook error: {exception_message}\n{traceback_str}")
     return wrapper

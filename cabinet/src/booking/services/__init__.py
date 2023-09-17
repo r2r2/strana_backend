@@ -14,3 +14,4 @@ from .deactivate_bookings import DeactivateBookingsService
 from .repeat_booking import RepeatBookingService
 from .update_booking_in_amo import UpdateAmoBookingService
 from .send_sms_msk_client import SendSmsToMskClientService
+from .booking_creation import BookingCreationFromAmoService

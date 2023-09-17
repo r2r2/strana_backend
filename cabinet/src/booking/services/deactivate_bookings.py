@@ -10,8 +10,16 @@ class DeactivateBookingsService(BaseBookingsService):
     """
     Кейс деактивации бронирования
     """
-    async def __call__(self, booking: Booking, webhook_lead: WebhookLead, stages_valid: bool):
-        data: dict[str] = dict(active=False)
+
+    async def __call__(
+        self, booking: Booking, webhook_lead: WebhookLead, stages_valid: bool
+    ):
+        data: dict = dict(
+            active=False,
+            project_id=None,
+            building_id=None,
+            property_id=None,
+        )
         booking: Booking = await self.booking_repo.update(booking, data=data)
         filters: dict[str] = dict(id=booking.property_id)
         booking_property: BookingProperty = await self.property_repo.retrieve(filters=filters)
@@ -35,7 +43,7 @@ class DeactivateBookingsService(BaseBookingsService):
             )
         )
         self.logger.info(
-            'Amocrm booking deactivated',
+            "Amocrm booking deactivated",
             booking_id=booking.id,
             property_id=booking.property_id,
             stages_valid=stages_valid,

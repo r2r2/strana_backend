@@ -1,13 +1,15 @@
 from http import HTTPStatus
 from typing import Any
-from fastapi import (APIRouter, Body, Path, Depends)
+from fastapi import (APIRouter, Body, Path, Depends, Query)
 
 from common import dependencies
 from config import amocrm_config
-from src.task_management.model import TaskInstanceUpdateSchema
+from src.task_management.model import TaskInstanceUpdateSchema, TaskChainStatusesResponseSchema
 from src.task_management.repos import TaskInstanceRepo, TaskStatusRepo
 from src.task_management.use_cases import (
+    TaskChainStatusesCase,
     UpdateTaskInstanceCase,
+    SetPreviousTaskStatusCase,
 )
 from src.task_management.tasks import create_task_instance_task
 
@@ -49,24 +51,63 @@ async def create_task_instance_from_admin(
     create_task_instance_task.delay(booking_ids=[booking_id])
 
 
+@router.get(
+    "/task_chain/statuses",
+    status_code=HTTPStatus.OK,
+    response_model=list[TaskChainStatusesResponseSchema],
+    dependencies=[Depends(dependencies.CurrentAnyTypeUserId())],
+)
+async def get_task_chain_statuses(
+    slug: str = Query(...),
+):
+    """
+    Получение статусов цепочки заданий
+    @param slug: слаг статуса
+    """
+    get_all_statuses: TaskChainStatusesCase = TaskChainStatusesCase()
+    return await get_all_statuses(slug=slug)
+
+
+@router.post(
+    "/tasks/{task_id}/previous_status",
+    status_code=HTTPStatus.OK,
+    dependencies=[Depends(dependencies.CurrentAnyTypeUserId())],
+)
+async def set_previous_status(
+    task_id: int = Path(...),
+):
+    """
+    Установка предыдущего статуса задания
+    @param task_id: id задания
+    """
+    resources: dict[str, Any] = dict(
+        task_instance_repo=TaskInstanceRepo,
+    )
+
+    set_status: SetPreviousTaskStatusCase = SetPreviousTaskStatusCase(**resources)
+    await set_status(task_id=task_id)
+
+
 @router.post(
     "/set_pinning",
     status_code=HTTPStatus.OK,
 )
 async def one_time_set_pinning():
     from fastapi import HTTPException
-    from sentry_sdk import utils
-    from sentry_sdk import capture_message
-    import structlog
-    print(f'{utils.MAX_STRING_LENGTH=}')
+    from src.notifications.tasks import booking_notification_sms_task
+    from src.task_management.factories import CreateTaskInstanceServiceFactory
+    from src.task_management.dto import CreateTaskDTO, UpdateTaskDTO
 
-    logger = structlog.get_logger()
-    capture_message('test')
-    logger.exception('test*******test___________418')
+    # booking_notification_sms_task.delay(booking_id=5777)
 
+    create_task = CreateTaskInstanceServiceFactory().create()
+    task_context: CreateTaskDTO = CreateTaskDTO()
+    # task_context.status_slug = 'pinning'
+    # task_context.status_slug = 123
+    task_context.booking_created = True
+    await create_task(booking_ids=[5777], task_context=task_context)
 
-
-    raise HTTPException(status_code=418, detail="Hello world, from FastAPI!")
+    raise HTTPException(status_code=418)
     """
     Одноразовый эндпоинт. Удалить после использования.
     Установка Статуса закрепления для всех пользователей
@@ -136,3 +177,30 @@ async def one_time_set_pinning():
 
     await asyncio.gather(*process_tasks)
     print("++++All Task Done++++")
+
+
+@router.get("/add_booking_fixation_tasks", status_code=HTTPStatus.OK)
+async def tip_list_view():
+    """
+    Одноразовый эндпоинт. Удалить после использования.
+    Продление всех действующих сделок (задачи фиксации).
+    """
+    from src.task_management.use_cases import CreateTaskInstanceForOldBookingCase
+    from src.task_management import repos as task_management_repos
+    from src.booking import repos as booking_repos
+    from common.settings.repos import BookingSettingsRepo
+    from src.task_management.tasks import update_task_instance_status_task
+    from src.notifications.tasks import booking_fixation_notification_email_task
+
+    resources: dict[str, Any] = dict(
+        task_instance_repo=task_management_repos.TaskInstanceRepo,
+        task_status_repo=task_management_repos.TaskStatusRepo,
+        task_chain_repo=task_management_repos.TaskChainRepo,
+        booking_repo=booking_repos.BookingRepo,
+        booking_settings_repo=BookingSettingsRepo,
+        update_task_instance_status_task=update_task_instance_status_task,
+        booking_fixation_notification_email_task=booking_fixation_notification_email_task,
+    )
+
+    create_task_for_old_bookings: CreateTaskInstanceForOldBookingCase = CreateTaskInstanceForOldBookingCase(**resources)
+    return await create_task_for_old_bookings()

@@ -2,7 +2,7 @@ from django.db import models
 
 
 class MatrixConditionsThrough(models.Model):
-    matrix = models.ForeignKey(
+    matrix = models.OneToOneField(
         verbose_name="Матрица",
         to="questionnaire.Matrix",
         on_delete=models.CASCADE,

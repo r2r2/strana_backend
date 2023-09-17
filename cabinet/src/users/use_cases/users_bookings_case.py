@@ -1,15 +1,15 @@
 import datetime
 from typing import Any, Optional, Type, Union
 
-from tortoise.query_utils import Q
+from tortoise.expressions import Q
 
 from common.settings.repos import BookingSettingsRepo
 from src.users.repos import UserRepo
 from src.users.types import UserBookingRepo, UserPagination
 from src.task_management.repos import TaskInstance
-from src.task_management.utils import build_task_data
-from ...amocrm.repos import AmocrmGroupStatus
-from ...booking.repos import Booking, BookingTag, BookingTagRepo
+from src.task_management.utils import TaskDataBuilder
+from src.amocrm.repos import AmocrmGroupStatus, AmocrmGroupStatusRepo
+from src.booking.repos import Booking, BookingTag, BookingTagRepo
 from ..constants import UserType
 from ..entities import BaseUserCase
 from ..mixins import CurrentUserDataMixin
@@ -26,11 +26,13 @@ class UsersBookingsCase(BaseUserCase, CurrentUserDataMixin):
         booking_repo: Type[UserBookingRepo],
         booking_tag_repo: Type[BookingTagRepo],
         booking_settings_repo: Type[BookingSettingsRepo],
-        amocrm_group_status_repo: Type[AmocrmGroupStatus],
-        user_type: Union[UserType.AGENT, UserType.REPRES, UserType.ADMIN]
+        amocrm_group_status_repo: Type[AmocrmGroupStatusRepo],
+        user_type: Union[UserType.AGENT, UserType.REPRES, UserType.ADMIN],
     ) -> None:
         self.user_repo: UserRepo = user_repo()
-        self.amocrm_group_status_repo: AmocrmGroupStatus = amocrm_group_status_repo()
+        self.amocrm_group_status_repo: AmocrmGroupStatusRepo = (
+            amocrm_group_status_repo()
+        )
         self.booking_settings_repo: BookingSettingsRepo = booking_settings_repo()
         self.booking_repo: UserBookingRepo = booking_repo()
         self.booking_tag_repo: BookingTagRepo = booking_tag_repo()
@@ -41,7 +43,7 @@ class UsersBookingsCase(BaseUserCase, CurrentUserDataMixin):
             init_filters: dict[str, Any],
             pagination: UserPagination,
             agency_id: Optional[int] = None,
-            agent_id: Optional[int] = None
+            agent_id: Optional[int] = None,
     ) -> dict[str, Any]:
         self.init_user_data(agent_id=agent_id, agency_id=agency_id)
         ordering: Union[str, None] = init_filters.pop("ordering", "-id")
@@ -53,7 +55,6 @@ class UsersBookingsCase(BaseUserCase, CurrentUserDataMixin):
             "user",
             "project__city",
             "building",
-            "property",
             "property__section",
             "property__property_type",
             "property__floor",
@@ -82,34 +83,7 @@ class UsersBookingsCase(BaseUserCase, CurrentUserDataMixin):
             booking.booking_tags = await self._get_booking_tags(booking)
 
             if booking.amocrm_status:
-                group_statuses: list[AmocrmGroupStatus] = await self.amocrm_group_status_repo.list(
-                    filters=dict(is_final=False),
-                    ordering="sort",
-                )
-                final_group_statuses: list[AmocrmGroupStatus] = await self.amocrm_group_status_repo.list(
-                    filters=dict(is_final=True),
-                )
-                final_group_statuses_ids = [final_group_status.id for final_group_status in final_group_statuses]
-
-                booking_group_status = booking.amocrm_status.group_status
-                if not booking_group_status:
-                    booking_group_status_current_step = 1
-                elif booking_group_status.id in final_group_statuses_ids:
-                    booking_group_status_current_step = len(group_statuses) + 1
-                else:
-                    for number, group_status in enumerate(group_statuses):
-                        if booking_group_status.id == group_status.id:
-                            booking_group_status_current_step = number + 1
-
-                if booking_group_status:
-                    booking.amocrm_status.name = booking_group_status.name
-                    booking.amocrm_status.group_id = booking_group_status.id
-                    booking.amocrm_status.show_reservation_date = booking_group_status.show_reservation_date
-                    booking.amocrm_status.show_booking_date = booking_group_status.show_booking_date
-
-                booking.amocrm_status.color = booking_group_status.color if booking_group_status else None
-                booking.amocrm_status.steps_numbers = len(group_statuses) + 1
-                booking.amocrm_status.current_step = booking_group_status_current_step
+                await self._set_group_statuses(booking=booking)
 
         data: dict[str, Any] = dict(count=count, result=bookings, page_info=pagination(count=count))
         return data
@@ -117,9 +91,11 @@ class UsersBookingsCase(BaseUserCase, CurrentUserDataMixin):
     async def _get_booking_tags(self, booking: Booking) -> Optional[list[BookingTag]]:
         tag_filters: dict[str, Any] = dict(
             is_active=True,
-            group_statuses=booking.amocrm_status.group_status,
+            group_statuses=booking.amocrm_status.group_status if booking.amocrm_status else None,
         )
-        return (await self.booking_tag_repo.list(filters=tag_filters, ordering='-priority')) or None
+        return (
+            await self.booking_tag_repo.list(filters=tag_filters, ordering="-priority")
+        ) or None
 
     def get_bookings_filters(self, init_filters: dict) -> dict[str, Any]:
         """Get booking data with user_data mixin"""
@@ -166,36 +142,89 @@ class UsersBookingsCase(BaseUserCase, CurrentUserDataMixin):
 
         or_filters += [
             # work start between u_start and u_end
-            Q(user__work_end__isnull=False) & Q(user__work_start__lte=work_start) & Q(user__work_end__gte=work_start),
+            Q(user__work_end__isnull=False)
+            & Q(user__work_start__lte=work_start)
+            & Q(user__work_end__gte=work_start),
             # work end between u_start and u_end
-            Q(user__work_end__isnull=False) & Q(user__work_start__lte=work_end) & Q(user__work_end__gte=work_end),
+            Q(user__work_end__isnull=False)
+            & Q(user__work_start__lte=work_end)
+            & Q(user__work_end__gte=work_end),
             # work start less u_start and work end greater u_end
-            Q(user__work_end__isnull=False) & Q(user__work_start__gte=work_start) & Q(user__work_end__lte=work_end),
-
-            Q(user__work_end__isnull=True) & Q(user__work_start__lte=work_end)
+            Q(user__work_end__isnull=False)
+            & Q(user__work_start__gte=work_start)
+            & Q(user__work_end__lte=work_end),
+            Q(user__work_end__isnull=True) & Q(user__work_start__lte=work_end),
         ]
 
         return [self.booking_repo.q_builder(or_filters=or_filters)]
 
-    async def _get_booking_tasks(self, booking: Booking) -> list[TaskInstance]:
+    async def _get_booking_tasks(
+        self, booking: Booking
+    ) -> list[Optional[dict[str, Any]]]:
         """Get booking tasks"""
         tasks = []
         # берем все таски, которые видны в текущем статусе букинга
         task_instances: list[TaskInstance] = [
-            task for task in booking.task_instances if booking.amocrm_status in task.status.tasks_chain.task_visibility
+            task
+            for task in booking.task_instances
+            if booking.amocrm_status in task.status.tasks_chain.task_visibility
         ]
-        if task_instances:
-            # берем таску с наивысшим приоритетом,
-            # наивысшим будет приоритет с наименьшим значением ¯_(ツ)_/¯
-            highest_priority_task = min(task_instances, key=lambda x: x.status.priority)
+        if not task_instances:
+            return tasks
 
-            booking_settings = await self.booking_settings_repo.list().first()
-            tasks = await build_task_data(
-                task_instances=[highest_priority_task],
-                booking=booking,
-                booking_settings=booking_settings,
+        # берем таску с наивысшим приоритетом,
+        # наивысшим будет приоритет с наименьшим значением ¯_(ツ)_/¯
+        highest_priority_task = min(task_instances, key=lambda x: x.status.priority)
+
+        booking_settings = await self.booking_settings_repo.list().first()
+        tasks = await TaskDataBuilder(
+            task_instances=highest_priority_task,
+            booking=booking,
+            booking_settings=booking_settings,
+        ).build()
+
+        # Убираем инфу о встрече, в списке сделок она не нужна
+        [task.pop("meeting") for task in tasks if task.get("meeting")]
+        return tasks
+
+    async def _set_group_statuses(self, booking: Booking) -> None:
+        group_statuses: list[
+            AmocrmGroupStatus
+        ] = await self.amocrm_group_status_repo.list(
+            filters=dict(is_final=False),
+            ordering="sort",
+        )
+        final_group_statuses: list[
+            AmocrmGroupStatus
+        ] = await self.amocrm_group_status_repo.list(
+            filters=dict(is_final=True),
+        )
+        final_group_statuses_ids = [
+            final_group_status.id for final_group_status in final_group_statuses
+        ]
+
+        booking_group_status = booking.amocrm_status.group_status
+        if not booking_group_status:
+            booking_group_status_current_step = 1
+        elif booking_group_status.id in final_group_statuses_ids:
+            booking_group_status_current_step = len(group_statuses) + 1
+        else:
+            for number, group_status in enumerate(group_statuses):
+                if booking_group_status.id == group_status.id:
+                    booking_group_status_current_step = number + 1
+
+        if booking_group_status:
+            booking.amocrm_status.name = booking_group_status.name
+            booking.amocrm_status.group_id = booking_group_status.id
+            booking.amocrm_status.show_reservation_date = (
+                booking_group_status.show_reservation_date
+            )
+            booking.amocrm_status.show_booking_date = (
+                booking_group_status.show_booking_date
             )
 
-            # Убираем инфу о встрече, в списке сделок она не нужна
-            [task.pop("meeting") for task in tasks if task.get("meeting")]
-        return tasks
+        booking.amocrm_status.color = (
+            booking_group_status.color if booking_group_status else None
+        )
+        booking.amocrm_status.steps_numbers = len(group_statuses) + 1
+        booking.amocrm_status.current_step = booking_group_status_current_step

@@ -27,4 +27,4 @@ class AmocrmPipeline(models.Model):
         managed = False
         db_table = "amocrm_pipelines"
         verbose_name = "Воронка"
-        verbose_name_plural = "1.2. [Справочник] Воронки из АМО"
+        verbose_name_plural = " 1.2. [Справочник] Воронки из АМО"

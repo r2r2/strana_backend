@@ -1,9 +1,12 @@
 from enum import Enum
-from typing import Type, Optional, Any
 
 from src.users.constants import UserType
 from ..repos import UserRepo, User
-from ..exceptions import NotUniquePhoneUser, NotUniqueEmailUser, NotUniqueEmaiAndPhoneUser
+from ..exceptions import (
+    NotUniquePhoneUser,
+    NotUniqueEmailUser,
+    NotUniqueEmaiAndPhoneUser,
+)
 from ..entities import BaseUserService
 from ..models import RequestUserCheckUnique
 
@@ -12,6 +15,7 @@ class UserMatchType(str, Enum):
     """
     Тип пользователя со склонением
     """
+
     ADMIN: str = "админом"
     AGENT: str = "агентом"
     CLIENT: str = "клиентом"
@@ -24,15 +28,17 @@ class UserCheckUniqueService(BaseUserService):
     Сервис проверки уникальности пользователя в базе по телефону и почте.
     """
 
-    mail_and_phone_match_message: str = "Простите, данная почта закреплена за другим {mail_match_user_type}, " \
-                                        "телефон закреплен за другим {phone_match_user_type}, вы не можете их использовать."
-    mail_match_message: str = "Простите, данная почта закреплена за другим {}, вы не можете её использовать."
+    mail_and_phone_match_message: str = (
+        "Простите, данная почта закреплена за другим {mail_match_user_type}, "
+        "телефон закреплен за другим {phone_match_user_type}, "
+        "вы не можете их использовать."
+    )
+    mail_match_message: str = (
+        "Простите, данная почта закреплена за другим {}, вы не можете её использовать."
+    )
     phone_match_message: str = "Простите, данный номер телефона закреплен за другим {}, вы не можете его использовать."
 
-    def __init__(
-        self,
-        user_repo: Type[UserRepo]
-    ) -> None:
+    def __init__(self, user_repo: type[UserRepo]) -> None:
         self.user_repo: UserRepo = user_repo()
 
     async def __call__(
@@ -60,7 +66,7 @@ class UserCheckUniqueService(BaseUserService):
 
         raised_exceptions = []
         for filters, exception in zip(filters, exceptions):
-            user: Optional[User] = await self.user_repo.retrieve(filters=filters)
+            user: User | None = await self.user_repo.retrieve(filters=filters)
             if user:
                 if user.type == UserType.AGENT:
                     user_type = UserMatchType.AGENT
@@ -73,13 +79,13 @@ class UserCheckUniqueService(BaseUserService):
                 else:
                     user_type = UserMatchType.MANAGER
 
-                exception_data = (exception, user_type)
+                exception_data = (exception, user_type.value)
                 raised_exceptions.append(exception_data)
 
         if raised_exceptions:
             raise self._format_exceptions(raised_exceptions)
 
-    def _format_exceptions(self, raised_exceptions: list[Any]):
+    def _format_exceptions(self, raised_exceptions: list[tuple]):
         """
         Добавляет необходимый тип пользователя в сообщение ошибки.
         """

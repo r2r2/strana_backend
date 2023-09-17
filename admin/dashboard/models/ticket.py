@@ -56,7 +56,7 @@ class TicketCityThrough(models.Model):
     """
     Связь заявки и города
     """
-    ticket: models.ForeignKey = models.ForeignKey(
+    ticket: models.ForeignKey = models.OneToOneField(
         to='dashboard.Ticket',
         verbose_name='Заявка',
         related_name='ticket_through',

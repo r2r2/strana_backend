@@ -15,6 +15,18 @@ class TaskInstanceLog(Model, AbstractLogMixin):
         related_name="task_instance_logs",
         null=True,
     )
+    booking: fields.ForeignKeyNullableRelation["Booking"] = fields.ForeignKeyField(
+        description="Бронирование",
+        model_name="models.Booking",
+        related_name="task_instance_logs",
+        null=True,
+    )
+    task_chain: fields.ForeignKeyNullableRelation["TaskChain"] = fields.ForeignKeyField(
+        description="Цепочка заданий",
+        model_name="models.TaskChain",
+        related_name="task_instance_logs",
+        null=True,
+    )
 
     def __str__(self) -> str:
         return str(self.id)

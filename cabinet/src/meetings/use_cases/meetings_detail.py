@@ -8,13 +8,14 @@ from src.users.repos import User, UserRepo
 from src.booking.repos import Booking
 from src.users.constants import UserType
 from src.users.repos import CheckRepo, UserPinningStatus, UserPinningStatusRepo
-from src.task_management.utils import build_task_data, is_task_in_meeting_task_chain
-from src.amocrm.repos import AmocrmGroupStatusRepo, AmocrmGroupStatus, AmocrmStatus
+from src.task_management.utils import is_task_in_compare_task_chain, TaskDataBuilder
+from src.amocrm.repos import AmocrmGroupStatusRepo, AmocrmGroupStatus
 
 from ..entities import BaseMeetingCase
 from ..repos import Meeting, MeetingRepo, MeetingStatusRepo
 from ..exceptions import MeetingNotFoundError
 from src.task_management.repos import TaskInstance
+from src.task_management.constants import MeetingsSlug
 
 
 class MeetingsDetailCase(BaseMeetingCase):
@@ -147,7 +148,9 @@ class MeetingsDetailCase(BaseMeetingCase):
         """
         meeting_tasks = [
             task_instance for task_instance in task_instances
-            if is_task_in_meeting_task_chain(task_instance.status)
+            if await is_task_in_compare_task_chain(
+                status=task_instance.status, compare_status=MeetingsSlug.SIGN_UP.value
+            )
         ]
 
         sorted_meeting_tasks = sorted(
@@ -156,10 +159,10 @@ class MeetingsDetailCase(BaseMeetingCase):
         )
 
         booking_settings = await self.booking_settings_repo.list().first()
-        return await build_task_data(
+        return await TaskDataBuilder(
             task_instances=sorted_meeting_tasks,
             booking=booking,
             booking_settings=booking_settings,
-        )
+        ).build()
 
 

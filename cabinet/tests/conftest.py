@@ -34,6 +34,8 @@ from .represes.repos_fixtures import *
 from .dashboard.repos_fixtures import *
 from .events.repos_fixtures import *
 from .documents.repos_fixtures import *
+from .favourites.repos_fixtures import *
+from .task_management.repos_fixtures import *
 
 
 @pytest.fixture

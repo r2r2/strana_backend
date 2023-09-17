@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from common.amocrm.components import AmoCRMContacts
@@ -36,7 +36,7 @@ class CreateContactServiceTestData:
                     'john@mail.com',
                     '1111',
                     '123456',
-                    datetime(2021, 4, 21, 15, 0),
+                    datetime.fromtimestamp(1618905600) + timedelta(days=1),
                     ['Tag1', 'Tag2'],
                 ),
                 should_raise_exception=False,
@@ -57,7 +57,7 @@ class CreateContactServiceTestData:
                     None,
                     '2222',
                     '654321',
-                    datetime(2022, 2, 19, 4, 20),
+                    datetime.fromtimestamp(1645132800) + timedelta(days=1),
                     ['Tag3', 'Tag4'],
                 ),
                 should_raise_exception=False,
@@ -107,7 +107,7 @@ class CreateContactServiceTestData:
                 ),
                 custom_fields_values=[
                     AmoCustomField(field_id=self.birth_date_field_id,
-                                   values=[AmoCustomFieldValue(value='1645132800')]),
+                                   values=[AmoCustomFieldValue(value="ffff")]),
                 ],
                 expected=None,
                 should_raise_exception=True,

@@ -3,8 +3,7 @@ from copy import copy
 from typing import Any, Callable, Optional, Type, Union
 
 from pypika.queries import Selectable
-from tortoise.expressions import Subquery
-from tortoise.functions import F
+from tortoise.expressions import Subquery, F
 
 from common.backend.models import (
     BackendBuilding, BackendCity, BackendFloor,
@@ -14,10 +13,11 @@ from common.backend.models import (
 from common.backend.repos import (
     BackendBuildingBookingTypesRepo, BackendFloorsRepo,
     BackendPropertiesRepo, BackendSectionsRepo,
-    BackendSpecialOfferRepo
+    BackendSpecialOfferRepo,
 )
 from src.buildings.repos import BuildingBookingType, BuildingBookingTypeRepo, BuildingSection, BuildingSectionRepo
 from src.cities.repos import City, CityRepo, Metro, MetroRepo, MetroLineRepo, MetroLine, TransportRepo, Transport
+from src.properties.repos import Feature, FeatureRepo
 from src.properties.constants import PropertyStatuses
 from .import_building_booking_types import ImportBuildingBookingTypesService
 from ..entities import BasePropertyService
@@ -55,6 +55,7 @@ class ImportPropertyService(BasePropertyService):
         backend_properties_repo: Type[BackendPropertiesRepo],
         backend_floors_repo: Type[BackendFloorsRepo],
         backend_sections_repo: Type[BackendSectionsRepo],
+        feature_repo: Type[FeatureRepo],
         global_id_encoder: Callable[[str, str], str],
         global_id_decoder: Callable[[str], list[str]],
         orm_class: Optional[Type[PropertyORM]] = None,
@@ -69,7 +70,7 @@ class ImportPropertyService(BasePropertyService):
         self.project_repo: PropertyProjectRepo = project_repo()
         self.city_repo: CityRepo = city_repo()
         self.building_repo: PropertyBuildingRepo = building_repo()
-
+        self.features_repo: FeatureRepo = feature_repo()
         self.metro_repo: MetroRepo = MetroRepo()
         self.metro_line_repo: MetroLineRepo = MetroLineRepo()
         self.transport_repo: TransportRepo = TransportRepo()
@@ -102,28 +103,60 @@ class ImportPropertyService(BasePropertyService):
         if self.orm_config:
             self.orm_config.pop("generate_schemas", None)
 
+    async def update_features(self, backend_property, _property):
+        features_for_city = await backend_property.project.city.features
+        featuries_for_update = [
+            feature for feature in features_for_city if f"'{backend_property.type}'" in feature.property_kind.value
+        ]
+        if featuries_for_update:
+            for back_feature in featuries_for_update:
+                feature: Feature = await self.features_repo.update_or_create(
+                    filters=dict(
+                        backend_id=back_feature.id,
+                    ),
+                    data=dict(
+                        name=back_feature.name,
+                        filter_show=back_feature.filter_show,
+                        main_filter_show=back_feature.main_filter_show,
+                        lot_page_show=back_feature.lot_page_show,
+                        icon_show=back_feature.icon_show,
+                        icon=back_feature.icon,
+                        icon_flats_show=back_feature.icon_flats_show,
+                        icon_hypo=back_feature.icon_hypo,
+                        icon_flats=back_feature.icon_flats,
+                        description=back_feature.description,
+                        order=back_feature.order,
+                        is_button=back_feature.is_button,
+                    )
+                )
+                await _property.property_features.add(feature)
+
+        return _property
+
     async def __call__(
             self,
             property_id: Optional[int] = None,
             property: Optional[Property] = None
     ) -> tuple[bool, Property]:
-        if not property:
+        _property = property
+        if not _property:
             filters: dict[str, Any] = dict(id=property_id)
-            property: Property = await self.property_repo.retrieve(filters=filters)
+            _property: Property = await self.property_repo.retrieve(filters=filters)
         status: bool = True
 
-        if not property.global_id:
-            return status, property
+        if not _property.global_id:
+            return status, _property
 
-        backend_property_id = self.global_id_decoder(property.global_id)[1]
+        backend_property_id = self.global_id_decoder(_property.global_id)[1]
         backend_property = await self._load_property_from_backend(backend_property_id)
         if backend_property is None:
-            return False, property
+            return False, _property
 
         backend_project: BackendProject = backend_property.project
+        await backend_project.fetch_related("metro__line", "transport")
         backend_city: BackendCity = backend_project.city
         backend_metro: BackendMetro = backend_project.metro
-        backend_metro_line: BackendMetroLine = backend_city.metro_line
+        backend_metro_line: BackendMetroLine = backend_metro.line if backend_metro else None
         backend_transport: BackendTransport = backend_project.transport
         backend_floor: BackendFloor = backend_property.floor
         backend_building: BackendBuilding = backend_property.building
@@ -132,29 +165,30 @@ class ImportPropertyService(BasePropertyService):
         )
 
         city: City = await self.city_repo.retrieve(filters=dict(slug=backend_city.slug))
-
-        metro_line: MetroLine = await self.metro_line_repo.update_or_create(
-            filters=dict(city__slug=city.slug),
-            data=dict(
-                color=backend_metro_line.color,
-                city_id=city.id,
-            )
-        )
-
-        metro: Optional[Metro] = None
-        if backend_metro:
-            metro: Metro = await self.metro_repo.update_or_create(
-                filters=dict(
-                    name=backend_metro.name,
-                    line__name=backend_metro_line.name,
-                    line__city__id=city.id,
-                ),
+        metro = None
+        if backend_metro_line:
+            metro_line: MetroLine = await self.metro_line_repo.update_or_create(
+                filters=dict(city__slug=city.slug, name=backend_metro_line.name),
                 data=dict(
-                    latitude=backend_metro.latitude,
-                    longitude=backend_metro.longitude,
-                    line_id=metro_line.id,
+                    color=backend_metro_line.color,
+                    city_id=city.id,
                 )
             )
+
+            metro: Optional[Metro] = None
+            if backend_metro and metro_line:
+                metro: Metro = await self.metro_repo.update_or_create(
+                    filters=dict(
+                        name=backend_metro.name,
+                        line__name=backend_metro_line.name,
+                        line__city__id=city.id,
+                    ),
+                    data=dict(
+                        latitude=backend_metro.latitude,
+                        longitude=backend_metro.longitude,
+                        line_id=metro_line.id,
+                    )
+                )
 
         transport: Optional[Transport] = None
         if backend_transport:
@@ -181,7 +215,6 @@ class ImportPropertyService(BasePropertyService):
             city_id=city.id,
             metro_id=metro.id if metro else None,
             transport_id=transport.id if transport else None,
-
             is_active=backend_project.active,
             status=backend_project.status,
             address=backend_project.address,
@@ -230,7 +263,7 @@ class ImportPropertyService(BasePropertyService):
             filters=dict(global_id=building_global_id), data=building_data
         )
         building_section: BuildingSection = await self.section_repo.update_or_create(
-            filters=dict(building_id=building.id, property_section__id=property.id),
+            filters=dict(building_id=building.id, property_section__id=_property.id),
             data=dict(
                 name=backend_building_section.name,
                 total_floors=backend_building_section.total_floors,
@@ -324,8 +357,10 @@ class ImportPropertyService(BasePropertyService):
             section_id=building_section.id,
             property_type_id=property_type.id if property_type else None,
         )
-        property = await self.property_repo.update(property, data=property_data)
-        return status, property
+        _property = await self.property_repo.update(_property, data=property_data)
+        _property = await self.update_features(backend_property, _property)
+
+        return status, _property
 
     async def _load_property_from_backend(self, backend_property_id: str) -> Optional[BackendProperty]:
         """
@@ -350,14 +385,13 @@ class ImportPropertyService(BasePropertyService):
             filters=dict(id=backend_property_id),
             related_fields=[
                 "building",
-                "project",
                 "floor",
                 "section",
                 "project__city__metro_line",
-                "project__metro",
-                "project__transport",
+                # "project__metro__line",
+                # "project__transport",
             ],
-            prefetch_fields=["building__booking_types"],
+            prefetch_fields=["building__booking_types", "project__city__features"],
             annotations=dict(
                 total_floors=Subquery(section_qs),
             ),
@@ -368,13 +402,13 @@ class ImportPropertyService(BasePropertyService):
 
     async def periodic(self) -> bool:
         """
-        Переодический запуск
+        Периодический запуск
         """
         await self.orm_class.init(config=self.orm_config)
         await self.import_building_booking_types_service()
-        async for property in self.property_repo.list():
+        async for _property in self.property_repo.list():
             try:
-                await self(property=property)
+                await self(property=_property)
             except Exception:
                 continue
         await self.orm_class.close_connections()

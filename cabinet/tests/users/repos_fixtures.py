@@ -23,6 +23,6 @@ def fake_tip(faker) -> dict:
 
 @pytest.fixture(scope="function")
 def user_repo() -> UserRepo:
-    property_repo: UserRepo = getattr(import_module("src.users.repos"), "UserRepo")()
-    return property_repo
+    user_repo: UserRepo = getattr(import_module("src.users.repos"), "UserRepo")()
+    return user_repo
 

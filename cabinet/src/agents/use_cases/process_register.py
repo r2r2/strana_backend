@@ -40,7 +40,7 @@ class ProcessRegisterCase(BaseAgentCase):
         agency_repo: Type[AgentAgencyRepo],
         token_creator: Callable[[int], str],
         import_clients_task: PromiseProxy,
-        bind_contact_company_task: PromiseProxy,
+        bind_contact_to_company_service: Any,
         create_contact_service: CreateContactService,
         ensure_broker_tag_service: EnsureBrokerTagService,
         get_email_template_service: GetEmailTemplateService,
@@ -57,7 +57,7 @@ class ProcessRegisterCase(BaseAgentCase):
         )
         self.agency_repo: AgentAgencyRepo = agency_repo()
         self.import_clients_task: PromiseProxy = import_clients_task
-        self.bind_contact_company_task: PromiseProxy = bind_contact_company_task
+        self.bind_contact_to_company_service = bind_contact_to_company_service
 
         self.create_contact_service: CreateContactService = create_contact_service
         self.ensure_broker_tag_service: EnsureBrokerTagService = ensure_broker_tag_service
@@ -164,6 +164,8 @@ class ProcessRegisterCase(BaseAgentCase):
         amocrm_id, tags = await self.create_contact_service(agent=agent)
         setattr(agent, "tags", tags)
         await self.ensure_broker_tag_service(agent=agent)
+        await self.bind_contact_to_company_service(
+            agent_amocrm_id=amocrm_id,
+            agency_amocrm_id=agency.amocrm_id,
+        )
         self.import_clients_task.delay(agent_id=agent.id)
-        self.bind_contact_company_task.delay(
-            agent_amocrm_id=amocrm_id, agency_amocrm_id=agency.amocrm_id)

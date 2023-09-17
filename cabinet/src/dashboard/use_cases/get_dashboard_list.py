@@ -7,6 +7,7 @@ from common.cache.decorators import cache_storage
 from common.calculator.calculator import CalculatorAPI
 from common.portal.portal import PortalAPI
 from common.requests import CommonResponse
+from config import backend_config
 from src.booking import repos as booking_repos
 from src.cities import repos as cities_repos
 from src.dashboard import repos as dashboard_repos
@@ -29,7 +30,8 @@ class GetDashboardListCase(BaseDashboardCase):
             link_repo: Type[dashboard_repos.LinkRepo],
             portal_class: PortalAPI,
             calculator_class: CalculatorAPI,
-            mc_config: dict[str, Any]
+            mc_config: dict[str, Any],
+            portal_config: backend_config
     ):
         self.block_repo = dashboard_block()
         self.elements_repo = elements_repo()
@@ -40,6 +42,7 @@ class GetDashboardListCase(BaseDashboardCase):
         self.portal_class: PortalAPI = portal_class
         self.calculator_class: CalculatorAPI = calculator_class
         self.mc_config = mc_config
+        self.portal_external_host = portal_config["external_url"]
 
     async def __call__(self, city_slug: str, user_id: Optional[int] = None) -> list[BlockListResponse]:
         slug_filter = dict(city__slug=city_slug)
@@ -82,7 +85,7 @@ class GetDashboardListCase(BaseDashboardCase):
                             proxy_element = self.build_element(element, template_dict)
                             proxy_element.id = node["id"]
                             proxy_element.expires = node["end"]
-                            proxy_element.link = self.portal_class.portal_host + self.PORTAL_ENDPOINT + node["slug"]
+                            proxy_element.link = self.portal_external_host + self.PORTAL_ENDPOINT + node["slug"]
                             proxy_element.image = dict(aws=node["cardImageDisplay"])
                             elements_list.append(proxy_element)
                             template_dict.pop("portal_news")

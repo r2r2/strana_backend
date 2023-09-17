@@ -5,14 +5,14 @@ from uuid import uuid4
 from fastapi import BackgroundTasks
 from pytz import UTC
 
-from ..constants import UserType
+from src.notifications.services import GetSmsTemplateService
+from ..constants import UserType, OriginType
 from ..entities import BaseUserCase
 from ..loggers.wrappers import user_changes_logger
 from ..repos import NotificationMuteRepo, RealIpUsersRepo, User, UserRepo, FakeUserPhoneRepo, UserRoleRepo, UserRole
 from ..services.notification_condition import NotificationConditionService
 from ..services.fake_send_code import FakeSendCodeService
 from ..types import UserHasher, UserSms
-from src.notifications.services import GetSmsTemplateService
 
 notification_condition_service = NotificationConditionService(
         user_repo=UserRepo,
@@ -31,6 +31,7 @@ class SendCodeCase(BaseUserCase):
 
     sms_event_slug = "user_send_code"
     client_role_slug = "client"
+    ORIGIN: str = OriginType.SMS
 
     def __init__(
         self,
@@ -70,6 +71,7 @@ class SendCodeCase(BaseUserCase):
             code=self.code_generator(),
             code_time=datetime.now(tz=UTC),
             password=self.hasher.hash(self.password_generator()),
+            origin=self.ORIGIN,
         )
         user = await self.user_update_or_create(filters=filters, data=data)
         if user.amocrm_id:

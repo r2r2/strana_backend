@@ -35,6 +35,7 @@ def import_property_task(property_id: int) -> None:
         backend_properties_repo=backend_repos.BackendPropertiesRepo,
         backend_floors_repo=backend_repos.BackendFloorsRepo,
         backend_sections_repo=backend_repos.BackendSectionsRepo,
+
     )
     loop: Any = get_event_loop()
     loop.run_until_complete(
@@ -59,6 +60,7 @@ def import_properties_task_periodic() -> None:
         global_id_encoder=utils.to_global_id,
         project_repo=projects_repos.ProjectRepo,
         building_repo=buildings_repos.BuildingRepo,
+        feature_repo=properties_repos.FeatureRepo,
         property_repo=properties_repos.PropertyRepo,
         city_repo=cities_repo.CityRepo,
         building_booking_type_repo=buildings_repos.BuildingBookingTypeRepo,

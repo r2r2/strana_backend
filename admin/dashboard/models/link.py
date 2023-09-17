@@ -47,7 +47,7 @@ class LinkCityThrough(models.Model):
     """
     Связь ссылки и города
     """
-    link: models.ForeignKey = models.ForeignKey(
+    link: models.ForeignKey = models.OneToOneField(
         to="dashboard.Link",
         verbose_name="Ссылка",
         related_name="link_through",

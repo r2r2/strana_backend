@@ -14,6 +14,8 @@ from questionnaire import models as questionnaire_models
 from references import models as references_models
 from task_management import models as task_management_models
 from users import models as users_models
+from amocrm import models as amocrm_models
+from additional_services import models as add_services_models
 
 from settings import models as settings_models
 
@@ -26,11 +28,16 @@ cabinet_models: list = [
     booking_models.AmocrmAction,
     booking_models.AmocrmGroupStatus,
     booking_models.GroupStatusActionThrough,
+    booking_models.ClientAmocrmGroupStatus,
     booking_models.BookingFixingConditionsMatrix,
     booking_models.BookingFixingConditionsMatrixProjects,
     booking_models.BookingReservationMatrix,
     booking_models.BookingReservationMatrixProjects,
     booking_models.GroupStatusTagThrough,
+    booking_models.ClientGroupStatusTagThrough,
+    booking_models.PaymentMethod,
+    booking_models.PriceOfferMatrix,
+    booking_models.BookingSource,
     properties_models.Property,
     properties_models.Building,
     properties_models.Section,
@@ -38,6 +45,8 @@ cabinet_models: list = [
     properties_models.Floor,
     properties_models.PropertyType,
     properties_models.PropertyTypePipelineThrough,
+    properties_models.PropertyPrice,
+    properties_models.PropertyPriceType,
     users_models.CabinetUser,
     users_models.CabinetAgent,
     users_models.CabinetAdmin,
@@ -64,6 +73,7 @@ cabinet_models: list = [
     disputes_models.ConfirmClientAssign,
     disputes_models.Dispute,
     disputes_models.CheckHistory,
+    disputes_models.AmoCrmCheckLog,
     disputes_models.PinningStatus,
     disputes_models.PinningStatusCity,
     disputes_models.PinningStatusPipeline,
@@ -73,10 +83,12 @@ cabinet_models: list = [
     disputes_models.CitiesThrough,
     disputes_models.PipelinesThrough,
     disputes_models.StatusesThrough,
+    disputes_models.UniqueStatusButton,
     references_models.Cities,
     references_models.CityMenuThrough,
     references_models.RoleMenuThrough,
     references_models.Menu,
+    references_models.PaymentPageNotification,
     users_models.UserLog,
     users_models.UserRole,
     users_models.UserNotificationMute,
@@ -113,6 +125,7 @@ cabinet_models: list = [
     task_management_models.TaskField,
     task_management_models.TaskChainTaskFieldsThrough,
     task_management_models.TaskStatusButtonsThrough,
+    task_management_models.TaskChainBookingSourceThrough,
     notifications_models.LogEmail,
     notifications_models.LogSms,
     notifications_models.EmailTemplate,
@@ -144,6 +157,13 @@ cabinet_models: list = [
     main_page_models.MainPagePartnerLogo,
     main_page_models.MainPageSellOnline,
     main_page_models.MainPageManager,
+    amocrm_models.AmoCRMSettings,
+    add_services_models.AdditionalServiceCategory,
+    add_services_models.AdditionalServiceCondition,
+    add_services_models.AdditionalService,
+    add_services_models.AdditionalServiceConditionStep,
+    add_services_models.AdditionalServiceTicket,
+    add_services_models.AdditionalServiceType,
 ]
 
 

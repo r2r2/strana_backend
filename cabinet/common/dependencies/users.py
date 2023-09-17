@@ -84,6 +84,37 @@ class CurrentUserId(object):
         return user_id
 
 
+class CurrentInTypesUserId:
+    """
+    ID текущего пользователя со списком типов.
+    """
+
+    def __init__(self, user_types: list[str]) -> None:
+        self.user_types: list[str] = user_types
+
+    def __call__(self, token: str = Depends(oauth2_scheme)) -> int:
+        user_id, user_type, timestamp, _ = decode_access_token(token)
+        if not user_id or not user_type or not timestamp:
+            raise HTTPException(
+                status_code=HTTPStatus.UNAUTHORIZED,
+                detail="Not authenticated",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        if datetime.now(tz=UTC) > datetime.fromtimestamp(timestamp, tz=UTC):
+            raise HTTPException(
+                status_code=HTTPStatus.UNAUTHORIZED,
+                detail="Not authenticated",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        if user_type not in self.user_types:
+            raise HTTPException(
+                status_code=HTTPStatus.FORBIDDEN,
+                detail="Not authenticated",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        return user_id
+
+
 class CurrentOptionalUserId(object):
     """
     Необязательный ID текущего пользователя
@@ -150,6 +181,17 @@ class CurrentUserExtra(object):
         if self.key:
             result: Any = extra.get(self.key)
         return result
+
+
+class CurrentUserType:
+    """
+    Тип текущего пользователя
+    """
+
+    def __call__(self, token: str = Depends(oauth2_scheme)) -> Optional[str]:
+        decoded: tuple = decode_access_token(token)
+        if len(decoded) > 2:
+            return decoded[1]
 
 
 class WSCurrentUserId(object):

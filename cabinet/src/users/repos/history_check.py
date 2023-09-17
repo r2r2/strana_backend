@@ -64,6 +64,8 @@ class CheckHistory(Model):
         null=True,
     )
 
+    amocrm_request_log: fields.ReverseRelation["AmoCrmCheckLog"]
+
 
     class Meta:
         table = "users_checks_history"

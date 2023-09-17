@@ -406,7 +406,12 @@ class GraphQLRequest:
             data: Union[list[Any], dict[str, Any]] = self._data
         else:
             response: GraphQLResponse = await self._make_request()
-            data: Union[list[Any], dict[str, Any]] = response.json["data"][self._type]
+            data: Optional[Union[list, dict[str, Any]]] = None
+            try:
+                data: Union[list[Any], dict[str, Any]] = response.json["data"][self._type]
+            except (KeyError, AttributeError):
+                pass
+
             if isinstance(data, dict):
                 self._data: dict[str, Any] = self._to_snake_case(data)
             elif isinstance(data, list):

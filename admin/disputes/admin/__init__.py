@@ -4,3 +4,5 @@ from .pinning_status import PinningStatusAdmin
 from .confirm_client_assign import ConfirmClientAssignAdmin
 from .history_check import AdminCheckHistory
 from .users_checks_terms import CabinetChecksTermsAdmin
+from .unique_status_button import UniqueStatusButtonAdmin
+from .amocrm_request_check_log import AmoCrmCheckLogAdmin

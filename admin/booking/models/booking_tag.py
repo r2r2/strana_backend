@@ -40,11 +40,20 @@ class BookingTag(models.Model):
         verbose_name="Активность", default=False, help_text="Неактивные теги не выводятся на сайте"
     )
     group_status = models.ManyToManyField(
-        null=True, blank=True,
+        blank=True,
         verbose_name="Групповые статусы по тегам",
         to="booking.AmocrmGroupStatus",
         through="GroupStatusTagThrough",
         through_fields=("tag", "group_status"),
+        related_name="booking_tags",
+    )
+
+    client_group_status = models.ManyToManyField(
+        blank=True,
+        verbose_name="Групповые статусы клиентов по тегам",
+        to="booking.ClientAmocrmGroupStatus",
+        through="ClientGroupStatusTagThrough",
+        through_fields=("tag", "client_group_status"),
         related_name="booking_tags",
     )
 
@@ -55,23 +64,23 @@ class BookingTag(models.Model):
         managed = False
         db_table = 'booking_bookingtag'
         verbose_name = "Тег сделки: "
-        verbose_name_plural = "1.9. [Справочник] Теги сделок"
+        verbose_name_plural = " 1.9. [Справочник] Теги сделок"
 
 
 class GroupStatusTagThrough(models.Model):
-    group_status = models.ForeignKey(
+    group_status = models.OneToOneField(
         verbose_name="Статус",
         to="booking.AmocrmGroupStatus",
         on_delete=models.CASCADE,
         related_name="booking_tag_through",
-        primary_key=True
+        primary_key=True,
     )
     tag = models.ForeignKey(
         verbose_name="Тег",
         to="booking.BookingTag",
         on_delete=models.CASCADE,
         unique=False,
-        related_name="group_status_through"
+        related_name="group_status_through",
     )
 
     class Meta:
@@ -83,3 +92,30 @@ class GroupStatusTagThrough(models.Model):
 
     def __str__(self):
         return f"{self.group_status} {self.tag}"
+
+
+class ClientGroupStatusTagThrough(models.Model):
+    client_group_status = models.OneToOneField(
+        verbose_name="Статус",
+        to="booking.ClientAmocrmGroupStatus",
+        on_delete=models.CASCADE,
+        related_name="booking_tag_through",
+        primary_key=True,
+    )
+    tag = models.ForeignKey(
+        verbose_name="Тег",
+        to="booking.BookingTag",
+        on_delete=models.CASCADE,
+        unique=False,
+        related_name="client_group_status_through",
+    )
+
+    class Meta:
+        managed = False
+        db_table = "booking_tags_client_group_status_through"
+        unique_together = ('client_group_status', 'tag')
+        verbose_name = "Групповой статус-Тег дял клиента"
+        verbose_name_plural = "Групповые статусы-Теги для клиентов"
+
+    def __str__(self):
+        return f"{self.client_group_status} {self.tag}"

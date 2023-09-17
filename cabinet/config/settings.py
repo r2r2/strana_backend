@@ -70,11 +70,14 @@ class DataBaseSettings(BaseSettings):
     database_test: str = Field("cabinet_test", env="LK_POSTGRES_DATABASE_TEST")
     test_user: str = Field("postgres", env="POSTGRES_USER_TEST")
     test_password: str = Field("postgres", env="POSTGRES_PASSWORD_TEST")
+    test_host: str = Field("localhost", env="POSTGRES_HOST_TEST")
+    test_port: str = Field("5432", env="POSTGRES_PORT_TEST")
 
     models: list[tuple] = [
         ("users", "repos"),
         ("properties", "repos"),
         ("documents", "repos"),
+        ("payments", "repos"),
         ("projects", "repos"),
         ("buildings", "repos"),
         ("floors", "repos"),
@@ -101,6 +104,7 @@ class DataBaseSettings(BaseSettings):
         ("menu", "repos"),
         ("settings", "repos"),
         ("main_page", "repos"),
+        ("additional_services", "repos"),
     ]
 
     class Config:
@@ -151,7 +155,8 @@ class BackendSettings(BaseSettings):
     db_password: str = Field("postgres", env="PORTAL_POSTGRES_PASSWORD")
 
     graphql: str = Field("/graphql/", env="LK_BACKEND_GRAPHQL")
-    url: str = Field("https://msk.stranadev.com", env="LK_BACKEND_URL")
+    url: str = Field("https://stranadev-new.com", env="LK_BACKEND_URL")
+    external_url: str = Field("https://stranadev-new.com", env="LK_EXTERNAL_BACKEND_URL")
     internal_login: str = Field("internal_login", env="INTERNAL_LOGIN")
     internal_password: str = Field("internal_password", env="INTERNAL_PASSWORD")
 
@@ -166,8 +171,8 @@ class MCSettings(BaseSettings):
 
 class SberbankSettings(BaseSettings):
     secret: str = Field("FJbdau831yhb41dsSYDUvjg42", env="SBERBANK_SECRET")
-    msk_username: str = Field("msk_username", env="SBERBANK_MSK_USERNAME")
-    msk_password: str = Field("msk_password", env="SBERBANK_MSK_PASSWORD")
+    msk_username: str = Field("msk_username", env="SBERBANK_SPB_USERNAME")
+    msk_password: str = Field("msk_password", env="SBERBANK_SPB_PASSWORD")
     spb_username: str = Field("spb_username", env="SBERBANK_SPB_USERNAME")
     spb_password: str = Field("spb_password", env="SBERBANK_SPB_PASSWORD")
     tmn_username: str = Field("tmn_username", env="SBERBANK_TMN_USERNAME")
@@ -189,11 +194,33 @@ class SberbankSettings(BaseSettings):
 class CelerySettings(BaseSettings):
     task_serializer: str = Field("json")
     result_serializer: str = Field("json")
-    timezone: str = Field("Europe/Moscow")
+    timezone: str = Field('Europe/Moscow')
     accept_content: list[str] = Field(["json"])
     broker_url: str = Field("redis://redis-lk-broker:6379/0", env='LK_BROKER_URL')
     result_backend: str = Field("redis://redis-lk-broker:6379/0", env='LK_RESULT_BACKEND')
     user_interest_task_time: str = Field("14", env='LK_USER_INTERESTS_TASK_TIME_BACKEND')
+
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+
+
+class AMOCrmSettingsOld(BaseSettings):
+    api_route: str = Field("/api/v2")
+    api_route_v4: str = Field("/api/v4")
+    auth_route: str = Field("/oauth2/access_token")
+    url: str = Field("https://eurobereg72.amocrm.ru")
+    upload_url: str = Field("https://amocon.itstrana.site/amoconnector/widget_up_file")
+    widget_aquire_url: str = Field("https://amocon.itstrana.site/amoconnector/widget_aquire")
+
+    db_table: str = Field("amocrm_amocrmsettings")
+    db_host: str = Field("db", env="PORTAL_POSTGRES_HOST")
+    db_port: str = Field("5432", env="PORTAL_POSTGRES_PORT")
+    db_user: str = Field("postgres", env="PORTAL_POSTGRES_USER")
+    db_name: str = Field("postgres", env="PORTAL_POSTGRES_DATABASE")
+    db_password: str = Field("postgres", env="PORTAL_POSTGRES_PASSWORD")
+    secret: str = Field("HJFjasdhsgybh432dsaJHdasj", env="AMOCRM_SECRET")
+    partition_limit: int = Field(50, env="AMOCRM_PARTITION_LIMIT")
 
     class Config:
         env_file = ".env"
@@ -208,12 +235,12 @@ class AMOCrmSettings(BaseSettings):
     upload_url: str = Field("https://amocon.itstrana.site/amoconnector/widget_up_file")
     widget_aquire_url: str = Field("https://amocon.itstrana.site/amoconnector/widget_aquire")
 
-    db_table: str = Field("amocrm_amocrmsettings")
-    db_host: str = Field("db", env="PORTAL_POSTGRES_HOST")
-    db_port: str = Field("5432", env="PORTAL_POSTGRES_PORT")
-    db_user: str = Field("postgres", env="PORTAL_POSTGRES_USER")
-    db_name: str = Field("postgres", env="PORTAL_POSTGRES_DATABASE")
-    db_password: str = Field("postgres", env="PORTAL_POSTGRES_PASSWORD")
+    db_table: str = Field("amocrm_amocrm_settings")
+    db_host: str = Field("db", env="LK_POSTGRES_HOST")
+    db_port: str = Field("5432", env="LK_POSTGRES_PORT")
+    db_user: str = Field("postgres", env="LK_POSTGRES_USER")
+    db_name: str = Field("postgres", env="LK_POSTGRES_DATABASE")
+    db_password: str = Field("postgres", env="LK_POSTGRES_PASSWORD")
     secret: str = Field("HJFjasdhsgybh432dsaJHdasj", env="AMOCRM_SECRET")
     partition_limit: int = Field(50, env="AMOCRM_PARTITION_LIMIT")
 
@@ -401,9 +428,9 @@ class TortoiseSettings(BaseSettings):
                     "engine": "tortoise.backends.asyncpg",
                     "credentials": {
                         "database": database.database_test,
-                        "host": database.host,
+                        "host": database.test_host,
                         "password": database.test_password,
-                        "port": database.port,
+                        "port": database.test_port,
                         "user": database.test_user,
                     },
                 },
@@ -582,6 +609,15 @@ class LogsSettings(BaseSettings):
 class DadataSettings(BaseSettings):
     token: str = Field("", env="DADATA_TOKEN")
     secret: str = Field("", env="DADATA_SECRET")
+
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+
+
+class UnleashSettings(BaseSettings):
+    url: str = Field("", env="LK_UNLEASH_URL")
+    instance_id: str = Field("", env="LK_UNLEASH_INSTANCE_ID")
 
     class Config:
         env_file = ".env"

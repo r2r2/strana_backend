@@ -19,7 +19,6 @@ class BookingReservationMatrix(models.Model):
         to="properties.Project",
         related_name="booking_reservation_matrix",
         verbose_name="Проекты",
-        null=True,
         blank=True,
         through="BookingReservationMatrixProjects",
     )
@@ -35,7 +34,7 @@ class BookingReservationMatrix(models.Model):
         managed = False
         db_table = "booking_reservation_matrix"
         verbose_name = "Матрица сроков резервирования"
-        verbose_name_plural = "1.7. [Справочник] Матрица сроков резервирования"
+        verbose_name_plural = " 1.7. [Справочник] Матрица сроков резервирования"
 
 
 class BookingReservationMatrixProjects(models.Model):

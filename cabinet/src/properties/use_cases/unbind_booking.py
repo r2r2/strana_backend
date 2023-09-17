@@ -1,5 +1,7 @@
 from typing import Any
 
+import structlog
+
 from src.amocrm.repos import AmocrmStatus, AmocrmStatusRepo
 from src.booking.constants import BookingSubstages
 from src.booking.exceptions import BookingNotFoundError
@@ -30,6 +32,7 @@ class UnbindBookingPropertyCase(BasePropertyCase):
         self.booking_update = booking_changes_logger(
             self.booking_repo.update, self, content="Отвязывание объекта недвижимости от сделки"
         )
+        self.logger = structlog.getLogger(__name__)
 
     async def __call__(self, payload: RequestUnbindBookingPropertyModel) -> None:
         filters: dict[str, int] = dict(id=payload.booking_id)
@@ -55,5 +58,6 @@ class UnbindBookingPropertyCase(BasePropertyCase):
         )
         booking.property = None
         await self.booking_update(booking=booking, data=data)
+        self.logger.info("Booking deactivated", booking=booking, is_active=booking.active)
         await booking.save()
         await self.update_status_service(booking_id=booking.id, status_slug=PaidBookingSlug.START.value)

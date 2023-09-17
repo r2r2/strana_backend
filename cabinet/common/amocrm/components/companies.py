@@ -93,7 +93,7 @@ class AmoCRMCompanies(AmoCRMInterface, ABC):
         try:
             return AmoCompany.parse_obj(getattr(response, "data", {}))
         except ValidationError as err:
-            self.logger.error(
+            self.logger.warning(
                 f"cabinet/amocrm/fetch_company: Status {response.status}: "
                 f"Пришли неверные данные: {response.data}"
                 f"Exception: {err}"
@@ -104,7 +104,8 @@ class AmoCRMCompanies(AmoCRMInterface, ABC):
                               *,
                               agency_ids: Optional[list[int]] = None,
                               agency_inn: Optional[str] = None,
-                              query_with: Optional[list[AmoCompanyQueryWith]] = None
+                              query_with: Optional[list[AmoCompanyQueryWith]] = None,
+                              filter_custom_field: Optional[dict[str, Any]] = None,
                               ) -> list[AmoCompany]:
         """
         Company lookup
@@ -121,12 +122,16 @@ class AmoCRMCompanies(AmoCRMInterface, ABC):
         if query_with:
             query.update({"with": ",".join(query_with)})
 
+        if filter_custom_field is not None:
+            query.update({f"filter[custom_fields_values][{filter_custom_field['field_id']}][{index}]": agency_inn for
+                          index, agency_inn in enumerate(filter_custom_field['values'])})
+
         response: CommonResponse = await self._request_get_v4(route=route, query=query)
         try:
             items: list[Any] = getattr(response, "data", {}).get("_embedded", {}).get("companies")
             return parse_obj_as(list[AmoCompany], items)
         except (ValidationError, AttributeError) as err:
-            self.logger.error(
+            self.logger.warning(
                 f"cabinet/amocrm/fetch_companies: Status {response.status}: "
                 f"Пришли неверные данные: {response.data}"
                 f"Exception: {err}"
@@ -252,7 +257,7 @@ class AmoCRMCompanies(AmoCRMInterface, ABC):
             items: list[Any] = getattr(response, "data", {}).get("_embedded", {}).get("companies")
             return parse_obj_as(list[AmoCompany], items)
         except (ValidationError, AttributeError) as err:
-            self.logger.error(
+            self.logger.warning(
                 f"{method_name}: Status {response.status}: "
                 f"Пришли неверные данные: {response.data}"
                 f"Exception: {err}"

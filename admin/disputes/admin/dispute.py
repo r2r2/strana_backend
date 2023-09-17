@@ -1,11 +1,16 @@
+from collections import Counter
 from datetime import datetime
 
+from admincharts.admin import AdminChartMixin
 from django.contrib import admin
-from django.contrib.admin import register, SimpleListFilter
+from django.contrib.admin import SimpleListFilter
+from django.contrib.admin import register
+from django.contrib.admin.views.main import ChangeList
+from django.db.models.query import QuerySet
 from pytz import UTC
 
-from users.models import HistoricalDisputeData
 from disputes.models import Dispute
+from users.models import HistoricalDisputeData
 
 
 class UniqueStatusFilter(SimpleListFilter):
@@ -37,7 +42,9 @@ class FixedStatusFilter(SimpleListFilter):
 
 
 @register(Dispute)
-class DisputeAdmin(admin.ModelAdmin):
+class DisputeAdmin(AdminChartMixin, admin.ModelAdmin):
+    list_chart_type = "bar"
+    list_chart_options = {"aspectRatio": 5}
     date_hierarchy = "dispute_requested"
     list_display = (
         "unique_status",
@@ -47,6 +54,8 @@ class DisputeAdmin(admin.ModelAdmin):
         "agency",
         "dispute_requested",
         "admin",
+        "button_slug",
+        "button_pressed",
     )
     fields = (
         ("user", "agent"),
@@ -102,6 +111,44 @@ class DisputeAdmin(admin.ModelAdmin):
         )
 
         historical_data.save()
+
+    def get_list_chart_data(self, queryset: QuerySet) -> dict:
+        """
+        Get charts for agency cities and checks
+        """
+        checks: Counter = Counter(
+            [
+                f"{check.unique_status.title} "
+                f"{check.unique_status.subtitle or ''}".strip()
+                for check in queryset if check.unique_status
+            ]
+        )
+
+        button: Counter = Counter(
+            [
+                f"{check.button_slug} нажата" if check.button_pressed
+                else f"{check.button_slug} не нажата"
+                for check in queryset if check.button_slug
+            ]
+        )
+
+        result = {
+            "datasets": [
+                {
+                    "label": "Статистика нажатия кнопки",
+                    "data": button,
+                    "backgroundColor": "#cf2d58"
+                },
+            ],
+        } if queryset else {}
+
+        return result
+
+    def get_list_chart_queryset(self, changelist: ChangeList) -> QuerySet:
+        """
+        Отключение статистики с пагинацией
+        """
+        return changelist.queryset
 
     # блок кнопки "Принять оспаривание"
     # change_form_template = "disputes/templates/buttons.html"

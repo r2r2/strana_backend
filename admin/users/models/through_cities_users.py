@@ -2,7 +2,7 @@ from django.db import models
 
 
 class CityUserThrough(models.Model):
-    city = models.ForeignKey(
+    city = models.OneToOneField(
         verbose_name="Город",
         to="references.Cities",
         on_delete=models.CASCADE,

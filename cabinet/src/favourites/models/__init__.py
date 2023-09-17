@@ -1,0 +1,1 @@
+from .viewed_properties import ViewedPropertyResponse, ViewedPropertyListResponse

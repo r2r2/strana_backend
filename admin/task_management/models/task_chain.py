@@ -34,7 +34,15 @@ class TaskChain(BaseTaskManagementModel):
         through='TaskChainTaskFieldsThrough',
         through_fields=('task_chain_field', 'task_field'),
         blank=True,
-        null=True,
+    )
+    booking_source: models.ManyToManyField = models.ManyToManyField(
+        to='booking.BookingSource',
+        verbose_name='Источник бронирования',
+        related_name='taskchains',
+        help_text='Задачи из данной цепочки будут создаваться у данных типов сделок',
+        through='TaskChainBookingSourceThrough',
+        through_fields=('task_chain', 'booking_source'),
+        blank=True,
     )
 
     def __str__(self) -> str:
@@ -51,7 +59,7 @@ class TaskChainStatusThrough(models.Model):
     """
     Связь между цепочкой заданий и статусами сделок
     """
-    task_chain_substage: models.ForeignKey = models.ForeignKey(
+    task_chain_substage: models.ForeignKey = models.OneToOneField(
         to='task_management.TaskChain',
         on_delete=models.CASCADE,
         related_name='task_chain_substage',
@@ -79,7 +87,7 @@ class TaskChainTaskVisibilityStatusThrough(models.Model):
     """
     Связь между цепочкой заданий и статусами сделок, в которых задание будет видно
     """
-    task_chain_visibility: models.ForeignKey = models.ForeignKey(
+    task_chain_visibility: models.ForeignKey = models.OneToOneField(
         to='task_management.TaskChain',
         on_delete=models.CASCADE,
         related_name='task_chain_visibility',
@@ -129,3 +137,30 @@ class TaskChainTaskFieldsThrough(models.Model):
         db_table = 'taskchain_taskfields_through'
         verbose_name = 'Связь между цепочкой заданий и полями заданий'
         verbose_name_plural = 'Связи между цепочками заданий и полями заданий'
+
+
+class TaskChainBookingSourceThrough(models.Model):
+    """
+    Связь между цепочкой заданий и источниками бронирования
+    """
+    task_chain: models.ForeignKey = models.ForeignKey(
+        to='task_management.TaskChain',
+        on_delete=models.CASCADE,
+        related_name='task_chain',
+        verbose_name='Цепочка заданий',
+    )
+    booking_source: models.ForeignKey = models.ForeignKey(
+        to='booking.BookingSource',
+        on_delete=models.CASCADE,
+        related_name='booking_source',
+        verbose_name='Источник бронирования',
+    )
+
+    def __str__(self) -> str:
+        return f'{self.task_chain.name} - {self.booking_source.name}'
+
+    class Meta:
+        managed = False
+        db_table = 'taskchain_booking_source_through'
+        verbose_name = 'Связь между цепочкой заданий и источниками бронирования'
+        verbose_name_plural = 'Связи между цепочками заданий и источниками бронирования'

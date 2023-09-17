@@ -1,5 +1,5 @@
 from .main_page_content import MainPageContentDetailResponse
-from .main_page_manager import ResponseManagerRetrieveModel
+from .main_page_manager import ResponseMainPageManagerRetrieveModel
 from .main_page_offer import MainPageOfferDetailResponse
 from .main_page_partner_logo import MainPagePartnerLogoDetailResponse
 from .main_page_sell_online import MainPageSellOnlineDetailResponse

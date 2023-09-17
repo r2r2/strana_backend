@@ -142,6 +142,7 @@ def import_bookings_task(user_id: int) -> None:
         global_id_decoder=utils.from_global_id,
         global_id_encoder=utils.to_global_id,
         project_repo=projects_repos.ProjectRepo,
+        feature_repo=properties_repos.FeatureRepo,
         building_repo=buildings_repos.BuildingRepo,
         property_repo=properties_repos.PropertyRepo,
         building_booking_type_repo=buildings_repos.BuildingBookingTypeRepo,

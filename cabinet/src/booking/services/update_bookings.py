@@ -1,9 +1,10 @@
 # pylint: disable=broad-except,too-many-statements
-
+import re
 from copy import copy
 from typing import Any, Callable, Optional, Type, Union
 
 import structlog
+from tortoise.exceptions import IntegrityError
 
 from common.amocrm import AmoCRM
 from common.amocrm.repos import AmoStatusesRepo
@@ -75,7 +76,6 @@ class UpdateBookingsService:
         cities_repo: Type[CityRepo],
         building_repo: Type[BuildingRepo],
         statuses_repo: Type[AmoStatusesRepo],
-        check_pinning: Optional[Any] = None,
         orm_class: Optional[BookingORM] = None,
         orm_config: Optional[dict[str, Any]] = None,
     ):
@@ -92,7 +92,6 @@ class UpdateBookingsService:
         self.cities_repo: CityRepo = cities_repo()
         self.building_repo: BuildingRepo = building_repo()
         self.statuses_repo: AmoStatusesRepo = statuses_repo()
-        self.check_pinning: Optional[Any] = check_pinning
         self.partition_limit: int = amocrm_config["partition_limit"]
 
         self.orm_class: Union[Type[BookingORM], None] = orm_class
@@ -321,11 +320,15 @@ class UpdateBookingsService:
                 )
                 project_global_id = self.global_id_encoder(project_global_id_type, project_global_id_value)
 
-                city: City = await self.cities_repo.retrieve(filters=dict(slug=backend_project["city"]["slug"]))
+                city: Optional[City] = None
+                if backend_project["city"]:
+                    city: City = await self.cities_repo.retrieve(filters=dict(slug=backend_project["city"]["slug"]))
                 backend_project["city"] = city
+
                 project_filters: dict[str, Any] = dict(global_id=project_global_id)
-                project: Project = await self.project_repo.update_or_create(
-                    filters=project_filters, data=backend_project
+                project: Project = await self._get_project(
+                    project_filters=project_filters,
+                    backend_project=backend_project,
                 )
 
                 # Создаём/обновляем корпус
@@ -365,6 +368,8 @@ class UpdateBookingsService:
                 property_data["plan"] = property_plan
                 property_data["plan_png"] = property_plan_png
 
+                property_data["status"] = await self._get_property_status(status=property_data["status"])
+
                 property_filters: dict[str, Any] = dict(global_id=property_global_id)
                 _property = await self.property_repo.update_or_create(filters=property_filters, data=property_data)
 
@@ -380,3 +385,40 @@ class UpdateBookingsService:
         filters = dict(amocrm_id__in=bookings_not_found_in_amocrm, amocrm_id__not_isnull=True)
         data = dict(active=False, deleted_in_amo=True)
         await self.booking_repo.bulk_update(data=data, filters=filters)
+
+    async def _get_project(self, project_filters: dict[str, Any], backend_project: dict[str, Any]) -> Project:
+        backend_project.pop("global_id", None)
+
+        amocrm_enum = backend_project.get("amocrm_enum")
+        if isinstance(amocrm_enum, str):
+            amocrm_enum = int(amocrm_enum) if amocrm_enum.isdigit() else 0
+        elif not isinstance(amocrm_enum, int):
+            amocrm_enum = 0
+
+        backend_project["amocrm_enum"] = amocrm_enum
+        
+        project = await self.project_repo.retrieve(filters=project_filters)
+        if project:
+            project = await self.project_repo.update(model=project, data=backend_project)
+        else:
+            try:
+                data: dict[str, Any] = backend_project | project_filters
+                project = await self.project_repo.create(data=data)
+            except IntegrityError:
+                project = await self.project_repo.retrieve(filters=project_filters)
+
+        return project
+
+    async def _get_property_status(self, status: Optional[Union[str, int]]) -> Optional[int]:
+        if status is None:
+            return
+
+        if isinstance(status, int) and 0 <= status <= 2:
+            return status
+
+        digits_match = re.search(r'\d+', str(status))
+
+        if digits_match:
+            extracted_digits = int(digits_match.group(0))
+            if 0 <= extracted_digits <= 2:
+                return extracted_digits

@@ -98,7 +98,7 @@ def filterize(cls: Type[BaseFilter]) -> Type[BaseFilter]:
 
     credentials: Union[Any, None] = getattr(cls, "Credentials", None)
 
-    postfix_exclusions: list[str] = [  # chechk facets. redo it for cor and delete this property
+    postfix_exclusions: list[str] = [  # check facets. redo it for cor and delete this property
         "in",
         "gt",
         "lt",

@@ -3,7 +3,27 @@ from django.db import models
 
 
 class TaskInstanceLog(AbstractLog):
-    task_instance = models.ForeignKey("task_management.TaskInstance", on_delete=models.CASCADE, null=True, blank=True)
+    task_instance = models.ForeignKey(
+        "task_management.TaskInstance",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        verbose_name="Экземпляр задания",
+    )
+    booking = models.ForeignKey(
+        to="booking.Booking",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        verbose_name="Бронирование",
+    )
+    task_chain = models.ForeignKey(
+        to="task_management.TaskChain",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        verbose_name="Цепочка заданий",
+    )
 
     def __str__(self):
         return f"{self.use_case} – {self.content}" if self.use_case and self.content else self

@@ -16,7 +16,7 @@ class MainPageSellOnline(Model, TimeBasedMixin):
 
     class Meta:
         table = "main_page_sell_online"
-        ordering = ["-priority"]
+        ordering = ["priority"]
 
 
 class MainPageSellOnlineRepo(BaseRepo, ListMixin):

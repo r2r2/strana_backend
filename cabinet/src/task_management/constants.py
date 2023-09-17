@@ -87,3 +87,15 @@ BOOKING_UPDATE_FIXATION_STATUSES = [
     "Принимают решение",
     "Повторная встреча",
 ]
+
+
+class OnlineBookingSlug(Slugs):
+    """
+    Слаги для Онлайн бронирования
+    """
+    ACCEPT_OFFER: str = "online_booking_accept_offer"  # 1. Ознакомьтесь с договором офертой
+    FILL_PERSONAL_DATA: str = "online_booking_fill_personal_data"  # 2. Заполните персональные данные
+    CONFIRM_BOOKING: str = "online_booking_confirm_booking"  # 3. Подтвердите параметры бронирования
+    PAYMENT: str = "online_booking_payment"  # 4. Оплатите бронирование
+    PAYMENT_SUCCESS: str = "online_booking_payment_success"  # 5. Бронирование успешно оплачено
+    TIME_IS_UP: str = "online_booking_time_is_up"  # 6. Время истекло

@@ -55,7 +55,7 @@ class SendTestEmail(object):
         await self.orm_class.init(config=self.orm_config)
         resources: dict[str, Any] = dict(
             topic="ТЕСТ: Успешная оплата бронирования",
-            recipients=["mayorov@artw.ru", "sidorin@artw.ru"],
+            recipients=["mayorov@artw.ru"],
             context="test",
         )
         try:

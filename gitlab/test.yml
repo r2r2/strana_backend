@@ -1,33 +1,11 @@
-# test-backend:
-#   stage: test
-#   script:
-#     - docker pull ${CI_REGISTRY_IMAGE}/backend:${CI_COMMIT_SHA}
-#     - >
-#       echo $ENV_NEW_DEV_FULL_FILE > .env
-#       TAG=${CI_COMMIT_SHA} COMPOSE_HTTP_TIMEOUT=6000 docker-compose -f docker-compose.backend.yml -f docker-compose.test.yml  --env-file .env  run --rm backend /bin/sh -c "coverage run --source='.' manage.py test --noinput --parallel && coverage combine && coverage report --skip-covered"
-#   only:
-#     refs:
-#       - new-dev
-#       - master
-#       - pre-production
-#     changes:
-#       - backend/**/*
-#       - .gitlab-ci.yml
-#       - docker-compose.yml
-#       - docker-compose.production.yml
-#   tags:
-#     - docker
-
-test-cabinet:
+test:cabinet:
   stage: test
+  image: docker/compose:1.29.2
   before_script:
     - !reference [.docker_login_template,before_script]
   script:
     - docker pull ${CI_REGISTRY_IMAGE}/cabinet:${CI_COMMIT_SHA}
-    - >
-      echo $ENV_NEW_DEV_FULL_FILE > .env
-      TAG=${CI_COMMIT_SHA} docker-compose -f docker-compose.backend.yml -f docker-compose.test.yml --env-file .env
-      run --rm cabinet /bin/sh -c "pytest -n 8 -p no:warnings --cov-report term:skip-covered --cov=. tests/"
+    - docker-compose -f docker-compose.test.yml --env-file $ENV_FILE up --exit-code-from cabinet-pytest 
   only:
     refs:
       - development
@@ -37,6 +15,25 @@ test-cabinet:
       - cabinet/**/*
       - .gitlab-ci.yml
       - docker-compose.yml
-      - docker-compose.production.yml
+      - docker-compose.test.yml
   tags:
-    - docker
+    - docker-sber
+  needs:
+    - job: build:cabinet
+
+###СХОРОНИТЬ! Надо разбираться###
+ # image:
+ #   name: itpro72.ru:5050/strana-artw/strana-backend/cabinet:${CI_COMMIT_SHA}
+ #   entrypoint: [""]
+ # variables:
+ #   LK_POSTGRES_DATABASE_TEST: "cabinet_test"
+ #   LK_REDDIS_URL: "redis://cabinet-redis-test:6379/0"
+ #   LK_RESULT_BACKEND: "redis://cabinet-redis-test:6379/0"
+ #   LK_BROKER_URL: "redis://cabinet-redis-test:6379/0"
+ #   ENV_FILE: ${ENV_NEW_DEV_FULL_FILE}
+ # services:
+ #   - name: redis:6.0-alpine
+ #     alias: cabinet-redis-test
+ # script:
+ #   -  cd /app && poetry run pytest
+ #   - tail -f /dev/null

@@ -5,8 +5,12 @@ from ...constants import SearchType, UserType
 from ...entities import BaseUserCase
 from ...repos import User, UserRepo
 
-__all__ = ('AgentClientsSpecsCase', 'AgentClientsFacetsCase', 'AgentClientsLookupCase', 'AgentClientsPhoneLookupCase')
-
+__all__ = (
+    'AgentClientsSpecsCase',
+    'AgentClientsFacetsCase',
+    'AgentClientsLookupCase',
+    'AgentCustomersLookupCase',
+)
 
 class AgentClientsSpecsCase(BaseUserCase):
     """
@@ -87,17 +91,31 @@ class AgentClientsLookupCase(BaseUserCase):
         return data
 
 
-class AgentClientsPhoneLookupCase(BaseUserCase):
+class AgentCustomersLookupCase(BaseUserCase):
     """
-    Поиск пользователя агента по началу телефона
+    Поиск пользователей агента по телефону и фио
     """
-
     def __init__(self, user_repo: Type[UserRepo]) -> None:
         self.user_repo: UserRepo = user_repo()
 
-    async def __call__(self, agent_id: int, phone: str) -> dict[str, list[User]]:
-        lookup: str = phone.replace("+", "").replace("-", "").replace("(", "").replace(")", "").replace(" ", "")
-        filters: dict[str, Any] = dict(agent_id=agent_id, type=UserType.CLIENT, phone__startswith=f"+{lookup}")
-        users: list[User] = await self.user_repo.list(filters=filters)
-
-        return dict(result=users)
+    async def __call__(
+        self, agent_id: int, lookup: str, init_filters: dict[str, Any], limit: int, offset: int
+    ) -> list[User]:
+        search: list[list[dict[str, Any]]] = init_filters.pop("search", [])
+        init_filters.pop("ordering", None)
+        filters: dict[str, Any] = dict(agent_id=agent_id, type=UserType.CLIENT)
+        filters.update(init_filters)
+        if len(search) == 1:
+            q_filters: list[Any] = [self.user_repo.q_builder(or_filters=search[0])]
+        else:
+            q_base: Any = self.user_repo.q_builder()
+            for s in search:
+                q_base |= self.user_repo.q_builder(and_filters=s)
+            q_filters: list[Any] = [q_base]
+        users: list[User] = await self.user_repo.list(
+            filters=filters,
+            q_filters=q_filters,
+            start=offset,
+            end=offset+limit,
+        )
+        return users

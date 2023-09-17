@@ -5,8 +5,10 @@ from typing import Any, Callable, Coroutine, Optional, Type, Union
 import structlog
 from aiohttp import ClientSession, TCPConnector
 from asyncpg import Connection, Record, connect
-from config import amocrm_config, maintenance_settings
+from config import amocrm_config, maintenance_settings, amocrm_config_old
+from config.feature_flags import FeatureFlags
 
+from common.unleash.unleash_client import UnleashAdapter
 from ..requests import CommonRequest, CommonResponse
 from ..wrappers import mark_async
 from .components import (AmoCRMCompanies, AmoCRMContacts, AmoCRMInterface,
@@ -35,17 +37,29 @@ class AmoCRM(
         ) if maintenance_settings.get("environment", "dev") else ClientSession()
         self._request_class: Type[CommonRequest] = CommonRequest
 
-        self._url: str = amocrm_config["url"] + amocrm_config["api_route"]
-        self._url_v4: str = amocrm_config["url"] + amocrm_config["api_route_v4"]
-        self._table: str = amocrm_config["db_table"]
-        self._auth_url: str = amocrm_config["url"] + amocrm_config["auth_route"]
+        unleash_client = UnleashAdapter()
+        strana_lk_2218_enable = unleash_client.is_enabled(FeatureFlags.strana_lk_2218)
+
+        amocrm_conf = amocrm_config_old
+        if strana_lk_2218_enable:
+            amocrm_conf = amocrm_config
+
+        self._url: str = amocrm_conf["url"] + amocrm_conf["api_route"]
+        self._url_v4: str = amocrm_conf["url"] + amocrm_conf["api_route_v4"]
+        self._table: str = amocrm_conf["db_table"]
+        self._auth_url: str = amocrm_conf["url"] + amocrm_conf["auth_route"]
         self._connection_options: dict[str, str] = dict(
-            host=amocrm_config["db_host"],
-            port=amocrm_config["db_port"],
-            user=amocrm_config["db_user"],
-            password=amocrm_config["db_password"],
-            database=amocrm_config["db_name"],
+            host=amocrm_conf["db_host"],
+            port=amocrm_conf["db_port"],
+            user=amocrm_conf["db_user"],
+            password=amocrm_conf["db_password"],
+            database=amocrm_conf["db_name"],
         )
+
+        print("----AMOCRM SETTINGS----")
+        print("url: ", self._url)
+        print("_connection_options: ", self._connection_options)
+        print("-"*20)
 
         self._settings: dict[str, Any] = await self._fetch_settings()
 

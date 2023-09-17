@@ -66,6 +66,6 @@ class BookingFixationNotificationsProjectThrough(Model):
 
 class BookingFixationNotificationRepo(BaseNotificationRepo, CRUDMixin):
     """
-    Репозиторий уведомлений при платном бронировании
+    Репозиторий уведомлений при окончании фиксации.
     """
     model = BookingFixationNotification

@@ -78,6 +78,13 @@ class Check(Model):
         description="Комментарий к условию проверки на уникальность",
         null=True,
     )
+    button_slug: Optional[str] = fields.CharField(
+        description="Слаг кнопки",
+        max_length=255,
+        null=True,
+    )
+
+    button_pressed: bool = fields.BooleanField(description="Кнопка была нажата", default=False)
 
     agent_id: Optional[int]
     dispute_agent_id: Optional[int]

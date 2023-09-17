@@ -2,12 +2,11 @@ from pypika import Case
 from tortoise import Model
 from pypika.functions import Sum
 from tortoise.fields import Field
-from tortoise.expressions import F
+from tortoise.expressions import F, QueryModifier, Q
 from tortoise.functions import Function
 from pypika.queries import Selectable, Table
 from pypika.terms import ArithmeticExpression
 from typing import Optional, Any, Type, Union
-from tortoise.query_utils import QueryModifier, Q
 
 
 class OuterRef(F):

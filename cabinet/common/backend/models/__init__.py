@@ -6,3 +6,4 @@ from .properties import BackendProperty
 from .sections import BackendSection
 from .amocrm import AmocrmPipelines, AmocrmStatus
 from .special_offers import BackendSpecialOffer, BackendSpecialOfferProperty
+from .features import BackendFeature, BackendFeatureCity

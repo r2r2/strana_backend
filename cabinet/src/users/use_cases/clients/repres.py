@@ -9,7 +9,7 @@ __all__ = (
     'RepresClientsSpecsCase',
     'RepresClientsFacetsCase',
     'RepresClientsLookupCase',
-    'RepresClientsPhoneLookupCase',
+    'RepresCustomersLookupCase',
 )
 
 
@@ -28,7 +28,7 @@ class RepresClientsSpecsCase(BaseUserCase):
 
 class RepresClientsFacetsCase(BaseUserCase):
     """
-    Фасеты пользователей представителя агенства
+    Фасеты пользователей представителя агентства
     """
 
     group: str = "agency_id"
@@ -57,7 +57,7 @@ class RepresClientsFacetsCase(BaseUserCase):
 
 class RepresClientsLookupCase(BaseUserCase):
     """
-    Поиск пользователя представителя агенства
+    Поиск пользователя представителя агентства
     """
 
     phone_regex: str = r"^[0-9\s]{1,20}$"
@@ -92,17 +92,31 @@ class RepresClientsLookupCase(BaseUserCase):
         return data
 
 
-class RepresClientsPhoneLookupCase(BaseUserCase):
+class RepresCustomersLookupCase(BaseUserCase):
     """
-    Поиск пользователя представителя агенства по началу телефона
+    Поиск пользователей представителя по телефону и фио
     """
-
     def __init__(self, user_repo: Type[UserRepo]) -> None:
         self.user_repo: UserRepo = user_repo()
 
-    async def __call__(self, agency_id: int, phone: str) -> dict[str, list[User]]:
-        lookup: str = phone.replace("+", "").replace("-", "").replace("(", "").replace(")", "").replace(" ", "")
-        filters: dict[str, Any] = dict(agency_id=agency_id, type=UserType.CLIENT, phone__startswith=f"+{lookup}")
-        users: list[User] = await self.user_repo.list(filters=filters)
-
-        return dict(result=users)
+    async def __call__(
+            self, agency_id: int, lookup: str, init_filters: dict[str, Any], limit: int, offset: int
+    ) -> list[User]:
+        search: list[list[dict[str, Any]]] = init_filters.pop("search", [])
+        init_filters.pop("ordering", None)
+        filters: dict[str, Any] = dict(agency_id=agency_id, type=UserType.CLIENT)
+        filters.update(init_filters)
+        if len(search) == 1:
+            q_filters: list[Any] = [self.user_repo.q_builder(or_filters=search[0])]
+        else:
+            q_base: Any = self.user_repo.q_builder()
+            for s in search:
+                q_base |= self.user_repo.q_builder(and_filters=s)
+            q_filters: list[Any] = [q_base]
+        users: list[User] = await self.user_repo.list(
+            filters=filters,
+            q_filters=q_filters,
+            start=offset,
+            end=offset+limit,
+        )
+        return users

@@ -31,6 +31,13 @@ class Property(Model):
     type: Optional[str] = cfields.CharChoiceField(
         description="Тип", max_length=50, null=True, choice_class=PropertyTypes
     )
+    property_price = fields.ForeignKeyField(
+        model_name="models.PropertyPrice",
+        on_delete=fields.SET_NULL,
+        null=True,
+        related_name="property_price",
+        description="Цена",
+    )
     property_type: Optional[str] = fields.ForeignKeyField(
         description="Тип (модель)",
         model_name="models.PropertyType",
@@ -39,11 +46,11 @@ class Property(Model):
         null=True,
     )
     article: Optional[str] = fields.CharField(description="Артикул", max_length=50, null=True)
-    plan: Annotated[str, Field(max_length=300)] = cfields.MediaField(
-        description="Планировка", max_length=300, null=True
+    plan: Annotated[str, Field(max_length=500)] = cfields.MediaField(
+        description="Планировка", max_length=500, null=True
     )
-    plan_png: Annotated[str, Field(max_length=300)] = cfields.MediaField(
-        description="Планировка png", max_length=300, null=True
+    plan_png: Annotated[str, Field(max_length=500)] = cfields.MediaField(
+        description="Планировка png", max_length=500, null=True
     )
     price: Optional[int] = fields.BigIntField(description="Цена", null=True)
     original_price: Optional[int] = fields.BigIntField(description="Оригинальная цена", null=True)
@@ -92,6 +99,8 @@ class Property(Model):
     building_id: Optional[int]
     floor_id: Optional[int]
     project_id: Optional[int]
+
+    property_features: fields.ManyToManyRelation["Feature"]
 
     def __str__(self) -> str:
         return self.global_id

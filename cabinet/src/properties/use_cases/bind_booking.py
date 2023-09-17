@@ -122,13 +122,14 @@ class BindBookingPropertyCase(BasePropertyCase):
         booking_filter: dict = dict(id=payload.booking_id)
         booking: Booking = await self.booking_repo.retrieve(
             filters=booking_filter,
-            prefetch_fields=["property", "building", "agent", "agency", "agency__general_type", "user", "project"]
+            related_fields=["booking_source"],
+            prefetch_fields=["property", "building", "agent", "agency__general_type", "user", "project"]
         )
         if not booking:
             raise BookingNotFoundError
 
         booking_reserv_time: float = await get_booking_reserv_time(
-            created_source=booking.created_source,
+            created_source=booking.booking_source.slug if booking.booking_source else booking.created_source,
             booking_property=booking_property,
         )
 
@@ -205,6 +206,11 @@ class BindBookingPropertyCase(BasePropertyCase):
                 )
             asyncio_tasks.append(self._send_sms(booking))
             await asyncio.gather(*asyncio_tasks)
+
+        booking_property: Property = await self.property_repo.retrieve(
+            filters=dict(id=payload.property_id),
+            prefetch_fields=["building", "project", "project__city"]
+        )
 
         tags: list[AmoTag] = [AmoTag(name=tag) for tag in tags]
         default_booking_type: BuildingBookingType = await self.building_booking_type_repo.list().first()

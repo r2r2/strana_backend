@@ -7,7 +7,8 @@ from config.initializers import (
     initialize_routers,
     initialize_sentry,
     initialize_websockets,
-    initialize_logger
+    initialize_logger,
+    initialize_unleash,
 )
 from fastapi import FastAPI
 
@@ -22,6 +23,6 @@ def get_fastapi_application() -> FastAPI:
     initialize_exceptions(application)
     initialize_sentry(application)
     initialize_websockets(application)
-    application: FastAPI = application
+    initialize_unleash(application)
     return application
 

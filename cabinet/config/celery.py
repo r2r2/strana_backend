@@ -10,7 +10,7 @@ from importlib import import_module
 from json import dumps
 from typing import Any, Callable
 
-from celery import Celery
+from celery import Celery, Task
 from celery.schedules import crontab
 from common.celery import Priority
 from config import application_config, celery_config, sentry_config
@@ -69,7 +69,7 @@ app.conf.beat_schedule = {
         }
     },
     "check_client_task_periodic": {
-        "schedule": crontab(hour="*/1", minute='0'),
+        "schedule": crontab(hour="0", minute='0'),
         "task": "src.users.tasks.check_client_task_periodic",
         "options": {
             "priority": priority.low,
@@ -90,7 +90,7 @@ app.conf.beat_schedule = {
         }
     },
     "update_bookings_task_periodic": {
-        "schedule": crontab(minute="*/10"),
+        "schedule": crontab(hour='*/1', minute='0'),
         "task": "src.booking.tasks.update_bookings_task",
         "options": {
             "priority": priority.middle,
@@ -150,8 +150,9 @@ app.conf.beat_schedule = {
         }
     },
     "periodic_update_missed_amocrm_id_task": {
-        "schedule": crontab(minute=0, hour='21'),
-        "task": "src.agency.tasks.periodic_update_missed_amocrm_id_task",
+        # "schedule": crontab(minute=0, hour='21'),
+        "schedule": crontab(hour='*/1', minute='0'),
+        "task": "src.agencies.tasks.periodic_update_missed_amocrm_id_task",
         "options": {
             "priority": priority.low,
         }

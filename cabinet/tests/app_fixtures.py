@@ -3,18 +3,16 @@ from fastapi import FastAPI
 
 
 @pytest.fixture(scope="session")
-def application():
+def application(redis):
     from config.initializers import (
         initialize_application,
         initialize_exceptions,
-        initialize_sentry,
-        initialize_websockets,
         initialize_routers,
+        initialize_unleash,
     )
     application: FastAPI = initialize_application()
     initialize_routers(application)
     initialize_exceptions(application)
-    initialize_sentry(application)
-    initialize_websockets(application)
+    initialize_unleash(application)
 
     yield application

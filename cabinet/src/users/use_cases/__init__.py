@@ -26,10 +26,10 @@ from .client_unassign_case import UnassignCase
 from .client_unassign_text import AssignUnassignTextCase
 from .clients import (AdminClientsFacetsCase, AdminClientsLookupCase,
                       AdminClientsSpecsCase, AgentClientsFacetsCase,
-                      AgentClientsLookupCase, AgentClientsPhoneLookupCase,
+                      AgentClientsLookupCase, AgentCustomersLookupCase,
                       AgentClientsSpecsCase, ClientsFacetsCase,
                       ClientsSpecsCase, RepresClientsFacetsCase,
-                      RepresClientsLookupCase, RepresClientsPhoneLookupCase,
+                      RepresClientsLookupCase, RepresCustomersLookupCase,
                       RepresClientsSpecsCase)
 from .confirm_email import ConfirmEmailCase
 from .email_reset import EmailResetCase

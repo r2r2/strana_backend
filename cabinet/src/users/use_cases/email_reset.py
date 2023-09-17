@@ -71,13 +71,13 @@ class EmailResetCase(BaseUserCase):
     async def _send_email(self, user: User, token: str) -> Task:
         if user.type.value == "admin":
             mail_event_slug = self.admin_mail_event_slug
-            reset_link: str = self.link.format(self.site_host, UserUrlType.ADMIN, token, user.discard_token)
+            reset_link: str = self.link.format(self.site_host, UserUrlType.ADMIN.value, token, user.discard_token)
         elif user.type.value == "repres":
             mail_event_slug = self.repres_mail_event_slug
-            reset_link: str = self.link.format(self.site_host, UserUrlType.REPRES, token, user.discard_token)
+            reset_link: str = self.link.format(self.site_host, UserUrlType.REPRES.value, token, user.discard_token)
         else:
             mail_event_slug = self.agent_mail_event_slug
-            reset_link: str = self.link.format(self.site_host, UserUrlType.AGENT, token, user.discard_token)
+            reset_link: str = self.link.format(self.site_host, UserUrlType.AGENT.value, token, user.discard_token)
 
         email_notification_template = await self.get_email_template_service(
             mail_event_slug=mail_event_slug,

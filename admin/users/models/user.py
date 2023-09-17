@@ -24,10 +24,10 @@ class CabinetUserQuerySet(models.QuerySet):
                 filter=models.Q(booking__active=True)),
             booking_lk_count=models.Count(
                 "booking",
-                filter=models.Q(booking__created_source=Booking.CreatedSourceChoices.LK)),
+                filter=models.Q(booking__booking_source__slug=Booking.CreatedSourceChoices.LK)),
             booking_lk_active=models.Count(
                 "booking",
-                filter=models.Q(booking__created_source=Booking.CreatedSourceChoices.LK) &
+                filter=models.Q(booking__booking_source__slug=Booking.CreatedSourceChoices.LK) &
                 models.Q(booking__active=True)),
         )
 
@@ -37,16 +37,33 @@ class CabinetUser(models.Model):
     Пользователь ЛК
     """
     class OriginType(models.TextChoices):
-        AMOCRM = "amocrm", _("AMOCRM")
-        LK = "lk_booking", _("Бронирование через личный кабинет")
-        FAST_BOOKING = "fast_booking", _("Быстрое бронирование")
-        LK_ASSIGN = "lk_booking_assign", _("Закреплен в ЛК Брокера")
+        AMOCRM = "amocrm", _("Импорт из АМО CRM")
+        SMS = "sms", _("Авторизация через СМС")
+        AGENT_ASSIGN = "agent_assign", _("Закрепление агентом")
+
+    class UserType(models.TextChoices):
+        """
+        Тип пользователя
+        """
+        ADMIN: str = "admin", _("Админ")
+        AGENT: str = "agent", _("Агент")
+        CLIENT: str = "client", _("Клиент")
+        REPRES: str = "repres", _("Представитель")
+        MANAGER: str = "manager", _("Менеджер")
+        ROP: str = "rop", _("Руководитель отдела продаж")
 
     email = models.CharField(unique=True, max_length=100, blank=True, null=True)
     phone = models.CharField(
         unique=True, max_length=20, blank=True, null=True, help_text="Должен быть в формате “'+7XXXXXXXXXX"
     )
-    password = models.CharField(_('password'), max_length=128)
+    username = models.CharField(unique=True, max_length=100, blank=True, null=True)
+    password = models.CharField(
+        max_length=200,
+        blank=True,
+        null=True,
+        help_text="В шифрованном виде. Используется только для авторизации агентов/агентств/администраторов "
+                  "(клиенты авторизуются по коду)",
+    )
     code = models.CharField(
         max_length=4, blank=True, null=True, help_text="Отправленный при авторизации клиента SMS-код"
     )
@@ -61,9 +78,18 @@ class CabinetUser(models.Model):
     is_active = models.BooleanField()
     is_deleted = models.BooleanField(help_text="Удаленные пользователи не могут войти на сайт")
     amocrm_id = models.BigIntegerField(blank=True, null=True)
-    type = models.CharField(max_length=20, help_text="Роль пользователя в системе")
+    type = models.CharField(
+        choices=UserType.choices,
+        max_length=20,
+        verbose_name="Тип/Роль",
+        help_text="Роль пользователя в системе",
+    )
     origin = models.CharField(
-        choices=OriginType.choices, max_length=30, default=None, null=True, verbose_name="Источник"
+        choices=OriginType.choices,
+        max_length=30,
+        default=None,
+        null=True,
+        verbose_name="Источник"
     )
     role = models.ForeignKey(
         "users.UserRole",
@@ -159,7 +185,6 @@ class CabinetUser(models.Model):
             "city",
         ),
         verbose_name="Город пользователей",
-        null=True,
         blank=True,
         related_name="user_cities",
         help_text="Город связанного с пользователем агентства",

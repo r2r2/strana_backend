@@ -31,7 +31,8 @@ async def get_block_list(
         link_repo=dashboard_repos.LinkRepo,
         portal_class=PortalAPI(request_class=GraphQLRequest, portal_config=backend_config),
         calculator_class=CalculatorAPI(request_class=CommonRequest, calculator_config=mc_backend_config),
-        mc_config=mc_backend_config
+        mc_config=mc_backend_config,
+        portal_config=backend_config
     )
     get_list: GetDashboardListCase = GetDashboardListCase(**resources)
     return await get_list(city_slug=city, user_id=user_id)

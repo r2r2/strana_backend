@@ -1,3 +1,5 @@
+from typing import Optional
+
 from django.db import models
 
 
@@ -13,6 +15,9 @@ class MainPageManager(models.Model):
         help_text='Менеджер',
         blank=True, null=True,
     )
+    position: Optional[str] = models.CharField(help_text='Должность', verbose_name='Должность',
+                                               null=True, max_length=512)
+    photo: str = models.ImageField(verbose_name="Фото", max_length=500, blank=True)
 
     def __str__(self):
         return self.manager.name

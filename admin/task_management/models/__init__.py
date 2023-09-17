@@ -5,6 +5,7 @@ from .task_chain import (
     TaskChainStatusThrough,
     TaskChainTaskVisibilityStatusThrough,
     TaskChainTaskFieldsThrough,
+    TaskChainBookingSourceThrough,
 )
 from .button import Button, TaskStatusButtonsThrough
 from .task_fields import TaskField

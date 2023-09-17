@@ -1,12 +1,14 @@
+import tortoise
 from http import HTTPStatus
 from typing import Any, Callable, Coroutine, Optional
 from uuid import UUID
 
 from common import (amocrm, dependencies, email, messages, paginations, redis,
                     security, utils)
-from common.amocrm import tasks as amocrm_tasks
 from common.settings.repos import BookingSettingsRepo
-from config import auth_config, redis_config, session_config, site_config
+from common.amocrm.services import BindContactCompanyService
+from common.amocrm.tasks import bind_contact_to_company
+from config import auth_config, redis_config, session_config, site_config, tortoise_config
 from fastapi import (APIRouter, Body, Depends, File, Path, Query, Request,
                      Response, UploadFile)
 from fastapi.responses import RedirectResponse
@@ -58,6 +60,12 @@ async def process_register_view(payload: models.RequestProcessRegisterModel = Bo
     check_user_unique_service: user_services.UserCheckUniqueService = user_services.UserCheckUniqueService(
         user_repo=users_repos.UserRepo,
     )
+    resources: dict[str:Any] = dict(
+        amocrm_class=amocrm.AmoCRM,
+        orm_class=tortoise.Tortoise,
+        orm_config=tortoise_config,
+    )
+    bind_contact_to_company_service: BindContactCompanyService = BindContactCompanyService(**resources)
     resources: dict[str, Any] = dict(
         site_config=site_config,
         hasher=security.get_hasher,
@@ -69,7 +77,7 @@ async def process_register_view(payload: models.RequestProcessRegisterModel = Bo
         import_clients_task=agents_tasks.import_clients_task,
         create_contact_service=create_contact_service,
         ensure_broker_tag_service=ensure_broker_tag_service,
-        bind_contact_company_task=amocrm_tasks.bind_contact_to_company,
+        bind_contact_to_company_service=bind_contact_to_company_service,
         check_user_unique_service=check_user_unique_service,
         get_email_template_service=get_email_template_service,
     )
@@ -1137,7 +1145,7 @@ async def process_signup_in_agency(
         email_class=email.EmailService,
         create_contact_service=create_contact_service,
         ensure_broker_tag_service=ensure_broker_tag_service,
-        bind_contact_company_task=amocrm.tasks.bind_contact_to_company,
+        bind_contact_company_task=bind_contact_to_company,
         site_config=site_config,
         get_email_template_service=get_email_template_service,
     )

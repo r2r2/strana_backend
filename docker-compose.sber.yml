@@ -1,0 +1,189 @@
+version: '3.7'
+
+x-app_environment: &app_environment
+  environment:
+    - DEBUG
+    - POSTGRES_PASSWORD
+    - POSTGRES_HOST=172.16.250.56
+    - POSTGRES_PORT
+    - POSTGRES_NAME
+    - POSTGRES_USER
+    - SITE_HOST
+    - LK_SITE_HOST
+    - EMAIL_HOST
+    - EMAIL_PORT
+    - EMAIL_HOST_USER
+    - EMAIL_HOST_PASSWORD
+    - EMAIL_USE_TLS
+    - EMAIL_USE_SSL
+    - SERVER_EMAIL
+    - SENTRY_DSN
+    - CSRF_TRUSTED_ORIGINS
+    - AWS_ACCESS_KEY_ID
+    - AWS_SECRET_ACCESS_KEY
+    - AWS_STORAGE_BUCKET_NAME
+    - AWS_S3_ENDPOINT_URL
+    - AWS_S3_CUSTOM_DOMAIN_LK
+    - PROFITBASE_BASE_URL
+    - PROFITBASE_API_KEY
+    - CRM_URL
+    - FLOWER_BASIC_AUTH
+    - SESSION_COOKIE_DOMAIN
+    - LK_DEBUG
+    - LK_HOST
+    - LK_PORT
+    - DOCS_HTPASSWD
+    - LK_LOG_LEVEL
+    - LK_USE_COLORS
+    - LK_RELOAD
+    - LK_PROXY_HEADERS
+    - LK_POSTGRES_PORT
+    - LK_POSTGRES_USER
+    - LK_POSTGRES_HOST=172.16.250.56
+    - LK_POSTGRES_PASSWORD
+    - LK_POSTGRES_DATABASE
+    - LK_POSTGRES_DATABASE_TEST
+    - LK_BACKEND_URL
+    - LK_BACKEND_GRAPHQL
+    - SBERBANK_URL
+    - SBERBANK_FAIL_URL
+    - SBERBANK_RETURN_URL
+    - SBERBANK_MSK_USERNAME
+    - SBERBANK_MSK_PASSWORD
+    - SBERBANK_SPB_USERNAME
+    - SBERBANK_SPB_PASSWORD
+    - SBERBANK_TMN_USERNAME
+    - SBERBANK_TMN_PASSWORD
+    - SBERBANK_EKB_USERNAME
+    - SBERBANK_EKB_PASSWORD
+    - INTERNAL_LOGIN
+    - INTERNAL_PASSWORD
+    - SMS_CENTER_URL
+    - SMS_CENTER_LOGIN
+    - SMS_CENTER_PASSWORD
+    - CORS_ORIGINS
+    - TRUSTED_ORIGINS
+    - SBERBANK_SECRET
+    - AMOCRM_SECRET
+    - LK_SESSION_DOMAIN
+    - LK_REDIRECT_TO
+    - LK_AUTH_SECRET_KEY
+    - MAIN_SITE_HOST
+    - PORTAL_POSTGRES_HOST=172.16.250.56
+    - PORTAL_POSTGRES_PORT
+    - PORTAL_POSTGRES_USER
+    - PORTAL_POSTGRES_DATABASE
+    - PORTAL_POSTGRES_PASSWORD
+    - TOP_HOST
+    - LK_PROFITBASE_API_KEY
+    - IMGPROXY_SITE_HOST
+    - IMGPROXY_KEY
+    - IMGPROXY_SALT
+    - IMGPROXY_S3_ENDPOINT
+    - EMAIL_HOST_STRANA
+    - EMAIL_HOST_USER_STRANA
+    - EMAIL_HOST_PASSWORD_STRANA
+    - BROKER_LK_SITE_HOST
+    - VK_TOKEN
+    - BAZIS_URL
+    - BAZIS_USERNAME
+    - BAZIS_PASSWORD
+    - LK_STRANA_ENVIRONMENT
+    - LK_STRANA_GETDOC_AMO_DOMAIN
+    - LK_STRANA_GETDOC_ACCOUNT_ID
+    - LK_STRANA_GETDOC_USER_ID
+    - LK_STRANA_FAKE_NUMBER
+    - LK_STRANA_FAKE_SMS_CODE
+    - PYTHON_ADMIN=itpro72.ru:5050/strana-artw/strana-backend/python-admin:latest
+    - PYTHON_BACKEND=itpro72.ru:5050/strana-artw/strana-backend/python-backend:latest
+    - PYTHON_CABINET=itpro72.ru:5050/strana-artw/strana-backend/python-cabinet:latest
+    - REQUESTS_FULL_LOGGING
+    - CELERY_BROKER_URL
+    - CELERY_RESULT_BACKEND
+    - TEST_CASE_USERNAME
+    - TEST_CASE_PASSWORD
+    - GUNICORN_WORKERS
+    - REDIS_CACHE_URL
+    - CACHE_TTL
+    - LK_SENTRY_DSN
+    - LK_STRANA_MANAGER_EMAIL
+    - LK_STRANA_BOOKING_EMAIL
+    - DADATA_TOKEN
+    - DADATA_SECRET
+    - SESSION_CACHE_URL
+    - LK_STRANA_FAKE_NUMBERS
+    - LK_USER_INTERESTS_TASK_TIME_BACKEND
+    - KONTUR_TALK_SPACE
+    - KONTUR_TALK_SECRET
+    - SENSEI_PID
+    - SENSEI_SECRET
+
+
+services:
+  cabinet:
+    container_name: cabinet
+    image: ${DOCKER_REGISTRY}cabinet:${TAG:-latest}
+    build:
+      context: ./cabinet
+    <<: *app_environment
+    logging:
+      driver: "journald"
+      options:
+        #fluentd-address: localhost:24224
+        tag: cabinet
+    networks:
+      - strana
+
+  admin:
+    container_name: admin
+    image: ${DOCKER_REGISTRY}admin:${TAG:-latest}
+    build:
+      context: ./admin
+    <<: *app_environment
+    logging:
+      driver: "journald"
+      options:
+        #fluentd-address: localhost:24224
+        tag: admin
+    networks:
+      - strana
+
+  redis:
+    container_name: redis-lk-broker
+    image: redis:6.0-alpine
+    volumes:
+      - redisdata-lk-broker:/data
+    logging:
+      driver: journald
+      options:
+        tag: redis-lk-broker
+    networks:
+      strana:
+        aliases:
+          - redis-lk-broker
+
+  tasks:
+    container_name: tasks
+    restart: always
+    image: ${DOCKER_REGISTRY}cabinet:${TAG:-latest}
+    command: celery -A config.celery worker -l info -B -c 1 -n tasks@strana.com -Q tasks
+    depends_on:
+      - redis
+    <<: *app_environment
+    logging:
+      driver: "journald"
+      options:
+        #fluentd-address: localhost:24224
+        tag: tasks
+    networks:
+      - strana
+
+volumes:
+  redisdata-lk-broker:
+    name: redisdata-lk-broker
+  adminstatic:
+    name: adminstatic
+
+networks:
+  strana:
+    name: strana

@@ -5,12 +5,12 @@ from common import (amocrm, dependencies, email, messages, paginations,
                     requests, security, utils)
 from common.amocrm import repos as amocrm_repos
 from common.backend import repos as backend_repos
-from config import (amocrm_config, backend_config, email_recipients_config,
-                    session_config, site_config, tortoise_config)
+from config import amocrm_config, backend_config, email_recipients_config, tortoise_config
 from fastapi import (APIRouter, BackgroundTasks, Body, Depends, Header, Path,
                      Query, Request, Response)
 from fastapi.responses import RedirectResponse
 from common.settings.repos import BookingSettingsRepo
+from config.feature_flags import FeatureFlags
 from src.admins import repos as admins_repos
 from src.agencies import repos as agencies_repos
 from src.amocrm import repos as src_amocrm_repos
@@ -36,7 +36,7 @@ from src.users import use_cases
 from src.task_management.tasks import update_task_instance_status_task
 from src.represes import repos as represes_repos
 from tortoise import Tortoise
-from config import auth_config, session_config, site_config
+from config import session_config, site_config
 from src.dashboard import repos as dashboard_repos
 from src.dashboard import use_cases as dashboard_use_cases
 from src.notifications import services as notification_services
@@ -92,6 +92,7 @@ async def validate_code_view(
         project_repo=projects_repos.ProjectRepo,
         building_repo=buildings_repos.BuildingRepo,
         property_repo=properties_repos.PropertyRepo,
+        feature_repo=properties_repos.FeatureRepo,
         building_booking_type_repo=buildings_repos.BuildingBookingTypeRepo,
         backend_building_booking_type_repo=backend_repos.BackendBuildingBookingTypesRepo,
         backend_properties_repo=backend_repos.BackendPropertiesRepo,
@@ -348,6 +349,7 @@ async def client_interest_view(
         global_id_encoder=utils.to_global_id,
         project_repo=projects_repos.ProjectRepo,
         building_repo=buildings_repos.BuildingRepo,
+        feature_repo=properties_repos.FeatureRepo,
         property_repo=properties_repos.PropertyRepo,
         building_booking_type_repo=buildings_repos.BuildingBookingTypeRepo,
         backend_building_booking_type_repo=backend_repos.BackendBuildingBookingTypesRepo,
@@ -692,6 +694,8 @@ async def represes_users_check_view_v2(
         amocrm_class=amocrm.AmoCRM,
         user_repo=users_repos.UserRepo,
         check_repo=users_repos.CheckRepo,
+        history_check_repo=users_repos.CheckHistoryRepo,
+        amocrm_history_check_log_repo=users_repos.AmoCrmCheckLogRepo,
         agent_repo=agents_repos.AgentRepo,
         check_term_repo=users_repos.CheckTermRepo,
         amocrm_config=amocrm_config,
@@ -715,6 +719,7 @@ async def represes_users_check_view_v2(
         check_repo=users_repos.CheckRepo,
         check_unique_service=check_unique_service,
         history_check_repo=users_repos.CheckHistoryRepo,
+        amocrm_history_check_log_repo=users_repos.AmoCrmCheckLogRepo,
         email_class=email.EmailService,
         booking_repo=booking_repos.BookingRepo,
         send_check_admins_email=send_check_admins_email,
@@ -956,6 +961,8 @@ async def agents_users_check_view_v2(
         amocrm_class=amocrm.AmoCRM,
         user_repo=users_repos.UserRepo,
         check_repo=users_repos.CheckRepo,
+        history_check_repo=users_repos.CheckHistoryRepo,
+        amocrm_history_check_log_repo=users_repos.AmoCrmCheckLogRepo,
         agent_repo=agents_repos.AgentRepo,
         check_term_repo=users_repos.CheckTermRepo,
         amocrm_config=amocrm_config,
@@ -979,6 +986,7 @@ async def agents_users_check_view_v2(
         check_repo=users_repos.CheckRepo,
         check_unique_service=check_unique_service,
         history_check_repo=users_repos.CheckHistoryRepo,
+        amocrm_history_check_log_repo=users_repos.AmoCrmCheckLogRepo,
         email_class=email.EmailService,
         booking_repo=booking_repos.BookingRepo,
         send_check_admins_email=send_check_admins_email,
@@ -1031,13 +1039,14 @@ async def agents_users_check_dispute_view(
     status_code=HTTPStatus.OK,
     response_model=models.ResponseAgentUsersCheckDisputeModel,
 )
-async def agents_users_check_dispute_view(
+async def repres_users_check_dispute_view(
     payload: models.RequestAgentsUsersCheckDisputeModel = Body(...),
     repres_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.REPRES)),
 ):
     """
     Оспаривание результатов проверки представителем
     """
+
     get_email_template_service: notification_services.GetEmailTemplateService = \
         notification_services.GetEmailTemplateService(
             email_template_repo=notifications_repos.EmailTemplateRepo,
@@ -1139,7 +1148,7 @@ async def agents_users_unbound_view(
 
 
 @router.post(
-    "/agent/booking_current_client",
+    "/agent/create_booking",
     status_code=HTTPStatus.OK,
     dependencies=[Depends(dependencies.DeletedUserCheck())],
     response_model=ResponseBookingRetrieveModel,
@@ -1174,6 +1183,7 @@ async def agent_booking_current_client(
 
     resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
+        check_repo=users_repos.CheckRepo,
         project_repo=projects_repos.ProjectRepo,
         booking_repo=booking_repos.BookingRepo,
         amo_statuses_repo=amocrm_repos.AmoStatusesRepo,
@@ -1190,7 +1200,7 @@ async def agent_booking_current_client(
 
 
 @router.post(
-    "/repres/booking_current_client",
+    "/repres/create_booking",
     status_code=HTTPStatus.OK,
     dependencies=[Depends(dependencies.DeletedUserCheck())],
     response_model=ResponseBookingRetrieveModel,
@@ -1225,6 +1235,7 @@ async def repres_booking_current_client(
 
     resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
+        check_repo=users_repos.CheckRepo,
         project_repo=projects_repos.ProjectRepo,
         booking_repo=booking_repos.BookingRepo,
         amo_statuses_repo=amocrm_repos.AmoStatusesRepo,
@@ -1244,7 +1255,7 @@ async def repres_booking_current_client(
     status_code=HTTPStatus.OK,
     dependencies=[Depends(dependencies.DeletedUserCheck())],
     response_model=models.ResponseAssignClient,
-    response_model_by_alias=False
+    response_model_by_alias=False,
 )
 async def assign_client_to_agent(
     agent_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT)),
@@ -1297,7 +1308,7 @@ async def assign_client_to_agent(
     status_code=HTTPStatus.OK,
     dependencies=[Depends(dependencies.DeletedUserCheck())],
     response_model=models.ResponseAssignClient,
-    response_model_by_alias=False
+    response_model_by_alias=False,
 )
 async def assign_client_to_repres(
     repres_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.REPRES)),

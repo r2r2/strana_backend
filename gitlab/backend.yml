@@ -1,4 +1,4 @@
-build-cabinet:
+build:cabinet:
   stage: build
   before_script:
     - !reference [.docker_login_template,before_script]
@@ -20,7 +20,7 @@ build-cabinet:
   tags:
     - docker-sber
 
-build-admin:
+build:admin:
   stage: build
   before_script:
     - !reference [.docker_login_template,before_script]

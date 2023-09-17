@@ -4,7 +4,7 @@ from typing import Any, List, Optional, Type, Union
 from src.users.entities import BaseUserCase
 from src.users.repos import User, UserRepo
 from src.users.types import UserPagination
-from tortoise.query_utils import Q
+from tortoise.expressions import Q
 
 from ..constants import UserType
 from ..exceptions import UserNoAgencyError, UserNotFoundError

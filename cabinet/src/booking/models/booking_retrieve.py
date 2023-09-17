@@ -2,16 +2,23 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Awaitable, Literal, Optional
 
+from pydantic import constr, root_validator, validator, parse_obj_as
+
 from common.files.models import FileCategoryListModel
-from pydantic import constr, root_validator, validator
 from src.agencies.models import AgencyRetrieveModel
 from src.agents.models import AgentRetrieveModel
 from src.properties.models import PropertyRetrieveModel
 
-from ..constants import (BookingCreatedSources, BookingStages,
-                         BookingSubstages, MaritalStatus, PaymentMethods,
-                         RelationStatus)
-from ..entities import BaseBookingModel
+from ..constants import (
+    BookingCreatedSources,
+    BookingSubstages,
+    BookingStages,
+    MaritalStatus,
+    PaymentMethods,
+    RelationStatus
+)
+from src.booking.entities import BaseBookingModel, BaseBookingCamelCaseModel
+from src.task_management.constants import TaskStatusType
 
 
 class _BookingProjectRetrieveModel(BaseBookingModel):
@@ -130,6 +137,86 @@ class RequestBookingRetrieveModel(BaseBookingModel):
         orm_mode = True
 
 
+class ButtonAction(BaseBookingCamelCaseModel):
+    type: str
+    id: str
+
+    class Config:
+        orm_mode = True
+
+
+class Button(BaseBookingCamelCaseModel):
+    label: str
+    type: str
+    action: ButtonAction
+
+    class Config:
+        orm_mode = True
+
+
+class TaskInstanceResponseSchema(BaseBookingCamelCaseModel):
+    type: str
+    title: str
+    hint: Optional[str]
+    text: str
+    buttons: Optional[list[Button]]
+
+    class Config:
+        orm_mode = True
+
+
+class TaskStatusSchema(BaseBookingCamelCaseModel):
+    name: str
+    description: str
+    type: TaskStatusType.serializer
+    priority: int
+    slug: str
+
+    class Config:
+        orm_mode = True
+
+
+class AmoCRMAction(BaseBookingCamelCaseModel):
+    id: Optional[int]
+    name: Optional[str]
+    slug: Optional[str]
+    role_id: Optional[int]
+
+
+class _BookingStatusListModel(BaseBookingCamelCaseModel):
+    """
+    Модель статуса списка бронирований
+    """
+    id: Optional[int]
+    group_id: Optional[int]
+    name: Optional[str]
+    color: Optional[str]
+    show_reservation_date: Optional[bool]
+    show_booking_date: Optional[bool]
+    steps_numbers: Optional[int]
+    current_step: Optional[int]
+    actions: Optional[list[AmoCRMAction]]
+
+    class Config:
+        orm_mode = True
+
+
+class _BookingSourceSchema(BaseBookingCamelCaseModel):
+    slug: Optional[str]
+    name: Optional[str]
+    value: Optional[str]
+    label: Optional[str]
+
+    @root_validator
+    def build_response(cls, values: dict[str, Any]) -> dict[str, Any]:
+        values['value'] = values.pop('slug', None)
+        values['label'] = values.pop('name', None)
+        return values
+
+    class Config:
+        orm_mode = True
+
+
 class ResponseBookingRetrieveModel(BaseBookingModel):
     """
     Модель ответа детального бронирования
@@ -138,6 +225,8 @@ class ResponseBookingRetrieveModel(BaseBookingModel):
     id: int
 
     price_payed: bool
+    booking_period: int | None
+    max_booking_period: int = 50
     params_checked: bool
     personal_filled: bool
     contract_accepted: bool
@@ -150,6 +239,7 @@ class ResponseBookingRetrieveModel(BaseBookingModel):
     escrow_uploaded: bool
     amocrm_signing_date_set: bool
     amocrm_signed: bool
+    amocrm_status: Optional[_BookingStatusListModel]
 
     origin: Optional[str]
     until: Optional[datetime]
@@ -178,16 +268,20 @@ class ResponseBookingRetrieveModel(BaseBookingModel):
     ddu_id: Optional[int]
     signing_date: Optional[date]
     created_source: Optional[BookingCreatedSources.serializer]
+    booking_source: Optional[Any]
 
     files: Optional[list[FileCategoryListModel]]
 
     agent: Optional[AgentRetrieveModel]
     agency: Optional[AgencyRetrieveModel]
+    tasks: Optional[list[TaskInstanceResponseSchema]]
+    task_statuses: Optional[list[TaskStatusSchema]]
 
     # Method fields
     current_step: Optional[int]
     continue_link: Optional[str]
     is_fast_booking: bool
+    condition_chosen: bool
 
     online_purchase_step: Optional[
         Literal[
@@ -225,6 +319,13 @@ class ResponseBookingRetrieveModel(BaseBookingModel):
         if isinstance(ddu, Awaitable) or ddu is None or ddu.pk is None:
             return None
         return ddu
+
+    @root_validator
+    def build_response(cls, values: dict[str, Any]):
+        booking_source = values.pop('booking_source', None)
+        if booking_source:
+            values['created_source'] = parse_obj_as(_BookingSourceSchema, booking_source)
+        return values
 
     class Config:
         orm_mode = True

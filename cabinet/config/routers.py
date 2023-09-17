@@ -19,16 +19,18 @@ def get_routers() -> list[APIRouter]:
     from src.projects.api import projects_router, projects_router_v2, projects_router_v3
     from src.buildings.api import buildings_router
     from src.properties.api import properties_router
+    from src.favourites.api import favourites_router
     from src.represes.api import represes_router
     from src.showtimes.api import showtimes_router
     from src.tips.api import tips_router
-    from src.users.api import manager_router, users_router, users_router_v2, user_dashboard_router
+    from src.users.api import customers_router, manager_router, users_router, users_router_v2, user_dashboard_router
     from src.meetings.api import meeting_router
     from src.cities.api import cities_router
     from src.events.api import event_router, calendar_router
     from src.menu.api import menu_router
     from src.dashboard.api import dashboard_router
     from src.main_page.api import main_page_router
+    from src.additional_services.api import add_services_router
 
     routers: list[APIRouter] = list()
 
@@ -37,12 +39,14 @@ def get_routers() -> list[APIRouter]:
     routers.append(users_router)
     routers.append(manager_router)
     routers.append(agents_router)
+    routers.append(customers_router)
     routers.append(booking_router)
     routers.append(fast_booking_router)
     routers.append(represes_router)
     routers.append(documents_router)
     routers.append(escrow_router)
     routers.append(properties_router)
+    routers.append(favourites_router)
     routers.append(agencies_router)
     routers.append(pages_router)
     routers.append(notifications_router)
@@ -64,6 +68,7 @@ def get_routers() -> list[APIRouter]:
     routers.append(menu_router)
     routers.append(dashboard_router)
     routers.append(main_page_router)
+    routers.append(add_services_router)
 
     return routers
 

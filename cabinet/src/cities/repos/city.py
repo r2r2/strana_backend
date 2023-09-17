@@ -35,7 +35,7 @@ class City(Model):
     blocks: fields.ManyToManyRelation["Block"]
     links: fields.ManyToManyRelation["Link"]
     elements: fields.ManyToManyRelation["Element"]
-    metro_line: fields.ForeignKeyRelation["MetroLine"]
+    metro_line: fields.ReverseRelation["MetroLine"]
 
     def __repr__(self):
         return self.name

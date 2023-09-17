@@ -37,6 +37,10 @@ class RefuseMeetingCase(BaseMeetingCase):
 
     meeting_refused_to_client_mail = "meeting_refused_to_client_mail"
     meeting_refused_to_broker_mail = "meeting_refused_to_broker_mail"
+
+    AMOCRM_MAKE_APPOINTMENT = "Назначить встречу"
+    AMOCRM_FIXING_CLIENT = "фиксация клиента за ан"
+
     CLIENT_TASK_MESSAGE = 'Клиент отменил встречу.' \
                    'Необходимо связаться с клиентом для уточнения деталей.'
     BROKER_TASK_MESSAGE = 'Брокер отменил встречу.' \
@@ -71,7 +75,7 @@ class RefuseMeetingCase(BaseMeetingCase):
     ) -> Meeting:
         meeting: Meeting = await self.meeting_repo.retrieve(
             filters=dict(id=meeting_id),
-            related_fields=["booking", "project", "status"],
+            related_fields=["booking", "project", "status", "city"],
         )
         if not meeting:
             raise MeetingNotFoundError
@@ -92,11 +96,28 @@ class RefuseMeetingCase(BaseMeetingCase):
             amocrm_status: AmocrmStatus = await self.amocrm_status_repo.retrieve(
                 filters=dict(
                     pipeline_id=meeting.project.amo_pipeline_id,
-                    name__icontains="фиксация клиента за ан",
+                    name__icontains=self.AMOCRM_FIXING_CLIENT,
                 )
             )
             amocrm_status_id = amocrm_status.id
             amocrm_substage = BookingSubstages.MAKE_APPOINTMENT
+        elif user.type == UserType.CLIENT:
+            if meeting.project:
+                amocrm_status: AmocrmStatus = await self.amocrm_status_repo.retrieve(
+                    filters=dict(
+                        pipeline_id=meeting.project.amo_pipeline_id,
+                        name__icontains=self.AMOCRM_MAKE_APPOINTMENT,
+                    )
+                )
+            else:
+                amocrm_status: AmocrmStatus = await self.amocrm_status_repo.retrieve(
+                    filters=dict(
+                        pipeline__name__icontains=meeting.city.name,
+                        name__icontains=self.AMOCRM_MAKE_APPOINTMENT,
+                    )
+                )
+            amocrm_status_id = amocrm_status.id
+            amocrm_substage = BookingSubstages.UNREALIZED
         else:
             amocrm_status_id = LeadStatuses.UNREALIZED
             amocrm_substage = BookingSubstages.UNREALIZED
@@ -121,6 +142,7 @@ class RefuseMeetingCase(BaseMeetingCase):
             "project__city",
             "city",
             "booking",
+            "booking__user",
             "booking__agent",
             "booking__agency",
             "booking__property",
@@ -157,19 +179,24 @@ class RefuseMeetingCase(BaseMeetingCase):
                 booking_id=refused_meeting.booking_id,
                 status_slug=MeetingsSlug.CANCELED.value,
             )
-        elif refused_meeting.booking.agent:
-            await self.update_task_instance_status_service(
-                booking_id=refused_meeting.booking_id,
-                status_slug=MeetingsSlug.CLIENT_CANCELED.value,
-            )
             await self.send_email_to_broker(
                 meeting=refused_meeting,
                 user=user,
             )
+        elif user.type == UserType.CLIENT:
+            await self.update_task_instance_status_service(
+                booking_id=refused_meeting.booking_id,
+                status_slug=MeetingsSlug.CLIENT_CANCELED.value,
+            )
+            if refused_meeting.booking.agent:
+                await self.send_email_to_broker(
+                    meeting=refused_meeting,
+                    user=user,
+                )
 
         await self.send_email_to_client(
             meeting=refused_meeting,
-            user=user,
+            user=refused_meeting.booking.user,
         )
 
         return refused_meeting

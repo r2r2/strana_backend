@@ -1,6 +1,6 @@
 from typing import Type
 
-from tortoise.query_utils import Q
+from tortoise.expressions import Q
 
 from common.calculator.calculator import CalculatorAPI
 from common.calculator.exeptions import BaseCalculatorException
@@ -8,7 +8,7 @@ from src.booking.repos import BookingRepo
 from src.cities.repos import CityRepo
 from src.notifications.repos import ClientNotification
 from src.users.entities import BaseUserCase
-from src.users.repos import InterestsRepo, UserRepo
+from src.users.repos import InterestsRepo
 
 
 class GetUsersSpecs(BaseUserCase):

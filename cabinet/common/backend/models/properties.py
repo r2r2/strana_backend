@@ -1,4 +1,5 @@
 from decimal import Decimal
+from typing import Optional
 
 from tortoise import Model, fields
 
@@ -40,7 +41,7 @@ class BackendProperty(Model):
         "backend.BackendSection", null=True, on_delete=fields.CASCADE
     )
     section_id: int
-    layout_id: int = fields.IntField()
+    layout_id: Optional[int] = fields.IntField(null=True)
 
     class Meta:
         app = "backend"

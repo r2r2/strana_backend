@@ -34,6 +34,16 @@ class RequestUsersCheckModel(BaseUserModel):
         orm_mode = True
 
 
+class ButtonSchema(BaseCheckModel):
+    text: Optional[str]
+    background_color: Optional[str]
+    text_color: Optional[str]
+    description: Optional[str]
+
+    class Config:
+        orm_mode = True
+
+
 class UniqueStatusSchema(BaseCheckModel):
     slug: Optional[str] = Field(alias="value")
     title: Optional[str]
@@ -60,6 +70,7 @@ class ResponseUsersCheckModel(BaseCheckModel):
     unique_status: Optional[Any]
     status: Optional[UniqueStatusSchema]
     can_dispute: Optional[bool]
+    button: Optional[ButtonSchema]
 
     @root_validator
     def get_unique_status(cls, values: dict[str, Any]) -> dict[str, Any]:
@@ -71,7 +82,3 @@ class ResponseUsersCheckModel(BaseCheckModel):
 
     class Config:
         orm_mode = True
-
-        # @staticmethod
-        # def schema_extra(schema: dict[str, Any]) -> None:
-        #     schema["properties"].pop("unique_status")

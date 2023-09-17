@@ -67,7 +67,6 @@ class CalendarEvent(models.Model):
         through="CalendarEventTagThrough",
         through_fields=("calendar_event", "tag"),
         related_name="calendar_event",
-        null=True,
         blank=True,
     )
 
@@ -98,7 +97,7 @@ class CalendarEvent(models.Model):
 
 
 class CalendarEventTagThrough(models.Model):
-    calendar_event = models.ForeignKey(
+    calendar_event = models.OneToOneField(
         verbose_name="Событие календаря",
         to="events.CalendarEvent",
         on_delete=models.CASCADE,

@@ -30,6 +30,7 @@ from ..entities import BaseMeetingCase
 from ..exceptions import BookingStatusError, IncorrectBookingCreateMeetingError
 from ..models import RequestCreateMeetingModel
 from ..repos import Meeting, MeetingRepo, MeetingStatusRepo
+from ...cities.repos import CityRepo
 
 
 class CreateMeetingCase(BaseMeetingCase):
@@ -76,6 +77,7 @@ class CreateMeetingCase(BaseMeetingCase):
         self.email_class: Type[EmailService] = email_class
         self.get_email_template_service: GetEmailTemplateService = get_email_template_service
         self.update_task_instance_status_service: UpdateTaskInstanceStatusService = update_task_instance_status_service
+        self.default_responsible_user_id = 7073163
 
     async def __call__(
             self,
@@ -114,7 +116,7 @@ class CreateMeetingCase(BaseMeetingCase):
             city_id=payload.city_id,
             type=payload.type,
             topic=MeetingTopicType.BUY,
-            date=payload.date.replace(tzinfo=None),
+            date=payload.date,
             property_type=payload.property_type,
             status_id=created_meeting_status.id,
         )
@@ -137,11 +139,17 @@ class CreateMeetingCase(BaseMeetingCase):
                         name__icontains=self.amocrm_default_online_group_status_name,
                     )
                 )
+            else:
+                amocrm_group_status: AmocrmGroupStatus = await self.amocrm_group_status_repo.retrieve(
+                    filters=dict(
+                        name__icontains=self.amocrm_non_project_online_group_status_name,
+                    )
+                )
         else:
             format_type = "offline"
             meeting_type_next_contact = "Meet"
             if not project:
-                amocrm_group_status: AmocrmGroupStatus = await self.amocrm_status_repo.retrieve(
+                amocrm_group_status: AmocrmGroupStatus = await self.amocrm_group_status_repo.retrieve(
                     filters=dict(
                         name__icontains=self.amocrm_non_project_offline_group_status_name,
                     )
@@ -309,19 +317,24 @@ class CreateMeetingCase(BaseMeetingCase):
             raise BookingStatusError
 
         # деактивируем старые встречи для выбранной сделки
-        cancelled_meeting_status = await self.meeting_status_repo.retrieve(
-            filters=dict(slug=MeetingStatusChoice.CANCELLED)
-        )
+        # cancelled_meeting_status = await self.meeting_status_repo.retrieve(
+        #     filters=dict(slug=MeetingStatusChoice.CANCELLED)
+        # )
         filters = dict(
             booking_id=booking.id,
-            status__slug__not_in=[MeetingStatusChoice.FINISH, MeetingStatusChoice.CANCELLED],
+            # status__slug__not_in=[MeetingStatusChoice.FINISH, MeetingStatusChoice.CANCELLED],
         )
         active_meetings = await self.meeting_repo.list(filters=filters, related_fields=["status"])
         for active_meeting in active_meetings:
-            await self.meeting_repo.update(
-                model=active_meeting,
-                data=dict(status_id=cancelled_meeting_status.id),
-            )
+            # await self.meeting_repo.update(
+            #     model=active_meeting,
+            #     data=dict(status_id=cancelled_meeting_status.id),
+            # )
+            await self.meeting_repo.delete(model=active_meeting)
+        await self.update_task_instance_status_service(
+            booking_id=booking.id,
+            status_slug=MeetingsSlug.CANCELED.value,
+        )
 
         # создаем новую активную встречу
         created_meeting_status = await self.meeting_status_repo.retrieve(
@@ -356,10 +369,10 @@ class CreateMeetingCase(BaseMeetingCase):
         else:
             format_type = "offline"
 
-        user = created_meeting.booking.user
-        user_fio_surname = user.surname if user.surname else ''
-        user_fio_name = (user.name[0] + ".") if user.name else ""
-        user_fio_patronymic = (user.patronymic[0] + ".") if user.patronymic else ""
+        client = created_meeting.booking.user
+        user_fio_surname = client.surname if client.surname else ''
+        user_fio_name = (client.name[0] + ".") if client.name else ""
+        user_fio_patronymic = (client.patronymic[0] + ".") if client.patronymic else ""
 
         calendar_event_data = dict(
             title=f"Встреча с {user_fio_surname} {user_fio_name}{user_fio_patronymic}",
@@ -383,11 +396,13 @@ class CreateMeetingCase(BaseMeetingCase):
         await self.booking_repo.update(model=created_meeting.booking, data=booking_data)
 
         async with await self.amocrm_class() as amocrm:
+            amo_date: float = self.amo_date_formatter(created_meeting.date)
             lead_options: dict[str, Any] = dict(
                 lead_id=created_meeting.booking.amocrm_id,
                 status_id=amocrm_status.id,
-                meeting_date_sensei=created_meeting.date.timestamp(),
-                meeting_date_zoom=created_meeting.date.timestamp(),
+                meeting_date_sensei=amo_date,
+                meeting_date_zoom=amo_date,
+                meeting_date_next_contact=amo_date,
             )
             await amocrm.update_lead_v4(**lead_options)
 
@@ -409,7 +424,7 @@ class CreateMeetingCase(BaseMeetingCase):
         )
         await self.send_email_to_client(
             meeting=created_meeting,
-            user=user,
+            user=client,
         )
 
         return created_meeting
@@ -426,7 +441,7 @@ class CreateMeetingCase(BaseMeetingCase):
         @return: Task
         """
         email_notification_template = await self.get_email_template_service(
-            mail_event_slug=self.meeting_created_to_client_mail,
+            mail_event_slug=self.meeting_created_to_broker_mail,
             context=dict(meeting=meeting, user=user),
         )
 
@@ -454,7 +469,7 @@ class CreateMeetingCase(BaseMeetingCase):
         @return: Task
         """
         email_notification_template = await self.get_email_template_service(
-            mail_event_slug=self.meeting_created_to_broker_mail,
+            mail_event_slug=self.meeting_created_to_client_mail,
             context=dict(meeting=meeting, user=user),
         )
 

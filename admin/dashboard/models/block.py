@@ -54,7 +54,7 @@ class BlockCityThrough(models.Model):
     """
     Связь блока и города
     """
-    block: models.ForeignKey = models.ForeignKey(
+    block: models.ForeignKey = models.OneToOneField(
         to='dashboard.Block',
         verbose_name='Блок',
         related_name='block_city_through',

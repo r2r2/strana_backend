@@ -1,3 +1,4 @@
+import tortoise
 from http import HTTPStatus
 from typing import Any, Optional
 
@@ -5,7 +6,8 @@ from typing import Any, Optional
 from common import dependencies, email, files, security, messages, amocrm
 from common.amocrm import AmoCRM
 from common.amocrm.tasks import bind_contact_to_company
-from config import auth_config, session_config, site_config
+from common.amocrm.services import BindContactCompanyService
+from config import auth_config, session_config, site_config, tortoise_config
 from fastapi import (APIRouter, Body, Depends, File, Form, Query, Request,
                      UploadFile)
 from fastapi.responses import RedirectResponse
@@ -74,6 +76,12 @@ async def process_register_view(
     check_user_unique_service: user_services.UserCheckUniqueService = user_services.UserCheckUniqueService(
         user_repo=users_repos.UserRepo,
     )
+    resources: dict[str:Any] = dict(
+        amocrm_class=amocrm.AmoCRM,
+        orm_class=tortoise.Tortoise,
+        orm_config=tortoise_config,
+    )
+    bind_contact_to_company_service: BindContactCompanyService = BindContactCompanyService(**resources)
     process_register: use_cases.ProcessRegisterCase = use_cases.ProcessRegisterCase(
         admin_repo=admins_repos.AdminRepo,
         agency_repo=agencies_repos.AgencyRepo,
@@ -87,7 +95,7 @@ async def process_register_view(
         agent_repo=agent_repos.AgentRepo,
         create_contact_service=create_contact_service,
         create_organization_service=create_organization_service,
-        bind_contact_to_company=bind_contact_to_company,
+        bind_contact_to_company_service=bind_contact_to_company_service,
         get_email_template_service=get_email_template_service,
         check_user_unique_service=check_user_unique_service,
         city_repo=cities_repos.CityRepo,

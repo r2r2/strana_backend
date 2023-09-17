@@ -1,7 +1,8 @@
 from django.db import models
 
 from .pipelines import AmocrmPipeline
-from .group_statuses import AmocrmGroupStatus
+from .broker_group_statuses import AmocrmGroupStatus
+from .client_group_statuses import ClientAmocrmGroupStatus
 
 
 class AmocrmStatus(models.Model):
@@ -25,6 +26,15 @@ class AmocrmStatus(models.Model):
         null=True
     )
 
+    client_group_status = models.ForeignKey(
+        ClientAmocrmGroupStatus,
+        on_delete=models.SET_NULL,
+        related_name='statuses',
+        verbose_name="Группирующий статус для клиентов",
+        blank=True,
+        null=True
+    )
+
     def __str__(self):
         return f"{self.pipeline.name} ({self.name})"
 
@@ -33,5 +43,4 @@ class AmocrmStatus(models.Model):
         db_table = "amocrm_statuses"
         ordering = ("pipeline_id", "sort")
         verbose_name = "Статус"
-        verbose_name_plural = "1.5. [Справочник] Статусы из АМО"
-
+        verbose_name_plural = " 1.5. [Справочник] Статусы из АМО"

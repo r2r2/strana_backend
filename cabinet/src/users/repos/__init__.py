@@ -17,3 +17,5 @@ from .confirm_client_assign import ConfirmClientAssign, ConfirmClientAssignRepo
 from .unique_status import UniqueStatus, UniqueStatusRepo
 from .historical_dispute_data import HistoricalDisputeData, HistoricalDisputeDataRepo
 from .viewed_properties import UserViewedProperty, UserViewedPropertyRepo
+from .unique_status_button import UniqueStatusButton, UniqueStatusButtonRepo
+from .amocrm_request_check_log import AmoCrmCheckLogRepo, AmoCrmCheckLog

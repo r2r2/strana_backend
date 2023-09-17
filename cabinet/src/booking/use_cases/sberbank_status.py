@@ -203,7 +203,7 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
                 tags=booking.tags,
                 booking_end=booking.booking_period,
                 booking_price=int(booking.payment_amount),
-                booking_until_datetime=int(booking_until_datetime.timestamp()),
+                booking_expires_datetime=int(booking_until_datetime.timestamp()),
             )
             data: list[Any] = await amocrm.update_lead(**lead_options)
             lead_id: int = data[0]["id"]

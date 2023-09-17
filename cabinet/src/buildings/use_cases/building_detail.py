@@ -1,5 +1,5 @@
 from tortoise.queryset import QuerySet
-from tortoise.query_utils import Q
+from tortoise.expressions import Q
 
 from src.projects.repos import ProjectRepo
 from src.floors.repos import FloorRepo

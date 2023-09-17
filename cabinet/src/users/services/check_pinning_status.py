@@ -54,7 +54,7 @@ class TokenBucketRateLimiter:
         self.last_refill_time: float = now
 
         # Store the tokens in Redis
-        await self.redis.set('token_bucket_tokens', self.tokens)
+        await self.redis.set('token_bucket_tokens', self.tokens, expire=60 * 60)
 
     async def acquire(self, num_tokens: int = 1) -> bool:
         async with self.lock:
@@ -63,7 +63,7 @@ class TokenBucketRateLimiter:
                 self.tokens -= num_tokens
 
                 # Store the updated tokens in Redis
-                await self.redis.set('token_bucket_tokens', self.tokens)
+                await self.redis.set('token_bucket_tokens', self.tokens, expire=60 * 60)
 
                 return True
 

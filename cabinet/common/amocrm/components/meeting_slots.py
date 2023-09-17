@@ -44,7 +44,7 @@ class AmoCRMAvailableMeetingSlots:
             project: Project = await self.project_repo.retrieve(filters=dict(id=project_id))
             city: City = await self.city_repo.retrieve(filters=dict(slug=city_slug))
             payload: dict[str: Any] = dict(city=city.name, obj=project.name, meet=meet)
-            query_params: str = urlencode(payload, doseq=False)
+            if payload.get("obj"):query_params: str = urlencode(payload, doseq=False)
             url: str = f"{self._get_slots_from_amo_url}?{query_params}"
             async with self._session.get(url=url, headers=self._headers) as response:
                 if response.status == 200:

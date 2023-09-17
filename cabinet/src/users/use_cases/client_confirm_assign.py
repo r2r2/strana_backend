@@ -8,12 +8,14 @@ from src.users.entities import BaseUserCase
 from src.users.exceptions import ConfirmClientAssignNotFoundError
 from src.users.repos import ConfirmClientAssignRepo, ConfirmClientAssign
 from src.users.services import GetAgentClientFromQueryService
+from src.users.constants import OriginType
 
 
 class ConfirmAssignClientCase(BaseUserCase):
     """
     Кейс подтверждения закрепления клиента
     """
+    ORIGIN: str = OriginType.AGENT_ASSIGN
     def __init__(
         self,
         get_agent_client_service: GetAgentClientFromQueryService,
@@ -33,5 +35,6 @@ class ConfirmAssignClientCase(BaseUserCase):
 
         data: dict[str, Any] = dict(
             assign_confirmed_at=datetime.now(tz=UTC),
+            origin=self.ORIGIN,
         )
         asyncio.create_task(self.confirm_client_assign_repo.update(confirm_client, data=data))

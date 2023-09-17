@@ -20,7 +20,6 @@ class Matrix(BaseQuestionnaireModel):
         through="MatrixConditionsThrough",
         through_fields=("matrix", "condition",),
         related_name="matrix_conditions",
-        null=True,
         blank=True,
     )
 

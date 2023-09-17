@@ -93,7 +93,7 @@ class SberbankLinkCase(BaseBookingCase, BookingLogMixin):
             raise BookingWrongStepError
         if booking.step_four():
             sentry_sdk.capture_message(
-                "cabinet/SberbankLinkCase: BookingWrongStepError: Бронирование уже полачено"
+                "cabinet/SberbankLinkCase: BookingWrongStepError: Бронирование уже оплачено"
             )
             raise BookingWrongStepError
         if not booking.time_valid():

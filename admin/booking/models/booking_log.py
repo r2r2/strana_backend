@@ -12,4 +12,4 @@ class BookingLog(AbstractLog):
     class Meta:
         db_table = "booking_bookinglog"
         verbose_name = "Лог: "
-        verbose_name_plural = "1.6. [Логи] Логи бронирований"
+        verbose_name_plural = " 1.6. [Логи] Логи бронирований"

@@ -55,7 +55,7 @@ async def calendar_event_list_view(
     ),
     meeting_client: Optional[str] = Query(
         default=None,
-        description="Фильтр по клиента встречи",
+        description="Фильтр по клиенту встречи",
         alias='search',
     ),
     booking_id: Optional[int] = Query(

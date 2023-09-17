@@ -43,7 +43,6 @@ class Button(BaseTaskManagementModel):
         help_text='Статусы задания, в которых данное действие будет выводиться',
         verbose_name='Статусы',
         blank=True,
-        null=True,
     )
 
     def __str__(self) -> str:
@@ -60,7 +59,7 @@ class TaskStatusButtonsThrough(models.Model):
     """
     Связь между статусами заданий и кнопками
     """
-    task_status: models.ForeignKey = models.ForeignKey(
+    task_status: models.ForeignKey = models.OneToOneField(
         to='task_management.TaskStatus',
         on_delete=models.CASCADE,
         related_name='task_status',

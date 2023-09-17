@@ -3,7 +3,7 @@ from typing import Optional, Any, Union
 
 from tortoise import Model, fields
 from tortoise.fields import ForeignKeyNullableRelation
-from tortoise.query_utils import Q, Prefetch
+from tortoise.expressions import Q
 from tortoise.queryset import QuerySet, QuerySetSingle
 
 from common import cfields

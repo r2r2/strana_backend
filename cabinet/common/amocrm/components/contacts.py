@@ -1,7 +1,7 @@
 from abc import ABC
 from datetime import date, datetime
 from time import mktime
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 import structlog
 from common.amocrm.components.interface import AmoCRMInterface
@@ -11,6 +11,7 @@ from pytz import UTC
 from starlette import status
 
 from ..constants import AmoContactQueryWith
+from common.amocrm.exceptions import AmoTryAgainLaterError
 from ..types import (AmoContact, AmoContactEmbedded, AmoCustomField,
                      AmoCustomFieldValue, ChoiceField, DateField, DDUData,
                      GenderField, StringField)
@@ -293,7 +294,7 @@ class AmoCRMContacts(AmoCRMInterface, ABC):
         try:
             return AmoContact.parse_obj(getattr(response, "data", {}))
         except ValidationError as err:
-            self.logger.error(
+            self.logger.warning(
                 f"cabinet/amocrm/fetch_contact: Status {response.status}: "
                 f"Пришли неверные данные: {response.data}"
                 f"Exception: {err}"
@@ -326,6 +327,41 @@ class AmoCRMContacts(AmoCRMInterface, ABC):
         if response.status == status.HTTP_204_NO_CONTENT:
             return []
         return self._parse_contacts_data_v4(response=response, method_name='AmoCRM.fetch_contacts')
+
+    async def fetch_contacts_v2(self,
+                                *,
+                                user_ids: Optional[list[int]] = None,
+                                user_phone: Optional[str] = None,
+                                query_with: Optional[list[AmoContactQueryWith]] = None
+                                ) -> tuple[list[AmoContact], dict[Union[str, int]]]:
+        """
+        Contact lookup by ids or phone
+        """
+        assert any([user_ids, user_phone])
+        if not user_ids:
+            user_ids = []
+
+        route: str = "/contacts"
+        query: dict[str, Any] = {
+            f"filter[id][{index}]": user_id for index, user_id in enumerate(user_ids)
+        }
+        if user_phone:
+            query.update(dict(query=user_phone[-10:]))
+        if query_with:
+            query.update({"with": ",".join(query_with)})
+
+        response: CommonResponse = await self._request_get_v4(route=route, query=query)
+
+        amo_request_log = dict(
+            route=route,
+            query=query,
+            status=response.status,
+            data=response.data
+        )
+
+        if response.status == status.HTTP_204_NO_CONTENT:
+            return [], amo_request_log
+        return self._parse_contacts_data_v4(response=response, method_name='AmoCRM.fetch_contacts'), amo_request_log
 
     @user_tag_test_wrapper
     async def create_contact(
@@ -587,12 +623,12 @@ class AmoCRMContacts(AmoCRMInterface, ABC):
             items: list[Any] = getattr(response, "data", {}).get("_embedded", {}).get("contacts")
             return parse_obj_as(list[AmoContact], items)
         except (ValidationError, AttributeError) as err:
-            self.logger.error(
+            self.logger.warning(
                 f"{method_name}: Status {response.status}: "
                 f"Пришли неверные данные: {response.data}"
                 f"Exception: {err}"
             )
-            return []
+            raise AmoTryAgainLaterError from err
 
     def _parse_contacts_data_v2(
             self, response: CommonResponse, method_name: str) -> list[dict]:
@@ -602,7 +638,7 @@ class AmoCRMContacts(AmoCRMInterface, ABC):
         try:
             return getattr(response, "data", {}).get("_embedded", {}).get("items", [])
         except AttributeError as err:
-            self.logger.error(
+            self.logger.warning(
                 f"{method_name}: Status {response.status}: "
                 f"Пришли неверные данные: {response.data}"
                 f"Exception: {err}"

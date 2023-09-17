@@ -1,5 +1,6 @@
-sonarqube-check:
-  stage: test:sonar
+test:sonarqube:
+#its tmp
+  stage: build
   image: 
     name: sonarsource/sonar-scanner-cli:latest
     entrypoint: [""]
@@ -16,6 +17,13 @@ sonarqube-check:
   tags:
     - docker-sber
   only:
-    - development
-    - pre-production
-    - master 
+    refs:
+      - development
+      - pre-production
+      - master
+    changes:
+      - cabinet/**/*
+      - admin/**/*
+      - .gitlab-ci.yml
+      - docker-compose.yml
+      - docker-compose.test.yml

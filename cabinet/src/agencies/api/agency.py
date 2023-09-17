@@ -479,7 +479,7 @@ async def agent_acts_list(
     pagination: AgencyPagination = Depends(dependencies.Pagination(page_size=12)),
 ):
     """
-    Список актов агенства
+    Список актов агентства
     """
     resources: dict[str, Any] = dict(
         agency_repo=agencies_repos.AgencyRepo,

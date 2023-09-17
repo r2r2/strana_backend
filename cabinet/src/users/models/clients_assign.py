@@ -16,6 +16,7 @@ class RequestAssignClient(BaseModel):
     active_projects: Optional[list[int]] = Field(default=[], description='Активные ЖК(проекты)')
     agency_contact: Optional[str] = ''
     assignation_comment: Optional[str] = ''
+    consultation_type: Optional[str] = ''
 
     @validator('phone')
     def validate_phone(cls, phone: str) -> str:
@@ -38,6 +39,7 @@ class ResponseAssignClient(BaseModel):
     agent_id: int
     agency_id: int
     client_id: int = Field(alias='id')
+    bookingId: Optional[int] = Field(default=None, alias='booking_id')
 
     class Config:
         orm_mode = True

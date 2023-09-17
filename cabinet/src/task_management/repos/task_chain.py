@@ -1,6 +1,6 @@
 from typing import Optional
 
-from tortoise import fields
+from tortoise import fields, Model
 
 from common.orm.mixins import ReadWriteMixin
 from src.task_management.entities import BaseTaskModel, BaseTaskRepo
@@ -44,6 +44,16 @@ class TaskChain(BaseTaskModel):
         backward_key="task_chain_field_id",
         forward_key="task_field_id",
     )
+    booking_source: fields.ManyToManyRelation["BookingSource"] = fields.ManyToManyField(
+        model_name="models.BookingSource",
+        related_name="taskchains",
+        through="taskchain_booking_source_through",
+        description="Задачи из данной цепочки будут создаваться у данных типов сделок",
+        null=True,
+        on_delete=fields.SET_NULL,
+        backward_key="task_chain_id",
+        forward_key="booking_source_id",
+    )
 
     task_statuses: fields.ReverseRelation["TaskStatus"]
 
@@ -59,3 +69,27 @@ class TaskChainRepo(BaseTaskRepo, ReadWriteMixin):
     Репозиторий цепочки заданий
     """
     model = TaskChain
+
+
+class TaskChainBookingSourceThrough(Model):
+    """
+    Связующая таблица цепочки заданий и источника бронирования
+    """
+    id: int = fields.IntField(description="ID", pk=True)
+    task_chain: fields.ForeignKeyRelation[TaskChain] = fields.ForeignKeyField(
+        model_name="models.TaskChain",
+        related_name="taskchain_booking_source_through",
+        description="Цепочка заданий",
+        on_delete=fields.CASCADE,
+        backward_key="task_chain_id",
+    )
+    booking_source: fields.ForeignKeyRelation["BookingSource"] = fields.ForeignKeyField(
+        model_name="models.BookingSource",
+        related_name="taskchain_booking_source_through",
+        description="Источник бронирования",
+        on_delete=fields.CASCADE,
+        backward_key="booking_source_id",
+    )
+
+    class Meta:
+        table = "taskchain_booking_source_through"

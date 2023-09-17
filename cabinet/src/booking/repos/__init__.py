@@ -12,3 +12,5 @@ from .booking_tag import BookingTag, BookingTagsGroupStatusThrough, BookingTagRe
 from .ddu import DDU, DDUParticipant, DDUParticipantRepo, DDURepo
 from .purchase_help_text import PurchaseHelpText, PurchaseHelpTextRepo
 from .webhook_request import WebhookRequest, WebhookRequestRepo
+from .payment_page import PaymentPageNotification, PaymentPageNotificationRepo
+from .booking_source import BookingSource, BookingSourceRepo

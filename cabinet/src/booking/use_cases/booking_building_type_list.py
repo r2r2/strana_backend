@@ -1,7 +1,8 @@
 from typing import List, Type
 
 from ..entities import BaseBookingBuildingTypeListCase, BaseBookingBuildingTypeModel
-from src.buildings.repos import BuildingRepo, BuildingBookingTypeRepo
+from src.booking.repos import BookingRepo
+from src.booking.exceptions import BookingNotFoundError
 
 
 class BookingBuildingTypeListCase(BaseBookingBuildingTypeListCase):
@@ -10,14 +11,16 @@ class BookingBuildingTypeListCase(BaseBookingBuildingTypeListCase):
     """
     def __init__(
             self,
-            building_repo: Type[BuildingRepo],
-            building_booking_type_repo: Type[BuildingBookingTypeRepo],
+            booking_repo: Type[BookingRepo],
     ) -> None:
-        self.building_repo: BuildingRepo = building_repo()
-        self.building_booking_type_repo: BuildingBookingTypeRepo = building_booking_type_repo()
+        self.booking_repo: BookingRepo = booking_repo()
 
-    async def __call__(self, building_id: int) -> List[BaseBookingBuildingTypeModel]:
+    async def __call__(self, booking_id: int) -> List[BaseBookingBuildingTypeModel]:
+        booking = await self.booking_repo.retrieve(
+            filters=dict(id=booking_id),
+            related_fields=['building'],
+        )
+        if booking is None:
+            raise BookingNotFoundError
 
-        building = await self.building_repo.retrieve(filters=dict(id=building_id))
-
-        return await building.booking_types
+        return await booking.building.booking_types

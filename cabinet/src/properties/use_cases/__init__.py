@@ -4,3 +4,4 @@ from .unbind_booking import UnbindBookingPropertyCase
 from .property_type_list import PropertyTypeListCase
 from .add_viewed_properties import AddViewedPropertiesCase
 from .get_viewed_properties import GetViewedPropertiesCase
+from .get_viewed_properties_ids import GetViewedPropertiesIdsCase

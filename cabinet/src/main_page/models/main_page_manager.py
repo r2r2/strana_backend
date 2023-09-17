@@ -1,11 +1,9 @@
 from typing import Optional
 
-from common.backend.constaints import CitiesTypes
-from pydantic import EmailStr
 from src.main_page.entities import BaseMainPageModel
 
 
-class ResponseManagerRetrieveModel(BaseMainPageModel):
+class ResponseMainPageManagerRetrieveModel(BaseMainPageModel):
     """
     Модель ответа получения менеджера для главной страницы
     """
@@ -16,9 +14,7 @@ class ResponseManagerRetrieveModel(BaseMainPageModel):
     position: Optional[str]
     phone: Optional[str]
     work_schedule: Optional[str]
-    photo: dict[str, Optional[str]]
-    city: CitiesTypes.serializer
-    email: EmailStr
+    photo: dict[str, Optional[str]] = {}
 
     class Config:
         orm_mode = True

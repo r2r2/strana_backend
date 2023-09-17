@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from config.settings import (AerichSettings, AMOCrmSettings,
+from config.settings import (AerichSettings, AMOCrmSettings, AMOCrmSettingsOld,
                              ApplicationSettings, AuthSettings, AWSSettings,
                              BackendSettings, BazisSettings, BookingSettings,
                              CelerySettings, CORSSettings, DataBaseSettings,
@@ -14,7 +14,7 @@ from config.settings import (AerichSettings, AMOCrmSettings,
                              TortoiseSettings, TrustedSettings, FakeSendSms,
                              UvicornSettings, LogsSettings, SenseiSettings,
                              KonturTalkSettings, RequestLimiterSettings, MCSettings,
-                             DadataSettings)
+                             DadataSettings, UnleashSettings)
 
 
 base_dir: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -31,6 +31,7 @@ email_config: dict[str, Any] = EmailSettings().dict()
 sentry_config: dict[str, Any] = SentrySettings().dict()
 celery_config: dict[str, Any] = CelerySettings().dict()
 amocrm_config: dict[str, Any] = AMOCrmSettings().dict()
+amocrm_config_old: dict[str, Any] = AMOCrmSettingsOld().dict()
 booking_config: dict[str, Any] = BookingSettings().dict()
 trusted_config: dict[str, Any] = TrustedSettings().dict()
 backend_config: dict[str, Any] = BackendSettings().dict()
@@ -58,3 +59,4 @@ kontur_talk_config: dict[str, Any] = KonturTalkSettings().dict()
 logs_config: dict[str, Any] = LogsSettings().dict()
 request_limiter_config: dict[str, Any] = RequestLimiterSettings().dict()
 dadata_config: dict[str, Any] = DadataSettings().dict()
+unleash_config: dict[str, Any] = UnleashSettings().dict()

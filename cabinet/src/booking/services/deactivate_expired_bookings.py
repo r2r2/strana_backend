@@ -55,12 +55,14 @@ class DeactivateExpiredBookingsService(BaseBookingService):
         self.orm_config: Optional[dict[str, Any]] = copy(orm_config)
         if self.orm_config:
             self.orm_config.pop("generate_schemas", None)
-        self.booking_update = booking_changes_logger(self.booking_repo.update, self, content="Деактивация бронирований")
+        self.booking_update = booking_changes_logger(
+            self.booking_repo.update, self, content="Деактивация бронирований"
+        )
 
     async def __call__(self) -> None:
         # Не должно быть активных оплаченных бронирований,
         # которые должны быть деактивированы по таймеру
-        filters = dict(active=True, price_payed=True, should_be_deactivated_by_timer=True)
+        filters: dict = dict(active=True, price_payed=True, should_be_deactivated_by_timer=True)
         confused_bookings: list[Booking] = await self.booking_repo.list(filters=filters)
         for booking in confused_bookings:
             booking_data = dict(should_be_deactivated_by_timer=False)
@@ -74,11 +76,15 @@ class DeactivateExpiredBookingsService(BaseBookingService):
             should_be_deactivated_by_timer=True,
         )
         expired_bookings: list[Booking] = await self.booking_repo.list(
-            filters=filters, related_fields=["user", "project", "project__city", "property", "building"]
+            filters=filters,
+            related_fields=["user", "project", "project__city", "property", "building"],
         )
         for booking in expired_bookings:
             booking_data: dict[str, Any] = dict(
                 active=False,
+                project_id=None,
+                building_id=None,
+                property_id=None,
                 profitbase_booked=False,
                 amocrm_stage=BookingStages.START,
                 amocrm_substage=BookingSubstages.START,

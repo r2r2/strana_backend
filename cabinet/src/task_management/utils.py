@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Optional, Union
 from pytz import UTC
 
 from tortoise.queryset import QUERY
@@ -10,125 +10,185 @@ from src.booking.repos import Booking
 from src.meetings.constants import MeetingStatusChoice
 from src.meetings.repos import Meeting, MeetingRepo, MeetingStatusRepo
 from src.task_management.constants import MeetingsSlug, FixationExtensionSlug
+from src.task_management.exceptions import TaskStatusNotFoundError
 from src.task_management.helpers import Slugs
-from src.task_management.repos import TaskInstance, TaskInstanceRepo, TaskStatus
+from src.task_management.repos import (
+    TaskInstance,
+    TaskInstanceRepo,
+    TaskStatus,
+    TaskChain,
+    TaskStatusRepo,
+)
 
 
-async def build_task_data(
-    task_instances: list[TaskInstance],
-    booking_settings: BookingSettings,
-    booking: Optional[Booking] = None,
-) -> Optional[list[dict[str, Any]]]:
+class TaskDataBuilder:
     """
-    Сборка данных для отображения задач
+    Логика по сборке данных для отображения задач
     """
-    if booking.amocrm_status is None:
-        return
-    result: list[dict[str, Any]] = []
-    for task_instance in task_instances:
-        task_visibility: list[AmocrmStatus] = task_instance.status.tasks_chain.task_visibility
-        if booking.amocrm_status not in task_visibility:
-            continue
-        build_meeting: bool = is_task_in_meeting_task_chain(task_instance.status)
-        build_fixation: bool = is_task_in_fixation_task_chain(task_instance.status)
-        if build_fixation:
-            text = task_instance.status.description.replace(
-                "{EXPIRES_DATE}", str(booking.fixation_expires.strftime("%d.%m.%Y"))
-            ).replace(
-                "{EXTENSION_NUMBER}", str(booking.extension_number)
-            ).replace(
-                "{DEADLINE_TO_EXPIRE}", str(booking_settings.extension_deadline)
-            ).replace(
-                "{EXTEND_DAYS}", str(booking_settings.extension_deadline)
-            )
+    DATE_FORMAT: str = "%d.%m.%Y"
+    TIME_FORMAT: str = "%H:%M"
+
+    # slugs to compare
+    meeting_slug: str = MeetingsSlug.SIGN_UP.value
+    fixation_slug: str = FixationExtensionSlug.NO_EXTENSION_NEEDED.value
+
+    def __init__(
+        self,
+        task_instances: Union[list[TaskInstance], TaskInstance],
+        booking: Booking,
+        booking_settings: Optional[BookingSettings] = None,
+    ):
+        if isinstance(task_instances, list):
+            self.task_instances = task_instances
         else:
-            text = task_instance.status.description
+            self.task_instances = [task_instances]
+
+        self.booking = booking
+        self.booking_settings = booking_settings
+
+        self.task: Optional[TaskInstance] = None
+        self.result: list[Optional[dict[str, Any]]] = []
+
+    async def build(self) -> list[Optional[dict[str, Any]]]:
+        """
+         Сборка данных для отображения задач
+         """
+        if self.booking.amocrm_status is None:
+            return self.result
+
+        for task in self.task_instances:
+            self.task: TaskInstance = task
+            task_visibility: list[AmocrmStatus] = self.task.status.tasks_chain.task_visibility
+            if self.booking.amocrm_status not in task_visibility:
+                continue
+            await self.task.fetch_related("booking")
+            await self._process_task()
+
+        return self.result
+
+    async def _process_task(self) -> None:
+        """
+        Обработка задачи
+        """
+        build_meeting: bool = await self._is_task_in_compare_task_chain(self.meeting_slug)
+        build_fixation: bool = await self._is_task_in_compare_task_chain(self.fixation_slug)
+
+        if build_fixation:
+            text = await self._build_fixation_text()
+        else:
+            text = self.task.status.description
+
         task_data: dict[str, Any] = {
-            "type": task_instance.status.type.value,
-            "title": task_instance.status.name,
+            "type": self.task.status.type.value,
+            "title": self.task.status.name,
             "text": text,
-            "hint": task_instance.comment,
-            "buttons": await _build_buttons(task_instance),
-            "meeting": await _build_meeting_data(task_instance) if build_meeting else None,
-            "fixation": await _build_fixation_data(task_instance) if build_fixation else None,
+            "hint": self.task.comment,
+            "buttons": await self._build_buttons(),
+            "meeting": await self._build_meeting_data() if build_meeting else None,
+            "fixation": await self._build_fixation_data() if (
+                build_fixation
+                and self.booking.fixation_expires
+                and self.booking.extension_number
+            ) else None,
         }
-        result.append(task_data)
-    return result
+        self.result.append(task_data)
 
+    async def _is_task_in_compare_task_chain(self, compare_status: str) -> bool:
+        """
+        Проверка, является ли задача задачей в интересующей цепочке.
+        """
+        return await is_task_in_compare_task_chain(
+            status=self.task.status,
+            compare_status=compare_status,
+        )
 
-async def _build_buttons(task_instance: TaskInstance) -> Optional[list[dict[str, Any]]]:
-    """
-    Сборка кнопок для задачи.
-    Чем меньше приоритет - тем выше кнопка выводится в задании.
-    Если приоритет не указан, то кнопка выводится в конце списка.
-    """
-    if not task_instance.status.buttons:
-        return []
-    sorted_buttons = sorted(task_instance.status.buttons, key=lambda b: (b.priority is None, b.priority))
-    buttons = [{
-        "label": button.label,
-        "type": button.style.value,
-        "action": {
-            "type": button.slug,
-            "id": str(task_instance.id),
-        },
-    } for button in sorted_buttons]
-    return buttons
+    async def _build_fixation_text(self) -> str:
+        days_before_fixation_expires = self.booking.fixation_expires - datetime.now(tz=UTC)
+        return self.task.status.description.replace(
+            "{EXPIRES_DATE}", str(self.booking.fixation_expires.strftime(self.DATE_FORMAT))
+        ).replace(
+            "{EXTENSION_NUMBER}", str(self.booking.extension_number)
+        ).replace(
+            "{DEADLINE_TO_EXPIRE_DAYS}",
+            str(round(
+                self.booking_settings.extension_deadline) if self.booking_settings.extension_deadline else ''),
+        ).replace(
+            "{EXTEND_DAYS}",
+            str(round(self.booking_settings.updated_lifetime) if self.booking_settings.updated_lifetime else ''),
+        ).replace(
+            "{DAYS_BEFORE_FIXATION_EXPIRES}",
+            str(days_before_fixation_expires.days),
+        )
 
+    async def _build_buttons(self) -> list[Optional[dict[str, Any]]]:
+        """
+        Сборка кнопок для задачи.
+        Чем меньше приоритет - тем выше кнопка выводится в задании.
+        Если приоритет не указан, то кнопка выводится в конце списка.
+        """
+        if not self.task.status.buttons:
+            return []
+        sorted_buttons = sorted(self.task.status.buttons, key=lambda b: (b.priority is None, b.priority))
+        buttons = [{
+            "label": button.label,
+            "type": button.style.value,
+            "action": {
+                "type": button.slug,
+                "id": str(self.task.id),
+            },
+        } for button in sorted_buttons]
+        return buttons
 
-async def _build_meeting_data(task_instance: TaskInstance) -> Optional[dict[str, Any]]:
-    """
-    Сборка данных для отображения встречи
-    """
-    await task_instance.fetch_related("booking")
-    meeting_statuses_qs: QUERY = MeetingStatusRepo().list(
-        filters=dict(
-            slug__in=[
-                MeetingStatusChoice.CONFIRM,
-                MeetingStatusChoice.NOT_CONFIRM,
-                MeetingStatusChoice.START,
-            ],
-        ),
-    ).values_list("id", flat=True).as_query()
+    async def _build_meeting_data(self) -> Optional[dict[str, Any]]:
+        """
+        Сборка данных для отображения встречи
+        """
+        meeting_statuses_qs: QUERY = MeetingStatusRepo().list(
+            filters=dict(
+                slug__in=[
+                    MeetingStatusChoice.CONFIRM,
+                    MeetingStatusChoice.NOT_CONFIRM,
+                    MeetingStatusChoice.START,
+                ],
+            ),
+        ).values_list("id", flat=True).as_query()
 
-    meeting: Meeting = await MeetingRepo().retrieve(
-        filters=dict(
-            booking=task_instance.booking,
-            status__id__in=meeting_statuses_qs,
-        ),
-        related_fields=["city", "project"],
-    )
-    if not meeting:
-        return
-    meeting_data: dict[str, Any] = {
-        "id": meeting.id,
-        "city": meeting.city.name,
-        "project": meeting.project.name,
-        "property_type": meeting.property_type,
-        "type": meeting.type,
-        "date": meeting.date.strftime("%d.%m.%Y"),
-        "time": meeting.date.strftime("%H:%M"),
-        "address": meeting.meeting_address,
-        "link": meeting.meeting_link,
-        "slug": task_instance.status.slug,
-    }
-    return meeting_data
+        meeting: Meeting = await MeetingRepo().retrieve(
+            filters=dict(
+                booking=self.task.booking,
+                status__id__in=meeting_statuses_qs,
+            ),
+            related_fields=["city", "project"],
+        )
+        if not meeting:
+            return
+        meeting_data: dict[str, Any] = {
+            "id": meeting.id,
+            "city": meeting.city.name,
+            "project": meeting.project.name,
+            "property_type": meeting.property_type,
+            "type": meeting.type,
+            "date": meeting.date.strftime(self.DATE_FORMAT),
+            "time": meeting.date.strftime(self.TIME_FORMAT),
+            "address": meeting.meeting_address,
+            "link": meeting.meeting_link,
+            "slug": self.task.status.slug,
+        }
+        return meeting_data
 
+    async def _build_fixation_data(self) -> Optional[dict[str, Any]]:
+        """
+        Сборка данных для отображения полей для сделок фиксаций.
+        """
+        days_before_fixation_expires = self.task.booking.fixation_expires - datetime.now(tz=UTC)
 
-async def _build_fixation_data(task_instance: TaskInstance) -> Optional[dict[str, Any]]:
-    """
-    Сборка данных для отображения полей для сделок фиксаций.
-    """
-    await task_instance.fetch_related("booking")
-    days_before_fixation_expires = task_instance.booking.fixation_expires - datetime.now(tz=UTC)
+        fixation_data: dict[str, Any] = {
+            "fixation_expires": self.task.booking.fixation_expires,
+            "days_before_fixation_expires": days_before_fixation_expires.days,
+            "extension_number": self.task.booking.extension_number,
+        }
 
-    fixation_data: dict[str, Any] = {
-        "fixation_expires": task_instance.booking.fixation_expires,
-        "days_before_fixation_expires": days_before_fixation_expires.days,
-        "extension_number": task_instance.booking.extension_number,
-    }
-
-    return fixation_data
+        return fixation_data
 
 
 async def check_task_instance_exists(booking: Booking, task_status: str) -> bool:
@@ -147,17 +207,24 @@ async def check_task_instance_exists(booking: Booking, task_status: str) -> bool
     return task_instance is not None
 
 
-def is_task_in_meeting_task_chain(status: TaskStatus) -> bool:
+async def is_task_in_compare_task_chain(status: TaskStatus, compare_status: str) -> bool:
     """
-    Проверка, является ли задача задачей в цепочке встреч.
-    """
-    slug_values: list[str] = Slugs.get_slug_values(status.slug)
-    return MeetingsSlug.SIGN_UP.value in slug_values
-
-
-def is_task_in_fixation_task_chain(status: TaskStatus) -> bool:
-    """
-    Проверка, является ли задача задачей в цепочке фиксаций.
+    Проверка, является ли задача задачей в интересующей цепочке.
+    @param status: статус задачи
+    @param compare_status: статус, который принадлежит цепочке, с которой мы хотим сравнить
     """
     slug_values: list[str] = Slugs.get_slug_values(status.slug)
-    return FixationExtensionSlug.NO_EXTENSION_NEEDED.value in slug_values
+    return compare_status in slug_values
+
+
+async def get_interesting_task_chain(status: str) -> TaskChain:
+    """
+    Получение интересующей цепочки задач по статусу
+    """
+    interested_task_status: Optional[TaskStatus] = await TaskStatusRepo().retrieve(
+        filters=dict(slug=status),
+        prefetch_fields=["tasks_chain__task_statuses"],
+    )
+    if not interested_task_status:
+        raise TaskStatusNotFoundError
+    return interested_task_status.tasks_chain

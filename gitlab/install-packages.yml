@@ -8,6 +8,8 @@ install-pkg-python-admin:
     changes:
       - admin/poetry.lock
       - admin/pyproject.toml
+  before_script:
+    - !reference [.docker_login_template,before_script]
   script:
     - docker pull $PYTHON_ADMIN || true
     - >
@@ -31,6 +33,8 @@ install-pkg-python-cabinet:
     changes:
       - cabinet/poetry.lock
       - cabinet/pyproject.toml
+  before_script:
+    - !reference [.docker_login_template,before_script]
   script:
     - docker pull $PYTHON_CABINET || true
     - >
