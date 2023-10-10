@@ -121,10 +121,16 @@ class Booking(models.Model):
         null=True,
         blank=True,
     )
+    pay_extension_number = models.IntegerField(
+        verbose_name="Оставшиеся количество попыток оплат",
+        null=True,
+        blank=True,
+    )
     payment_method = models.ForeignKey(
         "booking.PaymentMethod",
         on_delete=models.SET_NULL,
         null=True,
+        blank=True,
         related_name="booking_payment_method",
         verbose_name="Способ оплаты",
         help_text="Способ оплаты",
@@ -133,8 +139,15 @@ class Booking(models.Model):
         "properties.PropertyPrice",
         on_delete=models.SET_NULL,
         null=True,
+        blank=True,
         related_name="booking_price",
         verbose_name="Цена",
+    )
+    loyalty_point_amount = models.IntegerField(
+        verbose_name="Количество баллов лояльности",
+        help_text="Только для информации, редактируется через микросервис лояльности",
+        null=True,
+        blank=True,
     )
 
     def __str__(self) -> str:

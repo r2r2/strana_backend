@@ -1,6 +1,7 @@
+from tortoise import Model, fields
+
 from common import orm
 from common.orm.mixins import GenericMixin
-from tortoise import Model, fields
 
 from ..entities import BaseAmocrmRepo
 
@@ -9,18 +10,32 @@ class AmocrmStatus(Model):
     """
     Модель Статуса
     """
-    id: int = fields.IntField(description='ID', pk=True)
-    name: str = fields.CharField(max_length=150, description='Имя сделки', null=True)
-    sort: int = fields.IntField(default=0, description='Сортировка')
+
+    id: int = fields.IntField(description="ID", pk=True)
+    name: str = fields.CharField(max_length=150, description="Имя сделки", null=True)
+    sort: int = fields.IntField(default=0, description="Сортировка")
     pipeline: fields.ForeignKeyRelation = fields.ForeignKeyField(
-        model_name="models.AmocrmPipeline", related_name='statuses', on_delete=fields.CASCADE
+        model_name="models.AmocrmPipeline",
+        related_name="statuses",
+        on_delete=fields.CASCADE,
     )
     group_status: fields.ForeignKeyRelation = fields.ForeignKeyField(
-        model_name="models.AmocrmGroupStatus", related_name='statuses', null=True, on_delete=fields.SET_NULL
+        model_name="models.AmocrmGroupStatus",
+        related_name="statuses",
+        null=True,
+        on_delete=fields.SET_NULL,
     )
     client_group_status: fields.ForeignKeyRelation = fields.ForeignKeyField(
-        model_name="models.ClientAmocrmGroupStatus", related_name='client_statuses', null=True,
-        on_delete=fields.SET_NULL
+        model_name="models.ClientAmocrmGroupStatus",
+        related_name="client_statuses",
+        null=True,
+        on_delete=fields.SET_NULL,
+    )
+    add_service_group_status: fields.ForeignKeyRelation = fields.ForeignKeyField(
+        model_name="models.AdditionalServiceGroupStatus",
+        related_name="add_service_group_status",
+        null=True,
+        on_delete=fields.SET_NULL,
     )
 
     taskchain_booking_substages: fields.ManyToManyRelation["TaskChain"]
@@ -38,6 +53,7 @@ class AmocrmStatusRepo(BaseAmocrmRepo, GenericMixin):
     """
     Репозиторий статусов
     """
+
     model = AmocrmStatus
     q_builder: orm.QBuilder = orm.QBuilder(AmocrmStatus)
     c_builder: orm.ConverterBuilder = orm.ConverterBuilder(AmocrmStatus)

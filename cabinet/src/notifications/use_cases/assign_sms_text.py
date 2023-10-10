@@ -2,6 +2,7 @@ from src.notifications.entities import BaseNotificationCase
 from src.notifications.repos import AssignClientTemplateRepo, AssignClientTemplate
 from src.projects.exceptions import ProjectNotFoundError
 from src.projects.repos import ProjectRepo, Project
+from src.projects.constants import ProjectStatus
 
 
 class AssignSMSTextCase(BaseNotificationCase):

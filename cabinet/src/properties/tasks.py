@@ -1,17 +1,13 @@
 from asyncio import get_event_loop
 from typing import Any
 
-from tortoise import Tortoise
-
-from common import utils
 from common.backend import repos as backend_repos
+from common.celery.utils import redis_lock
 from config import celery, tortoise_config
 from src.buildings import repos as buildings_repos
-from src.cities import repos as cities_repo
-from src.floors import repos as floors_repos
-from src.projects import repos as projects_repos
-from src.properties import repos as properties_repos
-from src.properties.services import ImportBuildingBookingTypesService, ImportPropertyService
+from src.properties.services import (ImportBuildingBookingTypesService, ImportPropertyService,
+                                     ImportPropertyServiceFactory)
+from tortoise import Tortoise
 
 
 @celery.app.task
@@ -20,22 +16,9 @@ def import_property_task(property_id: int) -> None:
     """
     Импорт объектов недвижимости из бекенда
     """
-    import_property: ImportPropertyService = ImportPropertyService(
+    import_property: ImportPropertyService = ImportPropertyServiceFactory.create(
         orm_class=Tortoise,
-        orm_config=tortoise_config,
-        floor_repo=floors_repos.FloorRepo,
-        global_id_decoder=utils.from_global_id,
-        global_id_encoder=utils.to_global_id,
-        project_repo=projects_repos.ProjectRepo,
-        building_repo=buildings_repos.BuildingRepo,
-        property_repo=properties_repos.PropertyRepo,
-        city_repo=cities_repo.CityRepo,
-        building_booking_type_repo=buildings_repos.BuildingBookingTypeRepo,
-        backend_building_booking_type_repo=backend_repos.BackendBuildingBookingTypesRepo,
-        backend_properties_repo=backend_repos.BackendPropertiesRepo,
-        backend_floors_repo=backend_repos.BackendFloorsRepo,
-        backend_sections_repo=backend_repos.BackendSectionsRepo,
-
+        orm_config=tortoise_config
     )
     loop: Any = get_event_loop()
     loop.run_until_complete(
@@ -46,28 +29,20 @@ def import_property_task(property_id: int) -> None:
 @celery.app.task
 def import_properties_task_periodic() -> None:
     """
-    Переодический импорт объектов недвижимости из бекенда
+    Периодический импорт объектов недвижимости из бекенда
     """
+    lock_id = "periodic_cache_import_properties_task_periodic"
+    can_launch = redis_lock(lock_id)
+    if not can_launch:
+        return
+
     import_building_booking_types_service: ImportBuildingBookingTypesService = ImportBuildingBookingTypesService(
             backend_building_booking_type_repo=backend_repos.BackendBuildingBookingTypesRepo,
             building_booking_type_repo=buildings_repos.BuildingBookingTypeRepo,
         )
-    import_property: ImportPropertyService = ImportPropertyService(
+    import_property: ImportPropertyService = ImportPropertyServiceFactory.create(
         orm_class=Tortoise,
         orm_config=tortoise_config,
-        floor_repo=floors_repos.FloorRepo,
-        global_id_decoder=utils.from_global_id,
-        global_id_encoder=utils.to_global_id,
-        project_repo=projects_repos.ProjectRepo,
-        building_repo=buildings_repos.BuildingRepo,
-        feature_repo=properties_repos.FeatureRepo,
-        property_repo=properties_repos.PropertyRepo,
-        city_repo=cities_repo.CityRepo,
-        building_booking_type_repo=buildings_repos.BuildingBookingTypeRepo,
-        backend_building_booking_type_repo=backend_repos.BackendBuildingBookingTypesRepo,
-        backend_properties_repo=backend_repos.BackendPropertiesRepo,
-        backend_floors_repo=backend_repos.BackendFloorsRepo,
-        backend_sections_repo=backend_repos.BackendSectionsRepo,
         import_building_booking_types_service=import_building_booking_types_service,
     )
     loop: Any = get_event_loop()

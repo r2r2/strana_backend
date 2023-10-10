@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Stack Trace</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 18px;
+            background-color: #f7f7f7;
+            padding: 20px;
+        }
+        .container {
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h3 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        pre {
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h3>Booking</h3>
+        <pre>{{ booking }}</pre>
+
+        <h3>Data</h3>
+        <pre>{{ data }}</pre>
+
+        <h3>Stack Trace</h3>
+        <pre>{{ stack_trace }}</pre>
+    </div>
+</body>
+</html>

@@ -119,8 +119,9 @@ class Button(BaseBookingCamelCaseModel):
 class TaskInstanceResponseSchema(BaseBookingCamelCaseModel):
     type: str
     title: str
-    hint: Optional[str]
+    hint: str | None
     text: str
+    current_step: str | None
     buttons: Optional[list[Button]]
 
     class Config:
@@ -196,7 +197,6 @@ class _BookingListModel(BaseBookingModel):
     agent: Optional[AgentRetrieveModel]
     agency: Optional[AgencyRetrieveModel]
     tasks: Optional[list[TaskInstanceResponseSchema]]
-    task_statuses: Optional[list[TaskStatusSchema]]
 
     # Method fields
     current_step: Optional[int]

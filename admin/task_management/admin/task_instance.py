@@ -8,6 +8,19 @@ from questionnaire.models import TaskInstanceLog
 
 class TaskInstanceLogInline(BaseLogInline):
     model = TaskInstanceLog
+    readonly_fields = (
+        'created',
+        'state_before',
+        'state_after',
+        'state_difference',
+        'content',
+        'error_data',
+        'response_data',
+        'use_case',
+        'task_instance',
+        'booking',
+        'task_chain',
+    )
 
 
 @admin.register(TaskInstance)

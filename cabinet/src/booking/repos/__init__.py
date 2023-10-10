@@ -1,8 +1,12 @@
+from .acquiring import Acquiring, AcquiringRepo
 from .bank_contact_info import BankContactInfo, BankContactInfoRepo
 from .booking import Booking, BookingRepo
 from .booking_fixing_conditions_matrix import (
-    BookingFixingConditionsMatrix, BookingFixingConditionsMatrixProjects,
-    BookingFixingConditionsMatrixRepo)
+    BookingFixingConditionsMatrix,
+    BookingFixingConditionsMatrixProjects,
+    BookingFixingConditionsMatrixPipeline,
+    BookingFixingConditionsMatrixRepo,
+)
 from .booking_history import BookingHistory, BookingHistoryRepo
 from .booking_log import BookingLog, BookingLogRepo
 from .booking_reservation_matrix import (BookingReservationMatrix,

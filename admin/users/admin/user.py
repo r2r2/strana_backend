@@ -69,8 +69,8 @@ class ConfirmClientAssignInline(TabularInline):
 #         if self.value():
 #             return queryset.filter(type=self.value())
 #         return queryset
-
-
+#
+#
 # class DBRoleFilter(SimpleListFilter):
 #     title = "Роль из бд"
 #     parameter_name = "role"
@@ -84,8 +84,8 @@ class ConfirmClientAssignInline(TabularInline):
 #     def queryset(self, request, queryset):
 #         params: dict = request.GET.dict()
 #         return queryset.filter(**params)
-
-
+#
+#
 # class TypeFilter(SimpleListFilter):
 #     title = "Тип"
 #     parameter_name = "type"
@@ -140,7 +140,15 @@ class CabinetUserAdmin(ModelAdmin):
         "interested_project",
     )
     actions = ("adminify", "export_csv")
-    readonly_fields = ("created_at", "agency_city", "project_city", "auth_first_at", "auth_last_at")
+    readonly_fields = (
+        "created_at",
+        "agency_city",
+        "project_city",
+        "auth_first_at",
+        "auth_last_at",
+        "loyalty_point_amount",
+        "loyalty_status_name",
+    )
     date_hierarchy = "auth_first_at"
     list_filter = (
         # RoleFilter,
@@ -303,6 +311,7 @@ class CabinetAgentAdmin(CabinetUserAdmin):
         "user_cities",
     )
     date_hierarchy = "created_at"
+    readonly_fields = ("loyalty_point_amount", "loyalty_status_name")
 
     def get_queryset(self, request):
         return CabinetAgent.objects.filter(type__in=["agent", "repres"])
@@ -316,7 +325,16 @@ class CabinetClientAdmin(CabinetUserAdmin):
     """
     Клиенты в админке
     """
-    exclude = ("username", "password")
+    exclude = (
+        "username",
+        "password",
+        "loyalty_point_amount",
+        "loyalty_status_name",
+        "loyalty_status_icon",
+        "loyalty_status_substrate_card",
+        "loyalty_status_icon_profile",
+        "date_assignment_loyalty_status",
+    )
 
     def get_queryset(self, request):
         return CabinetClient.objects.filter(type="client")
@@ -357,6 +375,12 @@ class CabinetAdminAdmin(CabinetAgentAdmin):
         "interested_sub",
         "assignation_comment",
         "project_city",
+        "loyalty_point_amount",
+        "loyalty_status_name",
+        "loyalty_status_icon",
+        "loyalty_status_substrate_card",
+        "loyalty_status_icon_profile",
+        "date_assignment_loyalty_status",
     )
 
     filter_horizontal = ("user_cities",)

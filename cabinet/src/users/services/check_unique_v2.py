@@ -24,19 +24,20 @@ class CheckUniqueServiceV2(BaseUserService):
     Проверка на уникальность
     """
     send_admin_email: bool = False
+    send_rop_email: bool = False
 
     def __init__(
-            self,
-            user_repo: Type[UserRepo],
-            check_repo: Type[CheckRepo],
-            history_check_repo: Type[CheckHistoryRepo],
-            amocrm_history_check_log_repo: Type[AmoCrmCheckLogRepo],
-            check_term_repo: Type[CheckTermRepo],
-            amocrm_class: Type[AmoCRM],
-            agent_repo: Type[UserAgentRepo],
-            amocrm_config: dict[Any, Any],
-            orm_class: Optional[Type[UserORM]] = None,
-            orm_config: Optional[dict[str, Any]] = None,
+        self,
+        user_repo: Type[UserRepo],
+        check_repo: Type[CheckRepo],
+        history_check_repo: Type[CheckHistoryRepo],
+        amocrm_history_check_log_repo: Type[AmoCrmCheckLogRepo],
+        check_term_repo: Type[CheckTermRepo],
+        amocrm_class: Type[AmoCRM],
+        agent_repo: Type[UserAgentRepo],
+        amocrm_config: dict[Any, Any],
+        orm_class: Optional[Type[UserORM]] = None,
+        orm_config: Optional[dict[str, Any]] = None,
     ) -> None:
         self.user_repo: UserRepo = user_repo()
         self.check_repo: CheckRepo = check_repo()
@@ -65,15 +66,15 @@ class CheckUniqueServiceV2(BaseUserService):
         self.amo_request_logs = []
 
     async def __call__(
-            self,
-            phone: Optional[str] = None,
-            user: Optional[User] = None,
-            check: Optional[Check] = None,
-            agent: Optional[User] = None,
-            user_id: Optional[int] = None,
-            check_id: Optional[int] = None,
-            agent_id: Optional[int] = None,
-            agency_id: Optional[int] = None,
+        self,
+        phone: Optional[str] = None,
+        user: Optional[User] = None,
+        check: Optional[Check] = None,
+        agent: Optional[User] = None,
+        user_id: Optional[int] = None,
+        check_id: Optional[int] = None,
+        agent_id: Optional[int] = None,
+        agency_id: Optional[int] = None,
     ) -> tuple[bool, list[int]]:
         if not user and user_id:
             filters: dict[str, Any] = dict(id=user_id, type=UserType.CLIENT)
@@ -104,6 +105,7 @@ class CheckUniqueServiceV2(BaseUserService):
         data: dict[str, Any] = dict(
             unique_status=unique_status,
             send_admin_email=self.send_admin_email,
+            send_rop_email=self.send_rop_email,
             amocrm_id=self.amocrm_id,
             term_uid=self.term_uid,
             term_comment=self.term_comment,
@@ -160,9 +162,9 @@ class CheckUniqueServiceV2(BaseUserService):
         return list(leads)
 
     async def _check_contact_leads(
-            self,
-            amocrm: AmoCRM,
-            leads: list[int]
+        self,
+        amocrm: AmoCRM,
+        leads: list[int]
     ) -> tuple[UniqueStatus, AmoLead]:
         """
         Проверяем каждую сделку клиента на уникальность
@@ -272,6 +274,9 @@ class CheckUniqueServiceV2(BaseUserService):
             if term.send_admin_email:
                 self.send_admin_email: bool = True
 
+            if term.send_rop_email:
+                self.send_rop_email: bool = True
+
             self.term_uid: str = str(term.uid)
             self.term_comment: str = term.comment or ''
 
@@ -296,10 +301,10 @@ class CheckUniqueServiceV2(BaseUserService):
         )
 
     async def _set_pinned_flags(
-            self,
-            user: User,
-            agent_id: Optional[int] = None,
-            agency_id: Optional[int] = None,
+        self,
+        user: User,
+        agent_id: Optional[int] = None,
+        agency_id: Optional[int] = None,
     ) -> None:
         """
         Устанавливаем флаги для проверки на то, что пользователь закреплён за агентом или агентством.

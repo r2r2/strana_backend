@@ -3,6 +3,7 @@ from django.db import models
 from .pipelines import AmocrmPipeline
 from .broker_group_statuses import AmocrmGroupStatus
 from .client_group_statuses import ClientAmocrmGroupStatus
+from .add_services_group_statuses import AdditionalServiceGroupStatus
 
 
 class AmocrmStatus(models.Model):
@@ -29,9 +30,16 @@ class AmocrmStatus(models.Model):
     client_group_status = models.ForeignKey(
         ClientAmocrmGroupStatus,
         on_delete=models.SET_NULL,
-        related_name='statuses',
+        related_name='client_statuses',
         verbose_name="Группирующий статус для клиентов",
         blank=True,
+        null=True
+    )
+    add_service_group_status = models.ForeignKey(
+        AdditionalServiceGroupStatus,
+        on_delete=models.SET_NULL,
+        related_name='add_service_group_status',
+        verbose_name="Группирующий статус",
         null=True
     )
 

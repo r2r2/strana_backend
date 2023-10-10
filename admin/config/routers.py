@@ -16,6 +16,7 @@ from task_management import models as task_management_models
 from users import models as users_models
 from amocrm import models as amocrm_models
 from additional_services import models as add_services_models
+from events_list import models as events_list_models
 
 from settings import models as settings_models
 
@@ -31,6 +32,7 @@ cabinet_models: list = [
     booking_models.ClientAmocrmGroupStatus,
     booking_models.BookingFixingConditionsMatrix,
     booking_models.BookingFixingConditionsMatrixProjects,
+    booking_models.BookingFixingConditionsMatrixPipelineThrough,
     booking_models.BookingReservationMatrix,
     booking_models.BookingReservationMatrixProjects,
     booking_models.GroupStatusTagThrough,
@@ -38,8 +40,11 @@ cabinet_models: list = [
     booking_models.PaymentMethod,
     booking_models.PriceOfferMatrix,
     booking_models.BookingSource,
+    booking_models.AdditionalServiceGroupStatus,
     properties_models.Property,
     properties_models.Building,
+    properties_models.BuildingBookingTypeThrough,
+    properties_models.BuildingBookingType,
     properties_models.Section,
     properties_models.Project,
     properties_models.Floor,
@@ -74,6 +79,7 @@ cabinet_models: list = [
     disputes_models.Dispute,
     disputes_models.CheckHistory,
     disputes_models.AmoCrmCheckLog,
+    disputes_models.ConsultationType,
     disputes_models.PinningStatus,
     disputes_models.PinningStatusCity,
     disputes_models.PinningStatusPipeline,
@@ -84,6 +90,9 @@ cabinet_models: list = [
     disputes_models.PipelinesThrough,
     disputes_models.StatusesThrough,
     disputes_models.UniqueStatusButton,
+    disputes_models.DisputeStatus,
+    # disputes_models.UsersCheck,
+    references_models.Acquiring,
     references_models.Cities,
     references_models.CityMenuThrough,
     references_models.RoleMenuThrough,
@@ -126,6 +135,8 @@ cabinet_models: list = [
     task_management_models.TaskChainTaskFieldsThrough,
     task_management_models.TaskStatusButtonsThrough,
     task_management_models.TaskChainBookingSourceThrough,
+    task_management_models.ButtonDetailView,
+    task_management_models.TaskStatusButtonsDetailThrough,
     notifications_models.LogEmail,
     notifications_models.LogSms,
     notifications_models.EmailTemplate,
@@ -135,6 +146,8 @@ cabinet_models: list = [
     notifications_models.BookingNotificationsProjectThrough,
     notifications_models.BookingFixationNotification,
     notifications_models.BookingFixationNotificationsProjectThrough,
+    notifications_models.EventsSmsNotification,
+    notifications_models.EventsSmsNotificationCityThrough,
     event_models.Event,
     event_models.CalendarEvent,
     event_models.CalendarEventTypeSettings,
@@ -143,6 +156,9 @@ cabinet_models: list = [
     event_models.EventTag,
     event_models.EventParticipant,
     event_models.Meeting,
+    event_models.MeetingCreationSource,
+    events_list_models.EventList,
+    events_list_models.EventParticipantList,
     dashboard_models.Ticket,
     dashboard_models.TicketCityThrough,
     dashboard_models.Block,
@@ -152,6 +168,8 @@ cabinet_models: list = [
     dashboard_models.Link,
     dashboard_models.LinkCityThrough,
     settings_models.BookingSettings,
+    settings_models.AddServiceSettings,
+    settings_models.DaDataSettings,
     main_page_models.MainPageContent,
     main_page_models.MainPageOffer,
     main_page_models.MainPagePartnerLogo,
@@ -164,6 +182,7 @@ cabinet_models: list = [
     add_services_models.AdditionalServiceConditionStep,
     add_services_models.AdditionalServiceTicket,
     add_services_models.AdditionalServiceType,
+    add_services_models.AdditionalServiceTemplate,
 ]
 
 

@@ -4,7 +4,7 @@ from pydantic import UUID4, validator
 
 from common.utils import parse_phone
 from ..entities import BaseUserModel
-from ..exceptions import UserIncorrectPhoneForamtError
+from ..exceptions import UserIncorrectPhoneFormatError
 
 
 class RequestValidateCodeModel(BaseUserModel):
@@ -20,7 +20,7 @@ class RequestValidateCodeModel(BaseUserModel):
     def validate_phone(cls, phone: str) -> str:
         phone: Optional[str] = parse_phone(phone)
         if not phone:
-            raise UserIncorrectPhoneForamtError
+            raise UserIncorrectPhoneFormatError
         return phone
 
     class Config:

@@ -17,6 +17,7 @@ class TestCreateContactService:
     async def test_get_custom_fields(
         self,
         user_repo,
+        user_role_repo,
         amocrm_class,
         create_contact_service_class,
         embedded,
@@ -28,6 +29,7 @@ class TestCreateContactService:
     ):
         service = create_contact_service_class(
             user_repo=user_repo.__class__,
+            user_role_repo=user_role_repo.__class__,
             amocrm_class=amocrm_class,
             amocrm_config=amocrm_config,
         )
@@ -62,6 +64,7 @@ class TestCreateContactService:
     async def test_get_personal_names(
         self,
         user_repo,
+        user_role_repo,
         amocrm_class,
         create_contact_service_class,
         name_components,
@@ -72,6 +75,7 @@ class TestCreateContactService:
     ):
         service = create_contact_service_class(
             user_repo=user_repo.__class__,
+            user_role_repo=user_role_repo.__class__,
             amocrm_class=amocrm_class,
             amocrm_config=amocrm_config,
         )

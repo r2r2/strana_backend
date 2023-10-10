@@ -1,1 +1,1 @@
-from .services import CreateTaskInstanceServiceFactory
+from .services import CreateTaskInstanceServiceFactory, UpdateTaskInstanceStatusServiceFactory

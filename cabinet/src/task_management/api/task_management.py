@@ -96,16 +96,84 @@ async def one_time_set_pinning():
     from fastapi import HTTPException
     from src.notifications.tasks import booking_notification_sms_task
     from src.task_management.factories import CreateTaskInstanceServiceFactory
-    from src.task_management.dto import CreateTaskDTO, UpdateTaskDTO
+    # from src.task_management.dto import CreateTaskDTO, UpdateTaskDTO
+    from src.booking.repos import BookingRepo, Booking
+    from src.booking.constants import BookingSubstages
+    from src.users.constants import UserType
+    from src.users.repos import UserRepo, CheckRepo
+    from src.admins.repos import AdminRepo
+    from src.users import services as user_services
+    from src.users import repos as users_repos
+    from src.notifications import services as notification_services
+    from src.notifications import repos as notifications_repos
+    from common.email import EmailService
+    from src.projects.repos import ProjectRepo
+    from src.booking.tasks import check_booking_task
+    from datetime import datetime, timedelta
+    from pytz import UTC
+    # from common.depreg import DepregAPI
+    from src.task_management.utils import get_statuses_before_paid_booking
+    from src.task_management.repos import TaskInstanceRepo
+    from src.events_list.repos import EventParticipantListRepo, EventParticipantList
+
+    participant: EventParticipantList = await EventParticipantListRepo().retrieve(
+        filters=dict(phone="7999999999"),
+        related_fields=["event"],
+    )
+    print(f'{participant=}')
+    print(f'{datetime.today()=}')
+    print(f'{participant.event.event_date.date()=}')
+    if datetime.today().date() == participant.event.event_date.date():
+        print("OK")
+
+
+
+    # eta = datetime.now(tz=UTC) + timedelta(seconds=3)
+    # print(f'{eta=}')
+    #
+    # check_booking_task.apply_async((5777,), eta=eta)
+    # req = DepregAPI()
+    # async with req as resp:
+    #     res = await resp.get_participants(event_id=1471)
+    # print(f'{res=}')
+
+    # check_booking_task.delay(booking_id=5777)
+    # check_booking_task.apply_async((booking.id,), eta=booking.expires)
+
+    #
+    # filters: dict[str, Any] = dict(active=True, user_id=5142, agent_id=5137)
+    # bookings: list[Booking] = await BookingRepo().list(filters=filters)
+    # print(f'{bookings=}')
+    # active_projects: list[int] = [5]
+    # booking_projects: set = {booking.project_id for booking in bookings}
+    # print(f'{booking_projects=}')
+    # not_created_project_ids = set(active_projects).difference(booking_projects)
+    # print(f'{not_created_project_ids=}')
+    # rsult = await ProjectRepo().list(
+    #     filters=dict(id__in=not_created_project_ids),
+    #     related_fields=["city"]
+    # )
+    # print(f'{rsult=}')
+
+
+
+    # booking: Booking = await BookingRepo().retrieve(filters=dict(id=5777))
+
+    # property_ = dict(property_id=None)
+    # await BookingRepo().update(model=booking, data=property_)
+    # await BookingRepo().update_or_create(filters=dict(id=5777), data=property_)
+    # booking.property = None
+    # await booking.save()
 
     # booking_notification_sms_task.delay(booking_id=5777)
-
-    create_task = CreateTaskInstanceServiceFactory().create()
-    task_context: CreateTaskDTO = CreateTaskDTO()
-    # task_context.status_slug = 'pinning'
-    # task_context.status_slug = 123
-    task_context.booking_created = True
-    await create_task(booking_ids=[5777], task_context=task_context)
+    #
+    # create_task = CreateTaskInstanceServiceFactory().create()
+    # task_context: CreateTaskDTO = CreateTaskDTO()
+    # # task_context.status_slug = 'pinning'
+    # # task_context.status_slug = 123
+    # task_context.booking_created = True
+    # await create_task(booking_ids=[5777], task_context=task_context)
+    # booking_notification_sms_task.delay(booking_id=5777)
 
     raise HTTPException(status_code=418)
     """
@@ -146,7 +214,7 @@ async def one_time_set_pinning():
     print(f'Total users count: {total_users_count}')
 
     total_batches = (total_users_count + batch_size - 1) // batch_size
-    semaphore = asyncio.Semaphore(concurrency_limit)
+    semaphore = asyncio.Semaphore(RATE_LIMIT)
 
     async def process_batch(offset: int):
         start_time = time()
@@ -204,3 +272,25 @@ async def tip_list_view():
 
     create_task_for_old_bookings: CreateTaskInstanceForOldBookingCase = CreateTaskInstanceForOldBookingCase(**resources)
     return await create_task_for_old_bookings()
+
+
+@router.get("/close_old_booking_task", status_code=HTTPStatus.OK)
+async def close_old_booking_view(
+    debug: bool = Query(default=False),
+    days: int = Query(default=50),
+):
+    """
+    Одноразовый эндпоинт. Удалить после использования.
+    Закрытие всех старых сделок.
+    """
+    from common.amocrm import amocrm
+    from src.task_management.use_cases import CloseOldBookingCase
+    from src.booking import repos as booking_repos
+
+    resources: dict[str, Any] = dict(
+        amocrm_class=amocrm.AmoCRM,
+        booking_repo=booking_repos.BookingRepo,
+    )
+
+    close_old_bookings: CloseOldBookingCase = CloseOldBookingCase(**resources)
+    return await close_old_bookings(days, debug)

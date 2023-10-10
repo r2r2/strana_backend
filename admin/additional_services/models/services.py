@@ -41,14 +41,7 @@ class AdditionalService(models.Model):
     active: bool = models.BooleanField(
         verbose_name="Активность", default=True, help_text="Скрыть/Показать услугу"
     )
-    group_status = models.ForeignKey(
-        to="booking.AmocrmGroupStatus",
-        related_name="service_group_status",
-        on_delete=models.SET_NULL,
-        null=True,
-        verbose_name="Статус в Амо",
-    )
-    hint: str = models.TextField(verbose_name="Текст подсказки")
+    hint: str = models.TextField(verbose_name="Текст подсказки", null=True, blank=True)
     kind: models.ForeignKey = models.ForeignKey(
         to="additional_services.AdditionalServiceType",
         related_name="service_type",

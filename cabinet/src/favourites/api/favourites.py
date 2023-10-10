@@ -1,18 +1,14 @@
 from typing import Any
 
-from fastapi import status, APIRouter, Depends
-
-from common import dependencies, utils
-from common.backend import repos as backend_repos
+from common import dependencies
+from fastapi import APIRouter, Depends, status
 from src.properties import repos
-from src.properties import use_cases
 from src.properties import services as property_services
+from src.properties import use_cases
 from src.users import constants as users_constants
 from src.users import repos as users_repos
-from src.projects import repos as projects_repos
-from src.buildings import repos as buildings_repos
-from src.floors import repos as floors_repos
-from ..models import ViewedPropertyResponse, ViewedPropertyListResponse
+
+from ..models import ViewedPropertyListResponse, ViewedPropertyResponse
 
 router = APIRouter(prefix="/favourites", tags=["favourites"])
 
@@ -25,21 +21,8 @@ async def add_viewed_properties_view(
     """
     Добавление объектов недвижимости в просмотренное
     """
-    import_property_service: property_services.ImportPropertyService = property_services.ImportPropertyService(
-        floor_repo=floors_repos.FloorRepo,
-        global_id_decoder=utils.from_global_id,
-        global_id_encoder=utils.to_global_id,
-        project_repo=projects_repos.ProjectRepo,
-        building_repo=buildings_repos.BuildingRepo,
-        feature_repo=repos.FeatureRepo,
-        property_repo=repos.PropertyRepo,
-        building_booking_type_repo=buildings_repos.BuildingBookingTypeRepo,
-        backend_building_booking_type_repo=backend_repos.BackendBuildingBookingTypesRepo,
-        backend_properties_repo=backend_repos.BackendPropertiesRepo,
-        backend_floors_repo=backend_repos.BackendFloorsRepo,
-        backend_sections_repo=backend_repos.BackendSectionsRepo,
-        backend_special_offers_repo=backend_repos.BackendSpecialOfferRepo,
-    )
+    import_property_service: property_services.ImportPropertyService = \
+        property_services.ImportPropertyServiceFactory.create()
     resources: dict[str, Any] = dict(
         property_repo=repos.PropertyRepo,
         viewed_property_repo=users_repos.UserViewedPropertyRepo,

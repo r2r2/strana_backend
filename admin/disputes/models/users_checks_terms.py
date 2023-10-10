@@ -93,6 +93,10 @@ class CabinetChecksTerms(models.Model):
         verbose_name="Отправлять письмо администраторам при проверке клиента в данном статусе",
         default=False,
     )
+    send_rop_email: bool = models.BooleanField(
+        verbose_name="Отправлять письмо РОПам при проверке клиента в данном статусе",
+        default=False,
+    )
     unique_status: models.ForeignKey = models.ForeignKey(
         verbose_name="Статус уникальности",
         to="disputes.UniqueStatus",

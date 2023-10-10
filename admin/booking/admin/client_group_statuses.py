@@ -9,7 +9,7 @@ from ..models import ClientAmocrmGroupStatus, AmocrmStatus
 class ClientAmocrmGroupStatusAdminForm(forms.ModelForm):
     sort = forms.IntegerField(label='Сортировка', initial=0)
     name = forms.CharField(label='Название группирующего статуса', max_length=150)
-    statuses = forms.ModelMultipleChoiceField(
+    client_statuses = forms.ModelMultipleChoiceField(
         label="Статусы в AmoCRM",
         queryset=AmocrmStatus.objects.all(),
         widget=FilteredSelectMultiple('статусы', True)
@@ -19,7 +19,7 @@ class ClientAmocrmGroupStatusAdminForm(forms.ModelForm):
         model = ClientAmocrmGroupStatus
         fields = [
             "name",
-            "statuses",
+            "client_statuses",
             "sort",
             "color",
             "tags",
@@ -31,15 +31,15 @@ class ClientAmocrmGroupStatusAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super(ClientAmocrmGroupStatusAdminForm, self).__init__(*args, **kwargs)
         if self.instance:
-            self.fields['statuses'].initial = self.instance.statuses.all()
+            self.fields['client_statuses'].initial = self.instance.client_statuses.all()
 
     def save_m2m(self):
         super()._save_m2m()
 
     def save(self, *args, **kwargs):
-        self.fields["statuses"].initial.update(group_status=None)
+        self.fields["client_statuses"].initial.update(client_group_status=None)
         self.instance.save()
-        self.cleaned_data["statuses"].update(group_status=self.instance)
+        self.cleaned_data["client_statuses"].update(client_group_status=self.instance)
         return super().save()
 
 
@@ -52,8 +52,8 @@ class ClientAmocrmGroupStatusAdmin(admin.ModelAdmin):
     filter_horizontal = ("tags",)
 
     def get_statuses_on_list(self, obj):
-        if obj.statuses.exists():
-            return [status.name for status in obj.statuses.all()]
+        if obj.client_statuses.exists():
+            return [client_status.name for client_status in obj.client_statuses.all()]
         else:
             return "-"
 
@@ -62,7 +62,7 @@ class ClientAmocrmGroupStatusAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         qs = super(ClientAmocrmGroupStatusAdmin, self).get_queryset(request)
-        statuses_qs = AmocrmStatus.objects.filter(group_status__id=OuterRef("id"))
+        statuses_qs = AmocrmStatus.objects.filter(client_group_status__id=OuterRef("id"))
 
         qs = qs.annotate(statuses_info=Subquery(statuses_qs.values("name")[:1]))
         return qs

@@ -2,6 +2,7 @@ from typing import Any, Type
 
 from common.amocrm.types import AmoLead
 from common.getdoc.types import project_filename_mapping
+from config import EnvTypes, maintenance_settings
 from fastapi import UploadFile
 from src.projects.repos import Project
 from src.users.repos import User
@@ -21,6 +22,8 @@ class RepresAgenciesFileCase(BaseAgencyCase):
     """
 
     lk_broker_tag: list[str] = ["ЛК Брокера"]
+    dev_test_booking_tag: list[str] = ['Тестовая бронь']
+    stage_test_booking_tag: list[str] = ['Тестовая бронь Stage']
 
     def __init__(
         self,
@@ -65,6 +68,12 @@ class RepresAgenciesFileCase(BaseAgencyCase):
         """
         Создание сделки для получения договора
         """
+        tags = self.lk_broker_tag
+        if maintenance_settings["environment"] == EnvTypes.DEV:
+            tags = tags + self.dev_test_booking_tag
+        elif maintenance_settings["environment"] == EnvTypes.STAGE:
+            tags = tags + self.stage_test_booking_tag
+
         lead_options: dict[str, Any] = dict(
             status=self._booking_substages.ASSIGN_AGENT,
             city_slug=self._amocrm_class.city_name_mapping.get(agency.city, "tyumen"),
@@ -74,7 +83,7 @@ class RepresAgenciesFileCase(BaseAgencyCase):
             project_amocrm_pipeline_id=project.amo_pipeline_id,
             project_amocrm_responsible_user_id=project.amo_responsible_user_id,
             creator_user_id=repres.id,
-            tags=self.lk_broker_tag,
+            tags=tags,
         )
         async with self._amocrm_class() as amocrm:
             data: list[AmoLead] = await amocrm.create_lead(**lead_options)

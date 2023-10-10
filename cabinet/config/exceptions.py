@@ -1,9 +1,10 @@
 from collections import OrderedDict
-from typing import Any, Callable, Type
+from typing import Any, Callable
 
 
-def get_exceptions() -> OrderedDict[Type[Exception], Callable[..., Any]]:
+def get_exceptions() -> OrderedDict[type[Exception], Callable[..., Any]]:
     from common import handlers as common_handlers
+    from common.depreg import exceptions as depreg_exceptions
     from src.users import exceptions as users_exceptions
     from src.booking import exceptions as booking_exceptions
     from src.properties import exceptions as properties_exceptions
@@ -20,6 +21,9 @@ def get_exceptions() -> OrderedDict[Type[Exception], Callable[..., Any]]:
     from src.text_blocks import exceptions as text_block_exceptions
     from src.projects import exceptions as projects_exceptions
     from src.events import exceptions as event_exceptions
+    from src.notifications import exceptions as notifications_exceptions
+    from src.additional_services import exceptions as additional_service_exceptions
+    from src.events_list import exceptions as events_list_exceptions
 
     modules: list[Any] = [
         users_exceptions,
@@ -38,15 +42,19 @@ def get_exceptions() -> OrderedDict[Type[Exception], Callable[..., Any]]:
         text_block_exceptions,
         projects_exceptions,
         event_exceptions,
+        notifications_exceptions,
+        additional_service_exceptions,
+        events_list_exceptions,
+        depreg_exceptions,
     ]
 
-    exceptions: OrderedDict[Type[Exception], Callable[..., Any]] = OrderedDict()
+    exceptions: OrderedDict[type[Exception], Callable[..., Any]] = OrderedDict()
 
     for exc_module in modules:
         for _, exception in exc_module.__dict__.items():
             if isinstance(exception, type) and issubclass(exception, Exception):
                 if "Base" not in exception.__name__ and "Exception" not in exception.__name__:
-                    exceptions[exception]: Type[
+                    exceptions[exception]: type[
                         Exception
                     ] = common_handlers.common_exception_handler
 

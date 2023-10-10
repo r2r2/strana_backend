@@ -4,7 +4,7 @@ from pytest import mark
 @mark.asyncio
 class TestCreateContactService(object):
     async def test_no_contacts_case(
-        self, client, user, mocker, user_repo, amocrm_class, create_contact_service_class
+        self, client, user, mocker, user_repo, user_role_repo, amocrm_class, create_contact_service_class
     ):
         mocker.patch("src.users.tasks.amocrm.AmoCRM.register_lead")
 
@@ -17,7 +17,9 @@ class TestCreateContactService(object):
         create_mock.return_value = [{"id": 19827351}]
 
         create_contact = create_contact_service_class(
-            user_repo=user_repo.__class__, amocrm_class=amocrm_class
+            user_repo=user_repo.__class__,
+            user_role_repo=user_role_repo.__class__,
+            amocrm_class=amocrm_class
         )
 
         await create_contact(user_id=user.id, phone=user.phone)
@@ -29,7 +31,7 @@ class TestCreateContactService(object):
         assert updated_user.amocrm_id == awaitable_amocrm_id
 
     async def test_one_contacts_case(
-        self, client, user, mocker, user_repo, amocrm_class, create_contact_service_class
+        self, client, user, mocker, user_repo, user_role_repo, amocrm_class, create_contact_service_class
     ):
         settings_mock = mocker.patch("src.users.tasks.amocrm.AmoCRM._fetch_settings")
         fetch_mock = mocker.patch("src.users.tasks.amocrm.AmoCRM.fetch_contact")
@@ -38,7 +40,9 @@ class TestCreateContactService(object):
         fetch_mock.return_value = [{"id": 93831264}]
 
         create_contact = create_contact_service_class(
-            user_repo=user_repo.__class__, amocrm_class=amocrm_class
+            user_repo=user_repo.__class__,
+            user_role_repo=user_role_repo.__class__,
+            amocrm_class=amocrm_class
         )
 
         await create_contact(user_id=user.id, phone=user.phone)
@@ -50,7 +54,7 @@ class TestCreateContactService(object):
         assert updated_user.amocrm_id == awaitable_amocrm_id
 
     async def test_some_contacts_no_leads_case(
-        self, client, user, mocker, user_repo, amocrm_class, create_contact_service_class
+        self, client, user, mocker, user_repo, user_role_repo, amocrm_class, create_contact_service_class
     ):
         settings_mock = mocker.patch("src.users.tasks.amocrm.AmoCRM._fetch_settings")
         fetch_mock = mocker.patch("src.users.tasks.amocrm.AmoCRM.fetch_contact")
@@ -63,7 +67,9 @@ class TestCreateContactService(object):
         ]
 
         create_contact = create_contact_service_class(
-            user_repo=user_repo.__class__, amocrm_class=amocrm_class
+            user_repo=user_repo.__class__,
+            user_role_repo=user_role_repo.__class__,
+            amocrm_class=amocrm_class
         )
 
         await create_contact(user_id=user.id, phone=user.phone)
@@ -75,7 +81,7 @@ class TestCreateContactService(object):
         assert updated_user.amocrm_id == awaitable_amocrm_id
 
     async def test_some_contacts_no_main_case(
-        self, client, user, mocker, user_repo, amocrm_class, create_contact_service_class
+        self, client, user, mocker, user_repo, user_role_repo, amocrm_class, create_contact_service_class
     ):
         settings_mock = mocker.patch("src.users.tasks.amocrm.AmoCRM._fetch_settings")
         fetch_mock = mocker.patch("src.users.tasks.amocrm.AmoCRM.fetch_contact")
@@ -106,7 +112,9 @@ class TestCreateContactService(object):
         lead_mock.return_value = [{"main_contact": {"id": 5736123}}]
 
         create_contact = create_contact_service_class(
-            user_repo=user_repo.__class__, amocrm_class=amocrm_class
+            user_repo=user_repo.__class__,
+            user_role_repo=user_role_repo.__class__,
+            amocrm_class=amocrm_class
         )
 
         await create_contact(user_id=user.id, phone=user.phone)
@@ -118,7 +126,7 @@ class TestCreateContactService(object):
         assert updated_user.amocrm_id == awaitable_amocrm_id
 
     async def test_some_contacts_one_main_case(
-        self, client, user, mocker, user_repo, amocrm_class, create_contact_service_class
+        self, client, user, mocker, user_repo, user_role_repo, amocrm_class, create_contact_service_class
     ):
         settings_mock = mocker.patch("src.users.tasks.amocrm.AmoCRM._fetch_settings")
         fetch_mock = mocker.patch("src.users.tasks.amocrm.AmoCRM.fetch_contact")
@@ -149,7 +157,9 @@ class TestCreateContactService(object):
         lead_mock.return_value = [{"main_contact": {"id": 3213341}}]
 
         create_contact = create_contact_service_class(
-            user_repo=user_repo.__class__, amocrm_class=amocrm_class
+            user_repo=user_repo.__class__,
+            user_role_repo=user_role_repo.__class__,
+            amocrm_class=amocrm_class
         )
 
         await create_contact(user_id=user.id, phone=user.phone)

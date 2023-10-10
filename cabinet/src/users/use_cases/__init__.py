@@ -62,3 +62,4 @@ from .users_interests_list import UsersInterestsListCase
 from .users_list_case import UsersListCase
 from .users_uninterest import UsersUninterestCase, UsersUninterestGlobalIdCase
 from .validate_code import ValidateCodeCase
+from .get_consultation_type import GetConsultationType

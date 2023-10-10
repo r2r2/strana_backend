@@ -1,17 +1,40 @@
-import tortoise
-from http import HTTPStatus
-from typing import Any, Callable, Coroutine, Optional
 from uuid import UUID
+from typing import Any, Callable, Coroutine, Optional
 
-from common import (amocrm, dependencies, email, messages, paginations, redis,
-                    security, utils)
-from common.settings.repos import BookingSettingsRepo
+import tortoise
+from fastapi import (
+    APIRouter,
+    Body,
+    Depends,
+    File,
+    Path,
+    Query,
+    Request,
+    Response,
+    UploadFile,
+)
+from fastapi.responses import RedirectResponse
+from http import HTTPStatus
+
+from common import (
+    amocrm,
+    dependencies,
+    email,
+    messages,
+    paginations,
+    redis,
+    security,
+    utils,
+)
 from common.amocrm.services import BindContactCompanyService
 from common.amocrm.tasks import bind_contact_to_company
-from config import auth_config, redis_config, session_config, site_config, tortoise_config
-from fastapi import (APIRouter, Body, Depends, File, Path, Query, Request,
-                     Response, UploadFile)
-from fastapi.responses import RedirectResponse
+from config import (
+    auth_config,
+    redis_config,
+    session_config,
+    site_config,
+    tortoise_config,
+)
 from src.admins import repos as admin_repos
 from src.agencies import repos as agencies_repos
 from src.agents import filters, models
@@ -20,10 +43,7 @@ from src.agents import tasks as agents_tasks
 from src.agents import use_cases
 from src.booking import constants as booking_constants
 from src.questionnaire import repos as questionnaire_repos
-from src.task_management import repos as task_management_repos
-from src.task_management import services as task_management_services
-from src.task_management.tasks import update_task_instance_status_task
-from src.notifications.tasks import booking_fixation_notification_email_task
+from src.task_management.factories import UpdateTaskInstanceStatusServiceFactory
 from src.users import constants as users_constants
 from src.users import use_cases as users_cases
 from src.users.filters import BookingUserFilter
@@ -38,9 +58,13 @@ router = APIRouter(prefix="/agents", tags=["Agents"])
 
 
 @router.post(
-    "/register", status_code=HTTPStatus.CREATED, response_model=models.ResponseProcessRegisterModel
+    "/register",
+    status_code=HTTPStatus.CREATED,
+    response_model=models.ResponseProcessRegisterModel,
 )
-async def process_register_view(payload: models.RequestProcessRegisterModel = Body(...)):
+async def process_register_view(
+    payload: models.RequestProcessRegisterModel = Body(...),
+):
     """
     Регистрация агента
     """
@@ -53,19 +77,24 @@ async def process_register_view(payload: models.RequestProcessRegisterModel = Bo
         amocrm_class=amocrm.AmoCRM,
         agent_repo=agents_repos.AgentRepo,
     )
-    get_email_template_service: notification_services.GetEmailTemplateService = \
+    get_email_template_service: notification_services.GetEmailTemplateService = (
         notification_services.GetEmailTemplateService(
             email_template_repo=notification_repos.EmailTemplateRepo,
         )
-    check_user_unique_service: user_services.UserCheckUniqueService = user_services.UserCheckUniqueService(
-        user_repo=users_repos.UserRepo,
+    )
+    check_user_unique_service: user_services.UserCheckUniqueService = (
+        user_services.UserCheckUniqueService(
+            user_repo=users_repos.UserRepo,
+        )
     )
     resources: dict[str:Any] = dict(
         amocrm_class=amocrm.AmoCRM,
         orm_class=tortoise.Tortoise,
         orm_config=tortoise_config,
     )
-    bind_contact_to_company_service: BindContactCompanyService = BindContactCompanyService(**resources)
+    bind_contact_to_company_service: BindContactCompanyService = (
+        BindContactCompanyService(**resources)
+    )
     resources: dict[str, Any] = dict(
         site_config=site_config,
         hasher=security.get_hasher,
@@ -80,8 +109,11 @@ async def process_register_view(payload: models.RequestProcessRegisterModel = Bo
         bind_contact_to_company_service=bind_contact_to_company_service,
         check_user_unique_service=check_user_unique_service,
         get_email_template_service=get_email_template_service,
+        user_role_repo=users_repos.UserRoleRepo,
     )
-    process_register: use_cases.ProcessRegisterCase = use_cases.ProcessRegisterCase(**resources)
+    process_register: use_cases.ProcessRegisterCase = use_cases.ProcessRegisterCase(
+        **resources
+    )
     return await process_register(payload=payload)
 
 
@@ -102,25 +134,28 @@ async def confirm_email_view(
         email_class=email.EmailService,
     )
     confirm_email: use_cases.ConfirmEmailCase = use_cases.ConfirmEmailCase(**resources)
-    return RedirectResponse(url=await confirm_email(token=token, email_token=email_token))
+    return RedirectResponse(
+        url=await confirm_email(token=token, email_token=email_token)
+    )
 
 
 @router.post(
     "/resend_email_verification",
     status_code=HTTPStatus.OK,
-    summary="Отправка письма на подтверждение почты"
+    summary="Отправка письма на подтверждение почты",
 )
 async def resend_confirm_letter_view(
     agent_id: Optional[int] = Depends(
         dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT)
-    )
+    ),
 ):
     """Отправляет письмо подвтерждения на почту агенту."""
     # возможно, необходимо добавить cooldown-таймер
-    get_email_template_service: notification_services.GetEmailTemplateService = \
+    get_email_template_service: notification_services.GetEmailTemplateService = (
         notification_services.GetEmailTemplateService(
             email_template_repo=notification_repos.EmailTemplateRepo,
         )
+    )
     resources: dict[str, Any] = dict(
         site_config=site_config,
         email_class=email.EmailService,
@@ -128,7 +163,9 @@ async def resend_confirm_letter_view(
         token_creator=security.create_email_token,
         get_email_template_service=get_email_template_service,
     )
-    resend_letter: use_cases.AgentResendLetterCase = use_cases.AgentResendLetterCase(**resources)
+    resend_letter: use_cases.AgentResendLetterCase = use_cases.AgentResendLetterCase(
+        **resources
+    )
     return await resend_letter(agent_id)
 
 
@@ -146,12 +183,16 @@ async def confirm_phone_view(
         token_decoder=security.decode_email_token,
     )
     confirm_phone: use_cases.ConfirmPhoneCase = use_cases.ConfirmPhoneCase(**resources)
-    return RedirectResponse(url=await confirm_phone(token=token, phone_token=phone_token))
+    return RedirectResponse(
+        url=await confirm_phone(token=token, phone_token=phone_token)
+    )
 
 
 @router.get("/reset_password", status_code=HTTPStatus.PERMANENT_REDIRECT)
 async def reset_password_view(
-    request: Request, token: str = Query(..., alias="q"), discard_token: str = Query(..., alias="p")
+    request: Request,
+    token: str = Query(..., alias="q"),
+    discard_token: str = Query(..., alias="p"),
 ):
     """
     Служебный ендпоинт для сброса пароля
@@ -165,15 +206,19 @@ async def reset_password_view(
         user_type=users_constants.UserType.AGENT,
         token_decoder=security.decode_email_token,
     )
-    reset_password: use_cases.ResetPasswordCase = use_cases.ResetPasswordCase(**resources)
-    return RedirectResponse(url=await reset_password(token=token, discard_token=discard_token))
+    reset_password: use_cases.ResetPasswordCase = use_cases.ResetPasswordCase(
+        **resources
+    )
+    return RedirectResponse(
+        url=await reset_password(token=token, discard_token=discard_token)
+    )
 
 
 @router.get(
     "/reset_available",
     status_code=HTTPStatus.OK,
     response_model=models.ResponseResetAvailableModel,
-    deprecated=True
+    deprecated=True,
 )
 async def reset_available_view(request: Request):
     """
@@ -185,15 +230,13 @@ async def reset_available_view(request: Request):
         agent_repo=agents_repos.AgentRepo,
         user_type=users_constants.UserType.AGENT,
     )
-    reset_available: use_cases.ResetAvailableCase = use_cases.ResetAvailableCase(**resources)
+    reset_available: use_cases.ResetAvailableCase = use_cases.ResetAvailableCase(
+        **resources
+    )
     return await reset_available()
 
 
-@router.patch(
-    "/change_password",
-    status_code=HTTPStatus.OK,
-    summary="Смена пароля"
-)
+@router.patch("/change_password", status_code=HTTPStatus.OK, summary="Смена пароля")
 async def change_password_view(
     request: Request,
     payload: models.RequestChangePasswordModel = Body(...),
@@ -211,7 +254,9 @@ async def change_password_view(
         user_repo=agents_repos.AgentRepo,
         user_type=users_constants.UserType.AGENT,
     )
-    change_password: users_cases.ChangePasswordCase = users_cases.ChangePasswordCase(**resources)
+    change_password: users_cases.ChangePasswordCase = users_cases.ChangePasswordCase(
+        **resources
+    )
     return await change_password(user_id=agent_id, payload=payload)
 
 
@@ -219,19 +264,19 @@ async def change_password_view(
     "/set_password",
     status_code=HTTPStatus.OK,
     response_model=models.ResponseSetPasswordModel,
-    summary="Установка пароля"
+    summary="Установка пароля",
 )
 async def set_password_view(
-        request: Request,
-        payload: models.RequestSetPasswordModel = Body(...)
+    request: Request, payload: models.RequestSetPasswordModel = Body(...)
 ):
     """
     Установка пароля для агентов созданных представителем
     """
-    get_email_template_service: notification_services.GetEmailTemplateService = \
+    get_email_template_service: notification_services.GetEmailTemplateService = (
         notification_services.GetEmailTemplateService(
             email_template_repo=notification_repos.EmailTemplateRepo,
         )
+    )
     resources: dict[str, Any] = dict(
         session=request.session,
         site_config=site_config,
@@ -251,7 +296,7 @@ async def set_password_view(
     "/login",
     status_code=HTTPStatus.OK,
     response_model=models.ResponseProcessLoginModel,
-    summary="Логин"
+    summary="Логин",
 )
 async def process_login_view(
     request: Request, payload: models.RequestProcessLoginModel = Body(...)
@@ -280,10 +325,12 @@ async def process_login_view(
     "/me",
     status_code=HTTPStatus.OK,
     response_model=models.ResponseGetMeModel,
-    summary="Информация об агенте"
+    summary="Информация об агенте",
 )
 async def get_me_view(
-    agent_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT)),
+    agent_id: int = Depends(
+        dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT)
+    ),
 ):
     """
     Получение текущего агента
@@ -297,10 +344,12 @@ async def get_me_view(
     "/profile",
     status_code=HTTPStatus.OK,
     response_model=models.ResponseProfileModel,
-    summary="Профиль агента"
+    summary="Профиль агента",
 )
 async def get_profile_view(
-    agent_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT)),
+    agent_id: int = Depends(
+        dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT)
+    ),
 ):
     """
     API метод для получения профиля текущего агента
@@ -314,11 +363,13 @@ async def get_profile_view(
     "/profile",
     status_code=HTTPStatus.OK,
     response_model=models.ResponseProfileModel,
-    summary="Изменение профиля агента"
+    summary="Изменение профиля агента",
 )
 async def update_profile_view(
-    agent_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT)),
-    payload: models.UpdateProfileModel = Body(...)
+    agent_id: int = Depends(
+        dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT)
+    ),
+    payload: models.UpdateProfileModel = Body(...),
 ):
     """
     API метод для обновления персональных данных агента
@@ -326,20 +377,24 @@ async def update_profile_view(
     resources = dict(
         agent_repo=agents_repos.AgentRepo,
         user_type=users_constants.UserType.AGENT,
-        amocrm_class=amocrm.AmoCRM
+        amocrm_class=amocrm.AmoCRM,
     )
     update_me: use_cases.UpdateProfileCase = use_cases.UpdateProfileCase(**resources)
     return await update_me(agent_id=agent_id, payload=payload)
 
 
 @router.get(
-    "/session_token", status_code=HTTPStatus.OK, response_model=models.ResponseSessionTokenModel
+    "/session_token",
+    status_code=HTTPStatus.OK,
+    response_model=models.ResponseSessionTokenModel,
 )
 async def session_token_view(request: Request):
     """
     Получение токена через сессию
     """
-    resources: dict[str, Any] = dict(session=request.session, session_config=session_config)
+    resources: dict[str, Any] = dict(
+        session=request.session, session_config=session_config
+    )
     session_token: use_cases.SessionTokenCase = use_cases.SessionTokenCase(**resources)
     return await session_token()
 
@@ -349,36 +404,47 @@ async def process_logout_view(request: Request):
     """
     Выход с удалением токена из сессии
     """
-    resources: dict[str, Any] = dict(session=request.session, session_config=session_config)
-    process_logout: use_cases.ProcessLogoutCase = use_cases.ProcessLogoutCase(**resources)
+    resources: dict[str, Any] = dict(
+        session=request.session, session_config=session_config
+    )
+    process_logout: use_cases.ProcessLogoutCase = use_cases.ProcessLogoutCase(
+        **resources
+    )
     return await process_logout()
 
 
 @router.patch("/accept", status_code=HTTPStatus.NO_CONTENT)
 async def accept_contract_view(
     payload: models.RequestAcceptContractModel = Body(...),
-    agent_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT)),
+    agent_id: int = Depends(
+        dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT)
+    ),
 ):
     """
     Принятие договора
     """
     resources: dict[str, Any] = dict(agent_repo=agents_repos.AgentRepo)
-    accept_contract: use_cases.AcceptContractCase = use_cases.AcceptContractCase(**resources)
+    accept_contract: use_cases.AcceptContractCase = use_cases.AcceptContractCase(
+        **resources
+    )
     return await accept_contract(agent_id=agent_id, payload=payload)
 
 
 @router.patch("/change_phone", summary="Смена телефона")
 async def initialize_change_phone_view(
-    agent_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT)),
-    payload: models.RequestInitializeChangePhone = Body(...)
+    agent_id: int = Depends(
+        dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT)
+    ),
+    payload: models.RequestInitializeChangePhone = Body(...),
 ):
     """
     Обновление телефона агентом
     """
-    get_sms_template_service: notification_services.GetSmsTemplateService = \
+    get_sms_template_service: notification_services.GetSmsTemplateService = (
         notification_services.GetSmsTemplateService(
             sms_template_repo=notification_repos.SmsTemplateRepo,
         )
+    )
     resources: dict[str, Any] = dict(
         site_config=site_config,
         sms_class=messages.SmsService,
@@ -387,22 +453,27 @@ async def initialize_change_phone_view(
         token_creator=security.create_email_token,
         get_sms_template_service=get_sms_template_service,
     )
-    change_phone: use_cases.InitializeChangePhoneCase = use_cases.InitializeChangePhoneCase(**resources)
+    change_phone: use_cases.InitializeChangePhoneCase = (
+        use_cases.InitializeChangePhoneCase(**resources)
+    )
     return await change_phone(agent_id=agent_id, payload=payload)
 
 
 @router.patch("/change_email", summary="Смена почты")
 async def initialize_change_email_view(
-    agent_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT)),
-    payload: models.RequestInitializeChangeEmail = Body(...)
+    agent_id: int = Depends(
+        dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT)
+    ),
+    payload: models.RequestInitializeChangeEmail = Body(...),
 ):
     """
     Обновление почты агентом
     """
-    get_email_template_service: notification_services.GetEmailTemplateService = \
+    get_email_template_service: notification_services.GetEmailTemplateService = (
         notification_services.GetEmailTemplateService(
             email_template_repo=notification_repos.EmailTemplateRepo,
         )
+    )
     resources: dict[str, Any] = dict(
         site_config=site_config,
         email_class=email.EmailService,
@@ -411,21 +482,28 @@ async def initialize_change_email_view(
         token_creator=security.create_email_token,
         get_email_template_service=get_email_template_service,
     )
-    change_email: use_cases.InitializeChangeEmailCase = use_cases.InitializeChangeEmailCase(**resources)
+    change_email: use_cases.InitializeChangeEmailCase = (
+        use_cases.InitializeChangeEmailCase(**resources)
+    )
     return await change_email(agent_id=agent_id, payload=payload)
 
 
-@router.get("/change_phone", status_code=HTTPStatus.PERMANENT_REDIRECT, summary="Служебный метод для смены телефона")
+@router.get(
+    "/change_phone",
+    status_code=HTTPStatus.PERMANENT_REDIRECT,
+    summary="Служебный метод для смены телефона",
+)
 async def change_phone_view(
     token: str = Query(..., alias="q"), change_phone_token: str = Query(..., alias="p")
 ):
     """
     Служебный эндпоинт для подтверждения изменения телефона
     """
-    get_sms_template_service: notification_services.GetSmsTemplateService = \
+    get_sms_template_service: notification_services.GetSmsTemplateService = (
         notification_services.GetSmsTemplateService(
             sms_template_repo=notification_repos.SmsTemplateRepo,
         )
+    )
     resources: dict[str, Any] = dict(
         site_config=site_config,
         sms_class=messages.SmsService,
@@ -441,19 +519,23 @@ async def change_phone_view(
     )
 
 
-@router.get("/change_email", status_code=HTTPStatus.PERMANENT_REDIRECT, summary="Служебный метод для смены почты")
+@router.get(
+    "/change_email",
+    status_code=HTTPStatus.PERMANENT_REDIRECT,
+    summary="Служебный метод для смены почты",
+)
 async def change_email_view(
-    token: str = Query(..., alias="q"),
-    change_email_token: str = Query(..., alias="p")
+    token: str = Query(..., alias="q"), change_email_token: str = Query(..., alias="p")
 ):
     """
     Служебный эндпоинт для подтверждения изменения почты
 
     """
-    get_email_template_service: notification_services.GetEmailTemplateService = \
+    get_email_template_service: notification_services.GetEmailTemplateService = (
         notification_services.GetEmailTemplateService(
             email_template_repo=notification_repos.EmailTemplateRepo,
         )
+    )
     resources: dict[str, Any] = dict(
         site_config=site_config,
         email_class=email.EmailService,
@@ -481,7 +563,9 @@ async def change_email_view(
 async def represes_agents_list_view(
     init_filters: dict[str, Any] = Depends(filters.AgentFilter.filterize),
     agency_id: int = Depends(dependencies.CurrentUserExtra(key="agency_id")),
-    pagination: paginations.PagePagination = Depends(dependencies.Pagination(page_size=12)),
+    pagination: paginations.PagePagination = Depends(
+        dependencies.Pagination(page_size=12)
+    ),
 ):
     """
     Список агентов представителя агенства
@@ -493,8 +577,8 @@ async def represes_agents_list_view(
         user_type=users_constants.UserType.AGENT,
         booking_substages=booking_constants.BookingSubstages,
     )
-    represes_agents_list: use_cases.RepresesAgentsListCase = use_cases.RepresesAgentsListCase(
-        **resources
+    represes_agents_list: use_cases.RepresesAgentsListCase = (
+        use_cases.RepresesAgentsListCase(**resources)
     )
     return await represes_agents_list(
         agency_id=agency_id, pagination=pagination, init_filters=init_filters
@@ -518,26 +602,24 @@ async def represes_agents_specs_view(
     Спеки агентов представителей агенства
     """
     resources: dict[str, Any] = dict(
-        additional_filters=dict(
-            type=users_constants.UserType.AGENT,
-            is_deleted=False
-        )
+        additional_filters=dict(type=users_constants.UserType.AGENT, is_deleted=False)
     )
-    represes_agents_specs: use_cases.RepresesAgentsSpecsCase =\
+    represes_agents_specs: use_cases.RepresesAgentsSpecsCase = (
         use_cases.RepresesAgentsSpecsCase(**resources)
+    )
     return await represes_agents_specs(agency_id=agency_id, specs=specs)
 
 
-@router.get(
-    '/represes/booking_specs'
-)
+@router.get("/represes/booking_specs")
 async def represes_useres_specs_statuses_view(
     specs: Callable[..., Coroutine] = Depends(BookingUserFilter.specs),
     agency_id: int = Depends(dependencies.CurrentUserExtra(key="agency_id")),
 ):
     """Получение всех спеков, связанных со сделками, по агентству"""
     resources: dict[str, Any] = dict(additional_filters={})
-    represes_users_specs: use_cases.RepresesAgentsSpecsCase = use_cases.RepresesAgentsSpecsCase(**resources)
+    represes_users_specs: use_cases.RepresesAgentsSpecsCase = (
+        use_cases.RepresesAgentsSpecsCase(**resources)
+    )
     return await represes_users_specs(agency_id=agency_id, specs=specs)
 
 
@@ -563,8 +645,8 @@ async def represes_agents_lookup_view(
         search_types=users_constants.SearchType,
         user_type=users_constants.UserType.AGENT,
     )
-    represes_agents_lookup: use_cases.RepresesAgentsLookupCase = use_cases.RepresesAgentsLookupCase(
-        **resources
+    represes_agents_lookup: use_cases.RepresesAgentsLookupCase = (
+        use_cases.RepresesAgentsLookupCase(**resources)
     )
     return await represes_agents_lookup(
         agency_id=agency_id, lookup=lookup, init_filters=init_filters
@@ -597,10 +679,11 @@ async def represes_agents_register_view(
         amocrm_class=amocrm.AmoCRM,
         agent_repo=agents_repos.AgentRepo,
     )
-    get_sms_template_service: notification_services.GetSmsTemplateService = \
+    get_sms_template_service: notification_services.GetSmsTemplateService = (
         notification_services.GetSmsTemplateService(
             sms_template_repo=notification_repos.SmsTemplateRepo,
         )
+    )
     represes_agents_register = use_cases.RepresesAgentsRegisterCase(
         hasher=security.get_hasher,
         sms_class=messages.SmsService,
@@ -640,10 +723,11 @@ async def represes_agents_approval_view(
         amocrm_class=amocrm.AmoCRM,
         agent_repo=agents_repos.AgentRepo,
     )
-    get_email_template_service: notification_services.GetEmailTemplateService = \
+    get_email_template_service: notification_services.GetEmailTemplateService = (
         notification_services.GetEmailTemplateService(
             email_template_repo=notification_repos.EmailTemplateRepo,
         )
+    )
     represes_agents_approval = use_cases.RepresesAgentsApprovalCase(
         site_config=site_config,
         email_class=email.EmailService,
@@ -654,7 +738,9 @@ async def represes_agents_approval_view(
         ensure_broker_tag_service=ensure_broker_tag_service,
         get_email_template_service=get_email_template_service,
     )
-    return await represes_agents_approval(agent_id=agent_id, agency_id=agency_id, payload=payload)
+    return await represes_agents_approval(
+        agent_id=agent_id, agency_id=agency_id, payload=payload
+    )
 
 
 @router.get(
@@ -711,8 +797,8 @@ async def represes_agents_delete_view(
         user_types=users_constants.UserType,
         booking_repo=booking_repos.BookingRepo,
     )
-    represes_agents_delete: use_cases.RepresesAgentsDeleteCase = use_cases.RepresesAgentsDeleteCase(
-        **resources
+    represes_agents_delete: use_cases.RepresesAgentsDeleteCase = (
+        use_cases.RepresesAgentsDeleteCase(**resources)
     )
     return await represes_agents_delete(agent_id=agent_id, agency_id=agency_id)
 
@@ -721,11 +807,15 @@ async def represes_agents_delete_view(
     "/admins",
     status_code=HTTPStatus.OK,
     response_model=models.ResponseAdminsAgentsListModel,
-    dependencies=[Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.ADMIN))],
+    dependencies=[
+        Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.ADMIN))
+    ],
 )
 async def admins_agents_list_view(
     init_filters: dict[str, Any] = Depends(filters.AgentFilter.filterize),
-    pagination: paginations.PagePagination = Depends(dependencies.Pagination(page_size=12)),
+    pagination: paginations.PagePagination = Depends(
+        dependencies.Pagination(page_size=12)
+    ),
 ):
     """
     Список агентов администратора
@@ -737,7 +827,9 @@ async def admins_agents_list_view(
         user_type=users_constants.UserType.AGENT,
         booking_substages=booking_constants.BookingSubstages,
     )
-    admins_agents_list: use_cases.AdminsAgentsListCase = use_cases.AdminsAgentsListCase(**resources)
+    admins_agents_list: use_cases.AdminsAgentsListCase = use_cases.AdminsAgentsListCase(
+        **resources
+    )
     return await admins_agents_list(pagination=pagination, init_filters=init_filters)
 
 
@@ -745,7 +837,9 @@ async def admins_agents_list_view(
     "/admins/lookup",
     status_code=HTTPStatus.OK,
     response_model=models.ResponseAdminsAgentsLookupModel,
-    dependencies=[Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.ADMIN))],
+    dependencies=[
+        Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.ADMIN))
+    ],
 )
 async def admins_agents_lookup_view(
     lookup: str = Query(str(), alias="search"),
@@ -759,8 +853,8 @@ async def admins_agents_lookup_view(
         search_types=users_constants.SearchType,
         user_type=users_constants.UserType.AGENT,
     )
-    admins_agents_lookup: use_cases.AdminsAgentsLookupCase = use_cases.AdminsAgentsLookupCase(
-        **resources
+    admins_agents_lookup: use_cases.AdminsAgentsLookupCase = (
+        use_cases.AdminsAgentsLookupCase(**resources)
     )
     return await admins_agents_lookup(lookup=lookup, init_filters=init_filters)
 
@@ -769,7 +863,9 @@ async def admins_agents_lookup_view(
     "/admins/specs",
     status_code=HTTPStatus.OK,
     response_model=models.ResponseAdminsAgentsSpecsModel,
-    dependencies=[Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.ADMIN))],
+    dependencies=[
+        Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.ADMIN))
+    ],
 )
 async def admins_agents_specs_view(
     specs: Callable[..., Coroutine] = Depends(filters.AgentFilter.specs),
@@ -778,8 +874,8 @@ async def admins_agents_specs_view(
     Спеки агентов администратором
     """
     resources: dict[str, Any] = dict(user_type=users_constants.UserType.AGENT)
-    admins_agents_specs: use_cases.AdminsAgentsSpecsCase = use_cases.AdminsAgentsSpecsCase(
-        **resources
+    admins_agents_specs: use_cases.AdminsAgentsSpecsCase = (
+        use_cases.AdminsAgentsSpecsCase(**resources)
     )
     return await admins_agents_specs(specs=specs)
 
@@ -788,7 +884,9 @@ async def admins_agents_specs_view(
     "/admins/register",
     status_code=HTTPStatus.CREATED,
     response_model=models.ResponseAdminsAgentsRegisterModel,
-    dependencies=[Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.ADMIN))],
+    dependencies=[
+        Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.ADMIN))
+    ],
 )
 async def admins_agents_register_view(
     payload: models.RequestAdminsAgentsRegisterModel = Body(...),
@@ -805,10 +903,11 @@ async def admins_agents_register_view(
         amocrm_class=amocrm.AmoCRM,
         agent_repo=agents_repos.AgentRepo,
     )
-    get_sms_template_service: notification_services.GetSmsTemplateService = \
+    get_sms_template_service: notification_services.GetSmsTemplateService = (
         notification_services.GetSmsTemplateService(
             sms_template_repo=notification_repos.SmsTemplateRepo,
         )
+    )
     admins_agents_register = use_cases.AdminsAgentsRegisterCase(
         hasher=security.get_hasher,
         sms_class=messages.SmsService,
@@ -826,10 +925,13 @@ async def admins_agents_register_view(
 @router.patch(
     "/admins/approval/{agent_id}",
     status_code=HTTPStatus.NO_CONTENT,
-    dependencies=[Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.ADMIN))],
+    dependencies=[
+        Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.ADMIN))
+    ],
 )
 async def admins_agents_approval_view(
-    agent_id: int = Path(...), payload: models.RequestAdminsAgentsApprovalModel = Body(...)
+    agent_id: int = Path(...),
+    payload: models.RequestAdminsAgentsApprovalModel = Body(...),
 ):
     """
     Одобрение агента администратором
@@ -843,10 +945,11 @@ async def admins_agents_approval_view(
         amocrm_class=amocrm.AmoCRM,
         agent_repo=agents_repos.AgentRepo,
     )
-    get_email_template_service: notification_services.GetEmailTemplateService = \
+    get_email_template_service: notification_services.GetEmailTemplateService = (
         notification_services.GetEmailTemplateService(
             email_template_repo=notification_repos.EmailTemplateRepo,
         )
+    )
     admins_agents_approval = use_cases.AdminsAgentsApprovalCase(
         site_config=site_config,
         email_class=email.EmailService,
@@ -864,7 +967,9 @@ async def admins_agents_approval_view(
     "/admins/{agent_id}",
     status_code=HTTPStatus.OK,
     response_model=models.ResponseAdminsAgentsRetrieveModel,
-    dependencies=[Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.ADMIN))],
+    dependencies=[
+        Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.ADMIN))
+    ],
 )
 async def admins_agents_retrieve_view(agent_id: int = Path(...)):
     """
@@ -878,8 +983,8 @@ async def admins_agents_retrieve_view(agent_id: int = Path(...)):
         booking_repo=booking_repos.BookingRepo,
         booking_substages=booking_constants.BookingSubstages,
     )
-    admins_agents_retrieve: use_cases.AdminsAgentsRetrieveCase = use_cases.AdminsAgentsRetrieveCase(
-        **resources
+    admins_agents_retrieve: use_cases.AdminsAgentsRetrieveCase = (
+        use_cases.AdminsAgentsRetrieveCase(**resources)
     )
     return await admins_agents_retrieve(agent_id=agent_id)
 
@@ -887,7 +992,9 @@ async def admins_agents_retrieve_view(agent_id: int = Path(...)):
 @router.delete(
     "/admins/{agent_id}",
     status_code=HTTPStatus.NO_CONTENT,
-    dependencies=[Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.ADMIN))],
+    dependencies=[
+        Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.ADMIN))
+    ],
 )
 async def admins_agents_delete_view(agent_id: int = Path(...)):
     """
@@ -902,8 +1009,8 @@ async def admins_agents_delete_view(agent_id: int = Path(...)):
         user_types=users_constants.UserType,
         booking_repo=booking_repos.BookingRepo,
     )
-    admins_agents_delete: use_cases.AdminsAgentsDeleteCase = use_cases.AdminsAgentsDeleteCase(
-        **resources
+    admins_agents_delete: use_cases.AdminsAgentsDeleteCase = (
+        use_cases.AdminsAgentsDeleteCase(**resources)
     )
     return await admins_agents_delete(agent_id=agent_id)
 
@@ -911,22 +1018,27 @@ async def admins_agents_delete_view(agent_id: int = Path(...)):
 @router.patch(
     "/admins/{agent_id}",
     status_code=HTTPStatus.NO_CONTENT,
-    dependencies=[Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.ADMIN))],
+    dependencies=[
+        Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.ADMIN))
+    ],
 )
 async def admins_agents_update_view(
-    agent_id: int = Path(...), payload: models.RequestAdminsAgentsUpdateModel = Body(...)
+    agent_id: int = Path(...),
+    payload: models.RequestAdminsAgentsUpdateModel = Body(...),
 ):
     """
     Обновление агента администратором
     """
-    get_email_template_service: notification_services.GetEmailTemplateService = \
+    get_email_template_service: notification_services.GetEmailTemplateService = (
         notification_services.GetEmailTemplateService(
             email_template_repo=notification_repos.EmailTemplateRepo,
         )
-    get_sms_template_service: notification_services.GetSmsTemplateService = \
+    )
+    get_sms_template_service: notification_services.GetSmsTemplateService = (
         notification_services.GetSmsTemplateService(
             sms_template_repo=notification_repos.SmsTemplateRepo,
         )
+    )
     resources: dict[str, Any] = dict(
         site_config=site_config,
         sms_class=messages.SmsService,
@@ -937,8 +1049,8 @@ async def admins_agents_update_view(
         get_email_template_service=get_email_template_service,
         get_sms_template_service=get_sms_template_service,
     )
-    admins_agents_update: use_cases.AdminsAgentsUpdateCase = use_cases.AdminsAgentsUpdateCase(
-        **resources
+    admins_agents_update: use_cases.AdminsAgentsUpdateCase = (
+        use_cases.AdminsAgentsUpdateCase(**resources)
     )
     return await admins_agents_update(agent_id=agent_id, payload=payload)
 
@@ -947,7 +1059,9 @@ async def admins_agents_update_view(
     "/questionnaire/{slug}",
     status_code=HTTPStatus.OK,
     response_model=list[models.QuestionsListResponse],
-    dependencies=[Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT))],
+    dependencies=[
+        Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT))
+    ],
 )
 async def agents_questionnaire_question_list(
     slug: str = Path(..., description="slug функционального блока"),
@@ -962,8 +1076,8 @@ async def agents_questionnaire_question_list(
         users_answer_repo=questionnaire_repos.UserAnswerRepo,
         booking_repo=booking_repos.BookingRepo,
     )
-    questions_list: use_cases.QuestionsListResponseCase = use_cases.QuestionsListResponseCase(
-        **resources
+    questions_list: use_cases.QuestionsListResponseCase = (
+        use_cases.QuestionsListResponseCase(**resources)
     )
     return await questions_list(slug=slug, booking_id=booking_id)
 
@@ -971,11 +1085,13 @@ async def agents_questionnaire_question_list(
 @router.patch(
     "/questionnaire/{question_id}",
     status_code=HTTPStatus.NO_CONTENT,
-    dependencies=[Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT))],
+    dependencies=[
+        Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT))
+    ],
 )
 async def agents_questionnaire_save_answer(
-        payload: models.CurrentAnswerRequest,
-        question_id: int = Path(..., description="ID вопроса")
+    payload: models.CurrentAnswerRequest,
+    question_id: int = Path(..., description="ID вопроса"),
 ):
     """
     Сохранение ответа
@@ -983,9 +1099,11 @@ async def agents_questionnaire_save_answer(
     resources: dict[str, Any] = dict(
         question_repo=questionnaire_repos.QuestionRepo,
         booking_repo=booking_repos.BookingRepo,
-        users_answer_repo=questionnaire_repos.UserAnswerRepo
+        users_answer_repo=questionnaire_repos.UserAnswerRepo,
     )
-    save_answer: use_cases.QuestionareSaveAnswerCase = use_cases.QuestionareSaveAnswerCase(**resources)
+    save_answer: use_cases.QuestionareSaveAnswerCase = (
+        use_cases.QuestionareSaveAnswerCase(**resources)
+    )
     await save_answer(question_id=question_id, payload=payload)
     return Response(status_code=HTTPStatus.NO_CONTENT)
 
@@ -994,7 +1112,9 @@ async def agents_questionnaire_save_answer(
     "/questionnaire/{slug}/finish",
     status_code=HTTPStatus.OK,
     response_model=models.FinishQuestionResultResponse,
-    dependencies=[Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT))],
+    dependencies=[
+        Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT))
+    ],
 )
 async def agents_questionnaire_finish(
     payload: models.FinishQuestionRequest,
@@ -1007,7 +1127,9 @@ async def agents_questionnaire_finish(
         question_repo=questionnaire_repos.QuestionRepo,
         booking_repo=booking_repos.BookingRepo,
     )
-    finish_answer: use_cases.QuestionareFinishCase = use_cases.QuestionareFinishCase(**resources)
+    finish_answer: use_cases.QuestionareFinishCase = use_cases.QuestionareFinishCase(
+        **resources
+    )
     return await finish_answer(slug=slug, payload=payload)
 
 
@@ -1015,13 +1137,17 @@ async def agents_questionnaire_finish(
     "/bookings/{booking_id}/upload-documents/{document_id}",
     status_code=HTTPStatus.OK,
     response_model=models.UploadFile,
-    dependencies=[Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT))],
+    dependencies=[
+        Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT))
+    ],
 )
 async def agents_upload_documents(
     booking_id: int = Path(..., description="ID сделки"),
     document_id: int = Path(..., description="ID документа"),
     file_uuid: Optional[UUID] = Query(None, description="UUID файла"),
-    file: UploadFile = File(..., description="Загружаемый документ", max_upload_size=5_000_000)
+    file: UploadFile = File(
+        ..., description="Загружаемый документ", max_upload_size=5_000_000
+    ),
 ):
     """
     Загрузка документов в амо
@@ -1030,21 +1156,27 @@ async def agents_upload_documents(
         booking_repo=booking_repos.BookingRepo,
         document_repo=questionnaire_repos.QuestionnaireDocumentRepo,
         upload_document_repo=questionnaire_repos.QuestionnaireUploadDocumentRepo,
-        amocrm_uploader_class=amocrm.AmoCRMFileUploader
+        amocrm_uploader_class=amocrm.AmoCRMFileUploader,
     )
-    upload_document: use_cases.QuestionareUploadDocumentCase = use_cases.QuestionareUploadDocumentCase(**resources)
-    return await upload_document(document_id=document_id, booking_id=booking_id, file_uuid=file_uuid, file=file)
+    upload_document: use_cases.QuestionareUploadDocumentCase = (
+        use_cases.QuestionareUploadDocumentCase(**resources)
+    )
+    return await upload_document(
+        document_id=document_id, booking_id=booking_id, file_uuid=file_uuid, file=file
+    )
 
 
 @router.get(
     "/questionnaire/{slug}/groups_of_documents/{booking_id}",
     status_code=HTTPStatus.OK,
     response_model=list[models.DocumentBlockResponse],
-    dependencies=[Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT))],
+    dependencies=[
+        Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT))
+    ],
 )
 async def agents_bookings_upload_documents(
-        booking_id: int = Path(..., description="ID сделки"),
-        slug: str = Path(..., description="slug функционального блока"),
+    booking_id: int = Path(..., description="ID сделки"),
+    slug: str = Path(..., description="slug функционального блока"),
 ):
     """
     Получение списка загруженных документов
@@ -1056,8 +1188,8 @@ async def agents_bookings_upload_documents(
         upload_document_repo=questionnaire_repos.QuestionnaireUploadDocumentRepo,
         functional_block_repo=questionnaire_repos.FunctionalBlockRepo,
     )
-    upload_documents_list: use_cases.UploadDocumentsBlocksListCase = use_cases.UploadDocumentsBlocksListCase(
-        **resources
+    upload_documents_list: use_cases.UploadDocumentsBlocksListCase = (
+        use_cases.UploadDocumentsBlocksListCase(**resources)
     )
     return await upload_documents_list(slug=slug, booking_id=booking_id)
 
@@ -1065,32 +1197,26 @@ async def agents_bookings_upload_documents(
 @router.post(
     "/questionnaire/{booking_id}/send",
     status_code=HTTPStatus.OK,
-    dependencies=[Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT))],
+    dependencies=[
+        Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT))
+    ],
 )
 async def agents_bookings_send_upload_documents(
-        booking_id: int = Path(..., description="ID сделки"),
+    booking_id: int = Path(..., description="ID сделки"),
 ):
     """
     Отправка url загруженных документов в АМО
     """
-    resources: dict[str, Any] = dict(
-        task_instance_repo=task_management_repos.TaskInstanceRepo,
-        task_status_repo=task_management_repos.TaskStatusRepo,
-        booking_repo=booking_repos.BookingRepo,
-        booking_settings_repo=BookingSettingsRepo,
-        update_task_instance_status_task=update_task_instance_status_task,
-        booking_fixation_notification_email_task=booking_fixation_notification_email_task,
-    )
-    update_task_instance_status_service = task_management_services.UpdateTaskInstanceStatusService(
-        **resources
-    )
+    update_task_instance_status_service = UpdateTaskInstanceStatusServiceFactory.create()
     resources: dict[str, Any] = dict(
         booking_repo=booking_repos.BookingRepo,
         upload_document_repo=questionnaire_repos.QuestionnaireUploadDocumentRepo,
         amocrm_class=amocrm.AmoCRM,
         update_task_instance_status_service=update_task_instance_status_service,
     )
-    send_upload_documents: use_cases.SendUploadDocumentsCase = use_cases.SendUploadDocumentsCase(**resources)
+    send_upload_documents: use_cases.SendUploadDocumentsCase = (
+        use_cases.SendUploadDocumentsCase(**resources)
+    )
     await send_upload_documents(booking_id=booking_id)
     return Response(status_code=HTTPStatus.ACCEPTED)
 
@@ -1101,7 +1227,9 @@ async def agents_bookings_send_upload_documents(
 )
 async def agents_delete_upload_documents(
     upload_documents_ids: list[UUID],
-    agent_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT))
+    agent_id: int = Depends(
+        dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT)
+    ),
 ):
     """
     Удаление загруженных документов по UUID
@@ -1109,8 +1237,12 @@ async def agents_delete_upload_documents(
     resources: dict[str, Any] = dict(
         upload_document_repo=questionnaire_repos.QuestionnaireUploadDocumentRepo,
     )
-    delete_upload_documents: use_cases.DeleteUploadDocumentsCase = use_cases.DeleteUploadDocumentsCase(**resources)
-    await delete_upload_documents(upload_documents_ids=upload_documents_ids, agent_id=agent_id)
+    delete_upload_documents: use_cases.DeleteUploadDocumentsCase = (
+        use_cases.DeleteUploadDocumentsCase(**resources)
+    )
+    await delete_upload_documents(
+        upload_documents_ids=upload_documents_ids, agent_id=agent_id
+    )
     return Response(status_code=HTTPStatus.NO_CONTENT)
 
 
@@ -1121,7 +1253,9 @@ async def agents_delete_upload_documents(
 )
 async def process_signup_in_agency(
     payload: models.RequestSignupInAgencyModel = Body(...),
-    agent_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT)),
+    agent_id: int = Depends(
+        dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT)
+    ),
 ):
     """
     Восстановление агента в новом агентстве.
@@ -1135,10 +1269,11 @@ async def process_signup_in_agency(
         amocrm_class=amocrm.AmoCRM,
         agent_repo=agents_repos.AgentRepo,
     )
-    get_email_template_service: notification_services.GetEmailTemplateService = \
+    get_email_template_service: notification_services.GetEmailTemplateService = (
         notification_services.GetEmailTemplateService(
             email_template_repo=notification_repos.EmailTemplateRepo,
         )
+    )
     resources: dict[str, Any] = dict(
         agent_repo=agents_repos.AgentRepo,
         agency_repo=agencies_repos.AgencyRepo,
@@ -1149,5 +1284,31 @@ async def process_signup_in_agency(
         site_config=site_config,
         get_email_template_service=get_email_template_service,
     )
-    process_signup_in_agency: use_cases.ProcessSignupInAgency = use_cases.ProcessSignupInAgency(**resources)
+    process_signup_in_agency: use_cases.ProcessSignupInAgency = (
+        use_cases.ProcessSignupInAgency(**resources)
+    )
     return await process_signup_in_agency(agent_id=agent_id, payload=payload)
+
+
+@router.post(
+    "/get_current_account_loyalty_points",
+    status_code=HTTPStatus.OK,
+)
+async def get_current_account_loyalty_points(
+    payload: models.LoyaltyStatusRequestModel = Body(...),
+    agent_amocrm_id: int = Depends(dependencies.CurrentOptionalUserIdWithoutRole()),
+):
+    """
+    Импорт данных агента по программе лояльности из МС Лояльности.
+    """
+    resources: dict[str, Any] = dict(
+        agent_repo=agents_repos.AgentRepo,
+        booking_repo=booking_repos.BookingRepo,
+    )
+    get_current_account_loyalty_points_case: use_cases.GetCurrentAccountLoyaltyPointsCase = \
+        use_cases.GetCurrentAccountLoyaltyPointsCase(
+            **resources
+        )
+    return await get_current_account_loyalty_points_case(
+        agent_amocrm_id=agent_amocrm_id, payload=payload
+    )

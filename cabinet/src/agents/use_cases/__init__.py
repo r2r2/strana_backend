@@ -38,3 +38,4 @@ from .questionnaire_upload_document import QuestionareUploadDocumentCase
 from .questionnaire_send_upload_documents import SendUploadDocumentsCase
 from .questionnaire_delete_upload_documents import DeleteUploadDocumentsCase
 from .process_signup_in_agency import ProcessSignupInAgency
+from .get_current_account_loyalty_points import GetCurrentAccountLoyaltyPointsCase

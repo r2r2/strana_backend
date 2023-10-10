@@ -72,6 +72,14 @@ class Meeting(models.Model):
         blank=True,
         null=True,
     )
+    creation_source: models.ForeignKey = models.ForeignKey(
+        to='events.MeetingCreationSource',
+        related_name='meetings',
+        on_delete=models.SET_NULL,
+        verbose_name='Источник создания встречи',
+        blank=True,
+        null=True,
+    )
     record_link: str = models.CharField(verbose_name="Ссылка на запись", max_length=255, blank=True, null=True)
     meeting_link: str = models.CharField(verbose_name="Ссылка на встречу", max_length=255, blank=True, null=True)
     meeting_address: str = models.CharField(verbose_name="Адрес встречи", max_length=255, blank=True, null=True)

@@ -5,7 +5,7 @@ from common.utils import parse_phone
 from pydantic import UUID4, validator
 
 from ..entities import BaseUserModel
-from ..exceptions import UserIncorrectPhoneForamtError
+from ..exceptions import UserIncorrectPhoneFormatError
 
 
 class RequestSendCodeModel(BaseUserModel):
@@ -23,7 +23,7 @@ class RequestSendCodeModel(BaseUserModel):
         phone: str = parse_phone(phone)
         if re.compile(r'^(8|\+7)\d{10}$').match(phone):
             return phone
-        raise UserIncorrectPhoneForamtError
+        raise UserIncorrectPhoneFormatError
 
     class Config:
         orm_mode = True

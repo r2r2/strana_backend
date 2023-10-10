@@ -1,10 +1,3 @@
-from typing import Any, Optional, Type
-
-from ..constants import BookingCreatedSources
-from ..entities import BaseBookingCase
-from ..exceptions import BookingNotFoundError, BookingTimeOutError, BookingTimeOutRepeatError
-from ..repos import Booking, BookingRepo, BookingTag, BookingTagRepo
-from ..types import BookingSession
 from src.amocrm.repos import AmocrmGroupStatus, AmocrmGroupStatusRepo
 from src.task_management.constants import OnlineBookingSlug
 from src.task_management.repos import TaskStatus
@@ -13,6 +6,16 @@ from src.task_management.utils import (
     get_interesting_task_chain,
     TaskDataBuilder,
 )
+from src.buildings.repos import BuildingBookingType, BuildingBookingTypeRepo
+from ..constants import BookingCreatedSources
+from ..entities import BaseBookingCase
+from ..exceptions import (
+    BookingNotFoundError,
+    BookingTimeOutError,
+    BookingTimeOutRepeatError,
+)
+from ..repos import Booking, BookingRepo, BookingTag, BookingTagRepo
+from ..types import BookingSession
 
 
 class BookingRetrieveCase(BaseBookingCase):
@@ -23,21 +26,23 @@ class BookingRetrieveCase(BaseBookingCase):
     def __init__(
         self,
         session: BookingSession,
-        session_config: dict[str, Any],
-        booking_repo: Type[BookingRepo],
-        booking_tag_repo: Type[BookingTagRepo],
-        amocrm_group_status_repo: Type[AmocrmGroupStatusRepo],
+        session_config: dict,
+        booking_repo: type[BookingRepo],
+        booking_tag_repo: type[BookingTagRepo],
+        booking_type_repo: type[BuildingBookingTypeRepo],
+        amocrm_group_status_repo: type[AmocrmGroupStatusRepo],
     ) -> None:
         self.booking_repo: BookingRepo = booking_repo()
         self.booking_tag_repo: BookingTagRepo = booking_tag_repo()
-        self.amocrm_group_status_repo: AmocrmGroupStatusRepo = amocrm_group_status_repo()
-
+        self.booking_type_repo: BuildingBookingTypeRepo = booking_type_repo()
+        self.amocrm_group_status_repo: AmocrmGroupStatusRepo = (
+            amocrm_group_status_repo()
+        )
         self.session: BookingSession = session
-
         self.document_key: str = session_config["document_key"]
 
     async def __call__(self, booking_id: int, user_id: int) -> Booking:
-        filters: dict[str, Any] = dict(id=booking_id, user_id=user_id)
+        filters: dict = dict(id=booking_id, user_id=user_id)
         booking: Booking = await self.booking_repo.retrieve(
             filters=filters,
             related_fields=[
@@ -45,7 +50,6 @@ class BookingRetrieveCase(BaseBookingCase):
                 "property__section",
                 "property__property_type",
                 "floor",
-                "building",
                 "ddu",
                 "agent",
                 "agency",
@@ -56,12 +60,17 @@ class BookingRetrieveCase(BaseBookingCase):
                 "amocrm_status__group_status",
                 "task_instances__status__buttons",
                 "task_instances__status__tasks_chain__task_visibility",
+                dict(
+                    relation="building__booking_types",
+                    queryset=self.booking_type_repo.list(),
+                    to_attr="booking_types_by_building"
+                ),
             ],
         )
         if not booking:
             raise BookingNotFoundError
 
-        document_info: dict[str, Any] = dict(
+        document_info: dict = dict(
             city=booking.project.city.slug if booking.project else None,
             address=booking.building.address if booking.building else None,
             price=booking.building.booking_price if booking.building else None,
@@ -80,23 +89,26 @@ class BookingRetrieveCase(BaseBookingCase):
 
         booking.booking_tags = await self._get_booking_tags(booking)
         booking.tasks = await self._get_booking_tasks(booking=booking)
-        # находим все статусы цепочки онлайн бронирования
-        booking.task_statuses = await self._get_task_chain_statuses(status=OnlineBookingSlug.ACCEPT_OFFER.value)
-
+        await self._get_max_booking_type(booking=booking)
         return booking
 
-    async def _get_booking_tags(self, booking: Booking) -> Optional[list[BookingTag]]:
-        tag_filters: dict[str, Any] = dict(
+    async def _get_booking_tags(self, booking: Booking) -> list[BookingTag] | None:
+        tag_filters: dict = dict(
             is_active=True,
             group_statuses=booking.amocrm_status.group_status if booking.amocrm_status else None,
         )
-        return (await self.booking_tag_repo.list(filters=tag_filters, ordering='-priority')) or None
+        return (await self.booking_tag_repo.list(filters=tag_filters, ordering="-priority")) or None
 
-    async def _session_insert_document_info(self, document_info: dict[str, Any]) -> None:
-        self.session[self.document_key]: dict[str, Any] = document_info
+    async def _get_max_booking_type(self, booking: Booking) -> Booking:
+        booking_types: list[BuildingBookingType] = booking.building.booking_types_by_building
+        booking.max_booking_period = max([booking_type.period for booking_type in booking_types])
+        return booking
+
+    async def _session_insert_document_info(self, document_info: dict) -> None:
+        self.session[self.document_key]: dict = document_info
         await self.session.insert()
 
-    async def _get_booking_tasks(self, booking: Booking) -> list[Optional[dict[str, Any]]]:
+    async def _get_booking_tasks(self, booking: Booking) -> list[dict | None]:
         """Get booking tasks"""
         online_booking_tasks = [
             task for task in booking.task_instances
@@ -111,11 +123,6 @@ class BookingRetrieveCase(BaseBookingCase):
         tasks = await TaskDataBuilder(task_instances=online_booking_tasks, booking=booking).build()
 
         return tasks
-
-    async def _get_task_chain_statuses(self, status: str) -> Optional[list[TaskStatus]]:
-        task_chain = await get_interesting_task_chain(status=status)
-        statuses: list[TaskStatus] = sorted(task_chain.task_statuses, key=lambda x: x.priority)
-        return statuses
 
     async def _set_group_statuses(self, booking: Booking) -> None:
         group_statuses: list[AmocrmGroupStatus] = await self.amocrm_group_status_repo.list(

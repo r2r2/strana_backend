@@ -2,7 +2,7 @@ from typing import Optional
 from pydantic import BaseModel, Field, validator, constr, EmailStr
 
 from common.utils import parse_phone
-from ..exceptions import UserIncorrectPhoneForamtError
+from ..exceptions import UserIncorrectPhoneFormatError
 
 
 class RequestAssignClient(BaseModel):
@@ -22,7 +22,7 @@ class RequestAssignClient(BaseModel):
     def validate_phone(cls, phone: str) -> str:
         phone: Optional[str] = parse_phone(phone)
         if not phone:
-            raise UserIncorrectPhoneForamtError
+            raise UserIncorrectPhoneFormatError
         return phone
 
     @property

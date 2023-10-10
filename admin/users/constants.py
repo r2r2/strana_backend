@@ -35,6 +35,7 @@ CABINET_MODEL_NAMES = [
     'dispute',
     'checkhistory',
     'amocrmchecklog',
+    'consultationtype',
     'pinningstatus',
     'pinningstatuscity',
     'pinningstatuspipeline',

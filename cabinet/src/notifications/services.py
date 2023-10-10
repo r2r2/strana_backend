@@ -118,6 +118,10 @@ class BookingNotificationService(BaseNotificationService):
             self.orm_config.pop("generate_schemas", None)
 
     async def __call__(self, booking_id: int) -> bool:
+        print("BookingNotificationService")
+        date_now = datetime.now(tz=UTC)
+        print(f'{date_now=}')
+        print(f'{date_now.strftime("%Y-%m-%d %H:%M:%S")=}')
         booking: Booking = await self.booking_repo.retrieve(
             filters=dict(
                 id=booking_id,
@@ -127,17 +131,21 @@ class BookingNotificationService(BaseNotificationService):
             ),
             related_fields=["project", "booking_source"],
         )
+        print(f'{booking=}')
         if not booking:
             return False
 
         notification_conditions: list[BookingNotification] = await self.booking_notification_repo.list(
             prefetch_fields=["project"],
         )
+        print(f'{notification_conditions=}')
         if not notification_conditions:
             return False
 
         for condition in notification_conditions:
             projects = [project for project in condition.project]
+            print(f'{condition=}')
+            print(f'{projects=}')
             if (
                 booking.project in projects
                 and booking.booking_source and booking.booking_source.slug == condition.created_source
@@ -149,6 +157,9 @@ class BookingNotificationService(BaseNotificationService):
                     booking_expires=booking.expires,
                     notification_id=condition.id,
                 )
+                print("self.send_booking_notify_sms_task.apply_async((data,), eta=eta)")
+                print(f'{data=}')
+                print(f'{eta=}')
                 self.send_booking_notify_sms_task.apply_async((data,), eta=eta)
         return True
 
@@ -178,18 +189,24 @@ class SendSMSBookingNotifyService(BaseNotificationService):
         self.logger = structlog.get_logger("send_sms_booking_notify")
 
     async def __call__(self, data: dict[str, Any]) -> bool:
+        print("SendSMSBookingNotifyService")
         booking_id: int = data.get("booking_id")
         notification_id: int = data.get("notification_id")
         booking_expires: datetime = data.get("booking_expires")
+        print(f'{booking_id=}')
+        print(f'{notification_id=}')
+        print(f'{booking_expires=}')
 
         notification_condition: BookingNotification = await self.booking_notification_repo.retrieve(
             filters=dict(id=notification_id),
             related_fields=["sms_template"],
         )
+        print(f'{notification_condition=}')
         if not notification_condition:
             raise BookingNotificationNotFoundError
 
         sms_template: SmsTemplate = notification_condition.sms_template
+        print(f'{sms_template=}')
         if not sms_template.is_active:
             self.logger.info(f"Sms template is not active: {sms_template.id=}")
             return False
@@ -204,11 +221,13 @@ class SendSMSBookingNotifyService(BaseNotificationService):
             ),
             related_fields=["user", "building", "property"],
         )
+        print(f'{booking=}')
         if not booking:
             self.logger.info(f"One of the conditions fails, do not send SMS: {booking_id=}")
             return False
 
         if booking.expires != booking_expires:
+            print(f'{booking.expires != booking_expires=}')
             self.logger.info(f"Booking expires not equal: {booking_id=}. Start new task.")
             eta: datetime = booking.expires - timedelta(hours=notification_condition.hours_before_send)
             data: dict[str, Any] = dict(
@@ -227,6 +246,7 @@ class SendSMSBookingNotifyService(BaseNotificationService):
             booking_price=booking.building.booking_price,
             booking_days=booking.booking_period,
         )
+        print(f'{message=}')
 
         await self._send_sms(phone=booking.user.phone, message=message)
         return True

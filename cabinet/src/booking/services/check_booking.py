@@ -7,7 +7,7 @@ import structlog
 from pytz import UTC
 
 from common.email import EmailService
-from src.task_management.constants import PaidBookingSlug
+from src.task_management.constants import PaidBookingSlug, OnlineBookingSlug
 from src.booking.constants import BookingStages, BookingSubstages
 from src.amocrm.repos import AmocrmStatus, AmocrmStatusRepo
 from src.notifications.services import GetEmailTemplateService
@@ -28,7 +28,6 @@ class CheckBookingService(BaseBookingService):
     """
     Проверка онлайн бронирования
     """
-
     mail_event_slug = "expired_booking_agent_notification"
     query_type: str = "changePropertyStatus"
     query_name: str = "changePropertyStatus.graphql"
@@ -156,20 +155,12 @@ class CheckBookingService(BaseBookingService):
                         await self._amocrm_unbooking(booking, actual_amocrm_status.id)
 
                 self.logger.debug(f"Booking deactivation data: {data}")
-                booking = await self.booking_deactivate(booking=booking, data=data)
-                await booking.refresh_from_db()
-                print(f"{booking=}")
-                print(f"{booking.active=}")
-                print(f"{booking.amocrm_status=}")
-                print(f"{booking.amocrm_stage=}")
-                print(f"{booking.amocrm_substage=}")
+                await self.booking_deactivate(booking=booking, data=data)
                 await self.property_repo.update(booking.property, data=property_data)
                 await self._backend_unbooking(booking)
                 self.booking_notification_sms_task.delay(booking.id)
+                await self.update_task_instance_status(booking_id=booking.id)
                 result: bool = False
-                await self.update_task_instance_status(
-                    booking_id=booking.id, status_slug=PaidBookingSlug.RE_BOOKING.value
-                )
         return result
 
     async def _amocrm_unbooking(self, booking: Booking, status_id: int) -> int:
@@ -237,12 +228,12 @@ class CheckBookingService(BaseBookingService):
             email_service: Any = self.email_class(**email_options)
             return email_service.as_task()
 
-    async def update_task_instance_status(
-        self, booking_id: int, status_slug: str
-    ) -> None:
+    async def update_task_instance_status(self, booking_id: int) -> None:
         """
         Обновление статуса задачи
         """
-        await self.update_task_instance_status_service(
-            booking_id=booking_id, status_slug=status_slug
-        )
+        statuses_to_update: list[str] = [
+            PaidBookingSlug.RE_BOOKING.value,
+            OnlineBookingSlug.TIME_IS_UP.value,
+        ]
+        await self.update_task_instance_status_service(booking_id=booking_id, status_slug=statuses_to_update)

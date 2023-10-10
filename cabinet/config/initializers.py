@@ -84,9 +84,9 @@ def initialize_logger() -> None:
 
 
 def initialize_unleash(application: FastAPI) -> None:
-    from common.unleash.unleash_client import UnleashAdapter
+    from common.unleash.client import UnleashClient
 
-    client = UnleashAdapter()
+    client = UnleashClient()
     application.unleash = client
     application.feature_flags = FeatureFlags
     logging.getLogger('apscheduler.executors.default').propagate = False

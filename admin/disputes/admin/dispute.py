@@ -1,15 +1,15 @@
 from collections import Counter
 from datetime import datetime
+from pytz import UTC
 
-from admincharts.admin import AdminChartMixin
 from django.contrib import admin
 from django.contrib.admin import SimpleListFilter
 from django.contrib.admin import register
 from django.contrib.admin.views.main import ChangeList
 from django.db.models.query import QuerySet
-from pytz import UTC
+from admincharts.admin import AdminChartMixin
 
-from disputes.models import Dispute
+from disputes.models import Dispute, DisputeStatus
 from users.models import HistoricalDisputeData
 
 
@@ -33,7 +33,7 @@ class FixedStatusFilter(SimpleListFilter):
     parameter_name = "status_fixed"
 
     def lookups(self, request, model_admin):
-        return [(True, 'Закреплён'), (False, 'Не закреплён')]
+        return [(True, "Закреплён"), (False, "Не закреплён")]
 
     def queryset(self, request, queryset):
         if self.value():
@@ -48,6 +48,7 @@ class DisputeAdmin(AdminChartMixin, admin.ModelAdmin):
     date_hierarchy = "dispute_requested"
     list_display = (
         "unique_status",
+        "dispute_status",
         "dispute_agent",
         "user",
         "agent",
@@ -60,10 +61,10 @@ class DisputeAdmin(AdminChartMixin, admin.ModelAdmin):
     fields = (
         ("user", "agent"),
         "agency",
-        ("unique_status", "status_fixed"),
+        ("unique_status", "dispute_status", "status_fixed"),
         ("dispute_agent", "comment", "dispute_requested"),
         "admin_comment",
-        "admin"
+        "admin",
     )
     search_fields = (
         "user__amocrm_id",
@@ -84,6 +85,7 @@ class DisputeAdmin(AdminChartMixin, admin.ModelAdmin):
         "agency__name",
         "agency__inn",
         "agency__amocrm_id",
+        "dispute_status__title",
     )
     autocomplete_fields = (
         "user",
@@ -91,8 +93,21 @@ class DisputeAdmin(AdminChartMixin, admin.ModelAdmin):
         "dispute_agent",
         "agency",
     )
-    readonly_fields = ("comment", "admin", "dispute_requested", "send_admin_email", "amocrm_id")
-    list_filter = (UniqueStatusFilter, FixedStatusFilter, "requested", "dispute_requested")
+    readonly_fields = (
+        "comment",
+        "admin",
+        "dispute_requested",
+        "send_admin_email",
+        "send_rop_email",
+        "amocrm_id",
+    )
+    list_filter = (
+        UniqueStatusFilter,
+        FixedStatusFilter,
+        "requested",
+        "dispute_requested",
+        "dispute_status",
+    )
 
     def save_model(self, request, obj, form, change):
         obj.admin_id = request.user.id
@@ -120,27 +135,34 @@ class DisputeAdmin(AdminChartMixin, admin.ModelAdmin):
             [
                 f"{check.unique_status.title} "
                 f"{check.unique_status.subtitle or ''}".strip()
-                for check in queryset if check.unique_status
+                for check in queryset
+                if check.unique_status
             ]
         )
 
         button: Counter = Counter(
             [
-                f"{check.button_slug} нажата" if check.button_pressed
+                f"{check.button_slug} нажата"
+                if check.button_pressed
                 else f"{check.button_slug} не нажата"
-                for check in queryset if check.button_slug
+                for check in queryset
+                if check.button_slug
             ]
         )
 
-        result = {
-            "datasets": [
-                {
-                    "label": "Статистика нажатия кнопки",
-                    "data": button,
-                    "backgroundColor": "#cf2d58"
-                },
-            ],
-        } if queryset else {}
+        result = (
+            {
+                "datasets": [
+                    {
+                        "label": "Статистика нажатия кнопки",
+                        "data": button,
+                        "backgroundColor": "#cf2d58",
+                    },
+                ],
+            }
+            if queryset
+            else {}
+        )
 
         return result
 
@@ -150,11 +172,18 @@ class DisputeAdmin(AdminChartMixin, admin.ModelAdmin):
         """
         return changelist.queryset
 
-    # блок кнопки "Принять оспаривание"
+    # блок кнопки "Принять оспаривание" strana_lk-2441
     # change_form_template = "disputes/templates/buttons.html"
-    # def response_change(self, request, dispute):
-    #     if "_accept_dispute" in request.POST:
-    #         dispute.agent, dispute.dispute_agent = dispute.dispute_agent, dispute.agent
-    #         dispute.status = Dispute.UserStatus.UNIQUE
-    #         dispute.save()
-    #     return super().response_change(request, dispute.user)
+
+    def response_change(self, request, dispute):
+        success_status = DisputeStatus.objects.get(title="Успешно")
+        if "_accept_dispute" in request.POST and dispute.dispute_status not in [success_status]:
+            if bookings := dispute.user.booking_user.prefetch_related().filter(active=True, agent_id=dispute.agent.id):
+                bookings.update(agent_id=dispute.dispute_agent.id, agency_id=dispute.dispute_agent.agency_id)
+            dispute.agent, dispute.dispute_agent, dispute.agency = dispute.dispute_agent, None, dispute.agency
+
+            dispute.dispute_status = success_status
+            dispute.save()
+        else:
+            self.message_user(request, message="Нельзя совершить данное действие")
+        return super().response_change(request, dispute.user)

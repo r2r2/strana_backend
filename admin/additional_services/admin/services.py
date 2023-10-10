@@ -20,5 +20,4 @@ class AdditionalServiceAdmin(admin.ModelAdmin):
     autocomplete_fields = (
         "condition",
         "category",
-        "group_status",
     )

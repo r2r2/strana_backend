@@ -91,3 +91,4 @@ from .clients_specs import ResponseClientSpecs
 from .clients_facets import ResponseClientFacets
 from .email_reset import RequestEmailResetModel, ResponseEmailResetModel
 from .create_ticket import RequestCreateTicket
+from .consultation_type import ConsultationType

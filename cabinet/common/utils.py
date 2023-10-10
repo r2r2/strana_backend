@@ -110,6 +110,8 @@ def parse_phone(phone: str) -> Optional[str]:
     # Если телефон начинается с 8 и скорее всего это телефон рф, введённый в национальном формате
     if phone.startswith("8"):
         phone: str = phone.replace("8", "+7", 1)
+    elif phone.startswith("7"):
+        phone: str = f"+{phone}"
 
     try:
         phone: phonenumbers.phonenumber.PhoneNumber = phonenumbers.parse(phone)

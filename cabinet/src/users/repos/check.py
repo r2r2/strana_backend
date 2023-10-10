@@ -1,12 +1,11 @@
 from datetime import datetime
-from typing import Optional
+
+from tortoise import Model, fields
+from tortoise.fields import ForeignKeyNullableRelation
 
 from common import orm
 from common.orm.mixins import CRUDMixin
 from src.agencies.repos import Agency
-from tortoise import Model, fields
-from tortoise.fields import ForeignKeyNullableRelation
-
 from src.users.entities import BaseUserRepo
 from src.users.repos.user import User
 
@@ -17,10 +16,18 @@ class Check(Model):
     """
 
     id: int = fields.BigIntField(description="ID", pk=True)
-    requested: Optional[datetime] = fields.DatetimeField(description="Запрошено", null=True)
-    dispute_requested: Optional[datetime] = fields.DatetimeField(description="Время оспаривания", null=True)
-    status_fixed: bool = fields.BooleanField(description="Закрепить статус за клиентом", default=False)
-    unique_status: fields.ForeignKeyNullableRelation["UniqueStatus"] = fields.ForeignKeyField(
+    requested: datetime | None = fields.DatetimeField(
+        description="Запрошено", null=True
+    )
+    dispute_requested: datetime | None = fields.DatetimeField(
+        description="Время оспаривания", null=True
+    )
+    status_fixed: bool = fields.BooleanField(
+        description="Закрепить статус за клиентом", default=False
+    )
+    unique_status: fields.ForeignKeyNullableRelation[
+        "UniqueStatus"
+    ] = fields.ForeignKeyField(
         description="Статус уникальности",
         model_name="models.UniqueStatus",
         on_delete=fields.CASCADE,
@@ -62,32 +69,49 @@ class Check(Model):
         related_name="admin_checks",
         null=True,
     )
-    comment: Optional[str] = fields.TextField(description="Комментарий агента", null=True)
-    admin_comment: Optional[str] = fields.TextField(description="Комментарий менеджера", null=True)
+    comment: str | None = fields.TextField(description="Комментарий агента", null=True)
+    admin_comment: str | None = fields.TextField(
+        description="Комментарий менеджера", null=True
+    )
     send_admin_email: bool = fields.BooleanField(
         default=False,
         description="Отправлено письмо администраторам",
     )
-    amocrm_id: Optional[int] = fields.IntField(description="ID сделки в amoCRM, по которой была проверка", null=True)
-    term_uid: Optional[str] = fields.CharField(
+    send_rop_email: bool = fields.BooleanField(
+        default=False,
+        description="Отправлено письмо РОПам",
+    )
+    amocrm_id: int | None = fields.IntField(
+        description="ID сделки в amoCRM, по которой была проверка", null=True
+    )
+    term_uid: str | None = fields.CharField(
         description="UID условия проверки на уникальность",
         max_length=255,
         null=True,
     )
-    term_comment: Optional[str] = fields.TextField(
+    term_comment: str | None = fields.TextField(
         description="Комментарий к условию проверки на уникальность",
         null=True,
     )
-    button_slug: Optional[str] = fields.CharField(
+    button_slug: str | None = fields.CharField(
         description="Слаг кнопки",
         max_length=255,
         null=True,
     )
 
-    button_pressed: bool = fields.BooleanField(description="Кнопка была нажата", default=False)
-
-    agent_id: Optional[int]
-    dispute_agent_id: Optional[int]
+    button_pressed: bool = fields.BooleanField(
+        description="Кнопка была нажата", default=False
+    )
+    dispute_status: fields.ForeignKeyNullableRelation[
+        "UniqueStatus"
+    ] = fields.ForeignKeyField(
+        model_name="models.DisputeStatus",
+        related_name="dispute_status",
+        description="Статус оспаривания",
+        null=True,
+    )
+    agent_id: int | None
+    dispute_agent_id: int | None
 
     class Meta:
         table = "users_checks"
@@ -97,6 +121,7 @@ class CheckRepo(BaseUserRepo, CRUDMixin):
     """
     Репозиторий проверки
     """
+
     model = Check
     q_builder: orm.QBuilder = orm.QBuilder(Check)
     c_builder: orm.ConverterBuilder = orm.ConverterBuilder(Check)

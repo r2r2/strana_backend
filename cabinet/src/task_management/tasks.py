@@ -1,38 +1,27 @@
 from asyncio import get_event_loop
-from typing import Any, Optional
+from typing import Any
 
 from tortoise import Tortoise
 
 from config import celery, tortoise_config
-from common.settings.repos import BookingSettingsRepo
-from src.booking import repos as booking_repos
 from src.task_management import repos as task_management_repos
 from src.task_management import loggers
 from src.task_management import services
-from src.notifications.tasks import booking_fixation_notification_email_task
+from src.task_management.dto import UpdateTaskDTO, CreateTaskDTO
+from src.task_management.factories import CreateTaskInstanceServiceFactory, UpdateTaskInstanceStatusServiceFactory
 
 
 @celery.app.task
-def create_task_instance_task(booking_ids: list[int]) -> None:
+def create_task_instance_task(booking_ids: list[int], task_context: CreateTaskDTO | None = None) -> None:
     """
     Создание инстанса задачи для цепочки заданий
     """
-    resources: dict[str, Any] = dict(
-        orm_class=Tortoise,
-        orm_config=tortoise_config,
-        booking_repo=booking_repos.BookingRepo,
-        task_instance_repo=task_management_repos.TaskInstanceRepo,
-        task_chain_repo=task_management_repos.TaskChainRepo,
-        task_status_repo=task_management_repos.TaskStatusRepo,
-        booking_settings_repo=BookingSettingsRepo,
-        update_task_instance_status_task=update_task_instance_status_task,
-    )
-    create_task_instance_case: services.CreateTaskInstanceService = services.CreateTaskInstanceService(
-        **resources
-    )
+    create_task_instance_service: services.CreateTaskInstanceService = CreateTaskInstanceServiceFactory.create()
     loop: Any = get_event_loop()
     loop.run_until_complete(
-        celery.sentry_catch(celery.init_orm(create_task_instance_case))(booking_ids=booking_ids)
+        celery.sentry_catch(celery.init_orm(create_task_instance_service))(
+            booking_ids=booking_ids, task_context=task_context
+        )
     )
 
 
@@ -40,29 +29,16 @@ def create_task_instance_task(booking_ids: list[int]) -> None:
 def update_task_instance_status_task(
     booking_id: int,
     status_slug: str,
-    comment: Optional[str] = None,
-    by_button: Optional[bool] = None,
+    task_context: UpdateTaskDTO | None = None,
 ) -> None:
     """
     Обновление статуса инстанса задачи
     """
-    resources: dict[str, Any] = dict(
-        orm_class=Tortoise,
-        orm_config=tortoise_config,
-        task_instance_repo=task_management_repos.TaskInstanceRepo,
-        task_status_repo=task_management_repos.TaskStatusRepo,
-        booking_repo=booking_repos.BookingRepo,
-        booking_settings_repo=BookingSettingsRepo,
-        update_task_instance_status_task=update_task_instance_status_task,
-        booking_fixation_notification_email_task=booking_fixation_notification_email_task,
-    )
-    update_status_service: services.UpdateTaskInstanceStatusService = services.UpdateTaskInstanceStatusService(
-        **resources
-    )
+    update_status_service: services.UpdateTaskInstanceStatusService = UpdateTaskInstanceStatusServiceFactory.create()
     loop: Any = get_event_loop()
     loop.run_until_complete(
         celery.sentry_catch(celery.init_orm(update_status_service))(
-            booking_id=booking_id, status_slug=status_slug, comment=comment, by_button=by_button
+            booking_id=booking_id, status_slug=status_slug, task_context=task_context
         )
     )
 

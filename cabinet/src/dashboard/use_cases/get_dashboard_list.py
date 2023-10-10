@@ -85,7 +85,8 @@ class GetDashboardListCase(BaseDashboardCase):
                             proxy_element = self.build_element(element, template_dict)
                             proxy_element.id = node["id"]
                             proxy_element.expires = node["end"]
-                            proxy_element.link = self.portal_external_host + self.PORTAL_ENDPOINT + node["slug"]
+                            proxy_element.link = self.portal_external_host + f"/{city_slug}" + \
+                                                 self.PORTAL_ENDPOINT + node["slug"]
                             proxy_element.image = dict(aws=node["cardImageDisplay"])
                             elements_list.append(proxy_element)
                             template_dict.pop("portal_news")

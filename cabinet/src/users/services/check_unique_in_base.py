@@ -52,11 +52,9 @@ class UserCheckUniqueService(BaseUserService):
         filters = [
             {
                 "phone": payload.phone,
-                "type__not_in": [UserType.CLIENT],
             },
             {
                 "email": payload.email,
-                "type__not_in": [UserType.CLIENT],
             },
         ]
         exceptions = (

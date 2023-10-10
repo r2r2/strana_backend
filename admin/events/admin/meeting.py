@@ -60,6 +60,7 @@ class MeetingsAdmin(admin.ModelAdmin):
         "city",
         "project",
         "local_date",
+        "creation_source",
         "has_calendar_event",
         "get_calendar_tags_on_list",
     )
@@ -70,6 +71,7 @@ class MeetingsAdmin(admin.ModelAdmin):
         "project",
         "booking",
         "status",
+        "creation_source",
         "record_link",
         "meeting_link",
         "meeting_address",
@@ -86,7 +88,7 @@ class MeetingsAdmin(admin.ModelAdmin):
         "booking__user__amocrm_id__icontains",
         "booking__amocrm_id__icontains",
     )
-    list_filter = ("calendar_event__tags",)
+    list_filter = ("calendar_event__tags", "creation_source")
 
     def has_calendar_event(self, obj):
         return obj.has_calendar_event

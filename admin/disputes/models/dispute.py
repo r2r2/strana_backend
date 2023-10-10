@@ -1,6 +1,4 @@
 # pylint: disable=no-member,invalid-str-returned
-from typing import Optional
-
 from django.db import models
 
 
@@ -10,8 +8,12 @@ class Dispute(models.Model):
     """
 
     requested = models.DateTimeField(verbose_name="Запрошено", null=True, blank=True)
-    dispute_requested = models.DateTimeField(verbose_name="Время оспаривания", null=True, blank=True)
-    status_fixed: bool = models.BooleanField(verbose_name="Закрепить статус за клиентом", default=False)
+    dispute_requested = models.DateTimeField(
+        verbose_name="Время оспаривания", null=True, blank=True
+    )
+    status_fixed: bool = models.BooleanField(
+        verbose_name="Закрепить статус за клиентом", default=False
+    )
     unique_status = models.ForeignKey(
         verbose_name="Статус уникальности",
         to="disputes.UniqueStatus",
@@ -50,7 +52,7 @@ class Dispute(models.Model):
         on_delete=models.SET_NULL,
         related_name="agencies_checks",
         null=True,
-        blank=True
+        blank=True,
     )
     admin = models.ForeignKey(
         verbose_name="Админ",
@@ -66,7 +68,14 @@ class Dispute(models.Model):
         default=False,
         verbose_name="Отправлено письмо администраторам",
     )
-    amocrm_id = models.IntegerField(verbose_name="ID сделки в amoCRM, по которой была проверка", null=True, blank=True)
+    send_rop_email: bool = models.BooleanField(
+        default=False, verbose_name="Отправлено письмо РОПу"
+    )
+    amocrm_id = models.IntegerField(
+        verbose_name="ID сделки в amoCRM, по которой была проверка",
+        null=True,
+        blank=True,
+    )
     term_uid = models.CharField(
         verbose_name="UID условия проверки на уникальность",
         max_length=255,
@@ -81,8 +90,16 @@ class Dispute(models.Model):
         max_length=255,
         blank=True,
     )
-
-    button_pressed = models.BooleanField(verbose_name="Кнопка была нажата", default=False)
+    button_pressed = models.BooleanField(
+        verbose_name="Кнопка была нажата", default=False
+    )
+    dispute_status = models.ForeignKey(
+        verbose_name="Статус оспаривания",
+        to="disputes.DisputeStatus",
+        on_delete=models.SET_NULL,
+        related_name="dispute_statu",
+        null=True,
+    )
 
     def __str__(self) -> str:
         return str(self.id)
@@ -90,19 +107,33 @@ class Dispute(models.Model):
     # TODO full_name нужно нормально сделать в модели User (на будущее)
     @property
     def client_full_name(self):
-        return self.user.full_name() if self.user and self.user.full_name() else self.user
+        return (
+            self.user.full_name() if self.user and self.user.full_name() else self.user
+        )
 
     @property
     def agent_full_name(self):
-        return self.agent.full_name() if self.agent and self.agent.full_name() else self.agent
+        return (
+            self.agent.full_name()
+            if self.agent and self.agent.full_name()
+            else self.agent
+        )
 
     @property
     def dispute_agent_full_name(self):
-        return self.agent.full_name() if self.agent and self.agent.full_name() else self.agent
+        return (
+            self.agent.full_name()
+            if self.agent and self.agent.full_name()
+            else self.agent
+        )
 
     @property
     def admin_full_name(self):
-        return self.admin.full_name() if self.admin and self.admin.full_name() else self.admin
+        return (
+            self.admin.full_name()
+            if self.admin and self.admin.full_name()
+            else self.admin
+        )
 
     class Meta:
         managed = False

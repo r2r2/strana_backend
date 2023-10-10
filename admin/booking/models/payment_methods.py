@@ -14,4 +14,4 @@ class PaymentMethod(models.Model):
         managed = False
         db_table = "payments_payment_method"
         verbose_name = "Способ оплаты"
-        verbose_name_plural = " 1.9.2. [Справочник] Способы оплаты"
+        verbose_name_plural = " 1.11. [Справочник] Способы оплаты"

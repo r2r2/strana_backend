@@ -23,5 +23,5 @@ class CreateTaskInstanceLogLogger(BaseTaskService):
         if self.orm_config:
             self.orm_config.pop("generate_schemas", None)
 
-    async def __call__(self, log_data: dict[str, Any]) -> None:
+    async def __call__(self, *, log_data: dict[str, Any]) -> None:
         await self.task_instance_log_repo.create(data=log_data)

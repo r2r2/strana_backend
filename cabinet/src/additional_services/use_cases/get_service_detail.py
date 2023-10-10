@@ -1,6 +1,7 @@
 from tortoise.queryset import QuerySet
 
 from ..entities import BaseAdditionalServiceCase
+from ..exceptions import AdditionalServiceNotFoundError
 from ..repos import (
     AdditionalServiceConditionStepRepo as StepRepo,
     AdditionalServiceRepo as ServiceRepo,
@@ -26,6 +27,7 @@ class ServiceDetailCase(BaseAdditionalServiceCase):
         steps_qs: QuerySet = self.step_repo.list(
             filters=active_filters, ordering="priority"
         )
+        active_filters.update(id=service_id)
         service: Service = await self.service_repo.retrieve(
             filters=active_filters,
             prefetch_fields=[
@@ -36,4 +38,6 @@ class ServiceDetailCase(BaseAdditionalServiceCase):
                 )
             ],
         )
+        if not service:
+            raise AdditionalServiceNotFoundError
         return service

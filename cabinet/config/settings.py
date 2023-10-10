@@ -41,7 +41,6 @@ class UvicornSettings(BaseSettings):
 
     port: int = Field(1800, env="LK_PORT")
     ws: str = Field("wsproto", env="LK_WS")
-    debug: bool = Field(True, env="LK_DEBUG")
     reload: bool = Field(True, env="LK_RELOAD")
     host: str = Field("0.0.0.0", env="LK_HOST")
     log_level: str = Field("debug", env="LK_LOG_LEVEL")
@@ -105,6 +104,7 @@ class DataBaseSettings(BaseSettings):
         ("settings", "repos"),
         ("main_page", "repos"),
         ("additional_services", "repos"),
+        ("events_list", "repos"),
     ]
 
     class Config:
@@ -321,6 +321,9 @@ class TrustedSettings(BaseSettings):
 
 class RedisSettings(BaseSettings):
     address: str = Field("redis://redis-lk-broker:6379/0", env='LK_REDDIS_URL')
+    host: str = Field("redis-lk-broker", env='LK_REDIS_HOST')
+    port: int = Field(6379, env='LK_REDIS_PORT')
+    db: int = Field(0, env='LK_REDIS_DB')
 
     deleted_users_key: str = Field("deleted_users")
     deleted_users_expire: int = Field(2_147_483_647)
@@ -367,8 +370,6 @@ class BookingSettings(BaseSettings):
     time_seconds: int = Field(1200)
     time_hours: Union[int, float] = Field(24)
     fast_time_hours: int = Field(24)
-    additional_time_minutes: int = Field(10)
-    additional_time_seconds: int = Field(600)
 
     @root_validator
     def set_dev_time(cls, values: dict):
@@ -618,6 +619,19 @@ class DadataSettings(BaseSettings):
 class UnleashSettings(BaseSettings):
     url: str = Field("", env="LK_UNLEASH_URL")
     instance_id: str = Field("", env="LK_UNLEASH_INSTANCE_ID")
+
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+
+
+class DepregSettings(BaseSettings):
+    """
+    Настройки для работы с API Depreg.
+    """
+    base_url: str = Field("https://et.depreg.ru/api/v2", env="LK_DEPREG_BASE_URL")
+    auth_type: str = Field("Bearer", env="LK_DEPREG_AUTH_TYPE")
+    token: str = Field("SecretToken", env="LK_DEPREG_TOKEN")
 
     class Config:
         env_file = ".env"

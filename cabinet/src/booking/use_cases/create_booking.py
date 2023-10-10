@@ -21,6 +21,8 @@ from src.booking.repos import Booking, BookingRepo, BookingSource
 from ..types import BookingAmoCRM
 from src.task_management.services import CreateTaskInstanceService
 from src.booking.utils import get_booking_source
+from src.task_management.constants import OnlineBookingSlug
+from src.task_management.utils import get_booking_tasks
 
 
 class CreateBookingCase(BaseBookingCase):
@@ -44,7 +46,7 @@ class CreateBookingCase(BaseBookingCase):
         profit_base_class: type[ProfitBase],
         create_task_instance_service: CreateTaskInstanceService,
         get_booking_reserv_time,
-        global_id_encoder,
+        global_id_decoder,
     ) -> None:
         self.property_repo: PropertyRepo = property_repo()
         self.property_type_repo: PropertyTypeRepo = property_type_repo()
@@ -55,10 +57,10 @@ class CreateBookingCase(BaseBookingCase):
         self.amocrm_class: type[BookingAmoCRM] = amocrm_class
         self.profit_base_class: type[ProfitBase] = profit_base_class
         self.get_booking_reserv_time: Callable = get_booking_reserv_time
-        self.global_id_encoder: Callable = global_id_encoder
+        self.global_id_decoder: Callable = global_id_decoder
         self.create_task_instance_service: CreateTaskInstanceService = create_task_instance_service
 
-    async def __call__(self, user_id: int, payload: RequestCreateBookingModel) -> Booking:
+    async def __call__(self, user_id: int, payload: RequestCreateBookingModel) -> Booking | None:
         property_type: Optional[PropertyType] = await self.property_type_repo.retrieve(
             filters=dict(slug=payload.property_slug, is_active=True)
         )
@@ -93,6 +95,9 @@ class CreateBookingCase(BaseBookingCase):
             loaded_property=loaded_property_from_backend,
             booking_type=booking_type,
         )
+        profit_base_is_booked: bool = await self._profit_base_booking(
+            amocrm_id=booking_amocrm_id, property_id=self.global_id_decoder(loaded_property_from_backend.global_id)[1]
+        )
 
         booking_data: dict = dict(
             acitve=True,
@@ -109,17 +114,16 @@ class CreateBookingCase(BaseBookingCase):
             property_id=loaded_property_from_backend.id,
             building_id=loaded_property_from_backend.building_id,
             project_id=loaded_property_from_backend.project_id,
-        )
-        booking: Booking = await self.booking_repo.create(data=booking_data)
-        profit_base_is_booked: bool = await self._profit_base_booking(
-            booking=booking, property_id=self.global_id_encoder(loaded_property_from_backend.global_id)[1]
+            payment_amount=booking_type.price,
         )
 
-        if not profit_base_is_booked:
-            await self.booking_repo.update(model=booking, data=dict(is_active=False))
-
-        await self.create_task_instance(booking=booking)
-        return booking
+        if profit_base_is_booked:
+            booking: Booking = await self.booking_repo.create(data=booking_data)
+            await self.create_task_instance(booking=booking)
+            booking.tasks = await get_booking_tasks(
+                booking_id=booking.id, task_chain_slug=OnlineBookingSlug.ACCEPT_OFFER.value
+            )
+            return booking
 
     async def _create_amo_lead(
             self,
@@ -138,7 +142,7 @@ class CreateBookingCase(BaseBookingCase):
             project_amocrm_organization=loaded_property.project.amocrm_organization,
             project_amocrm_pipeline_id=loaded_property.project.amo_pipeline_id,
             project_amocrm_responsible_user_id=loaded_property.project.amo_responsible_user_id,
-            property_id=self.global_id_encoder(loaded_property.global_id)[1],
+            property_id=self.global_id_decoder(loaded_property.global_id)[1],
             booking_type_id=booking_type.amocrm_id,
             creator_user_id=user.id,
         )
@@ -147,12 +151,12 @@ class CreateBookingCase(BaseBookingCase):
             lead_id: int = lead_data[0].id
         return lead_id
 
-    async def _profit_base_booking(self, booking: Booking, property_id: int) -> bool:
+    async def _profit_base_booking(self, amocrm_id: int, property_id: int) -> bool:
         """
         Бронирование в profit_base
         """
         async with await self.profit_base_class() as profit_base:
-            data: dict[str, bool] = await profit_base.book_property(property_id=property_id, deal_id=booking.amocrm_id)
+            data: dict[str, bool] = await profit_base.book_property(property_id=property_id, deal_id=amocrm_id)
             booked: bool = data.get("success", False)
             in_deal: bool = data.get("code", None) == profit_base.dealed_code
         profit_base_booked: bool = booked or in_deal

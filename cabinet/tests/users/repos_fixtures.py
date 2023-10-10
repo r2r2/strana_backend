@@ -2,7 +2,7 @@ import pytest
 from importlib import import_module
 
 from src.tips.repos import TipRepo
-from src.users.repos import UserRepo
+from src.users.repos import UserRepo, UserRoleRepo
 
 
 @pytest.fixture(scope="function")
@@ -26,3 +26,8 @@ def user_repo() -> UserRepo:
     user_repo: UserRepo = getattr(import_module("src.users.repos"), "UserRepo")()
     return user_repo
 
+
+@pytest.fixture(scope="function")
+def user_role_repo() -> UserRoleRepo:
+    user_role_repo: UserRoleRepo = getattr(import_module("src.users.repos"), "UserRoleRepo")()
+    return user_role_repo

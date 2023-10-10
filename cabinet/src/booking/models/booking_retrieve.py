@@ -8,6 +8,8 @@ from common.files.models import FileCategoryListModel
 from src.agencies.models import AgencyRetrieveModel
 from src.agents.models import AgentRetrieveModel
 from src.properties.models import PropertyRetrieveModel
+from src.booking.entities import BaseBookingModel, BaseBookingCamelCaseModel
+from src.task_management.constants import TaskStatusType
 
 from ..constants import (
     BookingCreatedSources,
@@ -15,10 +17,8 @@ from ..constants import (
     BookingStages,
     MaritalStatus,
     PaymentMethods,
-    RelationStatus
+    RelationStatus,
 )
-from src.booking.entities import BaseBookingModel, BaseBookingCamelCaseModel
-from src.task_management.constants import TaskStatusType
 
 
 class _BookingProjectRetrieveModel(BaseBookingModel):
@@ -32,8 +32,8 @@ class _BookingProjectRetrieveModel(BaseBookingModel):
 
     @root_validator
     def validate_city(cls, values: dict[str, Any]) -> dict[str, Any]:
-        city = values.pop('city', None)
-        values['city'] = city.slug if city else None
+        city = values.pop("city", None)
+        values["city"] = city.slug if city else None
         return values
 
     class Config:
@@ -45,11 +45,11 @@ class _BookingBuildingRetrieveModel(BaseBookingModel):
     Модель корпуса детального бронирования
     """
 
-    name: Optional[str]
-    address: Optional[str]
-    built_year: Optional[int]
-    total_floor: Optional[int]
-    ready_quarter: Optional[int]
+    name: str | None
+    address: str | None
+    built_year: str | None
+    total_floor: str | None
+    ready_quarter: str | None
 
     class Config:
         orm_mode = True
@@ -60,7 +60,7 @@ class _BookingFloorRetrieveModel(BaseBookingModel):
     Модель этажа детального бронирования
     """
 
-    number: Optional[str]
+    number: str | None
 
     class Config:
         orm_mode = True
@@ -88,16 +88,16 @@ class _DDUParticipant(BaseBookingModel):
     name: str
     surname: str
     patronymic: str
-    inn: Optional[str]
-    passport_serial: Optional[str]
-    passport_number: Optional[str]
-    passport_issued_by: Optional[str]
-    passport_department_code: Optional[str]
-    passport_issued_date: Optional[date]
+    inn: str | None
+    passport_serial: str | None
+    passport_number: str | None
+    passport_issued_by: str | None
+    passport_department_code: str | None
+    passport_issued_date: date | None
     relation_status: Optional[RelationStatus.serializer]
     marital_status: Optional[MaritalStatus.serializer]
     is_not_resident_of_russia: bool
-    is_older_than_fourteen: Optional[bool]
+    is_older_than_fourteen: bool | None
     has_children: bool
     files: list[FileCategoryListModel]
 
@@ -117,7 +117,7 @@ class _BookingDDURetrieveModel(BaseBookingModel):
     bank_inn: str
     bank_kpp: str
     participants: list[_DDUParticipant]
-    change_diffs: Optional[list]
+    change_diffs: list | None
     files: list[FileCategoryListModel]
 
     @validator("participants", pre=True, always=True)
@@ -157,9 +157,11 @@ class Button(BaseBookingCamelCaseModel):
 class TaskInstanceResponseSchema(BaseBookingCamelCaseModel):
     type: str
     title: str
-    hint: Optional[str]
+    hint: str | None
     text: str
-    buttons: Optional[list[Button]]
+    current_step: str | None
+    buttons: list[Button] | None
+    buttons_detail_view: list[Button] | None
 
     class Config:
         orm_mode = True
@@ -177,40 +179,41 @@ class TaskStatusSchema(BaseBookingCamelCaseModel):
 
 
 class AmoCRMAction(BaseBookingCamelCaseModel):
-    id: Optional[int]
-    name: Optional[str]
-    slug: Optional[str]
-    role_id: Optional[int]
+    id: int | None
+    name: str | None
+    slug: str | None
+    role_id: int | None
 
 
 class _BookingStatusListModel(BaseBookingCamelCaseModel):
     """
     Модель статуса списка бронирований
     """
-    id: Optional[int]
-    group_id: Optional[int]
-    name: Optional[str]
-    color: Optional[str]
-    show_reservation_date: Optional[bool]
-    show_booking_date: Optional[bool]
-    steps_numbers: Optional[int]
-    current_step: Optional[int]
-    actions: Optional[list[AmoCRMAction]]
+
+    id: int | None
+    group_id: int | None
+    name: str | None
+    color: str | None
+    show_reservation_date: bool | None
+    show_booking_date: bool | None
+    steps_numbers: int | None
+    current_step: int | None
+    actions: list[AmoCRMAction] | None
 
     class Config:
         orm_mode = True
 
 
 class _BookingSourceSchema(BaseBookingCamelCaseModel):
-    slug: Optional[str]
-    name: Optional[str]
-    value: Optional[str]
-    label: Optional[str]
+    slug: str | None
+    name: str | None
+    value: str | None
+    label: str | None
 
     @root_validator
     def build_response(cls, values: dict[str, Any]) -> dict[str, Any]:
-        values['value'] = values.pop('slug', None)
-        values['label'] = values.pop('name', None)
+        values["value"] = values.pop("slug", None)
+        values["label"] = values.pop("name", None)
         return values
 
     class Config:
@@ -226,7 +229,7 @@ class ResponseBookingRetrieveModel(BaseBookingModel):
 
     price_payed: bool
     booking_period: int | None
-    max_booking_period: int = 50
+    max_booking_period: int | None
     params_checked: bool
     personal_filled: bool
     contract_accepted: bool
@@ -239,12 +242,12 @@ class ResponseBookingRetrieveModel(BaseBookingModel):
     escrow_uploaded: bool
     amocrm_signing_date_set: bool
     amocrm_signed: bool
-    amocrm_status: Optional[_BookingStatusListModel]
+    amocrm_status: _BookingStatusListModel | None
 
-    origin: Optional[str]
-    until: Optional[datetime]
-    created: Optional[datetime]
-    expires: Optional[datetime]
+    origin: str | None
+    until: datetime | None
+    created: datetime | None
+    expires: datetime | None
     payment_url: Optional[str]
     payment_amount: Optional[Decimal]
     final_payment_amount: Optional[Decimal]
@@ -275,13 +278,13 @@ class ResponseBookingRetrieveModel(BaseBookingModel):
     agent: Optional[AgentRetrieveModel]
     agency: Optional[AgencyRetrieveModel]
     tasks: Optional[list[TaskInstanceResponseSchema]]
-    task_statuses: Optional[list[TaskStatusSchema]]
 
     # Method fields
     current_step: Optional[int]
     continue_link: Optional[str]
     is_fast_booking: bool
     condition_chosen: bool
+    is_can_pay: bool
 
     online_purchase_step: Optional[
         Literal[
@@ -314,6 +317,10 @@ class ResponseBookingRetrieveModel(BaseBookingModel):
     def get_online_purchase_step(cls, online_purchase_step) -> str:
         return online_purchase_step()
 
+    @validator("is_can_pay", pre=True, always=True)
+    def get_is_can_pay(cls, is_can_pay) -> bool:
+        return is_can_pay()
+
     @validator("ddu", pre=True, always=True)
     def get_ddu(cls, ddu):
         if isinstance(ddu, Awaitable) or ddu is None or ddu.pk is None:
@@ -322,9 +329,11 @@ class ResponseBookingRetrieveModel(BaseBookingModel):
 
     @root_validator
     def build_response(cls, values: dict[str, Any]):
-        booking_source = values.pop('booking_source', None)
+        booking_source = values.pop("booking_source", None)
         if booking_source:
-            values['created_source'] = parse_obj_as(_BookingSourceSchema, booking_source)
+            values["created_source"] = parse_obj_as(
+                _BookingSourceSchema, booking_source
+            )
         return values
 
     class Config:

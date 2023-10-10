@@ -1,11 +1,11 @@
 from datetime import datetime
 from typing import Optional, Any
 
-from common.utils import parse_phone
 from pydantic import EmailStr, constr, validator, root_validator, Field, parse_obj_as
 
+from common.utils import parse_phone
 from src.users.entities import BaseUserModel, BaseCheckModel
-from src.users.exceptions import UserIncorrectPhoneForamtError
+from src.users.exceptions import UserIncorrectPhoneFormatError
 from src.users.repos.unique_status import IconType
 
 
@@ -27,7 +27,7 @@ class RequestUsersCheckModel(BaseUserModel):
         """
         phone: Optional[str] = parse_phone(phone)
         if not phone:
-            raise UserIncorrectPhoneForamtError
+            raise UserIncorrectPhoneFormatError
         return phone
 
     class Config:

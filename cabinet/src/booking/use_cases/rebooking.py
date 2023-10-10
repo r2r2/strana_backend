@@ -28,13 +28,13 @@ class RebookingCase(BaseBookingCase):
             amocrm_class: type[BookingAmoCRM],
             profit_base_class: type[ProfitBase],
             get_booking_reserv_time,
-            global_id_encoder,
+            global_id_decoder,
     ) -> None:
         self.booking_repo: BookingRepo = booking_repo()
         self.amocrm_class: type[BookingAmoCRM] = amocrm_class
         self.profit_base_class: type[ProfitBase] = profit_base_class
         self.get_booking_reserv_time: Callable = get_booking_reserv_time
-        self.global_id_encoder: Callable = global_id_encoder
+        self.global_id_decoder: Callable = global_id_decoder
 
     async def __call__(self, booking_id: int, user_id: int) -> Booking:
         booking_filters: dict = dict(active=False, id=booking_id, user_id=user_id)
@@ -61,12 +61,12 @@ class RebookingCase(BaseBookingCase):
         )
         profit_base_is_booked: bool = await self._profit_base_booking(
             booking=updated_booking,
-            property_id=self.global_id_encoder(booking_property.global_id)[1],
+            property_id=self.global_id_decoder(booking_property.global_id)[1],
         )
         if profit_base_is_booked:
             await self._update_amo_booking(
                 booking=booking,
-                portal_property_id=self.global_id_encoder(booking_property.global_id)[1],
+                portal_property_id=self.global_id_decoder(booking_property.global_id)[1],
             )
         return booking
 

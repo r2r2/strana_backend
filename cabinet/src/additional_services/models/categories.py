@@ -1,15 +1,15 @@
-from .services import ServiceCategoryResponse
+from .services import ServiceResponse
 from ..entities import BaseAdditionalServiceCamelCaseModel
 
 
-class CategoryDetailResponse(BaseAdditionalServiceCamelCaseModel):
+class ServicesByTypeResponse(BaseAdditionalServiceCamelCaseModel):
     """
     Модель ответа категорий и услуг
     """
 
     id: int
     title: str
-    services: list[ServiceCategoryResponse]
+    results: list[ServiceResponse]
 
     class Config:
         orm_mode = True

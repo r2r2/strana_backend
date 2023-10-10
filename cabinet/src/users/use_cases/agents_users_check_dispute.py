@@ -43,9 +43,9 @@ class CheckDisputeCase(BaseCheckCase):
         self.send_check_admins_email = send_check_admins_email
 
     async def __call__(
-            self,
-            dispute_agent_id: int,
-            payload: RequestAgentsUsersCheckDisputeModel,
+        self,
+        dispute_agent_id: int,
+        payload: RequestAgentsUsersCheckDisputeModel,
     ) -> Check:
         data: dict[str:Any] = payload.dict(exclude_unset=True)
         filters: dict[str:Any] = dict(id=data["user_id"])

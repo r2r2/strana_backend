@@ -9,6 +9,7 @@ from common.amocrm.repos import AmoStatusesRepo
 from common.amocrm.types import AmoContact, AmoLead
 from common.backend.models import AmocrmStatus
 from common.utils import partition_list
+from config import EnvTypes, maintenance_settings
 from fastapi import Request
 from src.booking.constants import (BookingCreatedSources, BookingStages,
                                    BookingStagesMapping, BookingSubstages)
@@ -17,6 +18,7 @@ from src.booking.models import ResponseBookingRetrieveModel
 from src.booking.repos import Booking, BookingRepo, BookingSource
 from src.booking.utils import get_booking_source
 from src.projects.repos import Project, ProjectRepo
+from src.task_management.dto import CreateTaskDTO
 from src.task_management.services import CreateTaskInstanceService
 from src.users.constants import UserType
 from src.users.entities import BaseUserCase
@@ -24,6 +26,7 @@ from src.users.exceptions import UserNotFoundError, UserAgentMismatchError
 from src.users.models import RequestAssignClient, RequestBookingCurrentClient
 from src.users.repos import CheckRepo, User, UserRepo
 from src.users.services import CheckPinningStatusService
+from src.projects.constants import ProjectStatus
 
 
 class LeadStatuses(int, Enum):
@@ -42,6 +45,8 @@ class BookingCurrentClientCase(BaseUserCase):
     client_tag: list[str] = ['клиент']
     lk_broker_tag: list[str] = ['ЛК Брокера']
     lk_test_tag: list[str] = ['Тест']
+    dev_test_booking_tag: list[str] = ['Тестовая бронь']
+    stage_test_booking_tag: list[str] = ['Тестовая бронь Stage']
 
     def __init__(
         self,
@@ -120,16 +125,6 @@ class BookingCurrentClientCase(BaseUserCase):
         @param client: User
         """
         async with await self.amocrm_class() as amocrm:
-            # contact: AmoContact = await self._get_or_create_amo_contact(
-            #     amocrm,
-            #     payload=payload,
-            #     client=client,
-            #     agent_id=agent.id,
-            # )
-            # contact_leads: list[AmoLead] = await self._fetch_contact_leads(amocrm, contact=contact)
-            # await self._import_amo_leads(
-            #     client=client, agent=agent, active_project=payload.active_project, leads=contact_leads
-            # )
             not_created_projects: list[Project] = await self._find_not_created_projects(
                 client=client, agent_id=agent.id, payload=payload
             )
@@ -229,7 +224,9 @@ class BookingCurrentClientCase(BaseUserCase):
                                 custom_field.field_id == self.amocrm_class.project_field_id]
             if amocrm_name:
                 project: Project = await self.project_repo.retrieve(
-                    filters=dict(amo_pipeline_id=lead.pipeline_id, amocrm_name=amocrm_name[0])
+                    filters=dict(amo_pipeline_id=lead.pipeline_id,
+                                 amocrm_name=amocrm_name[0],
+                                 status=ProjectStatus.CURRENT)
                 )
             else:
                 project = None
@@ -252,6 +249,7 @@ class BookingCurrentClientCase(BaseUserCase):
             booking = await self.booking_repo.retrieve(filters=dict(amocrm_id=lead.id))
             if booking:
                 booking = await self.booking_update(booking=booking, data=data)
+                await self._create_task_instance(booking.id, booking_created=False)
             else:
                 booking_source: BookingSource = await get_booking_source(slug=BookingCreatedSources.AMOCRM)
                 data.update(
@@ -260,8 +258,8 @@ class BookingCurrentClientCase(BaseUserCase):
                     booking_source=booking_source,
                 )
                 booking = await self.booking_create(data=data)
+                await self._create_task_instance(booking.id, booking_created=True)
 
-            await self._create_task_instance([booking.id])
 
     async def _find_not_created_projects(
         self,
@@ -282,7 +280,8 @@ class BookingCurrentClientCase(BaseUserCase):
 
         return await self.project_repo.list(
             filters=dict(id__in=[payload.active_project]),
-            related_fields=["city"]
+            related_fields=["city"],
+            prefetch_fields=["buildings"],
         )
 
     async def _create_requested_leads(
@@ -300,6 +299,12 @@ class BookingCurrentClientCase(BaseUserCase):
         """
         status_name: str = 'фиксация клиента за ан'
         tags: list[str] = self.lk_broker_tag + self.lk_test_tag if client.is_test_user else self.lk_broker_tag
+
+        if maintenance_settings["environment"] == EnvTypes.DEV:
+            tags = tags + self.dev_test_booking_tag
+        elif maintenance_settings["environment"] == EnvTypes.STAGE:
+            tags = tags + self.stage_test_booking_tag
+
         for project in not_created_projects:
             status: AmocrmStatus = await self._get_status_by_name(name=status_name, pipeline_id=project.amo_pipeline_id)
             if not status:
@@ -321,12 +326,22 @@ class BookingCurrentClientCase(BaseUserCase):
                 companies=[agent.agency.amocrm_id],
                 creator_user_id=agent.id,
                 tags=tags,
-                # is_agency_deal=True,
             )
             print(f"New lead AMO data: {amo_data}")
             lead: list[AmoLead] = await amocrm.create_lead(**amo_data)
             booking_source: BookingSource = await get_booking_source(slug=BookingCreatedSources.LK_ASSIGN)
             lead_amocrm_id = lead[0].id
+            booking = await self.booking_repo.retrieve(filters=dict(amocrm_id=lead_amocrm_id))
+            # if booking:
+            #     if booking.amocrm_substage == BookingSubstages.START:
+            #         _amocrm_stage = BookingStages.START,
+            #         _amocrm_substage = BookingSubstages.ASSIGN_AGENT
+            #     else:
+            #         _amocrm_stage = booking.amocrm_stage
+            #         _amocrm_substage = booking.amocrm_substage
+            # else:
+            #     _amocrm_stage = BookingStages.START,
+            #     _amocrm_substage = BookingSubstages.ASSIGN_AGENT
             data: dict[str, Any] = dict(
                 amocrm_id=lead_amocrm_id,
                 amocrm_stage=BookingStages.START,
@@ -340,10 +355,10 @@ class BookingCurrentClientCase(BaseUserCase):
                 origin=f"https://{self.site_host}",
                 created_source=BookingCreatedSources.LK_ASSIGN,  # todo: deprecated
                 booking_source=booking_source,
+                booking_period=0,
                 tags=tags,
                 active=True,
             )
-            booking = await self.booking_repo.retrieve(filters=dict(amocrm_id=lead_amocrm_id))
             if booking:
                 booking = await self.booking_update(booking=booking, data=data)
             else:
@@ -369,4 +384,6 @@ class BookingCurrentClientCase(BaseUserCase):
         Создаем задачу на создание экземпляра задачи.
         @param booking_id: int
         """
-        await self.create_task_instance_service(booking_ids=booking_id,  booking_created=booking_created)
+        task_context: CreateTaskDTO = CreateTaskDTO()
+        task_context.booking_created = booking_created
+        await self.create_task_instance_service(booking_ids=booking_id,  task_context=task_context)

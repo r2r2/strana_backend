@@ -1,6 +1,7 @@
 from typing import Any, Optional, Type
 
 from common.amocrm.types import AmoLead
+from config import EnvTypes, maintenance_settings
 from src.agreements.repos import AgencyAgreement, AgreementType
 from src.booking.repos import Booking
 from src.getdoc.repos import DocTemplate
@@ -21,6 +22,8 @@ class RepresAgenciesCreateAgreementCase(BaseAgencyCase):
     """
 
     lk_broker_tag: list[str] = ["ЛК Брокера"]
+    dev_test_booking_tag: list[str] = ['Тестовая бронь']
+    stage_test_booking_tag: list[str] = ['Тестовая бронь Stage']
 
     def __init__(
         self,
@@ -84,6 +87,12 @@ class RepresAgenciesCreateAgreementCase(BaseAgencyCase):
         """
         Создание сделки для получения договора
         """
+        tags = self.lk_broker_tag
+        if maintenance_settings["environment"] == EnvTypes.DEV:
+            tags = tags + self.dev_test_booking_tag
+        elif maintenance_settings["environment"] == EnvTypes.STAGE:
+            tags = tags + self.stage_test_booking_tag
+
         lead_options: dict[str, Any] = dict(
             status_id=self._booking_getdoc_statuses.NEW,
             city_slug=self._amocrm_class.city_name_mapping.get(agency.city, "tyumen"),
@@ -94,7 +103,7 @@ class RepresAgenciesCreateAgreementCase(BaseAgencyCase):
             project_amocrm_responsible_user_id=project.amo_responsible_user_id,
             companies=[agency.amocrm_id],
             creator_user_id=repres.id,
-            tags=self.lk_broker_tag,
+            tags=tags,
         )
         async with await self._amocrm_class() as amocrm:
             data: list[AmoLead] = await amocrm.create_lead(**lead_options)

@@ -12,7 +12,7 @@ class PriceOfferMatrix(models.Model):
         related_name="payment_method",
         verbose_name="Способ оплаты",
         help_text="Способ оплаты",
-        null = True,
+        null=True,
     )
     by_dev: bool = models.BooleanField(default=False, verbose_name="Субсидированная ипотека")
     price_type = models.ForeignKey(
@@ -30,4 +30,4 @@ class PriceOfferMatrix(models.Model):
         managed = False
         db_table = "payments_price_offer_matrix"
         verbose_name = "Матрица предложения цены"
-        verbose_name_plural = " 1.9.1. [Справочник] Матрицы предложения цены"
+        verbose_name_plural = " 1.10. [Справочник] Матрицы предложения цены"

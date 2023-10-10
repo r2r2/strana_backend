@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     "main_page.apps.MainPageAppConfig",
     "amocrm.apps.AmocrmAppConfig",
     "additional_services.apps.AdditionalServiceConfig",
+    'events_list.apps.EventsListConfig',
 ]
 
 MIDDLEWARE = [

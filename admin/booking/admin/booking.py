@@ -48,9 +48,9 @@ class IsExpiredFilter(admin.SimpleListFilter):
     def queryset(self, request, queryset):
         value = self.value()
         if value == 'Yes':
-            return queryset.filter(expires__isnull=False, expires__lt=datetime.now(tz=UTC))
+            return queryset.filter(Q(expires__lt=datetime.now(tz=UTC)) | Q(expires__isnull=True))
         elif value == 'No':
-            return queryset.exclude(expires__isnull=False, expires__lt=datetime.now(tz=UTC))
+            return queryset.filter(expires__isnull=False, expires__gt=datetime.now(tz=UTC))
         return queryset
 
 
@@ -67,9 +67,9 @@ class IsOveredFilter(admin.SimpleListFilter):
     def queryset(self, request, queryset):
         value = self.value()
         if value == 'Yes':
-            return queryset.filter(until__isnull=False, until__lt=datetime.now(tz=UTC))
+            return queryset.filter(Q(until__lt=datetime.now(tz=UTC)) | Q(until__isnull=True))
         elif value == 'No':
-            return queryset.exclude(until__isnull=False, until__lt=datetime.now(tz=UTC))
+            return queryset.filter(until__isnull=False, until__gt=datetime.now(tz=UTC))
         return queryset
 
 
@@ -197,7 +197,7 @@ class BookingAdmin(admin.ModelAdmin):
     list_filter = (
         "created", "agency__general_type", "active", IsCompletedFilter, IsExpiredFilter, IsOveredFilter,
         "booking_source__name", GroupStatusFilter, IsErrorsFilter)
-    readonly_fields = ("agency_type",)
+    readonly_fields = ("agency_type", "loyalty_point_amount")
     save_on_top = True
     list_per_page = 15
     show_full_result_count = False

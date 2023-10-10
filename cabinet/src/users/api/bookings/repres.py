@@ -14,8 +14,12 @@ from src.users import use_cases
 
 from ..user import router
 
-__all__ = ('repres_bookings_specs_view', 'repres_bookings_facets_view', 'repres_bookings_lookup_view',
-           'repres_bookings_list_view', 'repres_booking_retrieve_view')
+__all__ = ('repres_bookings_specs_view',
+           'repres_bookings_facets_view',
+           'repres_bookings_lookup_view',
+           'repres_bookings_list_view',
+           'repres_booking_retrieve_view',
+           )
 
 
 @router.get(
@@ -128,9 +132,11 @@ async def repres_booking_retrieve_view(
         check_repo=users_repos.CheckRepo,
         amocrm_group_status_repo=AmocrmGroupStatusRepo,
         booking_repo=booking_repos.BookingRepo,
+        booking_tag_repo=booking_repos.BookingTagRepo,
         agent_repo=agents_repos.AgentRepo,
         user_pinning_repo=users_repos.UserPinningStatusRepo,
         booking_settings_repo=BookingSettingsRepo,
     )
-    booking_retrieve: use_cases.UserBookingRetrieveCase = use_cases.UserBookingRetrieveCase(**resources)
+    booking_retrieve: use_cases.UserBookingRetrieveCase = \
+        use_cases.UserBookingRetrieveCase(**resources)
     return await booking_retrieve(booking_id=booking_id, agency_id=agency_id)

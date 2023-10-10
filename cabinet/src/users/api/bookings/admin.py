@@ -115,5 +115,6 @@ async def admins_booking_retrieve_view(
         user_pinning_repo=users_repos.UserPinningStatusRepo,
         booking_settings_repo=BookingSettingsRepo,
     )
-    booking_retrieve: use_cases.UserBookingRetrieveCase = use_cases.UserBookingRetrieveCase(**resources)
+    booking_retrieve: use_cases.UserBookingRetrieveCase = \
+        use_cases.UserBookingRetrieveCase(**resources)
     return await booking_retrieve(booking_id=booking_id)

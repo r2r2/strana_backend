@@ -42,6 +42,13 @@ class Meeting(BaseMeetingDatabaseModel):
         on_delete=fields.SET_NULL,
         null=True,
     )
+    creation_source: fields.ForeignKeyNullableRelation['MeetingCreationSource'] = fields.ForeignKeyField(
+        description="Источник создания встречи",
+        model_name="models.MeetingCreationSource",
+        related_name="meetings",
+        on_delete=fields.SET_NULL,
+        null=True,
+    )
     record_link: Optional[str] = fields.CharField(max_length=255, description="Ссылка на запись", null=True)
     meeting_link: Optional[str] = fields.CharField(max_length=255, description="Ссылка на встречу", null=True)
     meeting_address: Optional[str] = fields.CharField(max_length=300, description="Адрес встречи", null=True)

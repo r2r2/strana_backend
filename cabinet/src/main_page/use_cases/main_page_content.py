@@ -49,9 +49,9 @@ class MainPageTextCase(BaseMainPageCase):
 
     async def __call__(self, slug) -> MainPageContentDetailResponse:
         filters = dict(slug=slug)
-        main_page_text = await self.main_page_text_repo.retrieve(filters=filters)
+        main_page_content = await self.main_page_text_repo.retrieve(filters=filters)
 
-        if not main_page_text:
+        if not main_page_content:
             raise TextBlockNotFoundError
 
-        return main_page_text
+        return main_page_content

@@ -16,6 +16,7 @@ from src.users.repos import (
     CheckRepo,
     User,
     UserRepo,
+    UserRoleRepo,
     AmoCrmCheckLogRepo, CheckHistory,
 )
 from src.users.services import SendCheckAdminsEmailService
@@ -30,17 +31,19 @@ class UsersCheckCase(BaseUserCase):
     lead_url: str = "https://eurobereg72.amocrm.ru/leads/detail/{amocrm_id}"
 
     def __init__(
-            self,
-            user_repo: Type[UserRepo],
-            check_repo: Type[CheckRepo],
-            history_check_repo: Type[CheckHistoryRepo],
-            amocrm_history_check_log_repo: Type[AmoCrmCheckLogRepo],
-            check_unique_service: Callable[..., Awaitable],
-            booking_repo: Type[BookingRepo],
-            email_class: Type[AgentEmail],
-            send_check_admins_email: SendCheckAdminsEmailService,
+        self,
+        user_repo: Type[UserRepo],
+        user_role_repo: Type[UserRoleRepo],
+        check_repo: Type[CheckRepo],
+        history_check_repo: Type[CheckHistoryRepo],
+        amocrm_history_check_log_repo: Type[AmoCrmCheckLogRepo],
+        check_unique_service: Callable[..., Awaitable],
+        booking_repo: Type[BookingRepo],
+        email_class: Type[AgentEmail],
+        send_check_admins_email: SendCheckAdminsEmailService,
     ) -> None:
         self.user_repo: UserRepo = user_repo()
+        self.user_role_repo: UserRoleRepo = user_role_repo()
         self.check_repo: CheckRepo = check_repo()
         self.booking_repo: BookingRepo = booking_repo()
         self.history_check_repo: CheckHistoryRepo = history_check_repo()
@@ -50,11 +53,11 @@ class UsersCheckCase(BaseUserCase):
         self.send_check_admins_email = send_check_admins_email
 
     async def __call__(
-            self,
-            payload: RequestUsersCheckModel,
-            agent_id: Optional[int] = None,
-            agency_id: Optional[int] = None,
-            user_id: Optional[int] = None
+        self,
+        payload: RequestUsersCheckModel,
+        agent_id: Optional[int] = None,
+        agency_id: Optional[int] = None,
+        user_id: Optional[int] = None
     ) -> Check:
         data: dict[str, Any] = payload.dict(exclude_unset=True)
         phone: str = data["phone"]
@@ -69,9 +72,11 @@ class UsersCheckCase(BaseUserCase):
                 raise UserMissMatchError
 
         if phone and not user:
+            user_role = await self.user_role_repo.retrieve(filters=dict(slug=UserType.CLIENT))
             data: dict[str, Any] = dict(
                 type=UserType.CLIENT,
-                phone=phone
+                phone=phone,
+                role=user_role,
             )
             user: User = await self.user_repo.create(data=data)
 
@@ -105,18 +110,17 @@ class UsersCheckCase(BaseUserCase):
         data = dict(check_history=history_check)
         await self.amocrm_history_check_log_repo.bulk_update(filters=filters, data=data)
 
-
         if check.button_slug:
             check.button = await get_unique_status_button(slug=check.button_slug)
 
         return check
 
     async def _exist_user_check(
-            self,
-            user: User,
-            phone: str,
-            agent_id: Optional[int],
-            agency_id: Optional[int],
+        self,
+        user: User,
+        phone: str,
+        agent_id: Optional[int],
+        agency_id: Optional[int],
     ) -> tuple[Check, list[int]]:
         """
         Проверяем уникальность в случае, когда пользователь есть в бд.
@@ -143,20 +147,20 @@ class UsersCheckCase(BaseUserCase):
         return check, history_check_logs_ids
 
     async def __update_check_status(
-            self,
-            phone: str,
-            check: Check,
-            user: Optional[User] = None,
-            agent_id: Optional[int] = None,
-            agency_id: Optional[int] = None,
-            payload: Optional[dict[str, Any]] = None,
+        self,
+        phone: str,
+        check: Check,
+        user: Optional[User] = None,
+        agent_id: Optional[int] = None,
+        agency_id: Optional[int] = None,
+        payload: Optional[dict[str, Any]] = None,
     ) -> list[int]:
         """
         Обновляем статус для проверки (Check) в амо.
         Сервис check_unique_service обновляет check.status внутри вызова.
         """
         _, history_check_logs_ids = await self.check_unique_service(phone=phone, check=check, user=user,
-                                                                 agent_id=agent_id, agency_id=agency_id)
+                                                                    agent_id=agent_id, agency_id=agency_id)
         await check.refresh_from_db()
 
         if check.send_admin_email:
@@ -171,12 +175,12 @@ class UsersCheckCase(BaseUserCase):
         return history_check_logs_ids
 
     async def _prepare_email_data(
-            self,
-            phone: str,
-            user: Optional[User],
-            agent_id: Optional[int] = None,
-            agency_id: Optional[int] = None,
-            payload: Optional[dict[str, Any]] = None,
+        self,
+        phone: str,
+        user: Optional[User],
+        agent_id: Optional[int] = None,
+        agency_id: Optional[int] = None,
+        payload: Optional[dict[str, Any]] = None,
     ) -> dict[str, Any]:
         """
         Подготавливаем данные для отправки письма администратору

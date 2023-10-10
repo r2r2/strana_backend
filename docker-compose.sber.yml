@@ -3,6 +3,7 @@ version: '3.7'
 x-app_environment: &app_environment
   environment:
     - DEBUG
+    - MC_BACKEND_URL
     - POSTGRES_PASSWORD
     - POSTGRES_HOST=172.16.250.56
     - POSTGRES_PORT
@@ -166,7 +167,7 @@ services:
     container_name: tasks
     restart: always
     image: ${DOCKER_REGISTRY}cabinet:${TAG:-latest}
-    command: celery -A config.celery worker -l info -B -c 1 -n tasks@strana.com -Q tasks
+    command: celery -A config.celery worker -l info -B -c 8 -n tasks@strana.com -Q tasks
     depends_on:
       - redis
     <<: *app_environment

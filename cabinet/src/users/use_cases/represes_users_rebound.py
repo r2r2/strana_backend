@@ -1,6 +1,8 @@
+import asyncio
 from typing import Any, Type
 from enum import IntEnum
 
+from common.email import EmailService
 from src.booking.loggers.wrappers import booking_changes_logger
 from src.users import services as user_services
 
@@ -10,6 +12,7 @@ from ..loggers.wrappers import user_changes_logger
 from ..models import RequestRepresesUsersReboundModel
 from src.users.repos import User, UserRepo
 from ..types import UserAgentRepo, UserBooking, UserBookingRepo
+from src.notifications.services import GetEmailTemplateService
 
 
 class LeadStatuses(IntEnum):
@@ -24,18 +27,23 @@ class RepresesUsersReboundCase(BaseUserCase):
     """
     Перепривязка пользователя представителем агентства
     """
+    previous_agent_email_slug = "previous_agent_email"
 
     def __init__(
         self,
         user_repo: Type[UserRepo],
         agent_repo: Type[UserAgentRepo],
         booking_repo: Type[UserBookingRepo],
+        email_class: Type[EmailService],
+        get_email_template_service: GetEmailTemplateService,
         change_agent_service: user_services.ChangeAgentService,
     ) -> None:
         self.user_repo: UserRepo = user_repo()
         self.agent_repo: UserAgentRepo = agent_repo()
         self.booking_repo: UserBookingRepo = booking_repo()
         self.change_agent_service: user_services.ChangeAgentService = change_agent_service
+        self.get_email_template_service: GetEmailTemplateService = get_email_template_service
+        self.email_class: Type[EmailService] = email_class
 
         self.user_reassign = user_changes_logger(
             self.user_repo.update, self, content="Перепривязка пользователя к представителю агентства"
@@ -61,6 +69,15 @@ class RepresesUsersReboundCase(BaseUserCase):
         if not user:
             raise UserNotFoundError
 
+        if from_agent != to_agent:
+            # Именно смене агентов, т.е. когда 1 агент меняется на другого.
+            await self._send_email(
+                recipients=[from_agent.email],
+                agent_name=from_agent.full_name,
+                client_name=user.full_name,
+                slug=self.previous_agent_email_slug,
+            )
+
         data: dict[str, Any] = dict(agent_id=to_agent.id)
         user: User = await self.user_reassign(user=user, data=data)
 
@@ -78,3 +95,26 @@ class RepresesUsersReboundCase(BaseUserCase):
             )
             await self.booking_update(booking=booking, data=data)
         self.change_agent_service.as_task(user_id=user_id, agent_id=to_agent_id)
+
+    async def _send_email(self, recipients: list[str], slug, **context) -> asyncio.Task:
+        """
+        Отправляем письмо клиенту.
+        @param recipients: list[str]
+        @param context: Any (Контекст, который будет использоваться в шаблоне письма)
+        @return: Task
+        """
+        email_notification_template = await self.get_email_template_service(
+            mail_event_slug=slug,
+            context=context,
+        )
+
+        if email_notification_template and email_notification_template.is_active:
+            email_options: dict[str, Any] = dict(
+                topic=email_notification_template.template_topic,
+                content=email_notification_template.content,
+                recipients=recipients,
+                lk_type=email_notification_template.lk_type.value,
+                mail_event_slug=email_notification_template.mail_event_slug,
+            )
+            email_service: EmailService = self.email_class(**email_options)
+            return email_service.as_task()

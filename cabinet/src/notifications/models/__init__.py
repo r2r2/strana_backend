@@ -15,3 +15,4 @@ from .client_notifications import (
     ResponseClientNotificationsSpecsModel,
 )
 from .client_unassign import ResponseUnassignText, ResponseSMSText
+from .payment_page import PaymentPageResponse

@@ -1,8 +1,21 @@
-from .notification import Notification, NotificationRepo
-from .client_notification import ClientNotification, ClientNotificationRepo
 from .assign_client_template import AssignClientTemplate, AssignClientTemplateRepo
-from .sms_notification import SmsTemplate, SmsTemplateRepo
+from .booking_fixation_notification import (
+    BookingFixationNotification,
+    BookingFixationNotificationRepo,
+    BookingFixationNotificationsProjectThrough,
+)
+from .booking_notification import (
+    BookingNotification,
+    BookingNotificationRepo,
+    BookingNotificationsProjectThrough,
+)
+from .client_notification import ClientNotification, ClientNotificationRepo
 from .email_notification import EmailTemplate, EmailTemplateRepo
-from .booking_notification import BookingNotification, BookingNotificationRepo, BookingNotificationsProjectThrough
-from .booking_fixation_notification import (BookingFixationNotification, BookingFixationNotificationRepo,
-                                            BookingFixationNotificationsProjectThrough)
+from .event_sms_notification import (
+    EventsSmsNotification,
+    EventsSmsNotificationCityThrough,
+    EventsSmsNotificationRepo,
+    EventsSmsNotificationType,
+)
+from .notification import Notification, NotificationRepo
+from .sms_notification import SmsTemplate, SmsTemplateRepo

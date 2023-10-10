@@ -3,7 +3,7 @@ from typing import Any
 from common.settings.repos import BookingSettingsRepo
 from src.booking.entities import BaseBookingCase
 from src.booking.exceptions import BookingNotFoundError
-from src.booking.repos import Booking
+from src.booking.repos import Booking, BookingTagRepo, BookingTag
 from src.users.repos import CheckRepo, UserPinningStatus, UserPinningStatusRepo
 from src.users.types import UserBookingRepo
 from src.users.repos import User
@@ -26,6 +26,7 @@ class UserBookingRetrieveCase(BaseBookingCase):
         amocrm_group_status_repo: type[AmocrmGroupStatusRepo],
         agent_repo: type[UserAgentRepo],
         user_pinning_repo: type[UserPinningStatusRepo],
+        booking_tag_repo: type[BookingTagRepo],
     ) -> None:
         self.check_repo: CheckRepo = check_repo()
         self.booking_repo: UserBookingRepo = booking_repo()
@@ -35,6 +36,7 @@ class UserBookingRetrieveCase(BaseBookingCase):
         )
         self.agent_repo: UserAgentRepo = agent_repo()
         self.user_pinning_repo: UserPinningStatusRepo = user_pinning_repo()
+        self.booking_tag_repo: BookingTagRepo = booking_tag_repo()
 
     async def __call__(
         self,
@@ -75,6 +77,7 @@ class UserBookingRetrieveCase(BaseBookingCase):
 
         if booking.amocrm_status:
             await self._set_group_statuses(booking=booking)
+        booking.booking_tags = await self._get_booking_tags(booking)
 
         status = await self.check_repo.list(
             filters=dict(user_id=booking.user.id),
@@ -96,6 +99,16 @@ class UserBookingRetrieveCase(BaseBookingCase):
         ).build()
         booking: Booking = await self._deactivated_booking_response(booking=booking)
         return booking
+
+    async def _get_booking_tags(self, booking: Booking) -> list[BookingTag] | None:
+        tag_filters: dict[str, Any] = dict(
+            is_active=True,
+            group_statuses=booking.amocrm_status.group_status
+            if booking.amocrm_status else None,
+        )
+        return (
+            await self.booking_tag_repo.list(filters=tag_filters, ordering="-priority")
+        ) or None
 
     async def _deactivated_booking_response(self, booking: Booking) -> Booking:
         if not booking.active:

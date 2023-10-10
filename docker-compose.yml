@@ -123,12 +123,13 @@ x-app_environment: &app_environment
     - LK_MAX_REQUESTS_PERIOD
     - LK_UNLEASH_URL
     - LK_UNLEASH_INSTANCE_ID
+    - LK_DEPREG_TOKEN
 
 services:
   cabinet:
     container_name: cabinet
     image: ${CI_REGISTRY_IMAGE}/cabinet:${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHA}
-    
+
       #image: ${DOCKER_REGISTRY}cabinet:${TAG:-latest}
       #    build
       #      context: ./cabinet

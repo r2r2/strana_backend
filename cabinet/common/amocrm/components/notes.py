@@ -73,7 +73,7 @@ class AmoCRMNotes(AmoCRMInterface, ABC):
         self,
         contact_id: int,
         message: str,
-    ) -> None:
+    ) -> dict:
         """
         Добавление комментария при закреплении клиента
         """
@@ -81,4 +81,7 @@ class AmoCRMNotes(AmoCRMInterface, ABC):
         payload = [dict(note_type="common", params=dict(text=message))]
         response: CommonResponse = await self._request_post_v4(route=route, payload=payload)
         if response.data:
-            self.logger.info(f"Contact note sent: {response.data}")
+            self.logger.info(f"Contact({contact_id}) note sent: {response.data}")
+        elif response.errors:
+            self.logger.warning(f"Contact({contact_id}) note sent error: {response.status} with payload data {payload}")
+        return dict(route=route, status=response.status, request_data=message, data=response.data)

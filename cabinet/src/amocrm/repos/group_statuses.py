@@ -22,6 +22,7 @@ class AmocrmGroupStatus(Model):
     amocrm_actions: fields.ManyToManyRelation["AmocrmAction"]
     booking_tags: fields.ManyToManyRelation["BookingTag"]
     statuses: fields.ReverseRelation["AmocrmStatus"]
+    client_statuses: fields.ReverseRelation["AmocrmStatus"]
 
     def __repr__(self):
         return self.name

@@ -1,7 +1,9 @@
 from asyncio import get_event_loop
 from typing import Any
+from hashlib import md5
 
 from common import amocrm, redis
+from common.celery.utils import redis_lock
 from config import celery, redis_config, tortoise_config
 from src.agencies import repos as agencies_repos
 from src.agencies import services, loggers
@@ -17,6 +19,11 @@ def check_organization_task_periodic() -> None:
     """
     Периодическая проверка агентства
     """
+    lock_id = f"periodic_cache_check_organization_task_periodic"
+    can_launch = redis_lock(lock_id)
+    if not can_launch:
+        return
+
     resources: dict[str, Any] = dict(
         redis=redis.broker,
         orm_class=Tortoise,
@@ -145,6 +152,11 @@ def periodic_update_missed_amocrm_id_task() -> None:
     """
     Заполнение потерянных amocrm_id в агентствах.
     """
+    lock_id = "periodic_cache_periodic_update_missed_amocrm_id_task"
+    can_launch = redis_lock(lock_id)
+    if not can_launch:
+        return
+
     resources: dict[str, Any] = dict(
         amocrm_class=amocrm.AmoCRM,
         orm_class=Tortoise,

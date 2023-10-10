@@ -36,6 +36,7 @@ import_module("src.cities.tasks")
 import_module("src.amocrm.tasks")
 import_module("src.task_management.tasks")
 import_module("src.notifications.tasks")
+import_module("src.events.tasks")
 app.conf.task_queues = (Queue("tasks"),)
 app.control.add_consumer("tasks", reply=True, destination=["tasks@strana.com"])
 priority = Priority(steps=10)
@@ -56,6 +57,7 @@ app.conf.task_routes = {
     "src.amocrm.tasks.*": {"queue": "tasks", "task_default_priority": priority.low},
     "src.task_management.tasks.*": {"queue": "tasks", "task_default_priority": priority.high},
     "src.notifications.tasks.*": {"queue": "tasks", "task_default_priority": priority.low},
+    "src.events.tasks.*": {"queue": "tasks", "task_default_priority": priority.low},
 }
 
 user_interest_task_time = celery_config["user_interest_task_time"]

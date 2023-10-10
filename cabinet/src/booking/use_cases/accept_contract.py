@@ -25,6 +25,9 @@ from ..models import RequestAcceptContractModel
 from src.booking.repos import Booking, BookingRepo, BookingSource
 from ..types import (BookingPropertyRepo, BookingQuerySet,
                      BookingSqlUpdateRequest)
+from src.task_management.services import UpdateTaskInstanceStatusService
+from src.task_management.constants import OnlineBookingSlug
+from src.task_management.utils import get_booking_tasks
 
 
 class BookingTypeNamedTuple(NamedTuple):
@@ -49,6 +52,7 @@ class AcceptContractCase(BaseBookingCase, BookingLogMixin):
         request_class: Type[BookingSqlUpdateRequest],
         global_id_decoder: Callable,
         check_profitbase_property_service: CheckProfitbasePropertyService,
+        update_task_instance_status_service: UpdateTaskInstanceStatusService,
     ) -> None:
         self.booking_repo: BookingRepo = booking_repo()
         self.property_repo: BookingPropertyRepo = property_repo()
@@ -59,6 +63,7 @@ class AcceptContractCase(BaseBookingCase, BookingLogMixin):
         self.create_booking_log_task: Any = create_booking_log_task
         self.request_class: Type[BookingSqlUpdateRequest] = request_class
         self.global_id_decoder: Callable = global_id_decoder
+        self.update_task_instance_status_service: UpdateTaskInstanceStatusService = update_task_instance_status_service
 
         self.connection_options: dict[str, Any] = dict(
             user=backend_config["db_user"],
@@ -241,12 +246,16 @@ class AcceptContractCase(BaseBookingCase, BookingLogMixin):
         await self.property_repo.update(booking_property, data=property_data)
         self.check_booking_task.apply_async((booking.id,), eta=expires)
         self.booking_notification_sms_task.delay(booking.id)
+        await self._update_task_status(booking=booking)
 
         filters: dict[str, Any] = dict(active=True, id=booking.id, user_id=user_id)
         booking: Booking = await self.booking_repo.retrieve(
             filters=filters,
             related_fields=["project__city", "property", "floor", "building", "ddu", "agent", "agency"],
             prefetch_fields=["ddu__participants"],
+        )
+        booking.tasks = await get_booking_tasks(
+            booking_id=booking.id, task_chain_slug=OnlineBookingSlug.ACCEPT_OFFER.value
         )
         return booking
 
@@ -264,3 +273,12 @@ class AcceptContractCase(BaseBookingCase, BookingLogMixin):
         async with self.request_class(**request_options) as response:
             result: str = response
         return result
+
+    async def _update_task_status(self, booking: Booking) -> None:
+        """
+        Обновление статуса задачи на 2. Заполните персональные данные
+        """
+        await self.update_task_instance_status_service(
+            booking_id=booking.id,
+            status_slug=OnlineBookingSlug.FILL_PERSONAL_DATA.value,
+        )

@@ -8,6 +8,6 @@ class AmoCrmCheckLogAdmin(admin.ModelAdmin):
     list_display = (
         "route",
         "status",
-        "query",
+        "request_data",
         "data",
     )

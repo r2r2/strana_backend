@@ -3,6 +3,7 @@ from typing import Callable, Union, Type, Any, Optional
 
 from pytz import UTC
 
+from config import EnvTypes, maintenance_settings
 from src.buildings.repos import BuildingBookingType, BuildingBookingTypeRepo
 from ..constants import BookingSubstages, BookingTypeNamedTuple
 from ..entities import BaseBookingService
@@ -21,6 +22,10 @@ class RepeatBookingService(BaseBookingService):
     """
     Кейс повторной активации бронирования
     """
+
+    dev_test_booking_tag: list[str] = ['Тестовая бронь']
+    stage_test_booking_tag: list[str] = ['Тестовая бронь Stage']
+
     def __init__(
             self,
             booking_repo: Type[BookingRepo],
@@ -127,9 +132,15 @@ class RepeatBookingService(BaseBookingService):
                 if not booking_type:
                     booking_type = BookingTypeNamedTuple(price=int(booking.payment_amount))
 
+                tags = booking.tags
+                if maintenance_settings["environment"] == EnvTypes.DEV:
+                    tags = tags + self.dev_test_booking_tag
+                elif maintenance_settings["environment"] == EnvTypes.STAGE:
+                    tags = tags + self.stage_test_booking_tag
+
                 lead_options: dict[str, Any] = dict(
                     status=BookingSubstages.START,
-                    tags=booking.tags,
+                    tags=tags,
                     city_slug=booking.project.city.slug,
                     property_type=booking.property.type.value.lower(),
                     user_amocrm_id=booking.user.amocrm_id,

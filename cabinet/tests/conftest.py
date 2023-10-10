@@ -36,6 +36,10 @@ from .events.repos_fixtures import *
 from .documents.repos_fixtures import *
 from .favourites.repos_fixtures import *
 from .task_management.repos_fixtures import *
+from .amocrm.repos_fixtures import *
+from .additional_services.repos_fixtures import *
+from .api_integrations.test_depreg import *
+from .events_list.repos_fixtures import *
 
 
 @pytest.fixture

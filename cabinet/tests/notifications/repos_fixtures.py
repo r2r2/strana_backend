@@ -2,6 +2,7 @@ from importlib import import_module
 
 from pytest import fixture
 
+from src.main_page.repos import MainPageTextRepo
 from src.notifications.repos import AssignClientTemplateRepo, SmsTemplateRepo
 
 
@@ -11,6 +12,14 @@ def assign_client_template_repo() -> AssignClientTemplateRepo:
         import_module("src.notifications.repos"), "AssignClientTemplateRepo"
     )()
     return assign_client_template_repo
+
+
+@fixture(scope="function")
+def main_page_repo() -> MainPageTextRepo:
+    main_page_repo: MainPageTextRepo = getattr(
+        import_module("src.main_page.repos"), "MainPageTextRepo"
+    )()
+    return main_page_repo
 
 
 @fixture(scope="function")
@@ -48,7 +57,12 @@ async def sms_template(sms_template_repo, faker, is_active=True):
 
 
 @fixture(scope="function")
-def assign_client_template_factory(assign_client_template_repo, faker, city, sms_template):
+def assign_client_template_factory(
+        assign_client_template_repo,
+        faker,
+        city,
+        sms_template,
+):
     async def assign_client_template(i=0, default=False):
         data = {
             "title": f"test_{i}",

@@ -8,7 +8,7 @@ from asyncpg import Connection, Record, connect
 from config import amocrm_config, maintenance_settings, amocrm_config_old
 from config.feature_flags import FeatureFlags
 
-from common.unleash.unleash_client import UnleashAdapter
+from common.unleash.client import UnleashClient
 from ..requests import CommonRequest, CommonResponse
 from ..wrappers import mark_async
 from .components import (AmoCRMCompanies, AmoCRMContacts, AmoCRMInterface,
@@ -37,7 +37,7 @@ class AmoCRM(
         ) if maintenance_settings.get("environment", "dev") else ClientSession()
         self._request_class: Type[CommonRequest] = CommonRequest
 
-        unleash_client = UnleashAdapter()
+        unleash_client = UnleashClient()
         strana_lk_2218_enable = unleash_client.is_enabled(FeatureFlags.strana_lk_2218)
 
         amocrm_conf = amocrm_config_old

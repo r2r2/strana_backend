@@ -1,29 +1,28 @@
-from http import HTTPStatus
-from typing import Any, Optional
+from typing import Any
+
+from fastapi import APIRouter, Depends, Path, Query, status
 
 from common import dependencies, security
-from fastapi import APIRouter, Depends, Path, Query, status
 from src.booking import repos as booking_repos
-from src.notifications import repos, models
-from src.notifications import use_cases
+from src.notifications import repos, models, use_cases
 from src.projects import repos as project_repo
-from src.text_blocks import models as text_block_models
-from src.text_blocks import repos as text_block_repos
+from src.text_blocks import models as text_block_models, repos as text_block_repos
 from src.text_blocks.exceptions import TextBlockNotFoundError
 from src.text_blocks.services import TextBlockHandlerService
 from src.text_blocks.use_cases import TextBlockCase
-from src.users import services as users_services
-from src.users import repos as users_repos
-from src.users import use_cases as users_use_cases
-from src.main_page import repos as main_page_repos
-from src.main_page import use_cases as main_page_use_cases
+from src.users import (
+    services as users_services,
+    repos as users_repos,
+    use_cases as users_use_cases,
+)
+from src.main_page import repos as main_page_repos, use_cases as main_page_use_cases
 
 router = APIRouter(prefix="/templates", tags=["Templates"])
 
 
 @router.get(
     "/assign/sms_text",
-    status_code=HTTPStatus.OK,
+    status_code=status.HTTP_200_OK,
     response_model=models.ResponseSMSText | None,
     dependencies=[Depends(dependencies.CurrentAnyTypeUserId())],
 )
@@ -39,11 +38,15 @@ async def sms_help_text(
     return await use_case(project_id=project_id)
 
 
-@router.get("/assign/{slug}", status_code=HTTPStatus.OK, response_model=models.ResponseUnassignText)
+@router.get(
+    "/assign/{slug}",
+    status_code=status.HTTP_200_OK,
+    response_model=models.ResponseUnassignText,
+)
 async def client_assign_templates_text(
     slug: str = Path(..., description="slug текстового блока (шаблона)"),
-    token: str = Query(..., alias='t'),
-    data: str = Query(..., alias='d'),
+    token: str = Query(..., alias="t"),
+    data: str = Query(..., alias="d"),
 ):
     """Текст для страницы открепления клиента от агента"""
     resources: dict[str, Any] = dict(
@@ -66,7 +69,7 @@ async def client_assign_templates_text(
     response_model=text_block_models.ResponseTextBlockModel,
 )
 async def get_text_block(
-    user_id: Optional[int] = Depends(dependencies.CurrentOptionalUserIdWithoutRole()),
+    user_id: int | None = Depends(dependencies.CurrentOptionalUserIdWithoutRole()),
     slug: str = Path(..., description="slug текстового блока (шаблона)"),
     agent_id: int = Query(default=None),
 ):
@@ -83,9 +86,7 @@ async def get_text_block(
         handlers_service=handlers_service,
     )
 
-    get_text_block_case: TextBlockCase = TextBlockCase(
-        **resources
-    )
+    get_text_block_case: TextBlockCase = TextBlockCase(**resources)
 
     main_page_text_resources: dict[str, Any] = dict(
         main_page_text_repo=main_page_repos.MainPageTextRepo,
@@ -103,3 +104,22 @@ async def get_text_block(
     except TextBlockNotFoundError:
         return await main_page_text(slug=slug)
 
+
+@router.get(
+    "/payment/{slug}",
+    status_code=status.HTTP_200_OK,
+    response_model=models.PaymentPageResponse,
+    dependencies=[Depends(dependencies.CurrentAnyTypeUserId())],
+)
+async def payment_template_view(
+    slug: str = Path(..., description="slug шаблона оплаты"),
+):
+    """
+    Получение шаблона для оплаты
+    """
+
+    resources: dict[str, Any] = dict(
+        payment_page_repo=booking_repos.PaymentPageNotificationRepo,
+    )
+    get_payment_page: use_cases.PaymentPageCase = use_cases.PaymentPageCase(**resources)
+    return await get_payment_page(slug=slug)

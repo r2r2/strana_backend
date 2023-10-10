@@ -1,51 +1,67 @@
-from typing import Any, Callable, NamedTuple, Optional, Type, Union
+from typing import Callable, NamedTuple
+
+from celery.app import task
 
 from common.amocrm.types import AmoLead
+from config import EnvTypes, maintenance_settings
 from src.buildings.repos import BuildingBookingType, BuildingBookingTypeRepo
-from ..constants import BookingStages, BookingSubstages, PaymentStatuses
+from ..constants import (
+    BookingStages,
+    BookingSubstages,
+    PaymentStatuses,
+    BookingCreatedSources,
+)
 from ..entities import BaseBookingCase
 from ..loggers.wrappers import booking_changes_logger
 from ..mixins import BookingLogMixin
-from ..repos import Booking, BookingRepo
+from ..repos import Booking, BookingRepo, BookingSource
 from ..types import BookingAmoCRM, BookingProfitBase
 from ..models import RequestFillPersonalModel
 from ..exceptions import (
     BookingNotFoundError,
     BookingPropertyUnavailableError,
     BookingTimeOutError,
-    BookingWrongStepError
+    BookingWrongStepError,
 )
+from src.task_management.services import UpdateTaskInstanceStatusService
+from src.task_management.constants import OnlineBookingSlug
+from src.task_management.utils import get_booking_tasks
 
 
 class BookingTypeNamedTuple(NamedTuple):
     price: int
-    amocrm_id: Optional[int] = None
+    amocrm_id: int | None
 
 
 class FillPersonalCase(BaseBookingCase, BookingLogMixin):
     """
     Кейс заполнения персональных данных
     """
+
     lk_client_tag: list[str] = ["ЛК Клиента"]
+    dev_test_booking_tag: list[str] = ['Тестовая бронь']
+    stage_test_booking_tag: list[str] = ['Тестовая бронь Stage']
 
     def __init__(
         self,
-        create_amocrm_log_task: Any,
-        booking_repo: Type[BookingRepo],
-        amocrm_class: Type[BookingAmoCRM],
-        profitbase_class: Type[BookingProfitBase],
-        global_id_decoder: Callable[[str], tuple[str, Union[str, int]]],
-        building_booking_type_repo: Type[BuildingBookingTypeRepo],
+        create_amocrm_log_task: task,
+        booking_repo: type[BookingRepo],
+        amocrm_class: type[BookingAmoCRM],
+        profitbase_class: type[BookingProfitBase],
+        global_id_decoder: Callable[[str], tuple[str, str | int]],
+        building_booking_type_repo: type[BuildingBookingTypeRepo],
     ) -> None:
         self.booking_repo: BookingRepo = booking_repo()
         self.building_booking_type_repo: BuildingBookingTypeRepo = building_booking_type_repo()
 
-        self.amocrm_class: Type[BookingAmoCRM] = amocrm_class
-        self.create_amocrm_log_task: Any = create_amocrm_log_task
-        self.profitbase_class: Type[BookingProfitBase] = profitbase_class
-        self.global_id_decoder: Callable[[str], tuple[str, Union[str, int]]] = global_id_decoder
+        self.amocrm_class: type[BookingAmoCRM] = amocrm_class
+        self.create_amocrm_log_task: task = create_amocrm_log_task
+        self.profitbase_class: type[BookingProfitBase] = profitbase_class
+        self.global_id_decoder: Callable = global_id_decoder
         self.booking_update: Callable = booking_changes_logger(
-            self.booking_repo.update, self, content="Обновление бронирования",
+            self.booking_repo.update,
+            self,
+            content="Обновление бронирования",
         )
         self.booking_update_from_amo: Callable = booking_changes_logger(
             self.booking_repo.update, self, content="Забронировано | AMOCRM"
@@ -57,26 +73,30 @@ class FillPersonalCase(BaseBookingCase, BookingLogMixin):
             self.booking_repo.update, self, content="Заполнение персональных данных"
         )
 
-    async def __call__(self, booking_id: int, user_id: int, payload: RequestFillPersonalModel) -> Booking:
-        personal_filled_data: dict[str, Any] = dict(
+    async def __call__(
+        self, booking_id: int, user_id: int, payload: RequestFillPersonalModel
+    ) -> Booking:
+        personal_filled_data: dict[str, bool] = dict(
             personal_filled=payload.personal_filled, email_force=payload.email_force
         )
-        filters: dict[str, Any] = dict(id=booking_id, active=True, user_id=user_id)
+        filters: dict = dict(id=booking_id, active=True, user_id=user_id)
         booking: Booking = await self.booking_repo.retrieve(
-            filters=filters, related_fields=["user", "project", "project__city", "property", "building"]
+            filters=filters,
+            related_fields=[
+                "user",
+                "project",
+                "project__city",
+                "property",
+                "building",
+                "booking_source",
+            ],
         )
         if not booking:
             raise BookingNotFoundError
 
-        if booking.is_agent_assigned():
-            booking: Booking = await self.booking_fill_personal_data(booking=booking, data=personal_filled_data)
-            filters: dict[str, Any] = dict(active=True, id=booking.id, user_id=user_id)
-            booking: Booking = await self.booking_repo.retrieve(
-                filters=filters,
-                related_fields=["project", "project__city", "property", "floor", "building", "ddu", "agent", "agency"],
-                prefetch_fields=["ddu__participants"],
-            )
-            return booking
+        booking_source: BookingSource = booking.booking_source
+        if booking_source and booking_source.slug in [BookingCreatedSources.AMOCRM]:
+            return await self._fill_personal(booking=booking, user_id=user_id, data=personal_filled_data)
 
         if not booking.step_one():
             raise BookingWrongStepError
@@ -85,27 +105,42 @@ class FillPersonalCase(BaseBookingCase, BookingLogMixin):
         if not booking.time_valid():
             raise BookingTimeOutError
 
-        data: dict[str, Any] = dict(
+        data: dict = dict(
             tags=["Онлайн-бронирование"],
             amocrm_stage=BookingStages.BOOKING,
             payment_status=PaymentStatuses.CREATED,
             amocrm_substage=BookingSubstages.BOOKING,
         )
         booking: Booking = await self.booking_update(booking=booking, data=data)
-
         lead_id: int = await self._amocrm_booking(booking=booking)
-        data: dict[str, Any] = dict(amocrm_id=lead_id)
-        booking: Booking = await self.booking_update_from_amo(booking=booking, data=data)
-
+        data: dict = dict(amocrm_id=lead_id)
+        booking: Booking = await self.booking_update_from_amo(
+            booking=booking, data=data
+        )
         profitbase_booked: bool = await self._profitbase_booking(booking=booking)
-        data: dict[str, Any] = dict(profitbase_booked=profitbase_booked)
-        booking: Booking = await self.booking_update_from_profitbase(booking=booking, data=data)
-        booking: Booking = await self.booking_fill_personal_data(booking=booking, data=personal_filled_data)
+        data: dict = dict(profitbase_booked=profitbase_booked)
+        booking: Booking = await self.booking_update_from_profitbase(
+            booking=booking, data=data
+        )
+        return await self._fill_personal(booking=booking, user_id=user_id, data=personal_filled_data)
 
-        filters: dict[str, Any] = dict(active=True, id=booking.id, user_id=user_id)
+    async def _fill_personal(
+        self, booking: Booking, user_id: int, data: dict
+    ) -> Booking:
+        booking: Booking = await self.booking_fill_personal_data(booking=booking, data=data)
+        filters: dict = dict(active=True, id=booking.id, user_id=user_id)
         booking: Booking = await self.booking_repo.retrieve(
             filters=filters,
-            related_fields=["project", "project__city", "property", "floor", "building", "ddu", "agent", "agency"],
+            related_fields=[
+                "project",
+                "project__city",
+                "property",
+                "floor",
+                "building",
+                "ddu",
+                "agent",
+                "agency",
+            ],
             prefetch_fields=["ddu__participants"],
         )
         return booking
@@ -114,16 +149,24 @@ class FillPersonalCase(BaseBookingCase, BookingLogMixin):
         """
         Бронирование в AmoCRM
         """
-        booking_type_filter = dict(period=booking.booking_period, price=booking.payment_amount)
-        booking_type: Union[BuildingBookingType,
-                            BookingTypeNamedTuple] = await self.building_booking_type_repo.retrieve(
-            filters=booking_type_filter)
+        booking_type_filter = dict(
+            period=booking.booking_period, price=booking.payment_amount
+        )
+        booking_type: BuildingBookingType | BookingTypeNamedTuple = (
+            await self.building_booking_type_repo.retrieve(filters=booking_type_filter)
+        )
         if not booking_type:
             booking_type = BookingTypeNamedTuple(price=int(booking.payment_amount))
 
         async with await self.amocrm_class() as amocrm:
-            lead_options: dict[str, Any] = dict(
-                tags=booking.tags + self.lk_client_tag,
+            tags = booking.tags + self.lk_client_tag
+            if maintenance_settings["environment"] == EnvTypes.DEV:
+                tags = tags + self.dev_test_booking_tag
+            elif maintenance_settings["environment"] == EnvTypes.STAGE:
+                tags = tags + self.stage_test_booking_tag
+
+            lead_options: dict = dict(
+                tags=tags,
                 status=BookingSubstages.START,
                 city_slug=booking.project.city.slug,
                 property_id=self.global_id_decoder(booking.property.global_id)[1],
@@ -137,21 +180,25 @@ class FillPersonalCase(BaseBookingCase, BookingLogMixin):
                 project_amocrm_responsible_user_id=booking.project.amo_responsible_user_id,
             )
 
-            data: list[AmoLead] = await amocrm.create_lead(creator_user_id=booking.user.id, **lead_options)
+            data: list[AmoLead] = await amocrm.create_lead(
+                creator_user_id=booking.user.id, **lead_options
+            )
             lead_id: int = data[0].id
-            note_data: dict[str, Any] = dict(
+            note_data: dict = dict(
                 element="lead",
                 lead_id=lead_id,
                 note="lead_created",
                 text="Создано онлайн-бронирование",
             )
             self.create_amocrm_log_task.delay(note_data=note_data)
-            lead_options: dict[str, Any] = dict(
-                status=BookingSubstages.BOOKING, lead_id=lead_id, city_slug=booking.project.city.slug
+            lead_options: dict = dict(
+                status=BookingSubstages.BOOKING,
+                lead_id=lead_id,
+                city_slug=booking.project.city.slug,
             )
-            data: list[Any] = await amocrm.update_lead(**lead_options)
+            data: list = await amocrm.update_lead(**lead_options)
             lead_id: int = data[0]["id"]
-            note_data: dict[str, Any] = dict(
+            note_data: dict = dict(
                 element="lead",
                 lead_id=lead_id,
                 note="lead_changed",
@@ -175,3 +222,110 @@ class FillPersonalCase(BaseBookingCase, BookingLogMixin):
         if not profitbase_booked:
             raise BookingPropertyUnavailableError(booked, in_deal)
         return profitbase_booked
+
+
+class FillPersonalCaseV2(BaseBookingCase, BookingLogMixin):
+    """
+    Кейс заполнения персональных данных
+    """
+
+    lk_client_tag: list[str] = ["ЛК Клиента"]
+    dev_test_booking_tag: list[str] = ['Тестовая бронь']
+    stage_test_booking_tag: list[str] = ['Тестовая бронь Stage']
+
+    def __init__(
+        self,
+        booking_repo: type[BookingRepo],
+        global_id_decoder: Callable[[str], tuple[str, str | int]],
+        building_booking_type_repo: type[BuildingBookingTypeRepo],
+        update_task_instance_status_service: UpdateTaskInstanceStatusService,
+    ) -> None:
+        self.booking_repo: BookingRepo = booking_repo()
+        self.update_task_instance_status_service = update_task_instance_status_service
+        self.building_booking_type_repo: BuildingBookingTypeRepo = (
+            building_booking_type_repo()
+        )
+        self.global_id_decoder: Callable = global_id_decoder
+        self.booking_update: Callable = booking_changes_logger(
+            self.booking_repo.update,
+            self,
+            content="Обновление бронирования",
+        )
+        self.booking_fill_personal_data: Callable = booking_changes_logger(
+            self.booking_repo.update, self, content="Заполнение персональных данных"
+        )
+
+    async def __call__(
+        self, booking_id: int, user_id: int, payload: RequestFillPersonalModel
+    ) -> Booking:
+        personal_filled_data: dict[str, bool] = dict(
+            personal_filled=payload.personal_filled, email_force=payload.email_force
+        )
+        filters: dict = dict(id=booking_id, active=True, user_id=user_id)
+        booking: Booking = await self.booking_repo.retrieve(
+            filters=filters,
+            related_fields=[
+                "user",
+                "project",
+                "project__city",
+                "property",
+                "building",
+                "booking_source",
+            ],
+        )
+        if not booking:
+            raise BookingNotFoundError
+
+        booking_source: BookingSource = booking.booking_source
+        if booking_source and booking_source.slug in [BookingCreatedSources.AMOCRM]:
+            return await self._fill_personal(booking=booking, user_id=user_id, data=personal_filled_data)
+
+        if not booking.step_one():
+            raise BookingWrongStepError
+        if booking.step_two():
+            raise BookingWrongStepError
+        if not booking.time_valid():
+            raise BookingTimeOutError
+
+        data: dict = dict(
+            tags=["Онлайн-бронирование"],
+            amocrm_stage=BookingStages.BOOKING,
+            payment_status=PaymentStatuses.CREATED,
+            amocrm_substage=BookingSubstages.BOOKING,
+        )
+        booking: Booking = await self.booking_update(booking=booking, data=data)
+        booking.tasks = await get_booking_tasks(
+            booking_id=booking.id, task_chain_slug=OnlineBookingSlug.ACCEPT_OFFER.value
+        )
+        await self._update_task_status(booking=booking)
+        return await self._fill_personal(booking=booking, user_id=user_id, data=personal_filled_data)
+
+    async def _fill_personal(
+        self, booking: Booking, user_id: int, data: dict
+    ) -> Booking:
+        booking: Booking = await self.booking_fill_personal_data(booking=booking, data=data)
+        filters: dict = dict(active=True, id=booking.id, user_id=user_id)
+        booking: Booking = await self.booking_repo.retrieve(
+            filters=filters,
+            related_fields=[
+                "project",
+                "project__city",
+                "property",
+                "floor",
+                "building",
+                "ddu",
+                "agent",
+                "agency",
+            ],
+            prefetch_fields=["ddu__participants"],
+        )
+        return booking
+
+    async def _update_task_status(self, booking: Booking) -> None:
+        """
+        Обновление статуса задачи на 3. Подтвердите параметры бронирования
+        """
+        await self.update_task_instance_status_service(
+            booking_id=booking.id,
+            status_slug=OnlineBookingSlug.CONFIRM_BOOKING.value,
+        )

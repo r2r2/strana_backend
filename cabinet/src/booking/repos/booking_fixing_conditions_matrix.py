@@ -7,6 +7,22 @@ from src.booking.constants import BookingCreatedSources
 from src.booking.entities import BaseBookingRepo
 
 
+class BookingFixingConditionsMatrixPipeline(Model):
+    id: int = fields.IntField(pk=True)
+    pipeline = fields.ForeignKeyField(
+        model_name="models.AmocrmPipeline",
+        on_delete=fields.CASCADE,
+    )
+    booking_fixing_conditions_matrix = fields.ForeignKeyField(
+        model_name="models.BookingFixingConditionsMatrix",
+        on_delete=fields.CASCADE,
+    )
+
+    class Meta:
+        table = "booking_fixing_conditions_matrix_pipeline_through"
+        unique_together = (('pipeline', 'booking_fixing_conditions_matrix'),)
+
+
 class BookingFixingConditionsMatrix(Model):
     """
     Матрица условий закрепления
@@ -29,13 +45,37 @@ class BookingFixingConditionsMatrix(Model):
         max_length=100,
         choice_class=BookingCreatedSources,
     )
+    consultation_type: fields.ForeignKeyRelation = fields.ForeignKeyField(
+        model_name="models.ConsultationType",
+        related_name='fixing_conditions',
+        null=True,
+        on_delete=fields.SET_NULL,
+        description="Тип консультации",
+    )
+
     status_on_create: fields.ForeignKeyRelation = fields.ForeignKeyField(
-        model_name="models.AmocrmGroupStatus", related_name='fixing_conditions', null=True, on_delete=fields.SET_NULL,
+        model_name="models.AmocrmGroupStatus",
+        related_name='fixing_conditions',
+        null=True,
+        on_delete=fields.SET_NULL,
         description="Статус создаваемой сделки",
     )
+    pipelines: list[int] = fields.ManyToManyField(
+        description="Воронки",
+        model_name='models.AmocrmPipeline',
+        through="booking_fixing_conditions_matrix_pipeline_through",
+        backward_key="booking_fixing_conditions_matrix",
+        forward_key="pipeline",
+    )
+    amo_responsible_user_id: str | None = fields.CharField(
+        description="ID ответственного в AmoCRM", max_length=200, null=True
+    )
+
+    priority: int = fields.IntField(description="Приоритет", null=False, default=0)
 
     class Meta:
         table = "booking_fixing_conditions_matrix"
+        ordering = ["priority"]
 
 
 class BookingFixingConditionsMatrixProjects(Model):

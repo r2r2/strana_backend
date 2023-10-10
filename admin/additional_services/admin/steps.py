@@ -9,4 +9,5 @@ class AdditionalServiceConditionStepAdmin(admin.ModelAdmin):
         "description",
         "condition",
         "active",
+        "priority",
     )

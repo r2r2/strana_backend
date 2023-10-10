@@ -2,9 +2,9 @@ from tortoise.queryset import QuerySet
 
 from ..entities import BaseAdditionalServiceCase
 from ..repos import (
-    AdditionalServiceCategoryRepo as CategoryRepo,
-    AdditionalServiceCategory as Category,
     AdditionalServiceRepo as ServiceRepo,
+    AdditionalServiceType as ServiceType,
+    AdditionalServiceTypeRepo as ServiceTypeRepo,
 )
 
 
@@ -15,26 +15,25 @@ class CategoriesAndServicesListCase(BaseAdditionalServiceCase):
 
     def __init__(
         self,
-        category_repo: type[CategoryRepo],
         service_repo: type[ServiceRepo],
+        service_type_repo: type[ServiceTypeRepo],
     ) -> None:
-        self.category_repo: CategoryRepo = category_repo()
         self.service_repo: ServiceRepo = service_repo()
+        self.service_type_repo: ServiceTypeRepo = service_type_repo()
 
-    async def __call__(self) -> list[Category]:
+    async def __call__(self, category_id: int | None) -> list[ServiceType]:
         active_filters: dict = dict(active=True)
-        services_qs: QuerySet = self.service_repo.list(
-            filters=active_filters, ordering="priority"
-        )
-        categories: list[Category] = await self.category_repo.list(
-            filters=active_filters,
+        if category_id:
+            active_filters.update(category_id=category_id)
+
+        services_qs: QuerySet = self.service_repo.list(filters=active_filters)
+        service_types: list[ServiceType] = await self.service_type_repo.list(
             prefetch_fields=[
                 dict(
-                    relation="service_categories",
+                    relation="services",
                     queryset=services_qs,
-                    to_attr="services",
+                    to_attr="results",
                 )
             ],
-            ordering="priority",
         )
-        return categories
+        return service_types

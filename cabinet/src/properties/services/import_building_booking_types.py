@@ -1,15 +1,14 @@
-from typing import Type
-
 from common.backend.repos import BackendBuildingBookingTypesRepo
 from src.buildings.repos import BuildingBookingTypeRepo
-
 from ..entities import BasePropertyService
 
 
 class ImportBuildingBookingTypesService(BasePropertyService):
-    def __init__(self,
-                 building_booking_type_repo: Type[BuildingBookingTypeRepo],
-                 backend_building_booking_type_repo: Type[BackendBuildingBookingTypesRepo]):
+    def __init__(
+        self,
+        building_booking_type_repo: type[BuildingBookingTypeRepo],
+        backend_building_booking_type_repo: type[BackendBuildingBookingTypesRepo],
+    ):
         self.building_booking_type_repo: BuildingBookingTypeRepo = building_booking_type_repo()
         self.backend_building_booking_type_repo: BackendBuildingBookingTypesRepo = backend_building_booking_type_repo()
 

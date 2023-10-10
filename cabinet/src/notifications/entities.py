@@ -3,11 +3,18 @@ from typing import Any
 from pydantic import BaseModel
 
 from common.orm.entities import BaseRepo
+from common.pydantic import CamelCaseBaseModel
 
 
 class BaseNotificationModel(BaseModel):
     """
     Базовая модель уведомления
+    """
+
+
+class BaseNotificationCamelCaseModel(CamelCaseBaseModel):
+    """
+    Базовая модель уведомления в camelCase
     """
 
 

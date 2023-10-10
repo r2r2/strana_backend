@@ -45,14 +45,13 @@ def amocrm_webhook_maintenance(amocrm_webhook):
         amocrm_id, tags = _fetch_tags(data)
         logger.info(f"[{datetime.now(tz=pytz.UTC)}] AMOCRM webhook maintenance: id={amocrm_id} tags={tags}")
         if maintenance_settings["environment"] == EnvTypes.DEV:
-            if AmoCRM.fast_booking_tag_id in tags and AmoCRM.dev_booking_tag_id not in tags:
+            if AmoCRM.dev_booking_tag_id not in tags:
                 return None
         elif maintenance_settings["environment"] == EnvTypes.STAGE:
-            if AmoCRM.fast_booking_tag_id in tags and AmoCRM.stage_booking_tag_id not in tags:
+            if AmoCRM.stage_booking_tag_id not in tags:
                 return None
         elif maintenance_settings["environment"] == EnvTypes.PROD:
-            if (AmoCRM.fast_booking_tag_id in tags
-                    and (AmoCRM.dev_booking_tag_id in tags or AmoCRM.stage_booking_tag_id in tags)):
+            if AmoCRM.dev_booking_tag_id in tags or AmoCRM.stage_booking_tag_id in tags:
                 return None
         try:
             return await amocrm_webhook(request, *args, **kwargs)

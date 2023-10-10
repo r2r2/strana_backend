@@ -15,7 +15,7 @@ def cache_storage(method: Callable[..., Coroutine]) -> Callable[..., Coroutine]:
         result: Any = await storage.get(storage_key)
         if result is None:
             result: Any = await method(self, *args, **kwargs)
-            await storage.set(key=storage_key, value=result, expire=3_600)
+            await storage.set(key=storage_key, value=result, expire=3_600*24)
         return result
 
     return decorated

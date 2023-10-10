@@ -173,7 +173,7 @@ class UserPasswordTimeoutError(BaseUserException):
     reason: str = "user_password_timeout"
 
 
-class UserIncorrectPhoneForamtError(BaseUserException):
+class UserIncorrectPhoneFormatError(BaseUserException):
     message: str = "Некорректный номер телефона"
     status: int = HTTPStatus.UNPROCESSABLE_ENTITY
     reason: str = "user_incorrect_phone_format"

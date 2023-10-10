@@ -30,21 +30,15 @@ class AdditionalService(BaseAdditionalServiceDatabaseModel):
     )
     category = fields.ForeignKeyField(
         model_name="models.AdditionalServiceCategory",
-        related_name="service_categories",
+        related_name="service_category",
         null=True,
         on_delete=fields.SET_NULL,
     )
     active: bool = fields.BooleanField(description="Активность", default=True)
-    group_status = fields.ForeignKeyField(
-        model_name="models.AmocrmGroupStatus",
-        related_name="service_group_status",
-        null=True,
-        on_delete=fields.SET_NULL,
-    )
     hint: str = fields.TextField(description="Текст подсказки")
     kind = fields.ForeignKeyField(
         model_name="models.AdditionalServiceType",
-        related_name="service_type",
+        related_name="services",
         null=True,
         on_delete=fields.SET_NULL,
     )

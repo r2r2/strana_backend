@@ -72,4 +72,4 @@ class CheckHistory(models.Model):
         db_table = "users_checks_history"
         verbose_name = "Проверка"
         verbose_name_plural = "6.3. [Исторические данные] История проверок на уникальность"
-        ordering = ["created_at"]
+        ordering = ["-created_at"]

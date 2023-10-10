@@ -4,6 +4,7 @@ from django.contrib.admin.widgets import FilteredSelectMultiple
 from .models import LogSms, LogEmail, EmailTemplate, SmsTemplate, AssignClientTemplate
 from .models.booking_notificaton import BookingNotification
 from .models.booking_fixation_notificaton import BookingFixationNotification
+from .models.event_sms_notification import EventsSmsNotification
 
 
 @admin.register(LogEmail)
@@ -167,6 +168,31 @@ class BookingFixationNotificationAdmin(admin.ModelAdmin):
 
     def formfield_for_manytomany(self, db_field, request, **kwargs):
         if db_field.name == "project":
+            kwargs['widget'] = FilteredSelectMultiple(
+                db_field.verbose_name, is_stacked=False
+            )
+        else:
+            return super().formfield_for_manytomany(db_field, request, **kwargs)
+        form_field = db_field.formfield(**kwargs)
+        msg = "Зажмите 'Ctrl' ('Cmd') или проведите мышкой, с зажатой левой кнопкой, чтобы выбрать несколько элементов."
+        form_field.help_text = msg
+        return form_field
+
+
+@admin.register(EventsSmsNotification)
+class EventsSmsNotificationAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "sms_template",
+        "sms_event_type",
+        "days",
+    )
+    search_fields = ("sms_template__sms_event_slug",)
+    list_filter = ("sms_template", "sms_event_type")
+    filter_horizontal = ("cities",)
+
+    def formfield_for_manytomany(self, db_field, request, **kwargs):
+        if db_field.name == "cities":
             kwargs['widget'] = FilteredSelectMultiple(
                 db_field.verbose_name, is_stacked=False
             )

@@ -38,6 +38,6 @@ class AmoForbiddenError(BaseAmocrmException):
 
 
 class AmoTryAgainLaterError(BaseAmocrmException):
-    message: str = "Попробуйте позже"
+    message: str = "Произошла ошибка. Попробуйте через несколько минут"
     status: int = status.HTTP_400_BAD_REQUEST
     reason: str = "try_again_later"

@@ -40,13 +40,30 @@ from ..repos import Booking, BookingRepo, WebhookRequestRepo
 from ..types import (
     BookingAmoCRM, BookingPropertyRepo, BookingRequest, CustomFieldValue, WebhookLead
 )
-from src.task_management.entities import TaskContextDTO
+from src.projects.constants import ProjectStatus
+from src.task_management.dto import CreateTaskDTO
 
 MEETING_IN_PROGRESS_STATUSES = [
     AmoCRM.TMNStatuses.MEETING_IN_PROGRESS,
     AmoCRM.MSKStatuses.MEETING_IN_PROGRESS,
     AmoCRM.SPBStatuses.MEETING_IN_PROGRESS,
     AmoCRM.EKBStatuses.MEETING_IN_PROGRESS,
+]
+
+ASSIGN_AGENT_STATUSES = [
+    AmoCRM.TMNStatuses.ASSIGN_AGENT,
+    AmoCRM.MSKStatuses.ASSIGN_AGENT,
+    AmoCRM.SPBStatuses.ASSIGN_AGENT,
+    AmoCRM.EKBStatuses.ASSIGN_AGENT,
+    AmoCRM.TestStatuses.ASSIGN_AGENT,
+]
+
+START_STATUSES = [
+    AmoCRM.TMNStatuses.START,
+    AmoCRM.MSKStatuses.START,
+    AmoCRM.SPBStatuses.START,
+    AmoCRM.EKBStatuses.START,
+    AmoCRM.TestStatuses.START,
 ]
 
 
@@ -139,7 +156,7 @@ class AmoCRMWebhookCase(BaseBookingCase, BookingLogMixin):
         webhook_lead: WebhookLead = self._parse_data(data=data)
         print(webhook_lead.lead_id)
         user: User = await self.import_contact_service(webhook_lead=webhook_lead)
-        task_context: Optional[TaskContextDTO] = await self.import_meeting_service(webhook_lead=webhook_lead, user=user)
+        task_context: Optional[CreateTaskDTO] = await self.import_meeting_service(webhook_lead=webhook_lead, user=user)
         if not webhook_lead.custom_fields:
             self.logger.error("Booking webhook fatal error")
             return
@@ -210,7 +227,7 @@ class AmoCRMWebhookCase(BaseBookingCase, BookingLogMixin):
             booking: Booking = await self.booking_creation_service(
                 webhook_lead=webhook_lead,
                 amo_status=booking_creation_status,
-                user_id=user.id if user else None
+                user_id=user.id if user else None,
             )
         elif booking and user:
             booking: Booking = await self.booking_repo.update(model=booking, data=dict(user_id=user.id))
@@ -299,7 +316,7 @@ class AmoCRMWebhookCase(BaseBookingCase, BookingLogMixin):
         self,
         amocrm_substage: str,
         booking: Booking,
-        task_context: TaskContextDTO,
+        task_context: CreateTaskDTO,
     ) -> None:
         """
         Обновление статуса встречи сделки из амо.
@@ -482,13 +499,41 @@ class AmoCRMWebhookCase(BaseBookingCase, BookingLogMixin):
         """
         update booking status
         """
-        if new_status_id in [57272745, 55950761, 51944400, 51489690, 51105825, 41481162,
-                             50284815, 42477951, 40127310, 57272765, 55950773, 50814939,
-                             35065584, 29096401, 21197641, 37592316, 39006300, 33900082,
-                             40127307, 42477867, 57272669, 55950765, 50814933, 36204954,
-                             29096398, 21189712, 46323048, 36829821, 33900079, 39006294] \
-                and booking.is_agent_assigned():
+        skip_statuses = [
+            57272745,
+            55950761,
+            42477951,  # TestStatuses.BOOKING
+            40127310,  # CallCenterStatuses.BOOKING
+            57272765,
+            55950773,
+            50814939,  # EKBStatuses.BOOKING
+            35065584,  # SPBStatuses.BOOKING
+            29096401,  # MSKStatuses.BOOKING
+            21197641,  # TMNStatuses.BOOKING
+            37592316,
+            39006300,
+            33900082,
+            40127307,  # CallCenterStatuses.MAKE_DECISION
+            42477867,  # TestStatuses.MAKE_DECISION
+            57272669,
+            55950765,
+            50814933,  # EKBStatuses.MAKE_DECISION
+            36204954,  # SPBStatuses.MAKE_DECISION
+            29096398,  # MSKStatuses.MAKE_DECISION
+            21189712,  # TMNStatuses.MAKE_DECISION
+            46323048,
+            36829821,
+            33900079,
+            39006294,
+        ]
+
+        if new_status_id in skip_statuses and booking.is_agent_assigned():
             return
+
+        if new_status_id in ASSIGN_AGENT_STATUSES and booking.is_agent_assigned():
+            if booking.amocrm_status_id not in START_STATUSES:
+                return
+
         status: Optional[AmocrmStatus] = await self.statuses_repo.retrieve(
             filters=dict(id=new_status_id)
         )
@@ -510,39 +555,35 @@ class AmoCRMWebhookCase(BaseBookingCase, BookingLogMixin):
             self.amocrm_class.booking_final_discount_field_id)
         final_additional_options = webhook_lead.custom_fields.get(
             self.amocrm_class.booking_final_additional_options_field_id)
-        project_enum: str = webhook_lead.custom_fields.get(self.amocrm_class.project_field_id, CustomFieldValue()).value
-        project: Optional[Project] = await self.project_repo.retrieve(filters=dict(amocrm_enum=project_enum))
+        project_enum: int = webhook_lead.custom_fields.get(self.amocrm_class.project_field_id, CustomFieldValue()).enum
+        project: Optional[Project] = await self.project_repo.retrieve(filters=dict(amocrm_enum=project_enum,
+                                                                                   status=ProjectStatus.CURRENT))
         data: dict = dict(
-            comission=commission,
-            comission_value=commission_value,
+            commission=commission,
+            commission_value=commission_value,
             tags=tags,
             final_discount=final_discount.value if final_discount else None,
             final_additional_options=final_additional_options.value if final_additional_options else None,
             project=project,
         )
-        await self.booking_update(booking, data=data)
+        await self.booking_repo.update(model=booking, data=data)
 
     async def task_created_or_updated(
         self,
         booking: Booking,
         meeting: Optional[Meeting],
-        task_context: TaskContextDTO,
+        task_context: CreateTaskDTO,
     ) -> None:
         """
         Создание или обновление задачи для бронирования
         """
         task_created: bool = False
-        print("task_created_or_updated")
-        print(f'{booking=}')
-        print(f'{meeting=}')
         if meeting:
             # таски для цепочки заданий Встречи
             meeting_task_exists: bool = await check_task_instance_exists(
                 booking=booking,
                 task_status=MeetingsSlug.START.value,
             )
-            print(f'{meeting_task_exists=}')
-            print(f'{task_context.to_dict()=}')
             if meeting_task_exists:
                 await self.update_task_instance(booking=booking, task_context=task_context)
             else:
@@ -552,7 +593,6 @@ class AmoCRMWebhookCase(BaseBookingCase, BookingLogMixin):
         if not task_created:
             # таски для остальных цепочек заданий
             await self.create_task_instance(booking_ids=[booking.id])
-        print("-" * 50)
 
     async def _check_task_instance_exists(self, booking: Booking) -> bool:
         """
@@ -566,14 +606,14 @@ class AmoCRMWebhookCase(BaseBookingCase, BookingLogMixin):
     async def create_task_instance(
         self,
         booking_ids: list[int],
-        task_context: Optional[TaskContextDTO] = None,
+        task_context: Optional[CreateTaskDTO] = None,
     ) -> None:
         """
         Создание задачи для бронирования
         """
         await self.create_task_instance_service(booking_ids=booking_ids, task_context=task_context)
 
-    async def update_task_instance(self, booking: Booking, task_context: TaskContextDTO) -> None:
+    async def update_task_instance(self, booking: Booking, task_context: CreateTaskDTO) -> None:
         """
         Обновление задачи для бронирования
         """

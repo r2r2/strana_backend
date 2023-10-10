@@ -5,17 +5,17 @@ from typing import Any, List, Optional, Tuple, Type, Union
 from common.amocrm import AmoCRM
 from common.amocrm.constants import AmoContactQueryWith, AmoLeadQueryWith
 from common.amocrm.exceptions import AmoContactIncorrectPhoneFormatError
-from common.amocrm.types import AmoContact, AmoCustomField, AmoLead
+from common.amocrm.types import AmoContact, AmoCustomField
 from common.utils import parse_phone
 from common.utils import partition_list
-from pytz import timezone
+from src.users.constants import UserType
 from src.booking.exceptions import BookingRequestValidationError
 from src.booking.services import ImportBookingsService
 
 from ..entities import BaseUserService
 from ..exceptions import UserAmoCreateError
 from ..loggers.wrappers import user_changes_logger
-from ..repos import User, UserRepo
+from ..repos import User, UserRepo, UserRoleRepo
 from ..types import UserORM
 
 
@@ -30,6 +30,7 @@ class CreateContactService(BaseUserService):
     def __init__(
         self,
         user_repo: Type[UserRepo],
+        user_role_repo: Type[UserRoleRepo],
         amocrm_class: Type[AmoCRM],
         amocrm_config: dict[Any, Any],
         orm_class: Optional[Type[UserORM]] = None,
@@ -37,6 +38,7 @@ class CreateContactService(BaseUserService):
         orm_config: Optional[dict[str, Any]] = None,
     ) -> None:
         self.user_repo: UserRepo = user_repo()
+        self.user_role_repo: UserRoleRepo = user_role_repo()
         self.user_update = user_changes_logger(
             self.user_repo.update, self, content="Обновление amocrm_id пользователя"
         )
@@ -104,7 +106,7 @@ class CreateContactService(BaseUserService):
         Контакт единственный в AmoCRM
         """
         amocrm_id: int = contact.id
-        amo_data = self.fetch_amocrm_data(contact)
+        amo_data = await self.fetch_amocrm_data(contact)
         return amocrm_id, amo_data
 
     async def _some_contacts_case(self, amocrm: AmoCRM, contacts: list[AmoContact]) -> Tuple[int, dict]:
@@ -168,7 +170,7 @@ class CreateContactService(BaseUserService):
                         == max(contact["created"] for _, contact in main_contacts.items())
                     }.keys()
                 )[0]
-        amo_data = self.fetch_amocrm_data(contacts[0])
+        amo_data = await self.fetch_amocrm_data(contacts[0])
         return amocrm_id, amo_data
 
     async def _validate_contact(self, amo_user_data: dict):
@@ -181,7 +183,7 @@ class CreateContactService(BaseUserService):
         if len(errors) > 0:
             raise BookingRequestValidationError(message=f"Незаполнены поля: {' '.join(errors)}")
 
-    def fetch_amocrm_data(self, contact: AmoContact, with_personal: bool = True) -> dict:
+    async def fetch_amocrm_data(self, contact: AmoContact, with_personal: bool = True) -> dict:
         """
         Fetch_amocrm_data
         """
@@ -194,6 +196,7 @@ class CreateContactService(BaseUserService):
             surname=surname,
             patronymic=patronymic,
             tags=tags,
+            role=await self.user_role_repo.retrieve(filters=dict(slug=UserType.CLIENT)),
         )
         if with_personal:
             personal_data = dict(
@@ -221,7 +224,7 @@ class CreateContactService(BaseUserService):
         elif len(name_components) == 3:
             surname, name, patronymic = name_components
         else:
-            surname, name, patronymic, *extra_components = name_components
+            surname, name, patronymic, *_ = name_components
         return surname, name, patronymic
 
     def _get_custom_fields(

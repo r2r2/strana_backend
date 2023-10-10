@@ -1,7 +1,8 @@
-from typing import Any, Optional
+from typing import Optional
 
 from src.booking.exceptions import BookingNotFoundError
 from src.booking.repos import BookingRepo, Booking
+from src.task_management.dto import UpdateTaskDTO
 from src.task_management.entities import BaseTaskCase
 from src.task_management.services import UpdateTaskInstanceStatusService
 
@@ -28,8 +29,11 @@ class AmoCRMWebhookUpdateTaskInstanceCase(BaseTaskCase):
         if not booking:
             raise BookingNotFoundError
 
+        task_context: UpdateTaskDTO = UpdateTaskDTO()
+        task_context.comment = comment
+
         await self.update_task_instance_status_service(
             booking_id=booking.id,
             status_slug=slug,  # "И в вебхуке будем двигать на тот слаг статуса, какой они присылают"© Игорь Рыбаков
-            comment=comment,
+            task_context=task_context,
         )

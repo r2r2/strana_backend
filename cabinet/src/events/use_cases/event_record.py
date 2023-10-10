@@ -8,14 +8,25 @@ from fastapi import HTTPException
 from pytz import UTC
 from src.agents.repos import AgentRepo, User
 from src.notifications.services import GetEmailTemplateService
+from src.notifications.repos import EventsSmsNotificationType
+
 from src.users.constants import UserType
 
+from ..services import GetEventNotificationTaskService
 from ..entities import BaseEventCase
-from ..exceptions import (AgentAlreadySignupEventError,
-                          EventHasAlreadyEndedError, EventHasNoPlacesError,
-                          EventNotFoundError)
-from ..repos import (Event, EventParticipantRepo, EventParticipantStatus,
-                     EventRepo, EventType)
+from ..exceptions import (
+    AgentAlreadySignupEventError,
+    EventHasAlreadyEndedError,
+    EventHasNoPlacesError,
+    EventNotFoundError,
+)
+from ..repos import (
+    Event,
+    EventParticipantRepo,
+    EventParticipantStatus,
+    EventRepo,
+    EventType,
+)
 
 
 class EventAgentRecordCase(BaseEventCase):
@@ -32,12 +43,14 @@ class EventAgentRecordCase(BaseEventCase):
         agent_repo: Type[AgentRepo],
         email_class: Type[EmailService],
         get_email_template_service: GetEmailTemplateService,
+        get_event_notification_task_service: GetEventNotificationTaskService,
     ) -> None:
         self.event_repo: EventRepo = event_repo()
         self.event_participant_repo: EventParticipantRepo = event_participant_repo()
         self.agent_repo: AgentRepo = agent_repo()
         self.email_class: Type[EmailService] = email_class
         self.get_email_template_service: GetEmailTemplateService = get_email_template_service
+        self.get_event_notification_task_service: GetEventNotificationTaskService = get_event_notification_task_service
 
     async def __call__(
         self,
@@ -131,6 +144,17 @@ class EventAgentRecordCase(BaseEventCase):
             recipients=[user.email],
             agent=user,
             event=event,
+        )
+
+        await self.get_event_notification_task_service(
+            event=event,
+            user=user,
+            sms_event_type=EventsSmsNotificationType.BEFORE,
+        )
+        await self.get_event_notification_task_service(
+            event=event,
+            user=user,
+            sms_event_type=EventsSmsNotificationType.AFTER,
         )
 
         return event

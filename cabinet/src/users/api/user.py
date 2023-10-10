@@ -1,47 +1,39 @@
 from http import HTTPStatus
 from typing import Any, Callable, Coroutine, Optional
 
-from common import (amocrm, dependencies, email, messages, paginations,
-                    requests, security, utils)
+from common import amocrm, dependencies, email, messages, paginations, requests, security, utils
 from common.amocrm import repos as amocrm_repos
-from common.backend import repos as backend_repos
-from config import amocrm_config, backend_config, email_recipients_config, tortoise_config
-from fastapi import (APIRouter, BackgroundTasks, Body, Depends, Header, Path,
-                     Query, Request, Response)
+from config import amocrm_config, backend_config, email_recipients_config, session_config, site_config, tortoise_config
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, Header, Path, Query, Request, Response
 from fastapi.responses import RedirectResponse
-from common.settings.repos import BookingSettingsRepo
-from config.feature_flags import FeatureFlags
 from src.admins import repos as admins_repos
 from src.agencies import repos as agencies_repos
-from src.amocrm import repos as src_amocrm_repos
 from src.agents import repos as agents_repos
+from src.amocrm import repos as src_amocrm_repos
 from src.booking import repos as booking_repos
 from src.booking import services as booking_services
 from src.booking import tasks as bookings_tasks
 from src.booking.models import ResponseBookingRetrieveModel
 from src.buildings import repos as buildings_repos
 from src.cities import repos as cities_repos
+from src.dashboard import repos as dashboard_repos
+from src.dashboard import use_cases as dashboard_use_cases
 from src.floors import repos as floors_repos
+from src.notifications import repos as notifications_repos
+from src.notifications import services as notification_services
 from src.projects import repos as projects_repos
 from src.properties import repos as properties_repos
 from src.properties import services as property_services
-from src.task_management import repos as task_management_repos
-from src.task_management import services as task_management_services
+from src.represes import repos as represes_repos
+from src.task_management.factories import CreateTaskInstanceServiceFactory
+from src.task_management.tasks import update_task_instance_status_task
 from src.users import constants as users_constants
 from src.users import filters, models
 from src.users import repos as users_repos
 from src.users import services as user_services
 from src.users import tasks as users_tasks
 from src.users import use_cases
-from src.task_management.tasks import update_task_instance_status_task
-from src.represes import repos as represes_repos
 from tortoise import Tortoise
-from config import session_config, site_config
-from src.dashboard import repos as dashboard_repos
-from src.dashboard import use_cases as dashboard_use_cases
-from src.notifications import services as notification_services
-from src.notifications import repos as notifications_repos
-
 
 router = APIRouter(prefix="/users", tags=["Users"])
 router_v2 = APIRouter(prefix="/v2/users", tags=["Users", "v2"])
@@ -85,20 +77,8 @@ async def validate_code_view(
     """
     Валидация кода
     """
-    import_property_service: property_services.ImportPropertyService = property_services.ImportPropertyService(
-        floor_repo=floors_repos.FloorRepo,
-        global_id_decoder=utils.from_global_id,
-        global_id_encoder=utils.to_global_id,
-        project_repo=projects_repos.ProjectRepo,
-        building_repo=buildings_repos.BuildingRepo,
-        property_repo=properties_repos.PropertyRepo,
-        feature_repo=properties_repos.FeatureRepo,
-        building_booking_type_repo=buildings_repos.BuildingBookingTypeRepo,
-        backend_building_booking_type_repo=backend_repos.BackendBuildingBookingTypesRepo,
-        backend_properties_repo=backend_repos.BackendPropertiesRepo,
-        backend_floors_repo=backend_repos.BackendFloorsRepo,
-        backend_sections_repo=backend_repos.BackendSectionsRepo,
-    )
+    import_property_service: property_services.ImportPropertyService = \
+        property_services.ImportPropertyServiceFactory.create()
 
     resources: dict[str, Any] = dict(
         amocrm_class=amocrm.AmoCRM,
@@ -139,6 +119,7 @@ async def validate_code_view(
     resources: dict[str, Any] = dict(
         amocrm_class=amocrm.AmoCRM,
         user_repo=users_repos.UserRepo,
+        user_role_repo=users_repos.UserRoleRepo,
         import_bookings_service=import_bookings_service,
         amocrm_config=amocrm_config,
     )
@@ -343,21 +324,8 @@ async def client_interest_view(
     """
     Добавление предпочтений пользователем
     """
-    import_property_service: property_services.ImportPropertyService = property_services.ImportPropertyService(
-        floor_repo=floors_repos.FloorRepo,
-        global_id_decoder=utils.from_global_id,
-        global_id_encoder=utils.to_global_id,
-        project_repo=projects_repos.ProjectRepo,
-        building_repo=buildings_repos.BuildingRepo,
-        feature_repo=properties_repos.FeatureRepo,
-        property_repo=properties_repos.PropertyRepo,
-        building_booking_type_repo=buildings_repos.BuildingBookingTypeRepo,
-        backend_building_booking_type_repo=backend_repos.BackendBuildingBookingTypesRepo,
-        backend_properties_repo=backend_repos.BackendPropertiesRepo,
-        backend_floors_repo=backend_repos.BackendFloorsRepo,
-        backend_sections_repo=backend_repos.BackendSectionsRepo,
-        backend_special_offers_repo=backend_repos.BackendSpecialOfferRepo,
-    )
+    import_property_service: property_services.ImportPropertyService = \
+        property_services.ImportPropertyServiceFactory.create()
     resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
         property_repo=properties_repos.PropertyRepo,
@@ -655,14 +623,17 @@ async def represes_users_check_view(
         )
     send_check_admins_email: user_services.SendCheckAdminsEmailService = \
         user_services.SendCheckAdminsEmailService(
+            amocrm_class=amocrm.AmoCRM,
             admin_repo=admins_repos.AdminRepo,
             booking_repo=booking_repos.BookingRepo,
             email_class=email.EmailService,
             get_email_template_service=get_email_template_service,
+            city_repo=cities_repos.CityRepo,
         )
 
     resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
+        user_role_repo=users_repos.UserRoleRepo,
         check_repo=users_repos.CheckRepo,
         check_unique_service=check_unique_service,
         history_check_repo=users_repos.CheckHistoryRepo,
@@ -708,14 +679,17 @@ async def represes_users_check_view_v2(
         )
     send_check_admins_email: user_services.SendCheckAdminsEmailService = \
         user_services.SendCheckAdminsEmailService(
+            amocrm_class=amocrm.AmoCRM,
             admin_repo=admins_repos.AdminRepo,
             booking_repo=booking_repos.BookingRepo,
             email_class=email.EmailService,
             get_email_template_service=get_email_template_service,
+            city_repo=cities_repos.CityRepo,
         )
 
     resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
+        user_role_repo=users_repos.UserRoleRepo,
         check_repo=users_repos.CheckRepo,
         check_unique_service=check_unique_service,
         history_check_repo=users_repos.CheckHistoryRepo,
@@ -925,14 +899,17 @@ async def agents_users_check_view(
         )
     send_check_admins_email: user_services.SendCheckAdminsEmailService = \
         user_services.SendCheckAdminsEmailService(
+            amocrm_class=amocrm.AmoCRM,
             admin_repo=admins_repos.AdminRepo,
             booking_repo=booking_repos.BookingRepo,
             email_class=email.EmailService,
             get_email_template_service=get_email_template_service,
+            city_repo=cities_repos.CityRepo,
         )
 
     resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
+        user_role_repo=users_repos.UserRoleRepo,
         check_repo=users_repos.CheckRepo,
         check_unique_service=check_unique_service,
         history_check_repo=users_repos.CheckHistoryRepo,
@@ -975,14 +952,17 @@ async def agents_users_check_view_v2(
         )
     send_check_admins_email: user_services.SendCheckAdminsEmailService = \
         user_services.SendCheckAdminsEmailService(
+            amocrm_class=amocrm.AmoCRM,
             admin_repo=admins_repos.AdminRepo,
             booking_repo=booking_repos.BookingRepo,
             email_class=email.EmailService,
             get_email_template_service=get_email_template_service,
+            city_repo=cities_repos.CityRepo,
         )
 
     resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
+        user_role_repo=users_repos.UserRoleRepo,
         check_repo=users_repos.CheckRepo,
         check_unique_service=check_unique_service,
         history_check_repo=users_repos.CheckHistoryRepo,
@@ -1013,10 +993,12 @@ async def agents_users_check_dispute_view(
         )
     send_check_admins_email: user_services.SendCheckAdminsEmailService = \
         user_services.SendCheckAdminsEmailService(
+            amocrm_class=amocrm.AmoCRM,
             admin_repo=admins_repos.AdminRepo,
             booking_repo=booking_repos.BookingRepo,
             email_class=email.EmailService,
             get_email_template_service=get_email_template_service,
+            city_repo=cities_repos.CityRepo,
         )
 
     resources: dict = dict(
@@ -1046,17 +1028,18 @@ async def repres_users_check_dispute_view(
     """
     Оспаривание результатов проверки представителем
     """
-
     get_email_template_service: notification_services.GetEmailTemplateService = \
         notification_services.GetEmailTemplateService(
             email_template_repo=notifications_repos.EmailTemplateRepo,
         )
     send_check_admins_email: user_services.SendCheckAdminsEmailService = \
         user_services.SendCheckAdminsEmailService(
+            amocrm_class=amocrm.AmoCRM,
             admin_repo=admins_repos.AdminRepo,
             booking_repo=booking_repos.BookingRepo,
             email_class=email.EmailService,
             get_email_template_service=get_email_template_service,
+            city_repo=cities_repos.CityRepo,
         )
 
     resources: dict = dict(
@@ -1160,17 +1143,7 @@ async def agent_booking_current_client(
     request: Request = Request,
 ):
     """Сделка действующего клиента за агентом"""
-    resources: dict[str, Any] = dict(
-        booking_repo=booking_repos.BookingRepo,
-        task_instance_repo=task_management_repos.TaskInstanceRepo,
-        task_chain_repo=task_management_repos.TaskChainRepo,
-        task_status_repo=task_management_repos.TaskStatusRepo,
-        booking_settings_repo=BookingSettingsRepo,
-        update_task_instance_status_task=update_task_instance_status_task,
-    )
-    create_task_instance_service = task_management_services.CreateTaskInstanceService(
-        **resources
-    )
+    create_task_instance_service = CreateTaskInstanceServiceFactory.create()
 
     resources: dict[str, Any] = dict(
         amocrm_class=amocrm.AmoCRM,
@@ -1212,17 +1185,7 @@ async def repres_booking_current_client(
     request: Request = Request,
 ):
     """Сделка действующего клиента за представителем агентства"""
-    resources: dict[str, Any] = dict(
-        booking_repo=booking_repos.BookingRepo,
-        task_instance_repo=task_management_repos.TaskInstanceRepo,
-        task_chain_repo=task_management_repos.TaskChainRepo,
-        task_status_repo=task_management_repos.TaskStatusRepo,
-        booking_settings_repo=BookingSettingsRepo,
-        update_task_instance_status_task=update_task_instance_status_task,
-    )
-    create_task_instance_service = task_management_services.CreateTaskInstanceService(
-        **resources
-    )
+    create_task_instance_service = CreateTaskInstanceServiceFactory.create()
 
     resources: dict[str, Any] = dict(
         amocrm_class=amocrm.AmoCRM,
@@ -1263,17 +1226,7 @@ async def assign_client_to_agent(
     request: Request = Request,
 ):
     """Закрепить клиента за агентом"""
-    resources: dict[str, Any] = dict(
-        booking_repo=booking_repos.BookingRepo,
-        task_instance_repo=task_management_repos.TaskInstanceRepo,
-        task_chain_repo=task_management_repos.TaskChainRepo,
-        task_status_repo=task_management_repos.TaskStatusRepo,
-        booking_settings_repo=BookingSettingsRepo,
-        update_task_instance_status_task=update_task_instance_status_task,
-    )
-    create_task_instance_service = task_management_services.CreateTaskInstanceService(
-        **resources
-    )
+    create_task_instance_service = CreateTaskInstanceServiceFactory.create()
     get_email_template_service: notification_services.GetEmailTemplateService = \
         notification_services.GetEmailTemplateService(
             email_template_repo=notifications_repos.EmailTemplateRepo,
@@ -1287,6 +1240,8 @@ async def assign_client_to_agent(
         amo_statuses_repo=amocrm_repos.AmoStatusesRepo,
         template_repo=notifications_repos.AssignClientTemplateRepo,
         booking_fixing_condition_repo=booking_repos.BookingFixingConditionsMatrixRepo,
+        consultation_type_repo=users_repos.ConsultationTypeRepo,
+        amocrm_log_repo=users_repos.AmoCrmCheckLog,
         amocrm_config=amocrm_config,
         email_class=email.EmailService,
         amocrm_class=amocrm.AmoCRM,
@@ -1316,17 +1271,7 @@ async def assign_client_to_repres(
     request: Request = Request,
 ):
     """Закрепить клиента за представителем агентства"""
-    resources: dict[str, Any] = dict(
-        booking_repo=booking_repos.BookingRepo,
-        task_instance_repo=task_management_repos.TaskInstanceRepo,
-        task_chain_repo=task_management_repos.TaskChainRepo,
-        task_status_repo=task_management_repos.TaskStatusRepo,
-        booking_settings_repo=BookingSettingsRepo,
-        update_task_instance_status_task=update_task_instance_status_task,
-    )
-    create_task_instance_service = task_management_services.CreateTaskInstanceService(
-        **resources
-    )
+    create_task_instance_service = CreateTaskInstanceServiceFactory.create()
     get_email_template_service: notification_services.GetEmailTemplateService = \
         notification_services.GetEmailTemplateService(
             email_template_repo=notifications_repos.EmailTemplateRepo,
@@ -1340,6 +1285,7 @@ async def assign_client_to_repres(
         amo_statuses_repo=amocrm_repos.AmoStatusesRepo,
         template_repo=notifications_repos.AssignClientTemplateRepo,
         booking_fixing_condition_repo=booking_repos.BookingFixingConditionsMatrixRepo,
+        consultation_type_repo=users_repos.ConsultationTypeRepo,
         amocrm_config=amocrm_config,
         email_class=email.EmailService,
         amocrm_class=amocrm.AmoCRM,
@@ -1547,11 +1493,19 @@ async def represes_users_rebound_view(
         agent_repo=agents_repos.AgentRepo,
     )
     change_agent_service: user_services.ChangeAgentService = user_services.ChangeAgentService(**resources)
+
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notifications_repos.EmailTemplateRepo,
+        )
+
     resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
         agent_repo=agents_repos.AgentRepo,
         booking_repo=booking_repos.BookingRepo,
         change_agent_service=change_agent_service,
+        get_email_template_service=get_email_template_service,
+        email_class=email.EmailService,
     )
     represes_users_rebound_case: use_cases.RepresesUsersReboundCase = (
         use_cases.RepresesUsersReboundCase(**resources)
@@ -1693,3 +1647,18 @@ async def create_ticket(
     )
     create_ticket_case: dashboard_use_cases.CreateTicketCase = dashboard_use_cases.CreateTicketCase(**resources)
     return await create_ticket_case(payload=payload)
+
+@router.get(
+    "/consultation_type",
+    status_code=HTTPStatus.OK,
+    response_model=list[models.ConsultationType],
+)
+async def get_consultation_type():
+    """
+    Создание заявки.
+    """
+    resources: dict[str, Any] = dict(
+        consultation_type_repo=users_repos.ConsultationTypeRepo,
+    )
+    get_consultation_type_case: use_cases.GetConsultationType = use_cases.GetConsultationType(**resources)
+    return await get_consultation_type_case()

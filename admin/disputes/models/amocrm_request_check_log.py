@@ -9,11 +9,11 @@ class AmoCrmCheckLog(models.Model):
                                       verbose_name="запрос и  ответ АМО")
     route: str = models.CharField(verbose_name="Статус ответа", max_length=50)
     status: int = models.IntegerField(verbose_name="Статус ответа")
-    query: str = models.CharField(verbose_name="Квери запроса", max_length=100)
+    request_data: str = models.CharField(verbose_name="Отправленные данные", max_length=100, null=True, blank=True)
     data: str = models.TextField(verbose_name="Тело ответа(Пустое если статус ответа 200)", null=True, blank=True)
 
     def __str__(self):
-        return f"{self.route} ? {self.query}: {self.status}"
+        return f"{self.route} ? {self.request_data}: {self.status}"
 
     class Meta:
         db_table = "users_amocrm_checks_history_log"

@@ -1,6 +1,5 @@
-from datetime import datetime
-from typing import Any, Optional
-from pydantic import BaseModel
+from typing import Any
+from pydantic import BaseModel, Extra
 from tortoise import Model
 
 from common.models import TimeBasedMixin
@@ -45,7 +44,7 @@ class BaseTaskService:
     Базовый сервис задач
     """
 
-    async def __call__(self, *args: list[Any], **kwargs: dict[str, Any]) -> Any:
+    async def __call__(self, *args: Any, **kwargs: Any) -> Any:
         raise NotImplementedError
 
 
@@ -59,24 +58,11 @@ class BaseTaskException(Exception):
     reason: str
 
 
-class TaskContextDTO:
-    __slots__ = ('status_slug', 'meeting_new_date')
-
-    class __TaskContextDTO(BaseModel):
-        status_slug: Optional[str]
-        meeting_new_date: Optional[datetime]
-
-    def __init__(self):
-        self.status_slug: Optional[str] = None
-        self.meeting_new_date: Optional[datetime] = None
+class BaseTaskContextDTO(BaseModel, extra=Extra.forbid, validate_assignment=True):
+    """
+    Базовая модель контекста задачи
+    """
 
     def update(self, **kwargs) -> None:
         for key, value in kwargs.items():
             setattr(self, key, value)
-
-    def __setattr__(self, key, value):
-        self.__TaskContextDTO(**{key: value})
-        super().__setattr__(key, value)
-
-    def to_dict(self) -> dict[str, Any]:
-        return {attr: getattr(self, attr) for attr in self.__slots__}

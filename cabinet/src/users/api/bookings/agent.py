@@ -7,6 +7,7 @@ from fastapi import Depends, Path, Query
 from src.agents import repos as agents_repos
 from src.amocrm.repos import AmocrmGroupStatusRepo
 from src.booking import repos as booking_repos
+from src.booking.repos import BookingTagRepo
 from src.users import constants as users_constants
 from src.users import filters, models
 from src.users import repos as users_repos
@@ -119,6 +120,8 @@ async def agents_booking_retrieve_view(
         agent_repo=agents_repos.AgentRepo,
         user_pinning_repo=users_repos.UserPinningStatusRepo,
         booking_settings_repo=BookingSettingsRepo,
+        booking_tag_repo=BookingTagRepo,
     )
-    booking_retrieve: use_cases.UserBookingRetrieveCase = use_cases.UserBookingRetrieveCase(**resources)
+    booking_retrieve: use_cases.UserBookingRetrieveCase = \
+        use_cases.UserBookingRetrieveCase(**resources)
     return await booking_retrieve(booking_id=booking_id, agent_id=agent_id)

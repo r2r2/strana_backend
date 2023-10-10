@@ -1,17 +1,8 @@
-from typing import Type, Optional
+from typing import Optional, Type
 
 from fastapi import Body
-
-from common import utils
-from common.backend.repos import BackendBuildingBookingTypesRepo
-from src.buildings.repos import BuildingRepo, BuildingBookingTypeRepo
-from src.floors.repos import FloorRepo
-from src.projects.repos import ProjectRepo
 from src.properties.repos import PropertyRepo
-from src.cities.repos import CityRepo
-from src.properties import repos as properties_repos
-from src.properties.services import ImportPropertyService
-from common.backend import repos as backend_repos
+from src.properties.services import ImportPropertyService, ImportPropertyServiceFactory
 
 
 class PropertiesFromGlobalId:
@@ -24,22 +15,7 @@ class PropertiesFromGlobalId:
         self.properties_repo = properties_repo()
         if not import_property_service:
             # should be loaded from di-container but now it`s creating an instance if dep is not provided
-            import_property_service = ImportPropertyService(
-                floor_repo=FloorRepo,
-                global_id_decoder=utils.from_global_id,
-                global_id_encoder=utils.to_global_id,
-                project_repo=ProjectRepo,
-                building_repo=BuildingRepo,
-                property_repo=PropertyRepo,
-                city_repo=CityRepo,
-                building_booking_type_repo=BuildingBookingTypeRepo,
-                backend_building_booking_type_repo=BackendBuildingBookingTypesRepo,
-                backend_properties_repo=backend_repos.BackendPropertiesRepo,
-                backend_floors_repo=backend_repos.BackendFloorsRepo,
-                backend_sections_repo=backend_repos.BackendSectionsRepo,
-                backend_special_offers_repo=backend_repos.BackendSpecialOfferRepo,
-                feature_repo=properties_repos.FeatureRepo,
-            )
+            import_property_service = ImportPropertyServiceFactory.create()
         self.import_property_service: ImportPropertyService = import_property_service
 
     async def __call__(

@@ -3,6 +3,7 @@ from typing import Any
 
 from common import email, messages
 from common.settings.repos import BookingSettingsRepo
+from common.celery.utils import redis_lock
 from config import celery, tortoise_config, logs_config
 from tortoise import Tortoise
 from common.email.repos import LogEmailRepo
@@ -24,6 +25,11 @@ def periodic_notification_logs_clean() -> None:
     """
     Чистка логов отправленных писем и смс старше 14 дней.
     """
+    lock_id = "periodic_cache_periodic_notification_logs_clean"
+    can_launch = redis_lock(lock_id)
+    if not can_launch:
+        return
+
     days: int = logs_config.get("logs_notification_lifetime")
     resources: dict[str, Any] = dict(
         log_email_repo=LogEmailRepo,

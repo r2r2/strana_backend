@@ -54,7 +54,7 @@ class CabinetUser(models.Model):
 
     email = models.CharField(unique=True, max_length=100, blank=True, null=True)
     phone = models.CharField(
-        unique=True, max_length=20, blank=True, null=True, help_text="Должен быть в формате “'+7XXXXXXXXXX"
+        unique=False, max_length=20, blank=True, null=True, help_text="Должен быть в формате “'+7XXXXXXXXXX"
     )
     username = models.CharField(unique=True, max_length=100, blank=True, null=True)
     password = models.CharField(
@@ -189,6 +189,54 @@ class CabinetUser(models.Model):
         related_name="user_cities",
         help_text="Город связанного с пользователем агентства",
     )
+
+    loyalty_point_amount = models.IntegerField(
+        verbose_name="Остаток баллов по программе лояльности",
+        help_text="Только для информации, редактируется через микросервис лояльности (только агенты и представители)",
+        null=True,
+        blank=True,
+    )
+    loyalty_status_name = models.CharField(
+        verbose_name="Статус лояльности",
+        max_length=100,
+        help_text="Только для информации, редактируется через микросервис лояльности (только агенты и представители)",
+        null=True,
+        blank=True,
+    )
+    loyalty_status_icon = models.FileField(
+        verbose_name="Изображение статуса лояльности",
+        max_length=300,
+        upload_to="u/a/f",
+        null=True,
+        blank=True,
+    )
+    loyalty_status_level_icon = models.FileField(
+        verbose_name="Цветное изображение статуса лояльности",
+        max_length=300,
+        upload_to="u/a/f",
+        null=True,
+        blank=True,
+    )
+    loyalty_status_substrate_card = models.FileField(
+        verbose_name="Подложка (карточка участника) статуса лояльности",
+        max_length=300,
+        upload_to="u/a/f",
+        null=True,
+        blank=True,
+    )
+    loyalty_status_icon_profile = models.FileField(
+        verbose_name="Подложка (профиль) статуса лояльности",
+        max_length=300,
+        upload_to="u/a/f",
+        null=True,
+        blank=True,
+    )
+    date_assignment_loyalty_status = models.DateTimeField(
+        verbose_name="Дата присвоения статуса лояльности",
+        blank=True,
+        null=True,
+    )
+
     objects = CabinetUserQuerySet.as_manager()
 
     def __str__(self) -> str:

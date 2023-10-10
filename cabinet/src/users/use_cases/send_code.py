@@ -30,7 +30,7 @@ class SendCodeCase(BaseUserCase):
     """
 
     sms_event_slug = "user_send_code"
-    client_role_slug = "client"
+    client_role_slug = UserType.CLIENT
     ORIGIN: str = OriginType.SMS
 
     def __init__(
@@ -73,7 +73,7 @@ class SendCodeCase(BaseUserCase):
             password=self.hasher.hash(self.password_generator()),
             origin=self.ORIGIN,
         )
-        user = await self.user_update_or_create(filters=filters, data=data)
+        user = await self.user_repo.update_or_create(filters=filters, data=data)
         if user.amocrm_id:
             self.background_tasks.add_task(self.update_client_data, user.id)
 

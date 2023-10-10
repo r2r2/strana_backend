@@ -1,9 +1,8 @@
 from src.task_management.constants import OnlineBookingSlug
 from src.amocrm.repos import AmocrmGroupStatus, AmocrmGroupStatusRepo
-from src.task_management.repos import TaskInstance, TaskStatus
+from src.task_management.repos import TaskInstance
 from src.task_management.utils import (
     is_task_in_compare_task_chain,
-    get_interesting_task_chain,
     TaskDataBuilder,
 )
 from ..entities import BaseBookingCase
@@ -70,14 +69,11 @@ class BookingListCase(BaseBookingCase):
             ],
         )
         for booking in bookings:
-            booking.booking_tags = await self._get_booking_tags(booking)
             booking.tasks = await self._get_booking_tasks(booking=booking)
-            booking.task_statuses = await self._get_task_chain_statuses(
-                status=OnlineBookingSlug.ACCEPT_OFFER.value
-            )
 
             if booking.amocrm_status:
                 await self._set_group_statuses(booking=booking)
+            booking.booking_tags = await self._get_booking_tags(booking)
 
         data: dict = dict(result=bookings, count=len(bookings))
 
@@ -116,8 +112,7 @@ class BookingListCase(BaseBookingCase):
         tasks = []
         # берем все таски, которые видны в текущем статусе букинга
         task_instances: list[TaskInstance] = [
-            task
-            for task in booking.task_instances
+            task for task in booking.task_instances
             if booking.amocrm_status in task.status.tasks_chain.task_visibility
         ]
         for task in task_instances:
@@ -129,13 +124,6 @@ class BookingListCase(BaseBookingCase):
                 ).build()
                 break
         return tasks
-
-    async def _get_task_chain_statuses(self, status: str) -> list[TaskStatus] | None:
-        task_chain = await get_interesting_task_chain(status=status)
-        statuses: list[TaskStatus] = sorted(
-            task_chain.task_statuses, key=lambda x: x.priority
-        )
-        return statuses
 
     async def _set_group_statuses(self, booking: Booking) -> None:
         group_statuses: list[

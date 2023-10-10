@@ -1,4 +1,4 @@
-from typing import Any, Type
+from typing import Type
 
 from src.main_page.entities import BaseMainPageCase
 from src.main_page.exceptions import ManagerNotFoundError
@@ -14,12 +14,8 @@ class MainPageManagerRetrieveCase(BaseMainPageCase):
         self.main_page_manager_repo: MainPageManagerRepo = main_page_manager_repo()
 
     async def __call__(self) -> Manager:
-        main_page_managers: Manager = await self.main_page_manager_repo.list(related_fields=["manager"], end=1)
-        if not main_page_managers:
+        main_page_manager: Manager = await self.main_page_manager_repo.list().first()
+        if not main_page_manager:
             raise ManagerNotFoundError
-
-        main_page_manager = main_page_managers[0].manager
-        main_page_manager.position = main_page_managers[0].position
-        main_page_manager.photo = main_page_managers[0].photo
 
         return main_page_manager

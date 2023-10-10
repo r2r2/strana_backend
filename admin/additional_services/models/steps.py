@@ -17,6 +17,7 @@ class AdditionalServiceConditionStep(models.Model):
         null=True,
         verbose_name="Как получить услуги",
     )
+    priority: int = models.IntegerField(default=0, verbose_name="Сортировка")
 
     def __str__(self):
         return self.description
@@ -26,3 +27,4 @@ class AdditionalServiceConditionStep(models.Model):
         db_table = "additional_services_condition_step"
         verbose_name = "шаг"
         verbose_name_plural = "17.5. [Справочник] Шаг получения сделки"
+        ordering = ["priority"]

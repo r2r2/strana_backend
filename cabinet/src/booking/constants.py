@@ -1,4 +1,4 @@
-from enum import IntEnum
+from enum import IntEnum, Enum
 from typing import Any, NamedTuple, Optional
 
 from common import mixins
@@ -136,6 +136,14 @@ class PaymentStatuses(mixins.Choices):
     FAILED: int = 3, "Неуспешно"
     REFUNDED: int = 4, "Возмещено"
     DECLINED: int = 6, "Отклонено"
+
+
+class BookingPayKind(str, Enum):
+    """
+    Состояние процесса оплаты.
+    """
+    SUCCESS: str = "success"
+    FAIL: str = "fail"
 
 
 class PaymentView(mixins.Choices):

@@ -1,10 +1,9 @@
 from datetime import datetime
-from typing import Optional
 
 from src.meetings.constants import MeetingTopicType, MeetingType, MeetingPropertyType
 from src.meetings.entities import BaseMeetingModel
-from src.projects.models.projects_list import ProjectListModel
 from src.meetings.models import BookingMeetingModel
+from src.projects.models.projects_list import ProjectListModel
 
 
 class RequestCreateMeetingModel(BaseMeetingModel):
@@ -12,12 +11,12 @@ class RequestCreateMeetingModel(BaseMeetingModel):
     Модель запроса на создание встречи
     """
     city_id: int
-    project_id: Optional[int]
+    project_id: int | None
     type: str
     topic: str
     date: datetime
     property_type: str
-    booking_id: Optional[int]
+    booking_id: int | None
 
 
 class _ResponseCity(BaseMeetingModel):
@@ -34,14 +33,14 @@ class ResponseCreatedMeetingModel(BaseMeetingModel):
     """
     id: int
     city: _ResponseCity
-    project: Optional[ProjectListModel]
-    booking: Optional[BookingMeetingModel]
+    project: ProjectListModel | None
+    booking: BookingMeetingModel | None
     type: MeetingType.serializer
     topic: MeetingTopicType.serializer
     property_type: MeetingPropertyType.serializer
-    record_link: Optional[str]
-    meeting_link: Optional[str]
-    meeting_address: Optional[str]
+    record_link: str | None
+    meeting_link: str | None
+    meeting_address: str | None
     date: datetime
 
     class Config:

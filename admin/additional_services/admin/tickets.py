@@ -11,11 +11,12 @@ class AdditionalServiceTicketAdmin(admin.ModelAdmin):
         "phone",
         "cost",
         "booking",
-        "status",
+        "group_status",
         "service",
     )
     autocomplete_fields = (
         "service",
-        "status",
+        "group_status",
         "booking",
+        "user",
     )

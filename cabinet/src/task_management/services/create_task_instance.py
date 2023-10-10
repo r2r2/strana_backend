@@ -20,7 +20,8 @@ from src.task_management.constants import (
     FixationExtensionSlug,
     OnlineBookingSlug,
 )
-from src.task_management.entities import BaseTaskService, TaskContextDTO
+from src.task_management.dto import CreateTaskDTO
+from src.task_management.entities import BaseTaskService
 from src.task_management.exceptions import TaskChainNotFoundError, TaskStatusNotFoundError
 from src.task_management.loggers import task_instance_logger
 from src.task_management.repos import (
@@ -31,6 +32,7 @@ from src.task_management.repos import (
     TaskInstance,
     TaskStatus,
 )
+from src.task_management.utils import get_statuses_before_paid_booking
 
 
 class CreateTaskInstanceService(BaseTaskService):
@@ -38,7 +40,7 @@ class CreateTaskInstanceService(BaseTaskService):
     Сервис выбора кейса для создания экземпляра задания
     """
     # Context for task, could be used in task creation
-    _task_context: TaskContextDTO
+    _task_context: CreateTaskDTO
 
     def __init__(
         self,
@@ -83,16 +85,12 @@ class CreateTaskInstanceService(BaseTaskService):
             self.online_booking_statuses.ACCEPT_OFFER.value: self.online_booking_case,
         }
 
-        self.booking_created: bool = False
-
     async def __call__(
         self,
         booking_ids: Union[list[int], int],
-        booking_created: bool = False,
-        task_context: Optional[TaskContextDTO] = None,
+        task_context: CreateTaskDTO = CreateTaskDTO(),
     ) -> None:
-        self._task_context: TaskContextDTO = task_context if task_context else TaskContextDTO()
-        self.booking_created: bool = booking_created
+        self._task_context: CreateTaskDTO = task_context
         if isinstance(booking_ids, int):
             booking_ids: list[int] = [booking_ids]
 
@@ -174,7 +172,7 @@ class CreateTaskInstanceService(BaseTaskService):
         )
 
         booking_settings: BookingSettings = await self.booking_settings_repo.list().first()
-        if self.booking_created:
+        if self._task_context.booking_created:
             fixation_expires = datetime.now(tz=UTC) + timedelta(days=booking_settings.lifetime)
         elif booking.fixation_expires:
             fixation_expires = booking.fixation_expires
@@ -263,13 +261,19 @@ class CreateTaskInstanceService(BaseTaskService):
         """
         Создание задания для цепочки Онлайн бронирования
         """
-        filters: dict[str: str] = dict(slug=self.online_booking_statuses.ACCEPT_OFFER.value)
-        task_status: TaskStatus = await self.get_task_status(filters=filters)
-        await self.create_task_instance(
-            booking=booking,
-            task_status=task_status,
-            task_chain=task_chain,
+        status_valid: bool = booking.amocrm_status in await get_statuses_before_paid_booking()
+        self.logger.info(
+            f"Статус сделки [{booking.amocrm_status}] in [await get_statuses_before_paid_booking()]: {status_valid}"
         )
+        if status_valid:
+            # Если статус сделки входит в статусы до Платного бронирования, то создаем задачу
+            filters: dict[str: str] = dict(slug=self.online_booking_statuses.ACCEPT_OFFER.value)
+            task_status: TaskStatus = await self.get_task_status(filters=filters)
+            await self.create_task_instance(
+                booking=booking,
+                task_status=task_status,
+                task_chain=task_chain,
+            )
 
     async def get_task_status(self, filters: dict[str, Any]) -> TaskStatus:
         """
@@ -290,19 +294,19 @@ class CreateTaskInstanceService(BaseTaskService):
         task_status: TaskStatus,
         task_chain: TaskChain,
     ) -> bool:
-        if await self._is_task_not_in_this_chain(
+        if await self.__is_task_not_in_this_chain(
             booking=booking,
             task_chain=task_chain,
         ):
             # Если в цепочке нет задачи, создаем ее
-            await self._create_task_instance(
+            await self.__create_task_instance(
                 booking=booking,
                 task_status=task_status,
             )
             return True
         return False
 
-    async def _create_task_instance(
+    async def __create_task_instance(
         self,
         booking: Booking,
         task_status: TaskStatus,
@@ -316,6 +320,7 @@ class CreateTaskInstanceService(BaseTaskService):
                 booking=booking,
                 status=task_status,
                 comment=comment,
+                current_step=task_status.slug,
             )
         )
         self.logger.info(
@@ -324,7 +329,7 @@ class CreateTaskInstanceService(BaseTaskService):
             f" со статусом [{task_status}]"
         )
 
-    async def _is_task_not_in_this_chain(
+    async def __is_task_not_in_this_chain(
         self,
         booking: Booking,
         task_chain: TaskChain,

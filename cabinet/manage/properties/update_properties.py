@@ -3,15 +3,9 @@ from asyncio import Future, ensure_future, gather
 from copy import copy
 from typing import Any, Callable, Type
 
-from common.backend import repos as backend_repos
-from common.utils import from_global_id, to_global_id
 from config import tortoise_config
-from src.buildings import repos as building_repos
-from src.cities import repos as cities_repos
-from src.floors import repos as floors_repos
-from src.projects import repos as projects_repos
 from src.properties import repos as properties_repos
-from src.properties.services import ImportPropertyService
+from src.properties.services import ImportPropertyServiceFactory
 from tortoise import Model, Tortoise
 
 
@@ -20,21 +14,8 @@ class UpdatePropertiesManage:
     Обновление всех квартир с портала
     """
     def __init__(self) -> None:
-        self.service: Callable = ImportPropertyService(
-            global_id_encoder=to_global_id,
-            global_id_decoder=from_global_id,
-            floor_repo=floors_repos.FloorRepo,
-            project_repo=projects_repos.ProjectRepo,
-            building_repo=building_repos.BuildingRepo,
-            property_repo=properties_repos.PropertyRepo,
-            city_repo=cities_repos.CityRepo,
-            building_booking_type_repo=building_repos.BuildingBookingTypeRepo,
-            backend_building_booking_type_repo=backend_repos.BackendBuildingBookingTypesRepo,
-            backend_properties_repo=backend_repos.BackendPropertiesRepo,
-            backend_floors_repo=backend_repos.BackendFloorsRepo,
-            backend_sections_repo=backend_repos.BackendSectionsRepo,
-            feature_repo=properties_repos.FeatureRepo,
-        )
+        import_property_service = ImportPropertyServiceFactory.create()
+        self.service: Callable = import_property_service
         self.property_repo: properties_repos.PropertyRepo = properties_repos.PropertyRepo()
 
         self.orm_class: Type[Tortoise] = Tortoise

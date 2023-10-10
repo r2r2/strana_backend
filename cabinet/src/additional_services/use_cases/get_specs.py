@@ -1,7 +1,7 @@
 from ..entities import BaseAdditionalServiceCase
 from ..repos import (
     AdditionalServiceCategoryRepo as CategoryRepo,
-    AdditionalServiceTypeRepo as ServiceTypeRepo,
+    AdditionalServiceCategory as Category,
 )
 
 
@@ -13,21 +13,15 @@ class GetSpecCase(BaseAdditionalServiceCase):
     def __init__(
         self,
         category_repo: type[CategoryRepo],
-        service_type_repo: type[ServiceTypeRepo],
     ) -> None:
         self.category_repo: CategoryRepo = category_repo()
-        self.service_type_repo: ServiceTypeRepo = service_type_repo()
 
     async def __call__(self) -> dict:
         active_filters: dict = dict(active=True)
-        category_specs: list[dict] = await self.category_repo.list(
-            filters=active_filters
-        ).values("id", "title")
-        service_specs: list[dict] = await self.service_type_repo.list().values(
-            "id", "title"
+        category_specs: list[dict] = [dict(id=None, title="Все")]
+        category_db_specs: list[Category] = await self.category_repo.list(
+            filters=active_filters, ordering="priority"
         )
-        specs: dict = dict(
-            categories=category_specs,
-            service_types=service_specs,
-        )
+        category_specs.extend(category_db_specs)
+        specs: dict = dict(categories=category_specs)
         return specs

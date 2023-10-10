@@ -9,3 +9,4 @@ from .task_chain import (
 )
 from .button import Button, TaskStatusButtonsThrough
 from .task_fields import TaskField
+from .button_detail_view import ButtonDetailView, TaskStatusButtonsDetailThrough

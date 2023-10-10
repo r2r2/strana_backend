@@ -150,14 +150,16 @@ class ListMixin(BaseMixin):
     """
     def list(
         self,
-        end: Optional[int] = None,
-        start: Optional[int] = None,
-        ordering: Optional[str] = None,
-        q_filters: Optional[list[Q]] = None,
-        filters: Optional[dict[str, Any]] = None,
-        related_fields: Optional[list[str]] = None,
-        annotations: Optional[dict[str, Any]] = None,
-        prefetch_fields: Optional[list[Union[str, dict[str, Any]]]] = None,
+        end: int | None = None,
+        start: int | None = None,
+        ordering: str | None = None,
+        distinct: bool | None = False,
+        q_filters: list[Q] | None = None,
+        filters: dict[str, Any] | None = None,
+        excluded: dict[str, Any] | None = None,
+        related_fields: list[str] | None = None,
+        annotations: dict[str, Any] | None = None,
+        prefetch_fields: list[str | dict[str, Any]] | None = None,
     ) -> QuerySet['ListMixin.model']:
         """
         Получение списка моделей
@@ -165,12 +167,14 @@ class ListMixin(BaseMixin):
         models: QuerySet[Model] = self.model.all()
         if filters:
             models: QuerySet[Model] = models.filter(**filters)
+        if excluded:
+            models: QuerySet[Model] = models.exclude(**excluded)
         if q_filters:
             models: QuerySet[Model] = models.filter(*q_filters)
         if related_fields:
             models: QuerySet[Model] = models.select_related(*related_fields)
         if prefetch_fields:
-            prefetches: list[Union[str, Prefetch]] = []
+            prefetches: list[str | Prefetch] = []
             for prefetch in prefetch_fields:
                 if isinstance(prefetch, str):
                     prefetches.append(prefetch)
@@ -183,6 +187,8 @@ class ListMixin(BaseMixin):
             models: QuerySet[Model] = models.offset(start).limit(end - start)
         if ordering:
             models: QuerySet[Model] = models.order_by(ordering)
+        if distinct:
+            models: QuerySet[Model] = models.distinct()
         return models
 
 

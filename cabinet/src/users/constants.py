@@ -120,14 +120,3 @@ class UniqueStatusButtonSlug(str, Enum):
 
 
 DEFAULT_LIMIT = 20  # todo: refactor this
-
-
-class CheckTermPriorityForSendToROP(int, Enum):
-    """
-    Условия проверки оспаривания для отправки писем РОПам
-    """
-    CONDITION_1_1_2_1: int = 200  # Незавершенные до статуса Бронь Без агента
-    CONDITION_1_1_4_2_1_1: int = 700  # Закрыты и не реализованы Без агента Менее 15 дней в статусе Не проходила через
-    # статус Фиксация за АН
-    CONDITION_2_2_2: int = 1000  # КЦ Остальные незавершенные до брони
-

@@ -80,18 +80,21 @@ class UsersBookingsCase(BaseUserCase, CurrentUserDataMixin):
 
         for booking in bookings:
             booking.tasks = await self._get_booking_tasks(booking=booking)
-            booking.booking_tags = await self._get_booking_tags(booking)
 
             if booking.amocrm_status:
                 await self._set_group_statuses(booking=booking)
+            booking.booking_tags = await self._get_booking_tags(booking)
 
-        data: dict[str, Any] = dict(count=count, result=bookings, page_info=pagination(count=count))
+        data: dict[str, Any] = dict(
+            count=count, result=bookings, page_info=pagination(count=count)
+        )
         return data
 
     async def _get_booking_tags(self, booking: Booking) -> Optional[list[BookingTag]]:
         tag_filters: dict[str, Any] = dict(
             is_active=True,
-            group_statuses=booking.amocrm_status.group_status if booking.amocrm_status else None,
+            group_statuses=booking.amocrm_status.group_status
+            if booking.amocrm_status else None,
         )
         return (
             await self.booking_tag_repo.list(filters=tag_filters, ordering="-priority")

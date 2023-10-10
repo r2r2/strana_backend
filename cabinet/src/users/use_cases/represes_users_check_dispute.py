@@ -43,10 +43,9 @@ class RepresCheckDisputeCase(BaseCheckCase):
         self.send_check_admins_email = send_check_admins_email
 
     async def __call__(
-            self,
-            dispute_repres_id: int,
-            payload: RequestAgentsUsersCheckDisputeModel,
-            feature_flags: list[str] | None = None,
+        self,
+        dispute_repres_id: int,
+        payload: RequestAgentsUsersCheckDisputeModel,
     ) -> Check:
         data: dict[str:Any] = payload.dict(exclude_unset=True)
         filters: dict[str:Any] = dict(id=data["user_id"])
@@ -108,7 +107,6 @@ class RepresCheckDisputeCase(BaseCheckCase):
             check=check,
             mail_event_slug=self.mail_event_slug,
             data=mail_data,
-            feature_flags=feature_flags,
         )
         return check
 

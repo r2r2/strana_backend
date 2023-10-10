@@ -1,10 +1,10 @@
 from datetime import date
-from typing import Any, Optional
+from typing import Optional
 
 from pydantic import UUID4, validator
 
 from common.utils import parse_phone
-from ..exceptions import UserIncorrectPhoneForamtError
+from ..exceptions import UserIncorrectPhoneFormatError
 from ..constants import UserType
 from ..entities import BaseUserModel
 
@@ -22,7 +22,7 @@ class RequestChangePhoneModel(BaseUserModel):
     def validate_phone(cls, phone: str) -> str:
         phone: Optional[str] = parse_phone(phone)
         if not phone:
-            raise UserIncorrectPhoneForamtError
+            raise UserIncorrectPhoneFormatError
         return phone
 
     class Config:
@@ -35,15 +35,15 @@ class ResponseChangePhoneModel(BaseUserModel):
     """
 
     is_active: bool
-    name: Optional[str]
-    email: Optional[str]
-    phone: Optional[str]
-    surname: Optional[str]
-    patronymic: Optional[str]
+    name: str | None
+    email: str | None
+    phone: str | None
+    surname: str | None
+    patronymic: str | None
     birth_date: Optional[date]
-    passport_series: Optional[str]
-    passport_number: Optional[str]
-    type: Optional[UserType.serializer]
+    passport_series: str | None
+    passport_number: str | None
+    type: UserType.serializer | None
 
     class Config:
         orm_mode = True

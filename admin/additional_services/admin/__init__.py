@@ -3,3 +3,4 @@ from .conditions import AdditionalServiceConditionAdmin
 from .services import AdditionalServiceAdmin
 from .steps import AdditionalServiceConditionStepAdmin
 from .tickets import AdditionalServiceTicketAdmin
+from .templates import AdditionalServiceTemplateAdmin

@@ -148,7 +148,7 @@ services:
         POETRY_PARAMS: "--no-dev"
     <<: *app_environment
     entrypoint: sh wait-for ${LK_POSTGRES_HOST:-db_cabinet}:${LK_POSTGRES_PORT:-5432} -- ./entrypoint.production.sh
-    command: gunicorn config.asgi:application -w ${GUNICORN_WORKERS:-5} -k uvicorn.workers.UvicornWorker --keep-alive 120 -b 0.0.0.0:1800 --access-logfile - --error-logfile -
+    command: gunicorn config.asgi:application -w ${GUNICORN_WORKERS:-5} -k uvicorn.workers.UvicornWorker --keep-alive 120 -b 0.0.0.0:1800 --preload --access-logfile - --error-logfile -
     depends_on:
       - db_cabinet
     networks:

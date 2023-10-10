@@ -60,3 +60,4 @@ from .questionnaire_questions_list import QuestionsListResponse, CurrentAnswerRe
 from .questionnaire_questions_list import FinishQuestionRequest
 from .documents_blocks_list import DocumentBlockResponse, UploadFile
 from .signup_in_agency import RequestSignupInAgencyModel, ResponseSignupInAgencyModel
+from .loyalty_status import LoyaltyStatusRequestModel

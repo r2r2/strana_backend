@@ -11,3 +11,4 @@ from .statuses import AmocrmStatusAdmin
 from .price_offer_matrix import PriceOfferMatrixAdmin
 from .payment_methods import PaymentMethodAdmin
 from .booking_source import BookingSourceAdmin
+from .additional_services_group_statuses import AdditionalServiceGroupStatusAdmin

@@ -11,6 +11,7 @@ class AdditionalServiceType(BaseAdditionalServiceDatabaseModel):
 
     id: int = fields.IntField(description="ID", pk=True)
     title: str = fields.CharField(description="Название", max_length=150)
+    services: fields.ReverseRelation["AdditionalService"]
 
     class Meta:
         table = "additional_services_service_type"

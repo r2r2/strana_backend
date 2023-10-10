@@ -1,7 +1,7 @@
 """
 Booking repo
 """
-
+import asyncio
 from collections import OrderedDict
 from datetime import date, datetime
 from decimal import Decimal
@@ -11,8 +11,13 @@ import structlog
 import traceback
 
 from common import cfields, orm
+from common.email import EmailService
 from common.orm.mixins import CRUDMixin, FacetsMixin, SCountMixin, SpecsMixin
 from pytz import UTC
+
+from common.unleash.client import UnleashClient
+from config import MaintenanceSettings
+from config.feature_flags import FeatureFlags
 from src.agencies.repos import Agency
 from src.buildings.repos import Building
 from src.floors.repos import Floor
@@ -20,7 +25,6 @@ from src.projects.repos import Project
 from src.properties.repos import Property
 from src.users.repos import User
 from tortoise import Model, fields
-from tortoise.queryset import QuerySet
 from tortoise.fields import (ForeignKeyNullableRelation,
                              OneToOneNullableRelation)
 from tortoise.backends.base.client import BaseDBAsyncClient
@@ -31,7 +35,7 @@ from ..constants import (BookingCreatedSources, BookingStages,
                          OnlinePurchaseSteps, PaymentMethods, PaymentStatuses,
                          PaymentView)
 from ..entities import BaseBookingRepo
-from ..types import ScannedPassportData
+from src.booking.types import ScannedPassportData
 from .bank_contact_info import BankContactInfo
 from .ddu import DDU
 
@@ -279,6 +283,9 @@ class Booking(Model):
         description="Отправить уведомление", default=True
     )
     extension_number: int = fields.IntField(description="Оставшиеся количество попыток продления", null=True)
+    pay_extension_number: int = fields.IntField(description="Количество продлений при неуспешной оплате", null=True)
+
+    loyalty_point_amount: int | None = fields.IntField(description="Количество баллов лояльности", null=True)
 
     task_instances: fields.ReverseRelation["TaskInstance"]
     property_id: Optional[int]
@@ -386,6 +393,12 @@ class Booking(Model):
     def time_valid(self) -> bool:
         return self.expires > datetime.now(tz=UTC)
 
+    def is_can_pay(self) -> bool:
+        if self.pay_extension_number == -1:
+            return False
+
+        return True
+
     async def save(
         self,
         using_db: Optional[BaseDBAsyncClient] = None,
@@ -393,6 +406,7 @@ class Booking(Model):
         force_create: bool = False,
         force_update: bool = False,
     ) -> None:
+
         if not force_create and (
             not self.until
             or not self.expires
@@ -406,6 +420,7 @@ class Booking(Model):
             or not self.fixation_expires
             or not self.extension_number
             or not self.project_id
+            or not self.loyalty_point_amount
             or not self.contract_accepted
             or not self.personal_filled
             or not self.params_checked
@@ -436,6 +451,8 @@ class Booking(Model):
                 self.extension_number = booking.extension_number
             if not self.project_id and booking.project_id:
                 self.project_id = booking.project_id
+            if not self.loyalty_point_amount and booking.loyalty_point_amount:
+                self.loyalty_point_amount = booking.loyalty_point_amount
             if not self.contract_accepted and booking.contract_accepted:
                 self.contract_accepted = booking.contract_accepted
             if not self.personal_filled and booking.personal_filled:
@@ -480,26 +497,6 @@ class BookingRepo(BaseBookingRepo, CRUDMixin, SCountMixin, FacetsMixin, SpecsMix
     """
     Репозиторий бронирования
     """
-    non_nullable_fields = (
-        "until",
-        "expires",
-        "payment_id",
-        "payment_amount",
-        "payment_url",
-        "payment_order_number",
-        "final_payment_amount",
-        "property_id",
-        "property",
-        "fixation_expires",
-        "extension_number",
-        "project_id",
-    )
-    non_false_fields = (
-        "contract_accepted",
-        "personal_filled",
-        "params_checked",
-        "price_payed",
-    )
 
     model = Booking
     q_builder: orm.QBuilder = orm.QBuilder(Booking)
@@ -507,6 +504,43 @@ class BookingRepo(BaseBookingRepo, CRUDMixin, SCountMixin, FacetsMixin, SpecsMix
     a_builder: orm.AnnotationBuilder = orm.AnnotationBuilder(Booking)
 
     logger = structlog.get_logger("booking_repo")
+
+    @property
+    def non_nullable_fields(self) -> tuple[str, ...]:
+        non_nullable_fields = (
+            "until",
+            "expires",
+            "payment_id",
+            "payment_amount",
+            "payment_url",
+            "payment_order_number",
+            "final_payment_amount",
+            "property_id",
+            "property",
+            "fixation_expires",
+            "extension_number",
+            "project_id",
+            "loyalty_point_amount",
+        )
+        return non_nullable_fields
+
+    @property
+    def non_false_fields(self) -> tuple[str, ...]:
+        non_false_fields = (
+            "contract_accepted",
+            "personal_filled",
+            "params_checked",
+            "price_payed",
+        )
+        return non_false_fields
+
+    async def create(self, data: dict[str, Any]) -> 'CreateMixin.model':
+        model = await super().create(data)
+
+        self.logger.debug("Booking create: ", id=model.id, data=data)
+        self.logger.debug(traceback.print_stack(limit=5))
+
+        return model
 
     async def update_or_create(
         self,
@@ -516,8 +550,17 @@ class BookingRepo(BaseBookingRepo, CRUDMixin, SCountMixin, FacetsMixin, SpecsMix
         """
         Создание или обновление модели
         """
-        self.logger.debug("Booking update_or_create: ", filters=filters, data=data)
-        self.logger.debug(traceback.print_stack(limit=5))
+        if self.__is_strana_lk_2398_enable:
+            if booking := await self.model.get_or_none(**filters):
+                stack_trace: str = "".join(traceback.format_stack(limit=5))
+                await _send_email(
+                    data=data.copy(),
+                    model=booking,
+                    topic='Booking update_or_create',
+                    stack_trace=stack_trace,
+                    fields_to_check=self.non_false_fields + self.non_nullable_fields,
+                )
+
         for non_nullable_field in self.non_nullable_fields:
             if non_nullable_field in data:
                 if data.get(non_nullable_field) is None:
@@ -529,14 +572,30 @@ class BookingRepo(BaseBookingRepo, CRUDMixin, SCountMixin, FacetsMixin, SpecsMix
                     data.pop(non_false_field)
 
         model, _ = await self.model.update_or_create(**filters, defaults=data)
+
+        self.logger.debug("Booking update_or_create: ", id=model.id, data=data)
+        self.logger.debug(traceback.print_stack(limit=5))
+
         return model
 
     async def update(self, model: Booking, data: dict[str, Any]) -> Booking:
         """
         Обновление модели
         """
+        print("Booking data: ", data)
         self.logger.debug("Booking update: ", id=model.id, data=data)
         self.logger.debug(traceback.print_stack(limit=5))
+
+        if self.__is_strana_lk_2398_enable:
+            stack_trace: str = "".join(traceback.format_stack(limit=5))
+            await _send_email(
+                data=data,
+                model=model,
+                topic='Booking update',
+                stack_trace=stack_trace,
+                fields_to_check=self.non_false_fields + self.non_nullable_fields,
+            )
+
         for field, value in data.items():
             if field in self.non_false_fields and value is False:
                 continue
@@ -558,6 +617,20 @@ class BookingRepo(BaseBookingRepo, CRUDMixin, SCountMixin, FacetsMixin, SpecsMix
         """
         self.logger.debug("Booking bulk_update: ", filters=filters, data=data)
         self.logger.debug(traceback.print_stack(limit=5))
+
+        if self.__is_strana_lk_2398_enable:
+            if bookings := await self.model.all(**filters):
+                stack_trace: str = "".join(traceback.format_stack(limit=5))
+                data_copy: dict[str, Any] = data.copy()
+                for booking in bookings:
+                    await _send_email(
+                        data=data_copy,
+                        model=booking,
+                        topic='Booking bulk_update',
+                        stack_trace=stack_trace,
+                        fields_to_check=self.non_false_fields + self.non_nullable_fields,
+                    )
+
         for non_nullable_field in self.non_nullable_fields:
             if non_nullable_field in data:
                 if data.get(non_nullable_field) is None:
@@ -573,3 +646,40 @@ class BookingRepo(BaseBookingRepo, CRUDMixin, SCountMixin, FacetsMixin, SpecsMix
             for exclude_filter in exclude_filters:
                 qs: QuerySet[Model] = qs.exclude(**exclude_filter)
         await qs.update(**data)
+
+    @property
+    def __is_strana_lk_2398_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_2398)
+
+
+async def _send_email(
+    data: dict[str, Any],
+    model: Booking,
+    topic: str,
+    stack_trace: str,
+    fields_to_check: tuple[str, ...] = None,
+) -> asyncio.Task | None:
+    send_email: bool = False
+    for field in fields_to_check:
+        if field in data and data[field] is None and getattr(model, field) is not None:
+            send_email: bool = True
+            break
+
+    if not send_email:
+        return
+
+    topic += f' [{MaintenanceSettings().environment.value}]'
+    context = dict(
+        booking=model.id,
+        data=data,
+        stack_trace=stack_trace,
+    )
+    recipients: list[str] = ['krasnykh@artw.ru']
+    email_options: dict[str, Any] = dict(
+        topic=topic,
+        context=context,
+        recipients=recipients,
+        template='src/booking/templates/booking_logs/booking_update.html',
+    )
+    email_service: EmailService = EmailService(**email_options)
+    return email_service.as_task()

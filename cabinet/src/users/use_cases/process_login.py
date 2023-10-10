@@ -100,7 +100,11 @@ class ProcessLoginCase(BaseProcessLoginCase):
                 raise self.WrongPasswordError
             if not user.is_approved:
                 raise self.NotApprovedError
-            extra: dict[str, Any] = dict(agency_id=user.agency_id)
+            extra: dict[str, Any] = dict(agency_id=user.agency_id, amocrm_id=user.amocrm_id)
+            if user.agency_id:
+                agency = await user.agency
+                extra.update(agency_amocrm_id=agency.amocrm_id)
+
             token: dict[str, Any] = self.token_creator(subject_type=user.type.value, subject=user.id, extra=extra)
             token["id"]: int = user.id
             token["role"]: str = user.type.value

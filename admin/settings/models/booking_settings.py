@@ -31,6 +31,14 @@ class BookingSettings(models.Model):
         blank=True,
     )
     max_extension_number = models.IntegerField(verbose_name="Количество попыток продления", null=True, blank=True,)
+    pay_extension_number = models.IntegerField(
+        verbose_name="Сколько раз при неудачной оплате добавляем дополнительное время клиенту",
+        default=1,
+    )
+    pay_extension_value = models.IntegerField(
+        verbose_name="Сколько минут добавляем клиенту при неудачной оплате (мин)",
+        default=10,
+    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Дата обновления")
 

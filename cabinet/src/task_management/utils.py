@@ -4,9 +4,11 @@ from pytz import UTC
 
 from tortoise.queryset import QUERY
 
+from common.amocrm.components import AmoCRMLeads
 from common.settings.repos import BookingSettings
 from src.amocrm.repos import AmocrmStatus
-from src.booking.repos import Booking
+from src.booking.exceptions import BookingNotFoundError
+from src.booking.repos import Booking, BookingRepo
 from src.meetings.constants import MeetingStatusChoice
 from src.meetings.repos import Meeting, MeetingRepo, MeetingStatusRepo
 from src.task_management.constants import MeetingsSlug, FixationExtensionSlug
@@ -18,6 +20,8 @@ from src.task_management.repos import (
     TaskStatus,
     TaskChain,
     TaskStatusRepo,
+    Button,
+    ButtonDetailView,
 )
 
 
@@ -61,7 +65,11 @@ class TaskDataBuilder:
             task_visibility: list[AmocrmStatus] = self.task.status.tasks_chain.task_visibility
             if self.booking.amocrm_status not in task_visibility:
                 continue
-            await self.task.fetch_related("booking")
+            await self.task.fetch_related(
+                "booking",
+                "status__button_detail_views",
+                "status__buttons",
+            )
             await self._process_task()
 
         return self.result
@@ -83,7 +91,9 @@ class TaskDataBuilder:
             "title": self.task.status.name,
             "text": text,
             "hint": self.task.comment,
-            "buttons": await self._build_buttons(),
+            "current_step": self.task.current_step,
+            "buttons": await self._build_buttons(buttons_list=self.task.status.buttons),
+            "buttons_detail_view": await self._build_buttons(buttons_list=self.task.status.button_detail_views),
             "meeting": await self._build_meeting_data() if build_meeting else None,
             "fixation": await self._build_fixation_data() if (
                 build_fixation
@@ -120,15 +130,15 @@ class TaskDataBuilder:
             str(days_before_fixation_expires.days),
         )
 
-    async def _build_buttons(self) -> list[Optional[dict[str, Any]]]:
+    async def _build_buttons(self, buttons_list: list[Button | ButtonDetailView]) -> list[Optional[dict[str, Any]]]:
         """
         Сборка кнопок для задачи.
         Чем меньше приоритет - тем выше кнопка выводится в задании.
         Если приоритет не указан, то кнопка выводится в конце списка.
         """
-        if not self.task.status.buttons:
+        if not buttons_list:
             return []
-        sorted_buttons = sorted(self.task.status.buttons, key=lambda b: (b.priority is None, b.priority))
+        sorted_buttons = sorted(buttons_list, key=lambda b: (b.priority is None, b.priority))
         buttons = [{
             "label": button.label,
             "type": button.style.value,
@@ -228,3 +238,118 @@ async def get_interesting_task_chain(status: str) -> TaskChain:
     if not interested_task_status:
         raise TaskStatusNotFoundError
     return interested_task_status.tasks_chain
+
+
+async def get_booking_tasks(booking_id: int, task_chain_slug: str) -> list[Optional[dict[str, Any]]]:
+    """
+    Получение задач по бронированию для интересующей цепочки задач
+    """
+    booking: Booking = await BookingRepo().retrieve(
+        filters=dict(id=booking_id),
+        prefetch_fields=[
+            "amocrm_status",
+            "task_instances__status__tasks_chain__task_visibility",
+            "task_instances__status__buttons",
+        ]
+    )
+    if not booking:
+        raise BookingNotFoundError
+    interested_task_chain_slugs: list[str] = Slugs.get_slug_values(task_chain_slug)
+    # берем все таски, которые есть в интересующей цепочке задач
+    task_instances: list[TaskInstance] = [
+        task for task in booking.task_instances if
+        task.status.slug in interested_task_chain_slugs
+    ]
+    if not task_instances:
+        return []
+
+    return await TaskDataBuilder(
+        task_instances=task_instances,
+        booking=booking,
+    ).build()
+
+
+async def get_statuses_before_paid_booking() -> set[int]:
+    """
+    Получение AMO статусов сделки до статуса 'платное бронирование'
+    """
+    amo_statuses = AmoCRMLeads
+    return {
+        amo_statuses.CallCenterStatuses.UNASSEMBLED.value,
+        amo_statuses.CallCenterStatuses.START.value,
+        amo_statuses.CallCenterStatuses.START_2.value,
+        amo_statuses.CallCenterStatuses.THINKING_ABOUT_PRICE.value,
+        amo_statuses.CallCenterStatuses.SEEKING_MONEY.value,
+        amo_statuses.CallCenterStatuses.CONTACT_AFTER_BOT.value,
+        amo_statuses.CallCenterStatuses.SUCCESSFUL_BOT_CALL_TRANSFER.value,
+        amo_statuses.CallCenterStatuses.REFUSE_MANGO_BOT.value,
+        amo_statuses.CallCenterStatuses.REDIAL.value,
+        amo_statuses.CallCenterStatuses.RESUSCITATED_CLIENT.value,
+        amo_statuses.CallCenterStatuses.SUBMIT_SELECTION.value,
+        amo_statuses.CallCenterStatuses.ROBOT_CHECK.value,
+        amo_statuses.CallCenterStatuses.TRY_CONTACT.value,
+        amo_statuses.CallCenterStatuses.QUALITY_CONTROL.value,
+        amo_statuses.CallCenterStatuses.SELL_APPOINTMENT.value,
+        amo_statuses.CallCenterStatuses.GET_TO_MEETING.value,
+        amo_statuses.CallCenterStatuses.MAKE_APPOINTMENT.value,
+        amo_statuses.CallCenterStatuses.APPOINTED_ZOOM.value,
+        amo_statuses.CallCenterStatuses.ZOOM_CALL.value,
+        amo_statuses.CallCenterStatuses.THINKING_OF_MORTGAGE.value,
+        amo_statuses.CallCenterStatuses.MAKE_DECISION.value,
+        amo_statuses.CallCenterStatuses.BOOKING.value,
+
+        amo_statuses.TMNStatuses.START.value,
+        amo_statuses.TMNStatuses.MAKE_APPOINTMENT.value,
+        amo_statuses.TMNStatuses.ASSIGN_AGENT.value,
+        amo_statuses.TMNStatuses.MEETING.value,
+        amo_statuses.TMNStatuses.MEETING_IN_PROGRESS.value,
+        amo_statuses.TMNStatuses.MAKE_DECISION.value,
+        amo_statuses.TMNStatuses.RE_MEETING.value,
+        amo_statuses.TMNStatuses.BOOKING.value,
+
+        amo_statuses.MSKStatuses.START.value,
+        amo_statuses.MSKStatuses.ASSIGN_AGENT.value,
+        amo_statuses.MSKStatuses.MAKE_APPOINTMENT.value,
+        amo_statuses.MSKStatuses.MEETING.value,
+        amo_statuses.MSKStatuses.MEETING_IN_PROGRESS.value,
+        amo_statuses.MSKStatuses.MAKE_DECISION.value,
+        amo_statuses.MSKStatuses.RE_MEETING.value,
+        amo_statuses.MSKStatuses.BOOKING.value,
+
+        amo_statuses.SPBStatuses.START.value,
+        amo_statuses.SPBStatuses.ASSIGN_AGENT.value,
+        amo_statuses.SPBStatuses.MAKE_APPOINTMENT.value,
+        amo_statuses.SPBStatuses.MEETING.value,
+        amo_statuses.SPBStatuses.MEETING_IN_PROGRESS.value,
+        amo_statuses.SPBStatuses.MAKE_DECISION.value,
+        amo_statuses.SPBStatuses.RE_MEETING.value,
+        amo_statuses.SPBStatuses.BOOKING.value,
+
+        amo_statuses.EKBStatuses.START.value,
+        amo_statuses.EKBStatuses.ASSIGN_AGENT.value,
+        amo_statuses.EKBStatuses.MAKE_APPOINTMENT.value,
+        amo_statuses.EKBStatuses.MEETING.value,
+        amo_statuses.EKBStatuses.MEETING_IN_PROGRESS.value,
+        amo_statuses.EKBStatuses.MAKE_DECISION.value,
+        amo_statuses.EKBStatuses.RE_MEETING.value,
+        amo_statuses.EKBStatuses.BOOKING.value,
+
+        amo_statuses.TestStatuses.START.value,
+        amo_statuses.TestStatuses.REDIAL.value,
+        amo_statuses.TestStatuses.ROBOT_CHECK.value,
+        amo_statuses.TestStatuses.TRY_CONTACT.value,
+        amo_statuses.TestStatuses.QUALITY_CONTROL.value,
+        amo_statuses.TestStatuses.SELL_APPOINTMENT.value,
+        amo_statuses.TestStatuses.GET_TO_MEETING.value,
+        amo_statuses.TestStatuses.ASSIGN_AGENT.value,
+        amo_statuses.TestStatuses.MAKE_APPOINTMENT.value,
+        amo_statuses.TestStatuses.APPOINTED_ZOOM.value,
+        amo_statuses.TestStatuses.MEETING_IS_SET.value,
+        amo_statuses.TestStatuses.ZOOM_CALL.value,
+        amo_statuses.TestStatuses.MEETING_IN_PROGRESS.value,
+        amo_statuses.TestStatuses.MAKE_DECISION.value,
+        amo_statuses.TestStatuses.RE_MEETING.value,
+        amo_statuses.TestStatuses.BOOKING.value,
+        amo_statuses.TestStatuses.APPOINTMENT.value,
+        amo_statuses.TestStatuses.TRANSFER_MANAGER.value,
+    }

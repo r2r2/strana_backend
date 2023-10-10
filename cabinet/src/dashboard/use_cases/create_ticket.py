@@ -5,6 +5,7 @@ from common.amocrm import AmoCRM
 from common.amocrm.constants import AmoContactQueryWith, AmoLeadQueryWith
 from common.amocrm.types import AmoContact, AmoLead
 from common.utils import partition_list
+from config import EnvTypes, maintenance_settings
 from src.agents.services.import_clients import LeadStatuses
 from src.cities.exceptions import CityNotFoundError
 from src.cities.repos import CityRepo, City
@@ -23,6 +24,8 @@ class CreateTicketCase(BaseDashboardCase):
         Контактный номер телефона: {phone}
     """
     tags: list[str] = ["ЛК клиента", "Обратный звонок"]
+    dev_test_booking_tag: list[str] = ['Тестовая бронь']
+    stage_test_booking_tag: list[str] = ['Тестовая бронь Stage']
 
     def __init__(
         self,
@@ -138,11 +141,17 @@ class CreateTicketCase(BaseDashboardCase):
                 responsible_user_id=amocrm_contact_id,
             )
         else:
+            tags = self.tags
+            if maintenance_settings["environment"] == EnvTypes.DEV:
+                tags = tags + self.dev_test_booking_tag
+            elif maintenance_settings["environment"] == EnvTypes.STAGE:
+                tags = tags + self.stage_test_booking_tag
+
             leads: list[AmoLead] = await amocrm.create_lead(
                 city_slug=city.slug,
                 user_amocrm_id=amocrm_contact_id,
                 status_id=self.amocrm_class.start_status_id,
-                tags=self.tags,
+                tags=tags,
                 project_amocrm_responsible_user_id=self.responsible_manager_amocrm_id,
                 project_amocrm_pipeline_id=self.amocrm_class.start_pipeline_id,
             )

@@ -112,6 +112,7 @@ class AdminsUsersUpdateCase(BaseUserCase):
             await self._send_email(
                 recipients=[user.agent.email],
                 agent_name=user.agent.full_name,
+                client_name=user.full_name,
                 slug=self.previous_agent_email_slug,
             )
 

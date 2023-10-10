@@ -1,1 +1,3 @@
 from .booking_settings import BookingSettings
+from .add_service_settings import AddServiceSettingsAdmin
+from .dadata_settings import DaDataSettingsAdmin

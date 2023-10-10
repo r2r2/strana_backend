@@ -24,7 +24,9 @@ async def manager_retrieve_view():
     """
     Менеджер на главной странице
     """
-    resources: dict[str, Any] = dict(main_page_manager_repo=main_page_repos.MainPageManagerRepo)
+    resources: dict[str, Any] = dict(
+        main_page_manager_repo=main_page_repos.MainPageManagerRepo,
+    )
     main_page_manager_retrieve: main_page_use_cases.MainPageManagerRetrieveCase =\
         main_page_use_cases.MainPageManagerRetrieveCase(**resources)
     return await main_page_manager_retrieve()

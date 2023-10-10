@@ -1,6 +1,5 @@
-
 from hmac import compare_digest
-from typing import Optional
+
 from pydantic import constr, EmailStr, validator
 
 from common.utils import parse_phone
@@ -15,7 +14,7 @@ class RequestProcessRegisterModel(BaseAgentModel):
 
     name: constr(max_length=50)
     surname: constr(max_length=50)
-    patronymic: Optional[constr(max_length=50)]
+    patronymic: constr(max_length=50) | None
 
     phone: constr(min_length=10)
     password_1: constr(min_length=8)
@@ -25,16 +24,16 @@ class RequestProcessRegisterModel(BaseAgentModel):
 
     agency: int
 
-    @validator('password_2')
+    @validator("password_2")
     def validate_password(cls, password_2, values) -> str:
         password_1: str = values.get("password_1")
         if not compare_digest(password_1, password_2):
             raise AgentPasswordsDoesntMatch
         return password_1
 
-    @validator('phone')
+    @validator("phone")
     def validate_phone(cls, phone: str) -> str:
-        phone: Optional[str] = parse_phone(phone)
+        phone: str | None = parse_phone(phone)
         if phone is None:
             raise AgentIncorrectPhoneForamtError
         return phone

@@ -22,7 +22,7 @@ class AmoCrmCheckLog(Model):
     )
     route: str = fields.CharField(description="Статус ответа", max_length=50)
     status: int = fields.IntField(description="Статус ответа")
-    query: str = fields.CharField(description="Квери запроса", max_length=100)
+    request_data: str = fields.CharField(description="Отправленные данные", max_length=100, null=True)
     data: str = fields.TextField(description="Тело ответа(Пустое если статус ответа 200)", null=True)
 
     class Meta:

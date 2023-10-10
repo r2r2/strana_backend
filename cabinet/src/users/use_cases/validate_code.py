@@ -90,7 +90,8 @@ class ValidateCodeCase(BaseUserCase):
                 self.user_repo.update, self, content='Обновление времени последней авторизации клиента'
             )(user=user, data=dict(auth_last_at=datetime.now(tz=UTC)))
         )
-        token: dict[str, str] = self.token_creator(subject_type=user.type.value, subject=user.id)
+        extra: dict[str, Any] = dict(amocrm_id=user.amocrm_id)
+        token: dict[str, str] = self.token_creator(subject_type=user.type.value, subject=user.id, extra=extra)
         token["id"]: int = user.id
         token["role"]: str = user.type.value
         self.session[self.auth_key]: dict[str, str] = token

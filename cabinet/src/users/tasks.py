@@ -1,11 +1,11 @@
-from typing import Any
 from asyncio import get_event_loop
+from typing import Any
 
-from tortoise import Tortoise
-
-from common import amocrm, requests, utils, email, security
+from common import amocrm, email, requests, security, utils
 from common.amocrm import repos as amocrm_repos
-from common.backend import repos as backend_repos
+from common.celery.utils import redis_lock
+from config import amocrm_config, backend_config, celery, logs_config, tortoise_config
+from src.agencies import repos as agencies_repos
 from src.agents import repos as agents_repos
 from src.amocrm import repos as src_amocrm_repos
 from src.booking import constants as booking_constants
@@ -14,18 +14,17 @@ from src.booking import services as booking_services
 from src.booking import tasks as bookings_tasks
 from src.buildings import repos as buildings_repos
 from src.floors import repos as floors_repos
+from src.notifications import repos as notification_repos
+from src.notifications import services as notification_services
 from src.projects import repos as projects_repos
 from src.properties import repos as properties_repos
 from src.properties import services as property_services
+from src.task_management.tasks import update_task_instance_status_task
 from src.users import constants as users_constants
 from src.users import loggers
 from src.users import repos as users_repos
-from src.agencies import repos as agencies_repos
 from src.users import services
-from src.notifications import services as notification_services
-from src.notifications import repos as notification_repos
-from src.task_management.tasks import update_task_instance_status_task
-from config import amocrm_config, backend_config, celery, tortoise_config, logs_config
+from tortoise import Tortoise
 
 
 @celery.app.task
@@ -33,20 +32,8 @@ def create_amocrm_contact_task(user_id: int, phone: str) -> None:
     """
     Создание контакта в AmoCRM
     """
-    import_property_service: property_services.ImportPropertyService = property_services.ImportPropertyService(
-        floor_repo=floors_repos.FloorRepo,
-        global_id_decoder=utils.from_global_id,
-        global_id_encoder=utils.to_global_id,
-        project_repo=projects_repos.ProjectRepo,
-        feature_repo=properties_repos.FeatureRepo,
-        building_repo=buildings_repos.BuildingRepo,
-        property_repo=properties_repos.PropertyRepo,
-        building_booking_type_repo=buildings_repos.BuildingBookingTypeRepo,
-        backend_building_booking_type_repo=backend_repos.BackendBuildingBookingTypesRepo,
-        backend_properties_repo=backend_repos.BackendPropertiesRepo,
-        backend_floors_repo=backend_repos.BackendFloorsRepo,
-        backend_sections_repo=backend_repos.BackendSectionsRepo,
-    )
+    import_property_service: property_services.ImportPropertyService = \
+        property_services.ImportPropertyServiceFactory.create(orm_class=Tortoise, orm_config=tortoise_config)
     resources: dict[str, Any] = dict(
         orm_class=Tortoise,
         orm_config=tortoise_config,
@@ -78,6 +65,7 @@ def create_amocrm_contact_task(user_id: int, phone: str) -> None:
         orm_config=tortoise_config,
         amocrm_class=amocrm.AmoCRM,
         user_repo=users_repos.UserRepo,
+        user_role_repo=users_repos.UserRoleRepo,
         import_bookings_service=import_bookings_service,
         amocrm_config=amocrm_config,
     )
@@ -138,6 +126,11 @@ def check_client_task_periodic() -> None:
     """
     Периодическая проверка клиента
     """
+    lock_id = "periodic_cache_check_client_task_periodic"
+    can_launch = redis_lock(lock_id)
+    if not can_launch:
+        return
+
     resources: dict[str, Any] = dict(
         orm_class=Tortoise,
         orm_config=tortoise_config,
@@ -188,21 +181,16 @@ def check_user_interests() -> None:
     Периодическая проверка избранного для уведомления клиента по почте при наличии изменений
     в объектах недвижимости (цена, статус, акции)
     """
-    import_property_service: property_services.ImportPropertyService = property_services.ImportPropertyService(
-        floor_repo=floors_repos.FloorRepo,
-        global_id_decoder=utils.from_global_id,
-        global_id_encoder=utils.to_global_id,
-        project_repo=projects_repos.ProjectRepo,
-        feature_repo=properties_repos.FeatureRepo,
-        building_repo=buildings_repos.BuildingRepo,
-        property_repo=properties_repos.PropertyRepo,
-        building_booking_type_repo=buildings_repos.BuildingBookingTypeRepo,
-        backend_building_booking_type_repo=backend_repos.BackendBuildingBookingTypesRepo,
-        backend_properties_repo=backend_repos.BackendPropertiesRepo,
-        backend_floors_repo=backend_repos.BackendFloorsRepo,
-        backend_sections_repo=backend_repos.BackendSectionsRepo,
-        backend_special_offers_repo=backend_repos.BackendSpecialOfferRepo,
-    )
+    lock_id = "periodic_cache_check_user_interests"
+    can_launch = redis_lock(lock_id)
+    if not can_launch:
+        return
+
+    import_property_service: property_services.ImportPropertyService = \
+        property_services.ImportPropertyServiceFactory.create(
+            orm_class=Tortoise,
+            orm_config=tortoise_config,
+        )
     get_email_template_service: notification_services.GetEmailTemplateService = \
         notification_services.GetEmailTemplateService(
             email_template_repo=notification_repos.EmailTemplateRepo,
@@ -228,6 +216,11 @@ def periodic_users_clean() -> None:
     """
     Чистка пользователей
     """
+    lock_id = "periodic_cache_periodic_users_clean"
+    can_launch = redis_lock(lock_id)
+    if not can_launch:
+        return
+
     resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
         orm_class=Tortoise,
@@ -244,6 +237,11 @@ def periodic_logs_clean() -> None:
     """
     Чистка логов пользователей старше 3 дней
     """
+    lock_id = "periodic_cache_periodic_logs_clean"
+    can_launch = redis_lock(lock_id)
+    if not can_launch:
+        return
+
     days: int = logs_config.get("logs_lifetime")
     resources: dict[str, Any] = dict(
         user_log_repo=users_repos.UserLogRepo,

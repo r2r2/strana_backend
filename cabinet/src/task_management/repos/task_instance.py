@@ -1,5 +1,3 @@
-from typing import Optional
-
 from tortoise import fields
 
 from common import orm
@@ -14,7 +12,8 @@ class TaskInstance(BaseTaskModel):
 
     id: int = fields.IntField(description="ID", pk=True)
     comment: str = fields.TextField(description="Комментарий администратора АМО", null=True)
-    task_amocrmid: Optional[str] = fields.CharField(max_length=255, description="ID задачи в АМО", null=True)
+    task_amocrmid: str | None = fields.CharField(max_length=255, description="ID задачи в АМО", null=True)
+    current_step: str | None = fields.CharField(max_length=255, description="Текущий шаг задачи", null=True)
     status: fields.ForeignKeyRelation["TaskStatus"] = fields.ForeignKeyField(
         model_name="models.TaskStatus",
         related_name="task_instances",

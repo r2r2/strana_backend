@@ -19,9 +19,9 @@ class AdditionalServiceTicket(BaseAdditionalServiceDatabaseModel):
         null=True,
         on_delete=fields.SET_NULL,
     )
-    status = fields.ForeignKeyField(
-        model_name="models.AmocrmStatus",
-        related_name="amocrm_status",
+    group_status = fields.ForeignKeyField(
+        model_name="models.AdditionalServiceGroupStatus",
+        related_name="service_group_status",
         null=True,
         on_delete=fields.SET_NULL,
     )
@@ -37,6 +37,12 @@ class AdditionalServiceTicket(BaseAdditionalServiceDatabaseModel):
     full_name: str = fields.CharField(max_length=150, description="ФИО клиента")
     phone: str = fields.CharField(
         max_length=20, description="Номер телефона", index=True
+    )
+    user = fields.ForeignKeyField(
+        description="Пользователь",
+        model_name="models.User",
+        related_name="tickets",
+        null=True,
     )
 
     class Meta:

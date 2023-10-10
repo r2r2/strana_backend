@@ -12,5 +12,3 @@ RUN chmod +x entrypoint.* \
     && ln -s /usr/share/ca-certificates/mozilla/russian_trusted_root_ca_pem.crt /etc/ssl/certs/russian_trusted_root_ca_pem.pem
 
 ENTRYPOINT ["sh", "entrypoint.sh"]
-
-

@@ -14,6 +14,7 @@ from ..entities import BaseBookingService
 from src.booking.repos import BookingRepo, Booking, BookingSource
 from ..types import WebhookLead, CustomFieldValue
 from src.booking.utils import get_booking_source
+from src.projects.constants import ProjectStatus
 
 
 class BookingCreationFromAmoService(BaseBookingService):
@@ -49,7 +50,8 @@ class BookingCreationFromAmoService(BaseBookingService):
     ) -> Booking:
         custom_fields: dict = webhook_lead.custom_fields
         project_enum: str = custom_fields.get(self.amocrm_class.project_field_id, CustomFieldValue()).value
-        project: Optional[Project] = await self.project_repo.retrieve(filters=dict(amocrm_enum=project_enum))
+        project: Optional[Project] = await self.project_repo.retrieve(filters=dict(amocrm_enum=project_enum,
+                                                                                   status=ProjectStatus.CURRENT))
         property_id: str = custom_fields.get(self.amocrm_class.property_field_id, CustomFieldValue()).value
         property_str_type: str = custom_fields.get(self.amocrm_class.property_str_type_field_id, CustomFieldValue()).value
         property_type: str = self.amocrm_class.property_str_type_reverse_values.get(property_str_type)

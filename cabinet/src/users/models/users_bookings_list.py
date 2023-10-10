@@ -217,6 +217,7 @@ class _UserBookingsListModel(BaseUserModel):
     expires: Optional[datetime]
     fixation_expires: Optional[datetime] = Field(None, alias="fixationExpires")
     until: Optional[datetime]
+    loyalty_point_amount: Optional[int] = Field(None, alias="loyaltyPoint")
 
     user: _BookingUserModel
 

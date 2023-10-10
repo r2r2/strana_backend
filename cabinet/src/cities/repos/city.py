@@ -36,6 +36,7 @@ class City(Model):
     links: fields.ManyToManyRelation["Link"]
     elements: fields.ManyToManyRelation["Element"]
     metro_line: fields.ReverseRelation["MetroLine"]
+    acquiring: fields.ReverseRelation["Acquiring"]
 
     def __repr__(self):
         return self.name

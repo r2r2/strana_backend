@@ -1,34 +1,25 @@
 # pylint: disable=no-member
 from typing import Any
 
-from fastapi import APIRouter, Body, Request, Depends, status
-
-from common import utils, amocrm, requests, profitbase, dependencies, email, messages, security
-from common.backend import repos as backend_repos
-from config import session_config, site_config, amocrm_config
-
-from src.booking import tasks
+from common import amocrm, dependencies, email, messages, profitbase, requests, security, utils
+from config import amocrm_config, session_config, site_config
+from fastapi import APIRouter, Body, Depends, Request, status
 from src.booking import repos as booking_repos
+from src.booking import tasks
+from src.booking.factories import ActivateBookingServiceFactory
 from src.booking.services import ActivateBookingService, SendSmsToMskClientService
-from common.settings.repos import BookingSettingsRepo
 from src.booking.services.deactivate_booking import DeactivateBookingService
 from src.buildings import repos as buildings_repos
-from src.floors import repos as floors_repos
-from src.projects import repos as projects_repos
 from src.properties import constants, models
 from src.properties import repos as properties_repos
 from src.properties import services, use_cases
 from src.amocrm import repos as amocrm_repos
-from src.task_management import services as task_management_services
-from src.task_management import repos as task_management_repos
-from src.task_management.tasks import update_task_instance_status_task
-from src.notifications.tasks import booking_fixation_notification_email_task
+from src.properties.factories.services import CheckProfitbasePropertyServiceFactory
+from src.task_management.factories import UpdateTaskInstanceStatusServiceFactory
 from src.users import repos as users_repos
 from src.users import services as user_services
-from src.users import constants as users_constants
 from src.notifications import services as notification_services
 from src.notifications import repos as notification_repos
-from src.notifications import tasks as notification_tasks
 
 
 router = APIRouter(prefix="/properties", tags=["Properties"])
@@ -41,20 +32,7 @@ async def create_property_view(
     """
     Создание объекта недвижимости
     """
-    import_property_service: services.ImportPropertyService = services.ImportPropertyService(
-        floor_repo=floors_repos.FloorRepo,
-        global_id_decoder=utils.from_global_id,
-        global_id_encoder=utils.to_global_id,
-        project_repo=projects_repos.ProjectRepo,
-        building_repo=buildings_repos.BuildingRepo,
-        feature_repo=properties_repos.FeatureRepo,
-        property_repo=properties_repos.PropertyRepo,
-        building_booking_type_repo=buildings_repos.BuildingBookingTypeRepo,
-        backend_building_booking_type_repo=backend_repos.BackendBuildingBookingTypesRepo,
-        backend_properties_repo=backend_repos.BackendPropertiesRepo,
-        backend_floors_repo=backend_repos.BackendFloorsRepo,
-        backend_sections_repo=backend_repos.BackendSectionsRepo,
-    )
+    import_property_service: services.ImportPropertyService = services.ImportPropertyServiceFactory.create()
     resources: dict[str, Any] = dict(
         session=request.session,
         session_config=session_config,
@@ -110,37 +88,9 @@ async def bind_booking_property(
     """
     Связывание объекта недвижимости со сделкой
     """
-    resources: dict[str, Any] = dict(
-        booking_repo=booking_repos.BookingRepo,
-        property_repo=properties_repos.PropertyRepo,
-        building_booking_type_repo=buildings_repos.BuildingBookingTypeRepo,
-        check_booking_task=tasks.check_booking_task,
-        global_id_decoder=utils.from_global_id,
-        request_class=requests.UpdateSqlRequest,
-        amocrm_class=amocrm.AmoCRM,
-        create_amocrm_log_task=tasks.create_amocrm_log_task,
-        profitbase_class=profitbase.ProfitBase,
-        create_booking_log_task=tasks.create_booking_log_task,
-        booking_notification_sms_task=notification_tasks.booking_notification_sms_task,
-    )
-    activate_bookings_service: ActivateBookingService = ActivateBookingService(**resources)
-    resources: dict[str, Any] = dict(
-        global_id_decoder=utils.from_global_id,
-        profitbase_class=profitbase.ProfitBase,
-    )
-    check_profitbase_property_service = services.CheckProfitbasePropertyService(**resources)
-
-    resources: dict[str, Any] = dict(
-        task_instance_repo=task_management_repos.TaskInstanceRepo,
-        task_status_repo=task_management_repos.TaskStatusRepo,
-        booking_repo=booking_repos.BookingRepo,
-        booking_settings_repo=BookingSettingsRepo,
-        update_task_instance_status_task=update_task_instance_status_task,
-        booking_fixation_notification_email_task=booking_fixation_notification_email_task,
-    )
-    update_status_service = task_management_services.UpdateTaskInstanceStatusService(
-        **resources
-    )
+    activate_bookings_service: ActivateBookingService = ActivateBookingServiceFactory.create()
+    check_profitbase_property_service = CheckProfitbasePropertyServiceFactory.create()
+    update_status_service = UpdateTaskInstanceStatusServiceFactory.create()
 
     resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
@@ -210,17 +160,7 @@ async def unbind_booking_property(
         **resources
     )
 
-    resources: dict[str, Any] = dict(
-        task_instance_repo=task_management_repos.TaskInstanceRepo,
-        task_status_repo=task_management_repos.TaskStatusRepo,
-        booking_repo=booking_repos.BookingRepo,
-        booking_settings_repo=BookingSettingsRepo,
-        update_task_instance_status_task=update_task_instance_status_task,
-        booking_fixation_notification_email_task=booking_fixation_notification_email_task,
-    )
-    update_status_service = task_management_services.UpdateTaskInstanceStatusService(
-        **resources
-    )
+    update_status_service = UpdateTaskInstanceStatusServiceFactory.create()
 
     resources: dict[str, Any] = dict(
         booking_repo=booking_repos.BookingRepo,

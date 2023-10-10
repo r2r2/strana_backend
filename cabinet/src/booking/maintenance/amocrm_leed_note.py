@@ -65,8 +65,8 @@ async def _get_note_message(func, *args, **kwargs) -> Tuple[Any, Any, str]:
         text += _format_exception_message(e)
     else:
         text = "Смс с быстрой бронью успешно отправлено"
-    finally:
-        return result, exception, text
+
+    return result, exception, text
 
 
 def _format_exception_message(exception) -> str:

@@ -31,5 +31,5 @@ class ClientAmocrmGroupStatus(models.Model):
         managed = False
         db_table = "client_amocrm_group_statuses"
         ordering = ("sort",)
-        verbose_name = "Группирующий статус"
+        verbose_name = "Группирующий статус для клиента"
         verbose_name_plural = "1.10. [Справочник] Группирующие статусы воронок для клиента"

@@ -10,7 +10,7 @@ def get_routers() -> list[APIRouter]:
     from src.agencies.api import agencies_router
     from src.agents.api import agents_router
     from src.auth import auth_router
-    from src.booking.api import booking_router, fast_booking_router
+    from src.booking.api import booking_router, fast_booking_router, booking_router_v2
     from src.documents.api import documents_router, escrow_router
     from src.notifications.api import notifications_router, templates_router
     from src.cautions.api import caution_router
@@ -31,6 +31,7 @@ def get_routers() -> list[APIRouter]:
     from src.dashboard.api import dashboard_router
     from src.main_page.api import main_page_router
     from src.additional_services.api import add_services_router
+    from src.events_list.api import events_list_router
 
     routers: list[APIRouter] = list()
 
@@ -41,6 +42,7 @@ def get_routers() -> list[APIRouter]:
     routers.append(agents_router)
     routers.append(customers_router)
     routers.append(booking_router)
+    routers.append(booking_router_v2)
     routers.append(fast_booking_router)
     routers.append(represes_router)
     routers.append(documents_router)
@@ -69,6 +71,7 @@ def get_routers() -> list[APIRouter]:
     routers.append(dashboard_router)
     routers.append(main_page_router)
     routers.append(add_services_router)
+    routers.append(events_list_router)
 
     return routers
 

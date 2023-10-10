@@ -55,7 +55,7 @@ class UpdateBookingsService:
         "COMMERCIAL_APARTMENT": "GlobalFlatType",
         "COMMERCIAL": "GlobalCommercialSpaceType",
     }
-    related_types_mapping: dict[str, Any] = {
+    related_types_mapping: dict[str, tuple[str, str]] = {
         "city": ("CityType", "id"),
         "floor": ("FloorType", "id"),
         "building": ("BuildingType", "id"),
@@ -306,7 +306,9 @@ class UpdateBookingsService:
 
             if not property_errors and property_data:
                 floor_data: dict[str, Any] = property_data.pop("floor")
+
                 backend_project: dict[str, Any] = property_data.pop("project")
+
                 building_data: dict[str, Any] = property_data.pop("building")
 
                 floor_global_id: Optional[str] = floor_data.pop("global_id", None)
@@ -315,9 +317,7 @@ class UpdateBookingsService:
 
                 # Создаём/обновляем проект
                 project_global_id_type = self.related_types_mapping["project"][0]
-                project_global_id_value = getattr(
-                    backend_project, self.related_types_mapping["project"][1], None
-                )
+                project_global_id_value = backend_project.get(self.related_types_mapping["project"][1])
                 project_global_id = self.global_id_encoder(project_global_id_type, project_global_id_value)
 
                 city: Optional[City] = None
@@ -388,6 +388,7 @@ class UpdateBookingsService:
 
     async def _get_project(self, project_filters: dict[str, Any], backend_project: dict[str, Any]) -> Project:
         backend_project.pop("global_id", None)
+        backend_project.pop("id", None)
 
         amocrm_enum = backend_project.get("amocrm_enum")
         if isinstance(amocrm_enum, str):

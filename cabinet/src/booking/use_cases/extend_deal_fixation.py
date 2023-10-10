@@ -10,6 +10,7 @@ from src.task_management.services import UpdateTaskInstanceStatusService
 from src.task_management.constants import FixationExtensionSlug, BOOKING_UPDATE_FIXATION_STATUSES
 from ..entities import BaseBookingCase
 from ..exceptions import BookingNotFoundError, BookingHasNoCorrectFixationTaskError
+from src.task_management.dto import UpdateTaskDTO
 
 
 class ExtendDeaFixationCase(BaseBookingCase):
@@ -53,6 +54,7 @@ class ExtendDeaFixationCase(BaseBookingCase):
             raise BookingNotFoundError
 
         booking_has_correct_task = False
+        status_slug = None
         for task_instance in booking.task_instances:
             if task_instance.status.slug == FixationExtensionSlug.DEAL_NEED_EXTENSION.value:
                 booking_has_correct_task = True
@@ -73,8 +75,10 @@ class ExtendDeaFixationCase(BaseBookingCase):
         if not booking_has_correct_task:
             raise BookingHasNoCorrectFixationTaskError
 
+        task_context: UpdateTaskDTO = UpdateTaskDTO()
+        task_context.by_button = True
         await self.update_task_instance_service(
             booking_id=booking_id,
             status_slug=status_slug,
-            by_button=True,
+            task_context=task_context,
         )

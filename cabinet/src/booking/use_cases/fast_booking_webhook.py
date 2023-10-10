@@ -1,3 +1,4 @@
+import asyncio
 from asyncio import Task
 from datetime import datetime, timedelta
 from typing import Any, Callable, Optional, Type, Union
@@ -37,6 +38,7 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
 
     sms_event_slug = "booking_amo_webhook"
     mail_event_slug: str = "booking_amo_webhook"
+    client_role_slug = UserType.CLIENT
     fast_booking_link_template: str = "https://{}/fast-booking/{}?token={}"
 
     def __init__(
@@ -173,9 +175,11 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
         return fast_booking
 
     async def _send_fast_booking_notify(self, user: User, booking: Booking) -> None:
-        token: str = self.token_creator(subject_type=user.type.value, subject=user.id)["token"]
-        await self._send_sms(booking, user, token)
-        await self._send_email(booking, user, token)
+        token: str = self.token_creator(subject_type=self.client_role_slug, subject=user.id)["token"]
+        await asyncio.gather(
+            self._send_sms(booking, user, token),
+            self._send_email(booking, user, token),
+        )
 
     def _validate_lead(self, lead_custom_fields: dict):
         """
@@ -225,9 +229,9 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
         async with await self.amocrm_class() as amocrm:
             contact: Optional[AmoContact] = await amocrm.fetch_contact(user_id=main_contact_id)
 
-        amo_user_data: dict = self.create_amocrm_contact_service.fetch_amocrm_data(contact)
+        amo_user_data: dict = await self.create_amocrm_contact_service.fetch_amocrm_data(contact)
         self.validate_contact(amo_user_data)
-        user_filters: dict[str, Any] = dict(phone=amo_user_data.pop("phone", None), type=UserType.CLIENT)
+        user_filters: dict[str, Any] = dict(amocrm_id=main_contact_id, role__slug=UserType.CLIENT)
         partial_user_data: dict[str, Any] = dict(
             is_brokers_client=True,
             is_deleted=False,
@@ -335,7 +339,17 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
             data = dict(final_price=price_with_sale or property_final_price)
             await self.property_repo.update(model=booking_property, data=data)
 
-        self.check_booking_task.apply_async((booking.id,), eta=booking.expires)
+        now = datetime.now().astimezone()
+        executed = booking.expires - now
+        print(
+            f"Start check_booking_task at {now}\n"
+            f"with args: booking_id={booking.id}, eta={booking.expires}.\n"
+            f"Should be executed in {int(executed.seconds / 60)} minutes."
+        )
+        self.check_booking_task.apply_async((booking.id,), eta=expires)
+        # task_delay: int = (booking.expires - datetime.now(tz=UTC)).seconds
+        # self.check_booking_task.apply_async((booking.id,), countdown=task_delay)
+        # self.check_booking_task.delay(booking.id)
 
         return booking
 

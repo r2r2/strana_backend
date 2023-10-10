@@ -1,6 +1,8 @@
 from datetime import date, datetime
 from typing import Any, Optional, Union
 from uuid import UUID
+import traceback
+import structlog
 
 from common import cfields, orm
 from common.orm.mixins import ExistsMixin, GenericMixin
@@ -213,6 +215,28 @@ class User(Model):
     agent_id: Optional[int]
     maintained_id: Optional[int]
 
+    loyalty_point_amount: Optional[int] = fields.IntField(
+        description="Остаток баллов по программе лояльности", null=True,
+    )
+    loyalty_status_name: Optional[str] = fields.CharField(
+        description="Статус лояльности", max_length=100, null=True,
+    )
+    loyalty_status_icon: Optional[dict[str, Any]] = cfields.MediaField(
+        description="Изображение статуса лояльности", max_length=300, null=True,
+    )
+    loyalty_status_level_icon: Optional[dict[str, Any]] = cfields.MediaField(
+        description="Цветное изображение статуса лояльности", max_length=300, null=True,
+    )
+    loyalty_status_substrate_card: Optional[dict[str, Any]] = cfields.MediaField(
+        description="Подложка (карточка участника) статуса лояльности", max_length=300, null=True,
+    )
+    loyalty_status_icon_profile: Optional[dict[str, Any]] = cfields.MediaField(
+        description="Подложка (профиль) статуса лояльности", max_length=300, null=True,
+    )
+    date_assignment_loyalty_status = fields.DatetimeField(
+        description="Дата присвоения статуса лояльности", null=True,
+    )
+
     def __str__(self) -> str:
         representation: str = str()
         if self.surname and self.name:
@@ -266,16 +290,41 @@ class UserRepo(BaseUserRepo, UserRepoSpecsMixin, UserRepoFacetsMixin, GenericMix
     c_builder: orm.ConverterBuilder = orm.ConverterBuilder(User)
     a_builder: orm.AnnotationBuilder = orm.AnnotationBuilder(User)
 
+    logger = structlog.get_logger("user_repo")
+
+    async def create(self, data: dict[str, Any]) -> 'CreateMixin.model':
+        model = await super().create(data)
+
+        self.logger.debug("User create: ", id=model.id, data=data)
+        self.logger.debug(traceback.print_stack(limit=5))
+
+        return model
+
     async def update(self, model: User, data: dict[str, Any]) -> Union[User, None]:
         """
         Обновление пользователя
         """
+        self.logger.debug("User update: ", id=model.id, data=data)
+        self.logger.debug(traceback.print_stack(limit=5))
         for field, value in data.items():
             setattr(model, field, value)
         try:
             await model.save()
         except IntegrityError:
             model = None
+        return model
+
+    async def update_or_create(
+        self,
+        filters: dict[str, Any],
+        data: dict[str, Any],
+    ) -> 'UpdateOrCreateMixin.model':
+        """
+        Создание или обновление модели
+        """
+        model, _ = await self.model.update_or_create(**filters, defaults=data)
+        self.logger.debug("User fetch_or_create: ", id=model.id, filters=filters, data=data)
+        self.logger.debug(traceback.print_stack(limit=5))
         return model
 
     async def add_m2m(self, model: User, relation: str, instances: list[Model]) -> None:
@@ -296,6 +345,7 @@ class UserRepo(BaseUserRepo, UserRepoSpecsMixin, UserRepoFacetsMixin, GenericMix
         """
         Создание пользователя, если не существует с таким телефоном или email-ом
         """
+        filters = dict(phone=data.get('phone'), email=data.get('email'))
         q_filters = [
             self.q_builder(or_filters=[dict(phone=data.get('phone')), dict(email__iexact=data.get('email'))])
         ]
@@ -303,4 +353,6 @@ class UserRepo(BaseUserRepo, UserRepoSpecsMixin, UserRepoFacetsMixin, GenericMix
 
         if not user:
             user = await super().create(data)
+        self.logger.debug("User fetch_or_create: ", id=user.id, filters=filters, data=data)
+        self.logger.debug(traceback.print_stack(limit=5))
         return user

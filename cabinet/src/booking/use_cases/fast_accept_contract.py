@@ -35,10 +35,21 @@ class FastAcceptContractCase(BaseBookingCase, BookingLogMixin):
         if not booking.time_valid():
             raise BookingTimeOutError
 
+        if booking.amocrm_substage in (
+            BookingSubstages.MORTGAGE_DONE,
+            BookingSubstages.MORTGAGE_LEAD,
+            BookingSubstages.MORTGAGE_FILED,
+            BookingSubstages.APPLY_FOR_A_MORTGAGE,
+        ):
+            # Не меняем статус, если это ипотека
+            amocrm_substage = booking.amocrm_substage
+        else:
+            amocrm_substage = BookingSubstages.BOOKING
+
         data: dict[str, Any] = dict(
             amocrm_stage=BookingStages.BOOKING,
             payment_status=PaymentStatuses.CREATED,
-            amocrm_substage=BookingSubstages.BOOKING,
+            amocrm_substage=amocrm_substage,
             profitbase_booked=True,
             contract_accepted=payload.contract_accepted,
         )

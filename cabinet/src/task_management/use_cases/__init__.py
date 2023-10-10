@@ -1,5 +1,6 @@
 from .update_task_instance import UpdateTaskInstanceCase
 from .amocrm_webhook_update_task import AmoCRMWebhookUpdateTaskInstanceCase
 from .create_task_instance_for_old_bookings import CreateTaskInstanceForOldBookingCase
+from .close_old_bookings import CloseOldBookingCase
 from .task_chain_statuses import TaskChainStatusesCase
 from .set_previous_task_status import SetPreviousTaskStatusCase

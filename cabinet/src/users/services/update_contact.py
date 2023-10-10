@@ -26,7 +26,7 @@ class UpdateUsersService(CreateContactService):
                 self.logger.warning("User has not found at amo contact")
                 return
 
-            data = self.fetch_amocrm_data(contact)
+            data = await self.fetch_amocrm_data(contact)
             await user_changes_logger(
                 self.user_repo.update, self, content="Импорт данных пользователей из AmoCRM"
             )(user=user, data=data)

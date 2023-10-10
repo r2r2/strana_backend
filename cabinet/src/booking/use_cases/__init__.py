@@ -1,5 +1,5 @@
 from .accept_contract import AcceptContractCase
-from .booking_repeat import BookingRepeat
+from .booking_repeat import BookingRepeat, BookingRepeatV2
 from .admins_booking_charge import AdminsBookingChargeCase
 from .amocrm_webhook import AmoCRMWebhookCase
 from .amocrm_webhook_access_deal import AmoCRMWebhookAccessDealCase
@@ -11,7 +11,7 @@ from .booking_list import BookingListCase
 from .booking_retrieve import BookingRetrieveCase
 from .booking_building_type_list import BookingBuildingTypeListCase
 from .check_documents_recognized import CheckDocumentsRecognizedCase
-from .check_params import CheckParamsCase
+from .check_params import CheckParamsCase, CheckParamsCaseV2
 from .ddu_accept import DDUAcceptCase
 from .ddu_create import DDUCreateCase
 from .ddu_update import DDUUpdateCase
@@ -20,7 +20,7 @@ from .ddu_upload_retrieve import DDUUploadRetrieveCase
 from .escrow_upload import EscrowUploadCase
 from .fast_accept_contract import FastAcceptContractCase
 from .fast_booking_webhook import FastBookingWebhookCase
-from .fill_personal import FillPersonalCase
+from .fill_personal import FillPersonalCase, FillPersonalCaseV2
 from .history import HistoryCase
 from .mass_email import MassEmailCase
 from .payment_method_combinations import PaymentMethodCombinationsCase
@@ -28,7 +28,7 @@ from .payment_method_select import PaymentMethodSelectCase
 from .purchase_help_text import PurchaseHelpTextCase
 from .purchase_start import PurchaseStartCase
 from .recognize_documents import RecognizeDocumentsCase
-from .sberbank_link import SberbankLinkCase
+from .sberbank_link import SberbankLinkCase, SberbankLinkCaseV2
 from .sberbank_status import SberbankStatusCase
 from .single_email import SingleEmailCase
 from .stream_file_base64 import StreamFileBase64Case
@@ -38,3 +38,4 @@ from .extend_deal_fixation import ExtendDeaFixationCase
 from .create_booking import CreateBookingCase
 from .get_booking_document import GetBookingDocumentCase
 from .rebooking import RebookingCase
+from .accept_booking import AcceptBookingCase

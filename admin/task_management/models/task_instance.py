@@ -14,6 +14,12 @@ class TaskInstance(BaseTaskManagementModel):
         verbose_name='Статус задания',
         help_text='Логика переходов заданий между шаблонами зашита и описана в проектной документации.',
     )
+    current_step: str = models.CharField(
+        max_length=255,
+        verbose_name='Текущий шаг задачи',
+        null=True,
+        blank=True,
+    )
     booking: models.ForeignKey = models.ForeignKey(
         'booking.Booking',
         on_delete=models.CASCADE,

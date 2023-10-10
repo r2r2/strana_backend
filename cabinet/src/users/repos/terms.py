@@ -77,6 +77,10 @@ class CheckTerm(Model):
         default=False,
         description="Отправлять письмо администраторам при проверке клиента в данном статусе",
     )
+    send_rop_email: bool = fields.BooleanField(
+        default=False,
+        description="Отправлять письмо РОПам при проверке клиента в данном статусе",
+    )
     unique_status: fields.ForeignKeyNullableRelation["UniqueStatus"] = fields.ForeignKeyField(
         model_name="models.UniqueStatus",
         description="Статус уникальности",

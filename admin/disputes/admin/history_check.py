@@ -14,7 +14,7 @@ class AmoCrmCheckLogInline(admin.StackedInline):
     readonly_fields = (
         "route",
         "status",
-        "query",
+        "request_data",
         "data"
     )
     model = AmoCrmCheckLog

@@ -19,7 +19,7 @@ class GetBookingDocumentCase(BaseBookingCase):
         self.booking_repo: BookingRepo = booking_repo()
 
     async def __call__(self, booking_id: int, user_id: int) -> Document:
-        booking_filters: dict = dict(is_active=True, id=booking_id, user_id=user_id)
+        booking_filters: dict = dict(active=True, id=booking_id, user_id=user_id)
         booking: Booking = await self.booking_repo.retrieve(
             filters=booking_filters,
             related_fields=["project__city", "property__property_type", "building"]

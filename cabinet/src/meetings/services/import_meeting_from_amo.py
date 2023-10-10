@@ -10,10 +10,11 @@ from src.booking.types import CustomFieldValue, WebhookLead
 from src.booking.constants import BookingSubstages
 from src.amocrm.repos import AmocrmStatusRepo
 from src.events.repos import CalendarEventRepo, CalendarEventType
-from ..constants import MeetingStatusChoice, MeetingType, MeetingPropertyType
 from ..entities import BaseMeetingService
-from ..repos import MeetingRepo, Meeting, MeetingStatusRepo
-from src.task_management.entities import TaskContextDTO
+from src.task_management.dto import CreateTaskDTO
+from src.projects.constants import ProjectStatus
+from ..constants import MeetingStatusChoice, MeetingType, MeetingPropertyType, MeetingCreationSourceChoice
+from ..repos import MeetingRepo, Meeting, MeetingStatusRepo, MeetingCreationSourceRepo
 
 
 class ImportMeetingFromAmoService(BaseMeetingService):
@@ -24,6 +25,7 @@ class ImportMeetingFromAmoService(BaseMeetingService):
         self,
         meeting_repo: type[MeetingRepo],
         meeting_status_repo: type[MeetingStatusRepo],
+        meeting_creation_source_repo: type[MeetingCreationSourceRepo],
         calendar_event_repo: type[CalendarEventRepo],
         booking_repo: type[BookingRepo],
         amocrm_class: type[AmoCRM],
@@ -32,18 +34,19 @@ class ImportMeetingFromAmoService(BaseMeetingService):
     ) -> None:
         self.meeting_repo: MeetingRepo = meeting_repo()
         self.meeting_status_repo: MeetingStatusRepo = meeting_status_repo()
+        self.meeting_creation_source_repo: MeetingCreationSourceRepo = meeting_creation_source_repo()
         self.calendar_event_repo: CalendarEventRepo = calendar_event_repo()
         self.booking_repo: BookingRepo = booking_repo()
         self.amocrm_class: type[AmoCRM] = amocrm_class
         self.amocrm_status_repo: AmocrmStatusRepo = amocrm_status_repo()
         self.project_repo: ProjectRepo = project_repo()
 
-    async def __call__(self, webhook_lead: WebhookLead, user: User = None) -> Optional[TaskContextDTO]:
+    async def __call__(self, webhook_lead: WebhookLead, user: User = None) -> Optional[CreateTaskDTO]:
         data_from_amo: dict = self._parse_meeting_data(webhook_lead=webhook_lead)
         project = await self._parse_project_from_amo(webhook_lead=webhook_lead)
         property_type = self._parse_property_type_from_amo(webhook_lead=webhook_lead)
 
-        task_context = TaskContextDTO()
+        task_context = CreateTaskDTO()
         meeting: Meeting = await self.meeting_repo.retrieve(
             filters=dict(
                 booking__amocrm_id=webhook_lead.lead_id,
@@ -58,14 +61,6 @@ class ImportMeetingFromAmoService(BaseMeetingService):
                 meeting_address=data_from_amo.get("meeting_address"),
                 meeting_link=data_from_amo.get("meeting_link"),
             )
-            print("ImportMeetingFromAmoService")
-            print(f'{webhook_lead=}')
-            print(f'{meeting=}')
-            print(f'{data_from_amo=}')
-            print(f'{meeting_date_from_amo=}')
-            print(f"{meeting.date=}")
-            print(f'{meeting.date != meeting_date_from_amo=}')
-            print("-" * 50)
 
             if meeting.date != meeting_date_from_amo:
                 task_context.update(meeting_new_date=meeting_date_from_amo)
@@ -175,6 +170,9 @@ class ImportMeetingFromAmoService(BaseMeetingService):
         confirm_meeting_status = await self.meeting_status_repo.retrieve(
             filters=dict(slug=MeetingStatusChoice.CONFIRM)
         )
+        amo_creating_meeting_source = await self.meeting_creation_source_repo.retrieve(
+            filters=dict(slug=MeetingCreationSourceChoice.AMOCRM)
+        )
 
         meeting_data: dict = dict(
             booking_id=booking.id,
@@ -184,6 +182,7 @@ class ImportMeetingFromAmoService(BaseMeetingService):
             type=data_from_amo.get("meeting_type") if data_from_amo.get("meeting_type") else MeetingType.ONLINE,
             property_type=property_type if property_type else MeetingPropertyType.FLAT,
             status_id=confirm_meeting_status.id,
+            creation_source_id=amo_creating_meeting_source.id if amo_creating_meeting_source else None
         )
         created_meeting = await self.meeting_repo.create(data=meeting_data)
 
@@ -289,7 +288,8 @@ class ImportMeetingFromAmoService(BaseMeetingService):
             self.amocrm_class.project_field_id,
             CustomFieldValue(),
         ).enum
-        return await self.project_repo.retrieve(filters=dict(amocrm_enum=project_amocrm_enum))
+        return await self.project_repo.retrieve(filters=dict(amocrm_enum=project_amocrm_enum,
+                                                             status=ProjectStatus.CURRENT))
 
     def _parse_property_type_from_amo(self, webhook_lead: WebhookLead) -> Optional[str]:
         property_type = self.amocrm_class.meeting_property_types.get(

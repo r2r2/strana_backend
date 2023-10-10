@@ -7,7 +7,7 @@ from pytz import UTC
 import structlog
 
 from common.amocrm.types import AmoLead
-from config import backend_config
+from config import backend_config, EnvTypes, maintenance_settings
 from src.buildings.repos import BuildingBookingType, BuildingBookingTypeRepo
 from ..constants import BookingSubstages
 from ..entities import BaseBookingService
@@ -31,6 +31,9 @@ class ActivateBookingService(BaseBookingService, BookingLogMixin):
     Общий кейс активации бронирования
     """
 
+    dev_test_booking_tag: list[str] = ['Тестовая бронь']
+    stage_test_booking_tag: list[str] = ['Тестовая бронь Stage']
+
     query_type: str = "changePropertyStatus"
     query_name: str = "changePropertyStatus.graphql"
     query_directory: str = "/src/booking/queries/"
@@ -44,7 +47,7 @@ class ActivateBookingService(BaseBookingService, BookingLogMixin):
         amocrm_class: Type[BookingAmoCRM],
         profitbase_class: Type[BookingProfitBase],
         request_class: Type[BookingSqlUpdateRequest],
-        global_id_decoder: Callable[[str], tuple[str, Union[str, int]]],
+        global_id_decoder: Callable[[str], list[str]],
 
         check_booking_task: Any,
         create_amocrm_log_task: Any,
@@ -163,9 +166,15 @@ class ActivateBookingService(BaseBookingService, BookingLogMixin):
                 if not booking_type:
                     booking_type = BookingTypeNamedTuple(price=int(booking.payment_amount))
 
+                tags = booking.tags
+                if maintenance_settings["environment"] == EnvTypes.DEV:
+                    tags = tags + self.dev_test_booking_tag
+                elif maintenance_settings["environment"] == EnvTypes.STAGE:
+                    tags = tags + self.stage_test_booking_tag
+
                 lead_options: dict[str, Any] = dict(
                     status=BookingSubstages.START,
-                    tags=booking.tags,
+                    tags=tags,
                     city_slug=booking.project.city.slug,
                     property_type=booking.property.type.value.lower(),
                     user_amocrm_id=booking.user.amocrm_id,

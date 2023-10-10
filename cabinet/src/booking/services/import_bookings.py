@@ -28,6 +28,7 @@ from src.properties.services import ImportPropertyService
 from src.users.loggers.wrappers import user_changes_logger
 from src.users.repos import User, UserRepo
 from src.task_management.constants import FixationExtensionSlug, BOOKING_UPDATE_FIXATION_STATUSES
+from src.projects.constants import ProjectStatus
 
 from ..constants import BookingStagesMapping, BookingSubstages
 from ..entities import BaseBookingService
@@ -308,7 +309,8 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
 
         project = None
         if lead_project_enum:
-            project: Optional[Project] = await self.project_repo.retrieve(filters=dict(amocrm_enum=lead_project_enum))
+            project: Optional[Project] = await self.project_repo.retrieve(filters=dict(amocrm_enum=lead_project_enum,
+                                                                                       status=ProjectStatus.CURRENT))
 
         stages_valid: bool = self._is_stage_valid(amocrm_substage=amocrm_substage)
         if not stages_valid:
