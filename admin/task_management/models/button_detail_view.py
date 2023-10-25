@@ -8,6 +8,12 @@ class ButtonDetailView(BaseTaskManagementModel):
     """
     Кнопка
     """
+    class ButtonCondition(models.TextChoices):
+        """
+        Условия кнопок
+        """
+        SUBMIT: str = "submit", _("Отправить")
+
     class ButtonStyle(models.TextChoices):
         """
         Стили кнопок
@@ -22,6 +28,13 @@ class ButtonDetailView(BaseTaskManagementModel):
         LINK: str = "link", _("Ссылка")
 
     label: str = models.CharField(max_length=100, verbose_name='Название')
+    condition: str = models.CharField(
+        max_length=64,
+        verbose_name='Переход по кнопке',
+        choices=ButtonCondition.choices,
+        null=True,
+        blank=True,
+    )
     style: str = models.CharField(
         max_length=20,
         verbose_name='Стиль',
@@ -29,6 +42,13 @@ class ButtonDetailView(BaseTaskManagementModel):
     )
     slug: str = models.CharField(
         max_length=255, verbose_name='Слаг', help_text='Действие, инициируемое при нажатии на кнопку'
+    )
+    slug_step: str = models.CharField(
+        max_length=255,
+        verbose_name='Слаг следующего шага',
+        help_text='Слаг шага, на который будет переходить задание при нажатии на кнопку',
+        null=True,
+        blank=True,
     )
     priority: int = models.IntegerField(
         verbose_name='Приоритет',

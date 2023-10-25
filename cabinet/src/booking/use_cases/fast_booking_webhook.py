@@ -226,23 +226,48 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
         """
         Update or create user from amo
         """
-        async with await self.amocrm_class() as amocrm:
-            contact: Optional[AmoContact] = await amocrm.fetch_contact(user_id=main_contact_id)
-
-        amo_user_data: dict = await self.create_amocrm_contact_service.fetch_amocrm_data(contact)
+        amo_user_data: dict[str, Any] = await self.get_amocrm_user_data(main_contact_id)
         self.validate_contact(amo_user_data)
-        user_filters: dict[str, Any] = dict(amocrm_id=main_contact_id, role__slug=UserType.CLIENT)
-        partial_user_data: dict[str, Any] = dict(
+        partial_user_data = dict(
             is_brokers_client=True,
             is_deleted=False,
             is_active=True,
         )
         amo_user_data.update(partial_user_data)
 
-        user: User = await self.user_repo.update_or_create(filters=user_filters, data=amo_user_data)
-        self.logger.info('AMOCRM User', amocrm_id=main_contact_id, user_id=user.id, phone=user.phone)
+        user: User = await self.update_user(amo_user_data, main_contact_id)
+
+        if not user:
+            user: User = await self.create_user(amo_user_data, main_contact_id)
+
+        self.log_amocrm_user(main_contact_id, user)
 
         return user
+
+    async def get_amocrm_user_data(self, main_contact_id: int) -> dict:
+        async with await self.amocrm_class() as amocrm:
+            contact: AmoContact | None = await amocrm.fetch_contact(user_id=main_contact_id)
+            return await self.create_amocrm_contact_service.fetch_amocrm_data(contact)
+
+    async def update_user(self, amo_user_data: dict, main_contact_id: int) -> User:
+        user_filters = dict(amocrm_id=main_contact_id, role__slug=UserType.CLIENT)
+        user: User = await self.user_repo.retrieve(filters=user_filters)
+        if user:
+            return await self.user_repo.update(model=user, data=amo_user_data)
+
+    async def create_user(self, amo_user_data: dict, main_contact_id: int) -> User:
+        amo_user_data.update({"amocrm_id": main_contact_id})
+        user: User = await self.user_repo.retrieve(
+            filters=dict(phone=amo_user_data["phone"], role__slug=UserType.CLIENT)
+        )
+        if user:
+            return await self.user_repo.update(model=user, data=amo_user_data)
+        else:
+            return await self.user_repo.create(data=amo_user_data)
+
+    def log_amocrm_user(self, main_contact_id: int, user: User) -> None:
+        if user:
+            self.logger.info('AMOCRM User', amocrm_id=main_contact_id, user_id=user.id, phone=user.phone)
 
     def validate_contact(self, contact: dict):
         """validate contact"""

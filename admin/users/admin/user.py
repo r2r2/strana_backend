@@ -20,6 +20,7 @@ from users.models import (
     CityUserThrough,
     CabinetUserQuerySet
 )
+from ..utils import get_client_token_from_cabinet, import_clients_and_booking_from_amo
 
 
 class BookingInline(StackedInline):
@@ -139,7 +140,7 @@ class CabinetUserAdmin(ModelAdmin):
         "maintained",
         "interested_project",
     )
-    actions = ("adminify", "export_csv")
+    actions = ("adminify", "export_csv", "get_client_token")
     readonly_fields = (
         "created_at",
         "agency_city",
@@ -148,6 +149,9 @@ class CabinetUserAdmin(ModelAdmin):
         "auth_last_at",
         "loyalty_point_amount",
         "loyalty_status_name",
+        "is_ready_for_authorisation_by_superuser",
+        "can_login_as_another_user",
+        "client_token_for_superuser",
     )
     date_hierarchy = "auth_first_at"
     list_filter = (
@@ -161,10 +165,17 @@ class CabinetUserAdmin(ModelAdmin):
         "type",
         "role",
     )
+    exclude = ("user_cities",)
     list_per_page = 15
     show_full_result_count = False
     list_select_related = True
     save_on_top = True
+
+    def get_readonly_fields(self, request, obj=None):
+        if obj and obj.can_login_as_another_user:
+            return self.readonly_fields + ("password",)
+        else:
+            return self.readonly_fields
 
     def user(self, obj):
         return obj
@@ -254,20 +265,74 @@ class CabinetUserAdmin(ModelAdmin):
             writer.writerow(row)
 
         return response
-    exclude = ("user_cities",)
+
+    def get_client_token(self, request, queryset: CabinetUserQuerySet):
+        """
+        Получить токен клиента.
+        """
+        if not queryset:
+            messages.error(request, message="Необходимо их выбрать объект(ы). Объекты не были выбраны.")
+
+        user_type = CabinetUser.UserType
+        for user in queryset:
+            if user.type != user_type.CLIENT:
+                messages.error(
+                    request,
+                    message=f"Недопустимый тип пользователя для {user.full_name()} "
+                            f"- токен можно получить только для клиентов",
+                )
+
+            get_client_token_from_cabinet(user.id)
+
+    get_client_token.short_description = "Получить (актуализировать) токены для клиентов"
 
     def response_change(self, request, obj):
         if "_auth" in request.POST:
-            superuser_auth_link: str = "https://{}/login/as?user_id={}"
             site_host = os.getenv("LK_SITE_HOST")
             broker_site_host = os.getenv("BROKER_LK_SITE_HOST")
+            superuser_auth_as_client_link: str = "https://{}/login-as-client?token={}"
+            superuser_auth_in_broker_link: str = "https://{}/login?userId={}"
 
             if obj.type == "client":
-                auth_link = superuser_auth_link.format(site_host, obj.id)
+                if obj.client_token_for_superuser:
+                    auth_link = superuser_auth_as_client_link.format(site_host, obj.client_token_for_superuser)
+                    return HttpResponseRedirect(auth_link)
+                else:
+                    messages.add_message(
+                        request,
+                        message="Нужно получить токен для авторизации под клиентом!",
+                        level=messages.WARNING,
+                    )
+                    return HttpResponseRedirect(request.path)
             else:
-                auth_link = superuser_auth_link.format(broker_site_host, obj.id)
+                obj.is_ready_for_authorisation_by_superuser = True
+                obj.save()
+                auth_link = superuser_auth_in_broker_link.format(broker_site_host, obj.id)
+                return HttpResponseRedirect(auth_link)
 
-            return HttpResponseRedirect(auth_link)
+        if "_import_booking" in request.POST:
+            if obj.type not in ["agent", "repres"]:
+                messages.add_message(
+                    request,
+                    message="Функционал недоступен для клиентов или админов, только для брокеров!",
+                    level=messages.WARNING,
+                )
+            else:
+                import_is_started = import_clients_and_booking_from_amo(obj.id)
+                if import_is_started:
+                    messages.add_message(
+                        request,
+                        message="Запущен функционал импорта сделок и клиентов для данного брокера",
+                        level=messages.INFO,
+                    )
+                else:
+                    messages.add_message(
+                        request,
+                        message="Не удалось запустить функционал импорта сделок и клиентов для данного брокера",
+                        level=messages.WARNING,
+                    )
+
+            return HttpResponseRedirect(request.path)
 
         return super().response_change(request, obj)
 
@@ -309,9 +374,15 @@ class CabinetAgentAdmin(CabinetUserAdmin):
         "assignation_comment",
         "project_city",
         "user_cities",
+        "client_token_for_superuser",
     )
     date_hierarchy = "created_at"
-    readonly_fields = ("loyalty_point_amount", "loyalty_status_name")
+    readonly_fields = (
+        "loyalty_point_amount",
+        "loyalty_status_name",
+        "is_ready_for_authorisation_by_superuser",
+        "can_login_as_another_user",
+    )
 
     def get_queryset(self, request):
         return CabinetAgent.objects.filter(type__in=["agent", "repres"])
@@ -334,6 +405,11 @@ class CabinetClientAdmin(CabinetUserAdmin):
         "loyalty_status_substrate_card",
         "loyalty_status_icon_profile",
         "date_assignment_loyalty_status",
+    )
+    readonly_fields = (
+        "is_ready_for_authorisation_by_superuser",
+        "can_login_as_another_user",
+        "client_token_for_superuser",
     )
 
     def get_queryset(self, request):
@@ -381,8 +457,9 @@ class CabinetAdminAdmin(CabinetAgentAdmin):
         "loyalty_status_substrate_card",
         "loyalty_status_icon_profile",
         "date_assignment_loyalty_status",
+        "client_token_for_superuser",
     )
-
+    readonly_fields = ("is_ready_for_authorisation_by_superuser", "can_login_as_another_user",)
     filter_horizontal = ("user_cities",)
 
     def get_user_cities_on_list(self, obj):

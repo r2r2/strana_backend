@@ -88,9 +88,9 @@ class CreateTaskInstanceService(BaseTaskService):
     async def __call__(
         self,
         booking_ids: Union[list[int], int],
-        task_context: CreateTaskDTO = CreateTaskDTO(),
+        task_context: CreateTaskDTO | None = None,
     ) -> None:
-        self._task_context: CreateTaskDTO = task_context
+        self._task_context: CreateTaskDTO = task_context if task_context else CreateTaskDTO()
         if isinstance(booking_ids, int):
             booking_ids: list[int] = [booking_ids]
 
@@ -198,7 +198,7 @@ class CreateTaskInstanceService(BaseTaskService):
             if task_created:
                 # создаем отложенную задачу на изменение статуса задачи сделки фиксации,
                 # когда фиксация подходит к концу
-                update_task_date = booking.fixation_expires - timedelta(booking_settings.extension_deadline)
+                update_task_date = booking.fixation_expires - timedelta(days=booking_settings.extension_deadline)
                 self.update_task_instance_status_task.apply_async(
                     (booking.id, self.fixations_statuses.DEAL_NEED_EXTENSION.value),
                     eta=update_task_date,
@@ -261,9 +261,9 @@ class CreateTaskInstanceService(BaseTaskService):
         """
         Создание задания для цепочки Онлайн бронирования
         """
-        status_valid: bool = booking.amocrm_status in await get_statuses_before_paid_booking()
+        status_valid: bool = booking.amocrm_status.id in await get_statuses_before_paid_booking()
         self.logger.info(
-            f"Статус сделки [{booking.amocrm_status}] in [await get_statuses_before_paid_booking()]: {status_valid}"
+            f"Статус сделки [{booking.amocrm_status.id}] in [await get_statuses_before_paid_booking()]: {status_valid}"
         )
         if status_valid:
             # Если статус сделки входит в статусы до Платного бронирования, то создаем задачу
@@ -321,6 +321,7 @@ class CreateTaskInstanceService(BaseTaskService):
                 status=task_status,
                 comment=comment,
                 current_step=task_status.slug,
+                is_main=self._task_context.is_main,
             )
         )
         self.logger.info(

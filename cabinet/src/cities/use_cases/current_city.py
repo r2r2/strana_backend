@@ -1,7 +1,9 @@
-from typing import Type, Any
+from decimal import Decimal
 
-from common.requests import CommonRequest
-from config import dadata_config
+from dadata import DadataAsync
+from haversine import haversine
+from httpx import HTTPError
+
 from src.cities import repos as city_repo
 from ..entities import BaseCityCase
 
@@ -15,39 +17,52 @@ class CurrentCity(BaseCityCase):
 
     def __init__(
             self,
-            iplocation_repo: Type[city_repo.IPLocationRepo],
-            cities_repo: Type[city_repo.CityRepo],
-            request_class: Type[CommonRequest],
+            iplocation_repo: type[city_repo.IPLocationRepo],
+            dadata_settings_repo: type[city_repo.DaDataSettingsRepo],
+            cities_repo: type[city_repo.CityRepo],
     ):
         self.iplocation_repo = iplocation_repo()
+        self.dadata_settings_repo = dadata_settings_repo()
         self.cities_repo = cities_repo()
-        self._request_class: Type[CommonRequest] = request_class
-        self._dadata_url = "https://suggestions.dadata.ru/suggestions/api/4_1/rs/iplocate/address"
 
     async def __call__(self, ip_address: str):
         if location := await self.iplocation_repo.retrieve(filters=dict(ip_address=ip_address),
                                                            related_fields=["city"]):
             return location.city
-        headers: dict[str, Any] = {
-            "Content-type": "application/json",
-            "Accept": "application/json",
-            "Authorization": f"Token {dadata_config['token']}",
-            "X-Secret": dadata_config['secret'],
-        }
-        request_data: dict[str, Any] = dict(
-            url=self._dadata_url,
-            method="GET",
-            headers=headers,
-            query={"ip": ip_address},
-        )
+
+        dadata_settings = await self.dadata_settings_repo.list().first()
+
         try:
-            async with self._request_class(**request_data) as response:
-                dadata_city = response.data["location"]["data"]["city"]
-            city = await self.cities_repo.retrieve(dict(name=dadata_city))
-        except:
+            async with DadataAsync(dadata_settings.api_key, dadata_settings.secret_key) as dadata:
+                result = await dadata.iplocate(ip_address)
+        except HTTPError as e:
+            self.logger.info("Не удалось получить данные из DaData.", e)
             return await self.cities_repo.retrieve(dict(name="Тюмень"))
+        except Exception as e:
+            self.logger.exception("Произошла неизвестная ошибка")
+            return await self.cities_repo.retrieve(dict(name="Тюмень"))
+        if not result or 'data' not in result.keys():
+            return await self.cities_repo.retrieve(dict(name="Тюмень"))
+
+        current_geo = (Decimal(result['data']['geo_lat']), Decimal(result['data']['geo_lon']))
+
+        filters = dict(
+            latitude__isnull=False,
+            longitude__isnull=False,
+        )
+        cites = await self.cities_repo.list(filters=filters)
+
+        city_coordinates = {city: (city.latitude, city.longitude) for city in cites}
+
+        distances = float('inf')
+        city = None
+        for city_key, city_coord in city_coordinates.items():
+            if distances > haversine(city_coord, current_geo):
+                city = city_key
+                distances = haversine(city_coord, current_geo)
+
         if city:
             await self.iplocation_repo.create(dict(ip_address=ip_address, city=city))
             return city
-        else:
-            return await self.cities_repo.retrieve(dict(name="Тюмень"))
+
+        return await self.cities_repo.retrieve(dict(name="Тюмень"))

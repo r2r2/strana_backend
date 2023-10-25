@@ -39,7 +39,10 @@ class UpdateProfileCase(BaseRepresCase):
             self._update_amo_info(repres, payload)
         )
 
-        repres: User = await self.repres_repo.retrieve(filters=filters, related_fields=["agency"])
+        repres: User = await self.repres_repo.retrieve(
+            filters=filters,
+            related_fields=["agency", "agency__general_type"],
+        )
 
         return repres
 

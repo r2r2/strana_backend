@@ -89,6 +89,7 @@ class CheckBookingService(BaseBookingService):
         """
         status: Статус, устанавливаемый по истечению времени бронирования
         """
+        print("CheckBookingService")
         filters: dict[str, Any] = dict(id=booking_id, should_be_deactivated_by_timer=True)
         booking: Booking = await self.booking_repo.retrieve(
             filters=filters,
@@ -101,20 +102,25 @@ class CheckBookingService(BaseBookingService):
                 "building",
             ],
         )
+        print(f'{booking=}')
         result: bool = True
         if booking:
             if booking.step_four():
+                print("booking.step_four()")
                 data = dict(should_be_deactivated_by_timer=False)
                 await self.booking_deactivate_for_step_four(booking=booking, data=data)
                 result: bool = True
             elif booking.time_valid():
+                print("booking.time_valid()")
                 task_delay: int = (booking.expires - datetime.now(tz=UTC)).seconds
                 if self.check_booking_task:
-                    self.check_booking_task.apply_async(
-                        (booking.id, status), countdown=task_delay
-                    )
+                    pass
+                    # self.check_booking_task.apply_async(
+                    #     (booking.id, status), countdown=task_delay
+                    # )
                 result: bool = False
             else:
+                print("else")
                 if not status:
                     status: str = BookingStages.START
 

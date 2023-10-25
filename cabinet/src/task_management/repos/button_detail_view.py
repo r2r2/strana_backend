@@ -2,7 +2,7 @@ from tortoise import fields
 
 from common import cfields
 from common.orm.mixins import ReadWriteMixin
-from src.task_management.constants import ButtonStyle
+from src.task_management.constants import ButtonStyle, ButtonCondition
 from src.task_management.entities import BaseTaskModel, BaseTaskRepo
 
 
@@ -14,12 +14,19 @@ class ButtonDetailView(BaseTaskModel):
 
     id: int = fields.IntField(description="ID", pk=True)
     label: str = fields.CharField(max_length=100, description="Название кнопки")
+    condition: str = cfields.CharChoiceField(
+        choice_class=ButtonCondition,
+        description="Переход по кнопке",
+        max_length=64,
+        null=True,
+    )
     style: str = cfields.CharChoiceField(
         choice_class=ButtonStyle,
         description="Стиль кнопки",
         max_length=20,
     )
     slug: str = fields.CharField(max_length=100, description="Слаг кнопки")
+    slug_step: str = fields.CharField(max_length=100, description="Слаг следующего шага", null=True)
     priority: int = fields.IntField(
         description="Чем меньше приоритет - тем выше выводится кнопка в интерфейсе задания",
         null=True

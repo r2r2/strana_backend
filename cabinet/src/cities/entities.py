@@ -1,5 +1,7 @@
 from typing import Any
 
+import structlog
+
 from common.orm.entities import BaseRepo
 from common.pydantic import CamelCaseBaseModel
 
@@ -8,6 +10,7 @@ class BaseCityRepo(BaseRepo):
     """
     Базовый репозиторий города
     """
+    logger = structlog.get_logger(__name__)
 
     async def __call__(self, *args: list[Any], **kwargs: dict[str, Any]) -> Any:
         raise NotImplementedError
@@ -32,6 +35,7 @@ class BaseCityModel(CamelCaseBaseModel):
     """
     Базовая модель города
     """
+
     class Config:
         orm_mode = True
 

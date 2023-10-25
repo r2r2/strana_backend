@@ -52,11 +52,9 @@ class CabinetUser(models.Model):
         MANAGER: str = "manager", _("Менеджер")
         ROP: str = "rop", _("Руководитель отдела продаж")
 
-    email = models.CharField(unique=True, max_length=100, blank=True, null=True)
-    phone = models.CharField(
-        unique=False, max_length=20, blank=True, null=True, help_text="Должен быть в формате “'+7XXXXXXXXXX"
-    )
-    username = models.CharField(unique=True, max_length=100, blank=True, null=True)
+    email = models.CharField(max_length=100, blank=True, null=True)
+    phone = models.CharField(max_length=20, blank=True, null=True, help_text="Должен быть в формате “'+7XXXXXXXXXX")
+    username = models.CharField(max_length=100, blank=True, null=True)
     password = models.CharField(
         max_length=200,
         blank=True,
@@ -236,6 +234,25 @@ class CabinetUser(models.Model):
         blank=True,
         null=True,
     )
+    is_offer_accepted = models.BooleanField(
+        verbose_name="Принята оферта",
+        default=False,
+    )
+    is_ready_for_authorisation_by_superuser = models.BooleanField(
+        verbose_name="Под данным пользователем может авторизоваться суперюзер",
+        default=False,
+    )
+    can_login_as_another_user = models.BooleanField(
+        verbose_name="Суперпользователь",
+        default=False,
+        help_text="Нельзя менять хэш пароль у суперюзеров",
+    )
+    client_token_for_superuser = models.CharField(
+        verbose_name="Токен авторизации для клиента (для использования суперпользователями)",
+        max_length=300,
+        null=True,
+        blank=True,
+    )
 
     objects = CabinetUserQuerySet.as_manager()
 
@@ -256,6 +273,7 @@ class CabinetUser(models.Model):
         verbose_name = "Пользователь"
         verbose_name_plural = " 2.1. [Пользователи] Все"
         ordering = ["-created_at"]
+        unique_together = [["role", "phone"], ["role", "email"], ["role", "username"], ["role", "amocrm_id"]]
 
 
 class CabinetClient(CabinetUser):

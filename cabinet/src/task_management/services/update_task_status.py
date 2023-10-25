@@ -66,11 +66,11 @@ class UpdateTaskInstanceStatusService(BaseTaskService):
         self,
         booking_id: int,
         status_slug: list[str] | str,
-        task_context: UpdateTaskDTO = UpdateTaskDTO(),
+        task_context: UpdateTaskDTO | None = None,
     ) -> None:
         self.logger.info("Обновление статуса задачи:")
         await self._set_booking(booking_id)
-        self._task_context: UpdateTaskDTO = task_context
+        self._task_context: UpdateTaskDTO = task_context if task_context else UpdateTaskDTO()
         _status_slugs: list[str] | str = status_slug if isinstance(status_slug, list) else [status_slug]
         task_instances: list[TaskInstance] = self.booking.task_instances  # type: ignore
         self.logger.info(f"Найдено {len(task_instances)} задач(и) для сделки {self.booking}")
@@ -220,7 +220,9 @@ class UpdateTaskInstanceStatusService(BaseTaskService):
                 # продлеваем фиксацию в АМО
                 await self._send_sensei_request()
             else:
-                task_date: datetime = self.booking.fixation_expires - timedelta(booking_settings.extension_deadline)
+                task_date: datetime = self.booking.fixation_expires - timedelta(
+                    days=booking_settings.extension_deadline
+                )
                 self.update_task_instance_status_task.apply_async(
                     (self.booking.id, FixationExtensionSlug.DEAL_NEED_EXTENSION.value),
                     eta=task_date,

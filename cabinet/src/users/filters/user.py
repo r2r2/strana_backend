@@ -74,6 +74,7 @@ class UserFilter(BaseUserFilter):
 
     search: Optional[str] = Field(alias="search", description="Поиск")
     ordering: Optional[str] = Field("id", alias="ordering", description="Сортировка")
+    is_active: Optional[bool] = Field(alias="is_active", description="Активен ли аккаунт по сделкам")
     agent_id__in: Optional[list] = Field(alias="agent", description="Фильтр по агенту")
 
     # work_period: Optional[str] = Field(alias="work_period", description="Фильтр по периоду")

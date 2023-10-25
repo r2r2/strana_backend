@@ -71,11 +71,11 @@ class ImportMeetingFromAmoService(BaseMeetingService):
             if project and meeting.project != project:
                 data_for_update.update(project_id=project.id)
 
-            await self.meeting_repo.update(model=meeting, data=data_for_update)
-
-            if meeting.calendar_event:
-                calendar_event_data = dict(date_start=meeting.date)
-                await self.calendar_event_repo.update(model=meeting.calendar_event, data=calendar_event_data)
+            if meeting_date_from_amo:
+                await self.meeting_repo.update(model=meeting, data=data_for_update)
+                if meeting.calendar_event:
+                    calendar_event_data = dict(date_start=meeting.date)
+                    await self.calendar_event_repo.update(model=meeting.calendar_event, data=calendar_event_data)
 
         elif not meeting and user:
             # проверяем наличие полей встречи в сделке из амо

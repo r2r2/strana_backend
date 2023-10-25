@@ -34,6 +34,7 @@ class Cities(models.Model):
     name = models.CharField(verbose_name="Название", max_length=150)
     slug = models.CharField(max_length=100)
     phone = models.CharField(max_length=20, null=True, blank=True)
+    timezone_offset: int = models.IntegerField(default=0, verbose_name="Разница временного пояса с UTC")
     menus_city = models.ManyToManyField(
         verbose_name="Меню",
         blank=True,

@@ -12,7 +12,7 @@ from src.booking.repos import Booking, BookingRepo
 from src.meetings.constants import MeetingStatusChoice
 from src.meetings.repos import Meeting, MeetingRepo, MeetingStatusRepo
 from src.task_management.constants import MeetingsSlug, FixationExtensionSlug
-from src.task_management.exceptions import TaskStatusNotFoundError
+from src.task_management.exceptions import TaskStatusNotFoundError, TaskInstanceNotFoundError
 from src.task_management.helpers import Slugs
 from src.task_management.repos import (
     TaskInstance,
@@ -62,14 +62,15 @@ class TaskDataBuilder:
 
         for task in self.task_instances:
             self.task: TaskInstance = task
+            await self.task.fetch_related(
+                "status__button_detail_views",
+                "status__buttons",
+                "status__tasks_chain__task_visibility",
+            )
             task_visibility: list[AmocrmStatus] = self.task.status.tasks_chain.task_visibility
             if self.booking.amocrm_status not in task_visibility:
                 continue
-            await self.task.fetch_related(
-                "booking",
-                "status__button_detail_views",
-                "status__buttons",
-            )
+
             await self._process_task()
 
         return self.result
@@ -87,11 +88,14 @@ class TaskDataBuilder:
             text = self.task.status.description
 
         task_data: dict[str, Any] = {
+            "id": self.task.id,
             "type": self.task.status.type.value,
             "title": self.task.status.name,
             "text": text,
             "hint": self.task.comment,
             "current_step": self.task.current_step,
+            "task_status": self.task.status.slug,
+            "is_main": self.task.is_main,
             "buttons": await self._build_buttons(buttons_list=self.task.status.buttons),
             "buttons_detail_view": await self._build_buttons(buttons_list=self.task.status.button_detail_views),
             "meeting": await self._build_meeting_data() if build_meeting else None,
@@ -142,7 +146,9 @@ class TaskDataBuilder:
         buttons = [{
             "label": button.label,
             "type": button.style.value,
+            "slug_step": button.slug_step if isinstance(button, ButtonDetailView) else None,
             "action": {
+                "condition": button.condition if isinstance(button, ButtonDetailView) else None,
                 "type": button.slug,
                 "id": str(self.task.id),
             },
@@ -165,7 +171,7 @@ class TaskDataBuilder:
 
         meeting: Meeting = await MeetingRepo().retrieve(
             filters=dict(
-                booking=self.task.booking,
+                booking=self.booking,
                 status__id__in=meeting_statuses_qs,
             ),
             related_fields=["city", "project"],
@@ -190,12 +196,12 @@ class TaskDataBuilder:
         """
         Сборка данных для отображения полей для сделок фиксаций.
         """
-        days_before_fixation_expires = self.task.booking.fixation_expires - datetime.now(tz=UTC)
+        days_before_fixation_expires = self.booking.fixation_expires - datetime.now(tz=UTC)
 
         fixation_data: dict[str, Any] = {
-            "fixation_expires": self.task.booking.fixation_expires,
+            "fixation_expires": self.booking.fixation_expires,
             "days_before_fixation_expires": days_before_fixation_expires.days,
-            "extension_number": self.task.booking.extension_number,
+            "extension_number": self.booking.extension_number,
         }
 
         return fixation_data
@@ -250,6 +256,7 @@ async def get_booking_tasks(booking_id: int, task_chain_slug: str) -> list[Optio
             "amocrm_status",
             "task_instances__status__tasks_chain__task_visibility",
             "task_instances__status__buttons",
+            "task_instances__status__button_detail_views",
         ]
     )
     if not booking:
@@ -267,6 +274,29 @@ async def get_booking_tasks(booking_id: int, task_chain_slug: str) -> list[Optio
         task_instances=task_instances,
         booking=booking,
     ).build()
+
+
+async def get_booking_task(booking_id: int, task_chain_slug: str) -> TaskInstance:
+    """
+    Получение задачи по бронированию для интересующей цепочки задач
+    """
+    booking: Booking = await BookingRepo().retrieve(
+        filters=dict(id=booking_id),
+        prefetch_fields=[
+            "task_instances__status",
+        ]
+    )
+    if not booking:
+        raise BookingNotFoundError
+    interested_task_chain_slugs: list[str] = Slugs.get_slug_values(task_chain_slug)
+    # берем все таски, которые есть в интересующей цепочке задач
+    task_instances: list[TaskInstance] = [
+        task for task in booking.task_instances if
+        task.status.slug in interested_task_chain_slugs
+    ]
+    if not task_instances:
+        raise TaskInstanceNotFoundError
+    return task_instances[0]
 
 
 async def get_statuses_before_paid_booking() -> set[int]:

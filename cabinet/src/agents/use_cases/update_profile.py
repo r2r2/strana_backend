@@ -37,7 +37,7 @@ class UpdateProfileCase(BaseAgentCase):
             self._update_amo_info(agent, payload)
         )
 
-        agent: User = await self.agent_repo.retrieve(filters=filters, related_fields=["agency"])
+        agent: User = await self.agent_repo.retrieve(filters=filters, related_fields=["agency", "agency__general_type"])
 
         return agent
 

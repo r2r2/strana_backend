@@ -1,12 +1,14 @@
-from typing import Any, Optional
+from typing import Any
 from http import HTTPStatus
 from fastapi import APIRouter, Depends, Path, Body, Query
 from pydantic import conint
 
-from src.booking import repos as booking_repos
+from common import email
 from src.users import constants as users_constants
 from src.notifications import models, use_cases
 from src.notifications import repos as notifications_repos
+from src.notifications import services as notification_services
+
 from common import dependencies, paginations
 
 
@@ -86,3 +88,23 @@ async def client_notifications_specs_view(
         client_notification_repo=notifications_repos.ClientNotificationRepo
     )
     return await client_notifications_specs_case(user_id=user_id)
+
+
+@router.post(
+    "/send_test_email",
+    status_code=HTTPStatus.NO_CONTENT,
+)
+async def sending_test_email_view(payload: models.SendingTestEmailModel = Body(...)):
+    """
+    Тестовый апи для отправки писем (отладка шаблонов).
+    """
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notifications_repos.EmailTemplateRepo,
+        )
+    resources: dict[str, Any] = dict(
+        email_class=email.EmailService,
+        get_email_template_service=get_email_template_service,
+    )
+    sending_test_email_case: use_cases.SendingTestEmailCase = use_cases.SendingTestEmailCase(**resources)
+    return await sending_test_email_case(payload=payload)

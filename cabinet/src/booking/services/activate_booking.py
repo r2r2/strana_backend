@@ -221,8 +221,12 @@ class ActivateBookingService(BaseBookingService, BookingLogMixin):
                 property_id=property_id, deal_id=booking.amocrm_id
             )
             print("Profitbase response", data)
-            booked: bool = data.get("success", False)
-            in_deal: bool = data.get("code", None) == profitbase.dealed_code
+            if isinstance(data, dict):
+                booked: bool = data.get("success", False)
+                in_deal: bool = data.get("code", None) == profitbase.dealed_code
+            else:
+                booked: bool = False
+                in_deal: bool = False
         profitbase_booked: bool = booked or in_deal
         if not profitbase_booked:
             sentry_sdk.capture_message(

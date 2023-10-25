@@ -7,6 +7,7 @@ class CreateTaskDTO(BaseTaskContextDTO):
     status_slug: str | None
     meeting_new_date: datetime | None
     booking_created: bool = False
+    is_main: bool = False
 
 
 class UpdateTaskDTO(BaseTaskContextDTO):

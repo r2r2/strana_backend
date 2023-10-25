@@ -2,7 +2,7 @@ from typing import Optional
 
 from pydantic import EmailStr, Field
 
-from ..entities import BaseUserModel, BaseUserCamelCaseModel
+from ..entities import BaseUserModel
 
 
 class RequestProcessLoginModel(BaseUserModel):
@@ -12,17 +12,18 @@ class RequestProcessLoginModel(BaseUserModel):
 
     email: EmailStr
     password: str
+    user_id: int | None = Field(None, alias="userId")
 
     class Config:
         orm_mode = True
+        allow_population_by_field_name = True
 
 
-class RequestSuperuserLoginModel(BaseUserModel):
+class RequestSuperuserClientLoginModel(BaseUserModel):
     """
-    Модель запроса на вход суперюзером из админки под выбранным пользователем.
+    Модель запроса на вход суперюзером из админки под выбранным клиентом.
     """
-
-    session_id: str = Field(alias="sessionId")
+    client_id: int
 
 
 class ResponseProcessLoginModel(BaseUserModel):

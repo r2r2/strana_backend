@@ -1,1 +1,1 @@
-from .depreg_response import DepregParticipantsDTO, DepregParticipantDTO
+from .depreg_response import DepregParticipantsDTO, DepregParticipantDTO, DepregGroupDTO

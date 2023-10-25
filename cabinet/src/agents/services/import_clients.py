@@ -1,7 +1,7 @@
 """
 Import clients
 """
-from asyncio import Task
+from asyncio import Task, create_task
 from copy import copy
 from datetime import datetime
 from typing import Any, AsyncGenerator, List, Optional, Set, Tuple, Type, Union
@@ -66,6 +66,7 @@ class ImportClientsService(BaseAgentService):
         logger: Optional[Any] = structlog.getLogger(__name__),
         orm_class: Optional[Type[AgentORM]] = None,
         orm_config: Optional[dict[str, Any]] = None,
+        import_bookings_service: Any = None,
     ) -> None:
         self.agent_repo: AgentRepo = agent_repo()
         self.booking_repo: BookingRepo = booking_repo()
@@ -93,6 +94,7 @@ class ImportClientsService(BaseAgentService):
         self.booking_substages: Any = booking_substages
         self.amocrm_class: Type[AgentAmoCRM] = amocrm_class
         self.import_bookings_task: Any = import_bookings_task
+        self.import_bookings_service: Any = import_bookings_service
         self.statuses_repo: AmoStatusesRepo = statuses_repo()
         self.get_email_template_service: GetEmailTemplateService = get_email_template_service
 
@@ -157,7 +159,10 @@ class ImportClientsService(BaseAgentService):
                     await self._proceed_changed_assign(client=user, agent=old_agent)
 
             if user:
-                self.import_bookings_task.delay(user_id=user.id)
+                if self.import_bookings_service:
+                    create_task(self.import_bookings_service(user_id=user.id))
+                else:
+                    self.import_bookings_task.delay(user_id=user.id)
 
     async def _fetch_leads(self, amocrm_context, agent_contact) -> AsyncGenerator:
         """fetch_leads"""

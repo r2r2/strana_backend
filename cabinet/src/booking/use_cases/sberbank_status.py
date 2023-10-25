@@ -11,6 +11,7 @@ from uuid import UUID
 
 from pytz import UTC
 
+from common.sentry.utils import send_sentry_log
 from common.settings.repos import BookingSettingsRepo
 from ..constants import BookingPayKind
 from common.unleash.client import UnleashClient
@@ -29,6 +30,8 @@ from ..types import BookingAmoCRM, BookingEmail, BookingSberbank, BookingSms
 from src.task_management.constants import PaidBookingSlug, OnlineBookingSlug
 from src.task_management.services import UpdateTaskInstanceStatusService
 from src.notifications.services import GetSmsTemplateService, GetEmailTemplateService
+from src.task_management.repos import TaskInstance
+from src.task_management.utils import get_booking_task
 
 
 class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
@@ -89,8 +92,16 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
         self.get_sms_template_service: GetSmsTemplateService = get_sms_template_service
         self.get_email_template_service: GetEmailTemplateService = get_email_template_service
 
-    async def __call__(self, kind: Literal[BookingPayKind.SUCCESS, BookingPayKind.FAIL], secret: str, payment_id:
-    UUID, *args, **kwargs) -> str:
+        self.booking_until_datetime: datetime | None = None
+
+    async def __call__(
+        self,
+        kind: Literal[BookingPayKind.SUCCESS, BookingPayKind.FAIL],
+        secret: str,
+        payment_id: UUID,
+        *args,
+        **kwargs,
+    ) -> str:
         filters: dict[str, Any] = dict(payment_id=payment_id, active=True)
         booking: Booking = await self.booking_repo.retrieve(
             filters=filters,
@@ -116,21 +127,33 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
         if payment_status == PaymentStatuses.SUCCEEDED:
             payment_data = await self._payment_succeed(payment_data, booking)
         else:
-            payment_data, kind = await self._payment_not_succeed(payment_data, booking)
-        await self.booking_success_logger(booking=booking, data=payment_data)
-        if payment_status == PaymentStatuses.SUCCEEDED:
-            await self._history_service.execute(
-                booking=booking,
-                previous_online_purchase_step=booking.online_purchase_step(),
-                template=self._history_template,
-                params={"until": booking.until.strftime("%d.%m.%Y")},
+            payment_data = await self._payment_not_succeed(payment_data, booking)
+
+            sentry_extra: dict[str, Any] = {
+                "booking": booking,
+                "booking.is_can_pay": booking.is_can_pay,
+                "booking.pay_extension_number": booking.pay_extension_number,
+                "status": status,
+                "payment_data": payment_data,
+                "kind": kind,
+            }
+            await send_sentry_log(
+                tag="acquiring",
+                message="Sberbank pay fail.",
+                context=sentry_extra,
             )
 
         params = {"status": kind.value, "description": action_code_description}
         if booking.is_fast_booking():
             base_url = f"{booking.origin}{self.frontend_return_url}/{booking.id}/4/?"
         else:
-            base_url = f"{booking.origin}{self.frontend_return_url}/{booking.id}/3/?"
+            task: TaskInstance = await get_booking_task(
+                booking_id=booking.id,
+                task_chain_slug=OnlineBookingSlug.PAYMENT.value,
+            )
+            base_url = f"{booking.origin}{self.frontend_return_url}/payment-status?"
+            params.update({"taskId": task.id, "bookingId": booking.id})
+
         url = f"{base_url}{urlencode(params)}"
 
         return url
@@ -145,6 +168,7 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
             params_checked=True,
             should_be_deactivated_by_timer=False,
         )
+        await self.booking_success_logger(booking=booking, data=data)
         note_data: dict[str, Any] = dict(
             element="lead",
             lead_id=booking.amocrm_id,
@@ -154,21 +178,27 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
         self.create_amocrm_log_task.delay(note_data=note_data)
 
         async_tasks: list[Awaitable] = [
-            self.update_task_instance_status(booking_id=booking.id),
             self._send_sms(booking=booking),
             self._send_email(booking=booking),
         ]
         if booking.is_agent_assigned():
             async_tasks.append(self._send_agent_email(booking=booking))
-        await asyncio.gather(*async_tasks)
+
+        await self.update_task_instance_status(booking_id=booking.id)
         await self._amocrm_processing(booking=booking)
 
+        await self._history_service.execute(
+            booking=booking,
+            previous_online_purchase_step=booking.online_purchase_step(),
+            template=self._history_template,
+            params={"until": self.booking_until_datetime.strftime("%d.%m.%Y")},
+        )
+        [asyncio.create_task(task) for task in async_tasks]
         return data
 
     async def _payment_not_succeed(self, data: dict[str: Any], booking: Booking) -> dict[str: Any]:
         booking_settings = await self.booking_settings_repo.list().first()
         data.update(params_checked=False)
-        await self.booking_fail_logger(booking=booking, data=data)
 
         if booking.is_can_pay:
             if booking.pay_extension_number is None:
@@ -177,8 +207,6 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
                 pay_extension_number = booking.pay_extension_number
 
             data = dict(pay_extension_number=pay_extension_number - 1)
-            await self.booking_repo.update(booking, data)
-
             note_data: dict[str, Any] = dict(
                 element="lead",
                 lead_id=booking.amocrm_id,
@@ -189,7 +217,6 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
             data["expires"]: datetime = booking.expires + timedelta(
                 minutes=booking_settings.pay_extension_value
             )
-            kind = BookingPayKind.FAIL
         else:
             note_data: dict[str, Any] = dict(
                 element="lead",
@@ -198,8 +225,9 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
                 text="Неуспешная оплата онлайн бронирования",
             )
             self.create_amocrm_log_task.delay(note_data=note_data)
-            kind = BookingPayKind.FAIL
-        return data, kind
+        await self.booking_fail_logger(booking=booking, data=data)
+
+        return data
 
     # @logged_action(content="ПОЛУЧЕНИЕ СТАТУСА | SBERBANK")
     async def _check_status(self, booking: Booking) -> dict[str, Any]:
@@ -217,6 +245,19 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
         else:
             _username: str | None = sberbank_config.get(f"{booking.project.city.slug}_username")
             _password: str | None = sberbank_config.get(f"{booking.project.city.slug}_password")
+
+        if _username is None or _password is None:
+            sentry_extra: dict[str, Any] = {
+                "booking": booking,
+                "booking.project.city.slug": booking.project.city.slug,
+            }
+            await send_sentry_log(
+                tag="acquiring",
+                message="Sberbank username not found. Use 'tmn'.",
+                context=sentry_extra,
+            )
+            _username: str | None = sberbank_config.get("tmn_username")
+            _password: str | None = sberbank_config.get("tmn_password")
 
         status_options: dict[str, Any] = dict(
             user_email=booking.user.email,
@@ -254,7 +295,7 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
             status = BookingSubstages.PAID_BOOKING
 
         booking_period = booking.booking_period or 0
-        booking_until_datetime = datetime.now(tz=UTC) + timedelta(days=booking_period)
+        self.booking_until_datetime: datetime = datetime.now(tz=UTC) + timedelta(days=booking_period)
         async with await self.amocrm_class() as amocrm:
             lead_options: dict[str, Any] = dict(
                 status=status,
@@ -263,7 +304,7 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
                 tags=booking.tags,
                 booking_end=booking.booking_period,
                 booking_price=int(booking.payment_amount),
-                booking_expires_datetime=int(booking_until_datetime.timestamp()),
+                booking_expires_datetime=int(self.booking_until_datetime.timestamp()),
             )
             data: list[Any] = await amocrm.update_lead(**lead_options)
             if not data:
@@ -272,7 +313,7 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
         return lead_id
 
     # @logged_action(content="УСПЕШНАЯ ОПЛАТА | EMAIL")
-    async def _send_email(self, booking: Booking) -> Task:
+    async def _send_email(self, booking: Booking) -> None:
         """
         Docs
         """
@@ -290,9 +331,21 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
                 mail_event_slug=email_notification_template.mail_event_slug,
             )
             email_service: Any = self.email_class(**email_options)
-            return email_service.as_task()
+            try:
+                await email_service()
+            except Exception as ex:
+                sentry_extra: dict[str, Any] = dict(
+                    booking=booking,
+                    email_options=email_options,
+                    ex=ex,
+                )
+                await send_sentry_log(
+                    tag="email",
+                    message="Email send fail.",
+                    context=sentry_extra,
+                )
 
-    async def _send_agent_email(self, booking: Booking) -> Task:
+    async def _send_agent_email(self, booking: Booking) -> None:
         """
         Уведомление агента об успешном бронировании по почте
         """
@@ -310,7 +363,19 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
                 mail_event_slug=email_notification_template.mail_event_slug,
             )
             email_service: Any = self.email_class(**email_options)
-            return email_service.as_task()
+            try:
+                await email_service()
+            except Exception as ex:
+                sentry_extra: dict[str, Any] = dict(
+                    booking=booking,
+                    email_options=email_options,
+                    ex=ex,
+                )
+                await send_sentry_log(
+                    tag="email",
+                    message="Email send to agent fail.",
+                    context=sentry_extra,
+                )
 
     # @logged_action(content="УСПЕШНАЯ ОПЛАТА | SMS")
     async def _send_sms(self, booking: Booking) -> Task:

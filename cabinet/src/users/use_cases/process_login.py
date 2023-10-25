@@ -75,13 +75,19 @@ class ProcessLoginCase(BaseProcessLoginCase):
         if not user:
             raise self.NotFoundError
 
+        if payload.user_id and user.can_login_as_another_user:
+            authorized_user = user
+            user = await self.user_repo.retrieve(filters=dict(id=payload.user_id))
+        else:
+            authorized_user = None
+
         if not user.auth_first_at:
             await self.user_first_auth_update(user=user, data=dict(auth_first_at=datetime.now(tz=UTC)))
 
         if self._login_handler:
             self._login_handler.handle(user=user)
 
-        if user.is_deleted:
+        if user.is_deleted or (authorized_user and authorized_user.is_deleted):
             raise self.WasDeletedError
         if user.one_time_password:
             if self.hasher.verify(password, user.one_time_password):
@@ -96,7 +102,10 @@ class ProcessLoginCase(BaseProcessLoginCase):
             else:
                 raise self.WrongPasswordError
         else:
-            if not self.hasher.verify(password, user.password):
+            if not self.hasher.verify(
+                password,
+                user.password if not authorized_user else authorized_user.password,
+            ):
                 raise self.WrongPasswordError
             if not user.is_approved:
                 raise self.NotApprovedError
@@ -110,6 +119,10 @@ class ProcessLoginCase(BaseProcessLoginCase):
             token["role"]: str = user.type.value
             self.session[self.auth_key]: dict[str, str] = token
             await self.session.insert()
+
+            user.is_ready_for_authorisation_by_superuser = False
+            await user.save()
+
         await self._import_amocrm_hook(user)
         token["is_fired"] = user.is_fired
         await self.user_update(user, data=dict(auth_last_at=datetime.now(tz=UTC)))

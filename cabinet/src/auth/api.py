@@ -3,9 +3,8 @@ from typing import Any
 
 from common import security
 from config import auth_config, session_config, site_config
-from fastapi import APIRouter, Body, Request, Query, Header
+from fastapi import APIRouter, Body, Request
 from src.admins import repos as admins_repos
-from src.users import constants as users_constants
 from src.users import models, use_cases
 from src.users import repos as users_repos
 
@@ -32,20 +31,19 @@ async def process_login_view(
 
 
 @router.post(
-    "/login-as",
+    "/superuser_get_client_token",
     status_code=HTTPStatus.OK,
-    response_model=models.ResponseProcessLoginModel,
 )
 async def superuser_auth_as_user_view(
-    user_id: int = Query(..., alias="user"),
-    payload: models.RequestSuperuserLoginModel = Body(...),
+    payload: models.RequestSuperuserClientLoginModel = Body(...),
 ):
     """
-    Получение токена для авторизации суперюзера под выбранным пользователем по кукам админки.
+    Получение токена для авторизации суперюзера под выбранным клиентом по кукам админки.
     """
-    superuser_auth_as_user_case: use_cases.SuperuserAuthAsUserCase = use_cases.SuperuserAuthAsUserCase(
+
+    superuser_auth_as_user_case: use_cases.SuperuserAuthAsClientCase = use_cases.SuperuserAuthAsClientCase(
         token_creator=security.create_access_token,
         user_repo=users_repos.UserRepo,
         site_config=site_config,
     )
-    return await superuser_auth_as_user_case(user_id=user_id, payload=payload)
+    return await superuser_auth_as_user_case(payload=payload)

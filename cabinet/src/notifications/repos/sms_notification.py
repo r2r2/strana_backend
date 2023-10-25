@@ -38,6 +38,7 @@ class SmsTemplate(Model, TimeBasedMixin):
 
     booking_notifications: fields.ReverseRelation["BookingNotification"]
     assign_clients: fields.ReverseRelation["AssignClientTemplate"]
+    qrcode_sms: fields.ReverseRelation["QRcodeSMSNotify"]
 
     class Meta:
         table = "notifications_sms_notification"

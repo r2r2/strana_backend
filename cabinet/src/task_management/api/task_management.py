@@ -4,23 +4,30 @@ from fastapi import (APIRouter, Body, Path, Depends, Query)
 
 from common import dependencies
 from config import amocrm_config
-from src.task_management.model import TaskInstanceUpdateSchema, TaskChainStatusesResponseSchema
+from src.task_management.model import (
+    TaskInstanceUpdateSchema,
+    TaskChainStatusesResponseSchema,
+    UpdateTaskResponseSchema,
+    GetTaskResponseSchema,
+)
 from src.task_management.repos import TaskInstanceRepo, TaskStatusRepo
 from src.task_management.use_cases import (
     TaskChainStatusesCase,
     UpdateTaskInstanceCase,
     SetPreviousTaskStatusCase,
+    GetTaskInstanceCase,
 )
 from src.task_management.tasks import create_task_instance_task
 
 
-router = APIRouter(prefix="/task_management", tags=["Task Management"])
+router = APIRouter(prefix="/task_management", tags=["Цепочки задач"])
 
 
 @router.patch(
     "/task_instance/{task_instance_id}",
     status_code=HTTPStatus.OK,
     dependencies=[Depends(dependencies.CurrentAnyTypeUserId())],
+    response_model=UpdateTaskResponseSchema | None,
 )
 async def update_task_instance(
     task_instance_id: int = Path(...),
@@ -36,6 +43,26 @@ async def update_task_instance(
 
     update_task: UpdateTaskInstanceCase = UpdateTaskInstanceCase(**resources)
     return await update_task(payload=payload, task_instance_id=task_instance_id)
+
+
+@router.get(
+    "/task_instance/{task_instance_id}",
+    status_code=HTTPStatus.OK,
+    dependencies=[Depends(dependencies.CurrentAnyTypeUserId())],
+    response_model=GetTaskResponseSchema | None,
+)
+async def get_task_instance(
+    task_instance_id: int = Path(...),
+):
+    """
+    Получение экземпляра задания
+    """
+    resources: dict[str, Any] = dict(
+        task_instance_repo=TaskInstanceRepo,
+    )
+
+    get_task: GetTaskInstanceCase = GetTaskInstanceCase(**resources)
+    return await get_task(task_id=task_instance_id)
 
 
 @router.post(
@@ -111,21 +138,68 @@ async def one_time_set_pinning():
     from src.booking.tasks import check_booking_task
     from datetime import datetime, timedelta
     from pytz import UTC
-    # from common.depreg import DepregAPI
-    from src.task_management.utils import get_statuses_before_paid_booking
-    from src.task_management.repos import TaskInstanceRepo
+    from common.depreg import DepregAPI
+    from src.task_management.repos import TaskInstanceRepo, ButtonDetailViewRepo
+    from src.task_management.constants import OnlineBookingSlug
     from src.events_list.repos import EventParticipantListRepo, EventParticipantList
+    from src.task_management.factories import CreateTaskInstanceServiceFactory
+    from common import amocrm
+    from common.amocrm.types import AmoLead
+    from pprint import pprint
+    from src.properties.repos import PropertyRepo, Property
+    from src.amocrm.repos import AmocrmStatusRepo, AmocrmStatus
+    from src.booking.tasks import check_booking_task
+    from src.task_management.utils import get_booking_task, get_booking_tasks
+    from src.task_management.repos import TaskInstanceRepo, TaskInstance
 
-    participant: EventParticipantList = await EventParticipantListRepo().retrieve(
-        filters=dict(phone="7999999999"),
-        related_fields=["event"],
+    task: TaskInstance = await get_booking_task(
+        booking_id=5777,
+        task_chain_slug=OnlineBookingSlug.PAYMENT.value,
     )
-    print(f'{participant=}')
-    print(f'{datetime.today()=}')
-    print(f'{participant.event.event_date.date()=}')
-    if datetime.today().date() == participant.event.event_date.date():
-        print("OK")
+    print(f'{task=}')
+    print(f'{task.id=}')
 
+
+    # check_booking_task.delay(booking_id=5777)
+
+    # amocrm_status: AmocrmStatus = await AmocrmStatusRepo().retrieve(
+    #     filters=dict(
+    #         name=BookingSubstages.BOOKING_LABEL,
+    #         pipeline_id=3934218,
+    #     ),
+    # )
+    # print(f'{amocrm_status=}')
+    # print(f'{amocrm_status.id=}')
+    #
+    # booking_data: dict[str, Any] = dict(
+    #     user_id=5142,
+    #     agent_id=5137,
+    #     project_id=5,
+    #     amocrm_status=amocrm_status,
+    #     payment_order_number="9c955ede-c482-42d0-a00b-ea50dacbeb70",
+    # )
+    #
+    # booking: Booking = await BookingRepo().create(data=booking_data)
+    #
+    # create_task_instance = CreateTaskInstanceServiceFactory.create()
+    # await create_task_instance(booking_ids=booking.id)
+    # booking: dict[str, Any] = dict(booking)
+    # booking["tasks"] = await get_booking_tasks(
+    #     booking_id=booking["id"], task_chain_slug=OnlineBookingSlug.ACCEPT_OFFER.value
+    # )
+    # return booking
+
+
+
+    # participant: EventParticipantList = await EventParticipantListRepo().retrieve(
+    #     filters=dict(phone="7999999999"),
+    #     related_fields=["event"],
+    # )
+    # print(f'{participant=}')
+    # print(f'{datetime.today()=}')
+    # print(f'{participant.event.event_date.date()=}')
+    # if datetime.today().date() == participant.event.event_date.date():
+    #     print("OK")
 
 
     # eta = datetime.now(tz=UTC) + timedelta(seconds=3)

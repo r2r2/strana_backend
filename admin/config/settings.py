@@ -13,7 +13,8 @@ SECRET_KEY = os.getenv("LK_SECRET_KEY", "rw+t6fn87n-r+9%$s^rfsdjfaa2yux(rz#!8th3
 
 TESTING = len(sys.argv) > 1 and sys.argv[1] == "test"
 
-DEBUG = os.getenv("DEBUG", "True") == "True" and not TESTING
+# DEBUG = os.getenv("DEBUG", "True") == "True" and not TESTING
+DEBUG = True
 
 ALLOWED_HOSTS = ["*"]
 

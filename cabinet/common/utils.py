@@ -9,6 +9,9 @@ from random import choices as C
 from random import randint as R
 from typing import Union
 from base64 import b64decode, b64encode
+
+import sentry_sdk
+
 from config import site_config, application_config
 from string import ascii_letters, digits, punctuation
 from mimetypes import guess_type
@@ -145,3 +148,15 @@ def postfix_exclusions():
         "not_isnull",
         "istartswith",
     ]
+
+
+def convert_str_to_int(value: str | None) -> int | None:
+    if value is None:
+        return
+    try:
+        return int(value)
+    except ValueError:
+        try:
+            return round(float(value))
+        except ValueError as exception:
+            sentry_sdk.capture_exception(exception)

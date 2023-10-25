@@ -99,6 +99,7 @@ async def process_register_view(
         get_email_template_service=get_email_template_service,
         check_user_unique_service=check_user_unique_service,
         city_repo=cities_repos.CityRepo,
+        user_role_repo=users_repos.UserRoleRepo,
     )
     return await process_register(
         payload=payload,

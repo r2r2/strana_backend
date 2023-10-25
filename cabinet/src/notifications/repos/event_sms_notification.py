@@ -47,6 +47,7 @@ class EventsSmsNotification(Model):
         description="За сколько дней до события / после события отправлять",
         null=True,
     )
+    only_for_online: bool = fields.BooleanField(description="Только для онлайн мероприятий", default=False)
 
     class Meta:
         table = "notifications_event_sms_notification"

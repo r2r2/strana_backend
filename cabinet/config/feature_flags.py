@@ -8,3 +8,5 @@ class FeatureFlags(str, Enum):
     strana_lk_2398 = "strana_lk-2398"
     strana_lk_2090 = "strana_lk-2090"
     strana_lk_1634 = "strana_lk-1634"
+    strana_lk_2515 = "strana_lk-2515"
+    amo_webhook_request = "amo-webhook-request"

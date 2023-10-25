@@ -5,3 +5,5 @@ from .client_notifications_list import ClientNotificationsListCase
 from .client_notifications_specs import ClientNotificationsSpecsCase
 from .assign_sms_text import AssignSMSTextCase
 from .payment_page import PaymentPageCase
+from .sending_test_email import SendingTestEmailCase
+

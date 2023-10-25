@@ -42,6 +42,11 @@ class TaskInstance(BaseTaskManagementModel):
         null=True,
         blank=True,
     )
+    is_main: bool = models.BooleanField(
+        verbose_name='Главная задача',
+        help_text='Главная задача',
+        default=False,
+    )
 
     def __str__(self) -> str:
         return str(self.id)

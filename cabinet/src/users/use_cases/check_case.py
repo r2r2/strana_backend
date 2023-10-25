@@ -6,7 +6,7 @@ from pytz import UTC
 
 from src.agents.types import AgentEmail
 from src.booking.repos import BookingRepo
-from src.users.constants import UserType
+from src.users.constants import UserType, OriginType
 from src.users.entities import BaseUserCase
 from src.users.exceptions import UserMissMatchError
 from src.users.models import RequestUsersCheckModel
@@ -29,6 +29,7 @@ class UsersCheckCase(BaseUserCase):
     """
     mail_event_slug: str = "check_admin_email"
     lead_url: str = "https://eurobereg72.amocrm.ru/leads/detail/{amocrm_id}"
+    ORIGIN: str = OriginType.AGENT_ASSIGN
 
     def __init__(
         self,
@@ -77,6 +78,7 @@ class UsersCheckCase(BaseUserCase):
                 type=UserType.CLIENT,
                 phone=phone,
                 role=user_role,
+                origin=self.ORIGIN,
             )
             user: User = await self.user_repo.create(data=data)
 

@@ -123,7 +123,6 @@ x-app_environment: &app_environment
     - LK_MAX_REQUESTS_PERIOD
     - LK_UNLEASH_URL
     - LK_UNLEASH_INSTANCE_ID
-    - LK_DEPREG_TOKEN
 
 services:
   cabinet:
@@ -162,7 +161,8 @@ services:
     container_name: tasks
     restart: always
     image: ${CI_REGISTRY_IMAGE}/cabinet:${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHA:-latest}
-    command: celery -A config.celery worker -B -l info -c ${CELERY_THREAD:-4} -n tasks@strana.com -Q tasks
+#    command: celery -A config.celery worker -B -l info -c ${CELERY_THREAD:-4} -n tasks@strana.com -Q tasks
+    command: /app/entrypoint.start_celery_workers.sh
     depends_on:
       - redis
     <<: *app_environment

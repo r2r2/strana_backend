@@ -3,7 +3,7 @@ from typing import Any
 
 from common import amocrm, dependencies, email, messages, profitbase, requests, security, utils
 from config import amocrm_config, session_config, site_config
-from fastapi import APIRouter, Body, Depends, Request, status
+from fastapi import APIRouter, Body, Depends, Request, status, Path
 from src.booking import repos as booking_repos
 from src.booking import tasks
 from src.booking.factories import ActivateBookingServiceFactory
@@ -170,3 +170,22 @@ async def unbind_booking_property(
     )
     unbind_property: use_cases.UnbindBookingPropertyCase = use_cases.UnbindBookingPropertyCase(**resources)
     await unbind_property(payload=payload)
+
+
+@router.get(
+    "/{profitbase_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=models.PropertyRetrieveModel,
+)
+async def property_detail(
+    profitbase_id: str = Path(...),
+):
+    """
+    Получение информации по количеству комнат в квартире по profitbase_id.
+    """
+
+    resources: dict[str, Any] = dict(
+        property_repo=properties_repos.PropertyRepo,
+    )
+    property_detail_case: use_cases.PropertyDetailCase = use_cases.PropertyDetailCase(**resources)
+    return await property_detail_case(profitbase_id=profitbase_id)

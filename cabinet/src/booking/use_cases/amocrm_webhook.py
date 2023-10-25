@@ -14,6 +14,7 @@ from common.amocrm import AmoCRM
 from common.amocrm.repos import AmoStatusesRepo
 from common.email import EmailService
 from common.backend.models.amocrm import AmocrmStatus
+from common.utils import convert_str_to_int
 from src.users.services import ImportContactFromAmoService
 from src.properties.repos import Property
 from src.task_management.services import CreateTaskInstanceService, UpdateTaskInstanceStatusService
@@ -170,12 +171,14 @@ class AmoCRMWebhookCase(BaseBookingCase, BookingLogMixin):
         )
 
         amocrm_stage: Optional[str] = BookingStagesMapping()[amocrm_substage]
-        property_final_price: Optional[int] = webhook_lead.custom_fields.get(
+        _property_final_price: str | None = webhook_lead.custom_fields.get(
             self.amocrm_class.property_final_price_field_id, CustomFieldValue()
         ).value
-        price_with_sale: Optional[int] = webhook_lead.custom_fields.get(
+        _price_with_sale: str | None = webhook_lead.custom_fields.get(
             self.amocrm_class.property_price_with_sale_field_id, CustomFieldValue()
         ).value
+        property_final_price: int | None = convert_str_to_int(_property_final_price)
+        price_with_sale: int | None = convert_str_to_int(_price_with_sale)
 
         # ToDo refactoring убрать вместе с self.fast_booking_webhook_case (убрать из /amocrm/notify_contact)
         # Тег "Быстрая бронь" в амо

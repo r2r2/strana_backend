@@ -18,7 +18,7 @@ class BookingFixingConditionsMatrixAdmin(admin.ModelAdmin):
         (
             "Условия:", {
                 "fields": (
-                    "project",
+                    # "project",
                     "created_source",
                     "consultation_type",
                 )
@@ -28,7 +28,7 @@ class BookingFixingConditionsMatrixAdmin(admin.ModelAdmin):
             "Результат:", {
                 "fields": (
                     "status_on_create",
-                    "pipeline",
+                    # "pipeline",
                     "amo_responsible_user_id",
                 )
             }

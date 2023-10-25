@@ -38,6 +38,7 @@ class GetCurrentAccountLoyaltyPointsCase(BaseAgentCase):
         loyalty_status_data = dict(
             loyalty_point_amount=payload.loyalty_point_amount,
             date_assignment_loyalty_status=payload.date_assignment_loyalty_status,
+            is_offer_accepted=payload.is_offer_accepted,
             loyalty_status_name=payload.loyalty_status.loyalty_status_name,
         )
         if loyalty_status_icon_data := payload.loyalty_status.loyalty_status_icon:

@@ -41,3 +41,9 @@ class AmoTryAgainLaterError(BaseAmocrmException):
     message: str = "Произошла ошибка. Попробуйте через несколько минут"
     status: int = status.HTTP_400_BAD_REQUEST
     reason: str = "try_again_later"
+
+
+class AmoFetchLeadNotFoundError(BaseAmocrmException):
+    message: str = "Лид не найден"
+    status: int = status.HTTP_404_NOT_FOUND
+    reason: str = "amo_fetch_lead_not_found_error"

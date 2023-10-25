@@ -49,7 +49,7 @@ from .represes_users_retrieve import RepresesUsersRetrieveCase
 from .represes_users_unbound import RepresesUsersUnboundCase
 from .send_code import SendCodeCase
 from .session_token import SessionTokenCase
-from .superuser_user_auth import SuperuserAuthAsUserCase
+from .superuser_user_auth import SuperuserAuthAsClientCase
 from .superuser_user_fill_data import SuperuserUserFillDataCase
 from .update_last_activity import UpdateLastActivityCase
 from .update_personal import UpdatePersonalCase
@@ -63,3 +63,4 @@ from .users_list_case import UsersListCase
 from .users_uninterest import UsersUninterestCase, UsersUninterestGlobalIdCase
 from .validate_code import ValidateCodeCase
 from .get_consultation_type import GetConsultationType
+from .import_clients_and_bookings import ImportClientsAndBookingsModelCase

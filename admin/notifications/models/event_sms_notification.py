@@ -1,5 +1,6 @@
 from django.db import models
 from django.utils.translation import gettext_lazy as _
+from django.core.exceptions import ValidationError
 
 
 class EventsSmsNotificationType(models.TextChoices):
@@ -37,15 +38,26 @@ class EventsSmsNotification(models.Model):
         through='EventsSmsNotificationCityThrough',
         verbose_name='Города',
         blank=True,
+        help_text="Только для офлайн мероприятий",
     )
     days: models.FloatField = models.FloatField(
         verbose_name='За сколько дней до / за сколько дней после события отправлять',
         null=True,
         blank=True,
     )
+    only_for_online: bool = models.BooleanField(verbose_name="Только для онлайн мероприятий", default=False)
 
     def __str__(self) -> str:
         return str(self.id)
+
+    def clean(self):
+        if self.only_for_online and EventsSmsNotification.objects.filter(
+            sms_event_type=self.sms_event_type,
+            only_for_online=True,
+        ).exists():
+            raise ValidationError(
+                {"sms_event_type": "Уже есть шаблон для онлайн мероприятие данного типа события отправки смс!"}
+            )
 
     class Meta:
         managed = False

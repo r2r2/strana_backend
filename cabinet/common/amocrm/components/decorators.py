@@ -17,8 +17,10 @@ def user_tag_test_wrapper(func):
 
             if creator_user.is_test_user:
                 tags = kwargs.get('tags')
-                if "Тест" not in tags:
-                    tags = tags + ["Тест"] if tags else ["Тест"]
+                if tags is None:
+                    tags = ["Тест"]
+                elif "Тест" not in tags:
+                    tags = tags + ["Тест"]
                 kwargs['tags'] = tags
 
         return await func(*args, **kwargs)

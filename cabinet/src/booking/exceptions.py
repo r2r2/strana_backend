@@ -77,6 +77,12 @@ class BookingPropertyUnavailableError(BaseBookingException):
     reason: str = "booking_property_unavailable"
 
 
+class BookingPropertyAlreadyBookedError(BaseBookingException):
+    message: str = "Выбранная Вами квартира уже забронирована другим пользователем. Выберите другую квартиру."
+    status: int = HTTPStatus.BAD_REQUEST
+    reason: str = "booking_property_already_booked"
+
+
 class BookingUnfinishedExistsError(BaseBookingException):
     message: str = "Есть незавершенное бронирование."
     status: int = HTTPStatus.BAD_REQUEST

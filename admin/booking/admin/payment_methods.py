@@ -5,4 +5,7 @@ from ..models import PaymentMethod
 
 @admin.register(PaymentMethod)
 class PaymentMethodAdmin(admin.ModelAdmin):
-    pass
+    list_display = (
+        "name",
+        "amocrm_id"
+    )

@@ -66,7 +66,7 @@ class MeetingsListCase(BaseMeetingCase):
             start=pagination.start,
             end=pagination.end,
             related_fields=["booking", "status", "booking__agent", "booking__agency"],
-            ordering="date",
+            ordering="-date",
         )
 
         counted = await self.meeting_repo.list(

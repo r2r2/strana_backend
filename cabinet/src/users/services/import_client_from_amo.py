@@ -77,10 +77,14 @@ class ImportContactFromAmoService(CreateContactService):
                 user_role: UserRole = await self.user_role_repo.retrieve(
                     filters=dict(slug=self.user_type)
                 )
-                phone: str = data.pop("phone")
-                created_user: User | None = await self.user_repo.retrieve(
-                    filters=dict(phone=phone)
+                phone: str = data.get("phone")
+                created_user_by_phone: User | None = await self.user_repo.retrieve(
+                    filters=dict(phone=phone, role=user_role)
                 )
+                created_user_by_amocrm_id: User | None = await self.user_repo.retrieve(
+                    filters=dict(amocrm_id=user_amocrm_id, role=user_role)
+                )
+                created_user = created_user_by_phone or created_user_by_amocrm_id
                 if created_user:
                     updated_user: User = await self.user_repo.update(
                         model=created_user, data=data

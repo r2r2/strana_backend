@@ -28,6 +28,13 @@ class ButtonStyle(mixins.Choices):
     LINK: str = "link", "Ссылка"
 
 
+class ButtonCondition(mixins.Choices):
+    """
+    Условие кнопки
+    """
+    SUBMIT: str = "submit", "Отправить"
+
+
 class PaidBookingSlug(Slugs):
     """
     Слаги для Платного бронирования

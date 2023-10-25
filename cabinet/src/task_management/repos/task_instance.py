@@ -26,6 +26,10 @@ class TaskInstance(BaseTaskModel):
         on_delete=fields.CASCADE,
         description="ID сущности, в которой будет выводиться задание",
     )
+    is_main: bool = fields.BooleanField(
+        description="Главная задача",
+        default=False,
+    )
 
     def __str__(self) -> str:
         return f"TaskInstance id: {self.id}"

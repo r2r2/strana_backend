@@ -100,7 +100,7 @@ class _ClientsListModel(BaseUserModel):
     email: Optional[str]
 
     status: Optional[_StatusModel]
-    pinning_status: Optional[_PinningStatusModel]
+    pinning_status: Optional[_PinningStatusModel] | None
 
     bookings_count: int = 0
     bookings_list: Any

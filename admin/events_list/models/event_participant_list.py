@@ -25,6 +25,17 @@ class EventParticipantList(models.Model):
         null=True,
         blank=True,
     )
+    group_id: int = models.IntegerField(
+        verbose_name="ID группы",
+        null=True,
+        blank=True,
+    )
+    timeslot: str = models.CharField(
+        verbose_name="Время проведения мероприятия",
+        max_length=255,
+        null=True,
+        blank=True,
+    )
 
     def __str__(self) -> str:
         return f"{self.phone}"

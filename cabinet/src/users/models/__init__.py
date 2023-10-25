@@ -48,7 +48,7 @@ from .manager_retrieve import (ResponseManagerRetrieveModel,
                                ResponseManagersListModel)
 from .partial_update import (RequestPartialUpdateModel,
                              ResponsePartialUpdateModel)
-from .process_login import RequestProcessLoginModel, ResponseProcessLoginModel, RequestSuperuserLoginModel
+from .process_login import RequestProcessLoginModel, ResponseProcessLoginModel, RequestSuperuserClientLoginModel
 from .process_logout import (RequestProcessLogoutModel,
                              ResponseProcessLogoutModel)
 from .represes_agents_users_retrieve import (
@@ -92,3 +92,4 @@ from .clients_facets import ResponseClientFacets
 from .email_reset import RequestEmailResetModel, ResponseEmailResetModel
 from .create_ticket import RequestCreateTicket
 from .consultation_type import ConsultationType
+from .import_clients_and_bookings import RequestImportClientsAndBookingsModel

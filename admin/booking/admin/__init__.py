@@ -12,3 +12,5 @@ from .price_offer_matrix import PriceOfferMatrixAdmin
 from .payment_methods import PaymentMethodAdmin
 from .booking_source import BookingSourceAdmin
 from .additional_services_group_statuses import AdditionalServiceGroupStatusAdmin
+from .price_schema import PriceSchemaAdmin
+from .price_import_matrix import PriceImportMatrixAdmin

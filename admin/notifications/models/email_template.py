@@ -37,6 +37,24 @@ class EmailTemplate(models.Model):
         help_text="Максимум 100 символов, для привязки к событию на беке",
         unique=True,
     )
+    header_template: models.ForeignKey = models.ForeignKey(
+        to='notifications.EmailHeaderTemplate',
+        on_delete=models.CASCADE,
+        related_name='email_templates',
+        verbose_name='Шаблон хэдера',
+        help_text="Для вставки хэдера в шаблон должны быть добавлены теги <head></head>",
+        null=True,
+        blank=True,
+    )
+    footer_template: models.ForeignKey = models.ForeignKey(
+        to='notifications.EmailFooterTemplate',
+        on_delete=models.CASCADE,
+        related_name='email_templates',
+        verbose_name='Шаблон футера',
+        help_text="Для вставки футера в шаблон должны быть добавлены теги <footer></footer>",
+        null=True,
+        blank=True,
+    )
     is_active = models.BooleanField(
         verbose_name="Шаблон активен",
         default=True,

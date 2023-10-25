@@ -2,11 +2,13 @@ from asyncio import Task
 from datetime import timedelta, datetime
 from typing import Any
 
-from fastapi import status, HTTPException
-
 from common.amocrm import AmoCRM
 from common.amocrm.types import AmoLead
 from common.email import EmailService
+from common.unleash.client import UnleashClient
+from config.feature_flags import FeatureFlags
+from fastapi import status, HTTPException
+
 from config import EnvTypes, maintenance_settings
 from src.amocrm.repos import (
     AmocrmStatus,
@@ -18,14 +20,14 @@ from src.amocrm.repos import (
 )
 from src.booking.constants import BookingSubstages
 from src.booking.repos import Booking, BookingRepo
+from src.cities.repos import CityRepo
 from src.events.repos import CalendarEventRepo, CalendarEventType
 from src.notifications.services import GetEmailTemplateService
+from src.projects.repos import Project
 from src.task_management.constants import MeetingsSlug
 from src.task_management.services import UpdateTaskInstanceStatusService
 from src.users.constants import UserType
 from src.users.repos import User, UserRepo
-from src.cities.repos import CityRepo
-from src.projects.repos import Project
 from ..constants import (
     BOOKING_MEETING_STATUSES,
     MeetingStatusChoice,
@@ -98,7 +100,6 @@ class CreateMeetingCase(BaseMeetingCase):
         self.update_task_instance_status_service: UpdateTaskInstanceStatusService = (
             update_task_instance_status_service
         )
-        self.default_responsible_user_id = 7073163
 
     async def __call__(
         self,
@@ -152,39 +153,39 @@ class CreateMeetingCase(BaseMeetingCase):
         await created_meeting.fetch_related(*prefetch_fields)
 
         project: Project | None = created_meeting.project
+        city = await self.city_repo.retrieve(filters=dict(id=payload.city_id))
 
-        # создаем связанное событие календаря со встречей
-        amocrm_group_status: None = None
+        amo_pipeline_filter = dict(name__icontains=self.amocrm_default_pipeline_name)
         if created_meeting.type == MeetingType.ONLINE:
             format_type: str = "online"
             meeting_type_next_contact: str = "ZOOM"
-            if project and created_meeting.city:
-                amocrm_group_status: AmocrmGroupStatus = await self.amocrm_group_status_repo.retrieve(
-                    filters=dict(
-                        name__icontains=self.amocrm_default_online_group_status_name,
-                    )
-                )
+            if project:
+                amocrm_group_status_filter = dict(name__icontains=self.amocrm_default_online_group_status_name)
             else:
-                amocrm_group_status: AmocrmGroupStatus = await self.amocrm_group_status_repo.retrieve(
-                    filters=dict(
-                        name__icontains=self.amocrm_non_project_online_group_status_name,
-                    )
-                )
+                amocrm_group_status_filter = dict(name__icontains=self.amocrm_non_project_online_group_status_name)
         else:
             format_type = "offline"
             meeting_type_next_contact = "Meet"
-            if not project:
-                amocrm_group_status: AmocrmGroupStatus = await self.amocrm_group_status_repo.retrieve(
-                    filters=dict(
-                        name__icontains=self.amocrm_non_project_offline_group_status_name,
-                    )
-                )
-            elif project and created_meeting.city:
-                amocrm_group_status: AmocrmGroupStatus = await self.amocrm_group_status_repo.retrieve(
-                    filters=dict(
-                        name__icontains=self.amocrm_default_offline_group_status_name,
-                    )
-                )
+            if project:
+                amo_pipeline_filter = dict(name__icontains=city.name)
+                amocrm_group_status_filter = dict(name__icontains=self.amocrm_default_offline_group_status_name)
+            else:
+                amocrm_group_status_filter = dict(name__icontains=self.amocrm_non_project_offline_group_status_name)
+
+        amo_pipeline: AmocrmPipeline = (
+            await self.amocrm_pipeline_repo.retrieve(
+                filters=amo_pipeline_filter
+            )
+        )
+        amocrm_group_status: AmocrmGroupStatus = await self.amocrm_group_status_repo.retrieve(
+            filters=amocrm_group_status_filter
+        )
+        amocrm_status: AmocrmStatus = await self.amocrm_status_repo.retrieve(
+            filters=dict(
+                group_status_id=amocrm_group_status.id if amocrm_group_status else None
+            )
+        )
+
         calendar_event_data = dict(
             type=CalendarEventType.MEETING,
             format_type=format_type,
@@ -200,70 +201,22 @@ class CreateMeetingCase(BaseMeetingCase):
             tags = tags + self.stage_test_booking_tag
 
         amo_data: dict = dict(
+            status_id=amocrm_status.id,
+            city_slug=city.slug,
             tags=tags,
             property_type=payload.property_type,
             user_amocrm_id=user.amocrm_id,
             contact_ids=[user.amocrm_id],
             creator_user_id=user.id,
             property_id=self.amocrm_class.property_type_field_values.get(payload.property_type).get("enum_id"),
+            project_amocrm_pipeline_id=amo_pipeline.id,
         )
 
-        city = await self.city_repo.retrieve(filters=dict(id=payload.city_id))
-        amocrm_status: AmocrmStatus = await self.amocrm_status_repo.retrieve(
-            filters=dict(
-                group_status_id=amocrm_group_status.id if amocrm_group_status else None
-            )
-        )
-        if not amocrm_status:
-            have_project_city = payload.city_id and payload.project_id
-            if have_project_city and format_type == "online":
-                amo_pipeline_id: AmocrmPipeline = (
-                    await self.amocrm_pipeline_repo.retrieve(
-                        filters=dict(name__icontains=self.amocrm_default_pipeline_name)
-                    )
-                ).id
-                amocrm_group_status: AmocrmGroupStatus = await self.amocrm_group_status_repo.retrieve(
-                    filters=dict(
-                        group_status_id=self.amocrm_default_online_group_status_name,
-                    )
-                )
-                amocrm_status: AmocrmStatus = await self.amocrm_status_repo.retrieve(
-                    filters=dict(
-                        pipeline_id=amo_pipeline_id,
-                        group_status_id=amocrm_group_status,
-                    )
-                )
-            elif have_project_city and format_type == "offline":
-                amo_pipeline_id: AmocrmPipeline = (
-                    await self.amocrm_pipeline_repo.retrieve(
-                        filters=dict(name__icontains=city.name)
-                    )
-                ).id
-                amocrm_group_status: AmocrmGroupStatus = await self.amocrm_group_status_repo.retrieve(
-                    filters=dict(
-                        group_status_id=self.amocrm_default_online_group_status_name,
-                    )
-                )
-                amocrm_status: AmocrmStatus = await self.amocrm_status_repo.retrieve(
-                    filters=dict(
-                        pipeline_id=amo_pipeline_id,
-                        group_status_id=amocrm_group_status,
-                    )
-                )
-            else:
-                amocrm_status: AmocrmStatus = await self.amocrm_status_repo.retrieve(
-                    filters=dict(
-                        pipeline_id=project.amo_pipeline_id,
-                        name__icontains=self.amocrm_default_status_name,
-                    )
-                )
+        if project:
             project_data: dict = dict(
-                status_id=amocrm_status.id,
-                city_slug=project.city.slug,
                 project_amocrm_name=project.amocrm_name,
                 project_amocrm_enum=project.amocrm_enum,
                 project_amocrm_organization=project.amocrm_organization,
-                project_amocrm_pipeline_id=project.amo_pipeline_id,
                 project_amocrm_responsible_user_id=project.amo_responsible_user_id,
             )
             amo_data.update(project_data)
@@ -272,20 +225,16 @@ class CreateMeetingCase(BaseMeetingCase):
                 project_id=project.id,
                 amocrm_status_id=amocrm_status.id,
                 amocrm_substage=BookingSubstages.MAKE_APPOINTMENT,
+                user_id=user.id,
             )
         else:
-            project_data: dict = dict(
-                status_id=amocrm_status.id,
-                city_slug=city.slug,
-                project_amocrm_pipeline_id=project.amo_pipeline_id,
-                project_amocrm_responsible_user_id=self.default_responsible_user_id,
-            )
-            amo_data.update(project_data)
+            amo_data["project_amocrm_responsible_user_id"] = self.default_responsible_user_id
+
             booking_data = dict(
                 active=True,
                 amocrm_status_id=amocrm_status.id,
                 amocrm_substage=BookingSubstages.MAKE_APPOINTMENT,
-                project_id=project.id,
+                user_id=user.id,
             )
 
         async with await self.amocrm_class() as amocrm:
@@ -298,7 +247,6 @@ class CreateMeetingCase(BaseMeetingCase):
                 meeting_date_zoom=amo_date,
                 meeting_date_next_contact=amo_date,
                 meeting_type_next_contact=meeting_type_next_contact,
-                project_amocrm_pipeline_id=project.amo_pipeline_id,
             )
             await amocrm.update_lead_v4(**lead_options)
 
@@ -312,10 +260,7 @@ class CreateMeetingCase(BaseMeetingCase):
                 message=amo_notes,
             )
 
-            booking_data.update(
-                amocrm_id=lead_id,
-                user_id=user.id,
-            )
+        booking_data["amocrm_id"] = lead_id
 
         booking: Booking = await self.booking_repo.create(data=booking_data)
         created_meeting = await self.meeting_repo.update(
@@ -346,18 +291,18 @@ class CreateMeetingCase(BaseMeetingCase):
             prefetch_fields=["amocrm_status", "amocrm_status__group_status"],
         )
         if (
-            not booking
-            or not booking.project_id
-            or not booking.user_id
-            or not booking.agent_id
-            or booking.agent_id != user.id
+                not booking
+                or not booking.project_id
+                or not booking.user_id
+                or not booking.agent_id
+                or booking.agent_id != user.id
         ):
             raise IncorrectBookingCreateMeetingError
 
         if (
-            booking.amocrm_status
-            and booking.amocrm_status.group_status
-            and booking.amocrm_status.group_status.name not in BOOKING_MEETING_STATUSES
+                booking.amocrm_status
+                and booking.amocrm_status.group_status
+                and booking.amocrm_status.group_status.name not in BOOKING_MEETING_STATUSES
         ):
             raise BookingStatusError
 
@@ -434,31 +379,38 @@ class CreateMeetingCase(BaseMeetingCase):
         )
         await self.calendar_event_repo.create(data=calendar_event_data)
 
+        name__icontains = "Встреча назначена"
+        if self.__is_strana_lk_2515_enable:
+            name__icontains = self.amocrm_default_offline_group_status_name
         amocrm_status: AmocrmStatus = await self.amocrm_status_repo.retrieve(
             filters=dict(
                 pipeline_id=created_meeting.project.amo_pipeline_id,
-                name__icontains=self.amocrm_default_offline_group_status_name,
+                name__icontains=name__icontains,
             )
         )
+        amocrm_substage = BookingSubstages.MAKE_APPOINTMENT
+        if self.__is_strana_lk_2515_enable:
+            amocrm_substage = BookingSubstages.MEETING
         booking_data: dict = dict(
             amocrm_status_id=amocrm_status.id,
-            amocrm_substage=BookingSubstages.MEETING,
+            amocrm_substage=amocrm_substage,
         )
-        if format_type == "online":
-            amocrm_group_status: AmocrmGroupStatus = await self.amocrm_group_status_repo.retrieve(
-                filters=dict(
-                    name__icontains=self.amocrm_non_project_online_group_status_name,
+        if self.__is_strana_lk_2515_enable:
+            if format_type == "online":
+                amocrm_group_status: AmocrmGroupStatus = await self.amocrm_group_status_repo.retrieve(
+                    filters=dict(
+                        name__icontains=self.amocrm_non_project_online_group_status_name,
+                    )
                 )
-            )
-            amocrm_status: AmocrmStatus = await self.amocrm_status_repo.retrieve(
-                filters=dict(
-                    group_status_id=amocrm_group_status.id if amocrm_group_status else None
+                amocrm_status: AmocrmStatus = await self.amocrm_status_repo.retrieve(
+                    filters=dict(
+                        group_status_id=amocrm_group_status.id if amocrm_group_status else None
+                    )
                 )
+            booking_data.update(
+                amocrm_status_id=amocrm_status.id if amocrm_status else None,
+                amocrm_substage=BookingSubstages.MEETING,
             )
-        booking_data.update(
-            amocrm_status_id=amocrm_status.id if amocrm_status else None,
-            amocrm_substage=BookingSubstages.MEETING,
-        )
 
         await self.booking_repo.update(model=created_meeting.booking, data=booking_data)
 
@@ -562,3 +514,7 @@ class CreateMeetingCase(BaseMeetingCase):
         amo_date_diff: datetime = date.replace(tzinfo=None) - timedelta(hours=2)
         amo_date_timestamp: float = amo_date_diff.timestamp()
         return amo_date_timestamp
+
+    @property
+    def __is_strana_lk_2515_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_2515)

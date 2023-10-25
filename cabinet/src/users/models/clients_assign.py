@@ -16,7 +16,7 @@ class RequestAssignClient(BaseModel):
     active_projects: Optional[list[int]] = Field(default=[], description='Активные ЖК(проекты)')
     agency_contact: Optional[str] = ''
     assignation_comment: Optional[str] = ''
-    consultation_type: Optional[str] = ''
+    consultation_type: str
 
     @validator('phone')
     def validate_phone(cls, phone: str) -> str:

@@ -40,6 +40,7 @@ class LoyaltyStatusRequestModel(BaseAgentModel):
     date_assignment_loyalty_status: datetime
     loyalty_status: LoyaltyStatusModel
     booking: BookingLoyaltyModel | None
+    is_offer_accepted: bool = False
 
     class Config:
         orm_mode = True

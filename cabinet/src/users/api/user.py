@@ -9,10 +9,12 @@ from fastapi.responses import RedirectResponse
 from src.admins import repos as admins_repos
 from src.agencies import repos as agencies_repos
 from src.agents import repos as agents_repos
+from src.agents import services as agents_services
 from src.amocrm import repos as src_amocrm_repos
 from src.booking import repos as booking_repos
 from src.booking import services as booking_services
 from src.booking import tasks as bookings_tasks
+from src.booking import constants as bookings_constants
 from src.booking.models import ResponseBookingRetrieveModel
 from src.buildings import repos as buildings_repos
 from src.cities import repos as cities_repos
@@ -1234,6 +1236,7 @@ async def assign_client_to_agent(
 
     resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
+        user_role_repo=users_repos.UserRoleRepo,
         check_repo=users_repos.CheckRepo,
         project_repo=projects_repos.ProjectRepo,
         booking_repo=booking_repos.BookingRepo,
@@ -1279,6 +1282,7 @@ async def assign_client_to_repres(
 
     resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
+        user_role_repo=users_repos.UserRoleRepo,
         check_repo=users_repos.CheckRepo,
         project_repo=projects_repos.ProjectRepo,
         booking_repo=booking_repos.BookingRepo,
@@ -1286,6 +1290,7 @@ async def assign_client_to_repres(
         template_repo=notifications_repos.AssignClientTemplateRepo,
         booking_fixing_condition_repo=booking_repos.BookingFixingConditionsMatrixRepo,
         consultation_type_repo=users_repos.ConsultationTypeRepo,
+        amocrm_log_repo=users_repos.AmoCrmCheckLog,
         amocrm_config=amocrm_config,
         email_class=email.EmailService,
         amocrm_class=amocrm.AmoCRM,
@@ -1662,3 +1667,73 @@ async def get_consultation_type():
     )
     get_consultation_type_case: use_cases.GetConsultationType = use_cases.GetConsultationType(**resources)
     return await get_consultation_type_case()
+
+
+@router.post(
+    "/import_clients_and_bookings_from_amo",
+    status_code=HTTPStatus.OK,
+)
+async def import_clients_and_bookings_from_amo_view(
+    payload: models.RequestImportClientsAndBookingsModel = Body(...),
+):
+    """
+    Ручной запуск сервиса импорта клиентов (и сделок) для брокера из админки.
+    """
+    import_property_service = property_services.ImportPropertyServiceFactory.create(
+        orm_class=Tortoise,
+        orm_config=tortoise_config,
+    )
+    resources: dict[str, Any] = dict(
+        orm_class=Tortoise,
+        orm_config=tortoise_config,
+        amocrm_class=amocrm.AmoCRM,
+        backend_config=backend_config,
+        user_repo=users_repos.UserRepo,
+        agent_repo=agents_repos.AgentRepo,
+        floor_repo=floors_repos.FloorRepo,
+        user_types=users_constants.UserType,
+        global_id_encoder=utils.to_global_id,
+        request_class=requests.GraphQLRequest,
+        booking_repo=booking_repos.BookingRepo,
+        project_repo=projects_repos.ProjectRepo,
+        building_repo=buildings_repos.BuildingRepo,
+        property_repo=properties_repos.PropertyRepo,
+        create_booking_log_task=bookings_tasks.create_booking_log_task,
+        import_property_service=import_property_service,
+        statuses_repo=amocrm_repos.AmoStatusesRepo,
+        amocrm_config=amocrm_config,
+        amocrm_status_repo=src_amocrm_repos.AmocrmStatusRepo,
+        update_task_instance_status_task=update_task_instance_status_task,
+        check_booking_task=bookings_tasks.check_booking_task,
+    )
+    import_bookings_service = booking_services.ImportBookingsService(**resources)
+
+    get_email_template_service: notification_services.GetEmailTemplateService = \
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notifications_repos.EmailTemplateRepo,
+        )
+    resources: dict[str, Any] = dict(
+        user_statuses=users_constants.UserStatus,
+        import_bookings_task=bookings_tasks.import_bookings_task,
+        import_bookings_service=import_bookings_service,
+        agent_repo=agents_repos.AgentRepo,
+        booking_repo=booking_repos.BookingRepo,
+        amocrm_class=amocrm.AmoCRM,
+        user_repo=users_repos.UserRepo,
+        check_repo=users_repos.CheckRepo,
+        orm_class=Tortoise,
+        orm_config=tortoise_config,
+        booking_substages=bookings_constants.BookingSubstages,
+        email_class=email.EmailService,
+        amocrm_config=amocrm_config,
+        statuses_repo=amocrm_repos.AmoStatusesRepo,
+        get_email_template_service=get_email_template_service,
+    )
+    import_clients_service: agents_services.ImportClientsService = agents_services.ImportClientsService(**resources)
+
+    import_clients_and_bookings_from_amo_case: use_cases.ImportClientsAndBookingsModelCase = \
+        use_cases.ImportClientsAndBookingsModelCase(
+            user_repo=users_repos.UserRepo,
+            import_clients_service=import_clients_service,
+        )
+    return await import_clients_and_bookings_from_amo_case(payload=payload)

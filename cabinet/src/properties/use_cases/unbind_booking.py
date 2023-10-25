@@ -18,6 +18,7 @@ class UnbindBookingPropertyCase(BasePropertyCase):
     """
     Отвязывание объекта недвижимости от сделки
     """
+
     def __init__(
         self,
         booking_repo: type[BookingRepo],
@@ -55,9 +56,13 @@ class UnbindBookingPropertyCase(BasePropertyCase):
             amocrm_substage=BookingSubstages.MAKE_DECISION,
             amocrm_status=amocrm_status,
             active=False,
+            final_payment_amount=None,
+            payment_amount=None,
         )
-        booking.property = None
         await self.booking_update(booking=booking, data=data)
-        self.logger.info("Booking deactivated", booking=booking, is_active=booking.active)
-        await booking.save()
-        await self.update_status_service(booking_id=booking.id, status_slug=PaidBookingSlug.START.value)
+        self.logger.info(
+            "Booking deactivated", booking=booking, is_active=booking.active
+        )
+        await self.update_status_service(
+            booking_id=booking.id, status_slug=PaidBookingSlug.START.value
+        )

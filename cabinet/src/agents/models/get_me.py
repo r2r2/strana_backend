@@ -51,6 +51,7 @@ class Loyalty(BaseAgentModel):
     icon: dict | None
     levelIcon: dict | None
     background: dict | None
+    isOfferAccepted: bool
 
 
 class ResponseGetMeModel(ResponseUserInfoBaseModel):
@@ -75,6 +76,7 @@ class ResponseGetMeModel(ResponseUserInfoBaseModel):
                 icon=values.get("loyalty_status_icon"),
                 levelIcon=values.get("loyalty_status_level_icon"),
                 background=values.get("loyalty_status_icon_profile"),
+                isOfferAccepted=values.get("is_offer_accepted"),
             )
             values["loyalty"] = loyalty_dict
         return values

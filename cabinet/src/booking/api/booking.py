@@ -3,6 +3,7 @@ from http import HTTPStatus
 from typing import Any, Literal, Optional, cast
 from urllib.parse import parse_qs, unquote
 from uuid import UUID
+import structlog
 
 from fastapi import (
     APIRouter,
@@ -81,6 +82,7 @@ from src.task_management.tasks import update_task_instance_status_task
 from starlette.requests import ClientDisconnect
 from tortoise import Tortoise
 
+
 from src.booking.factories import ActivateBookingServiceFactory
 from ..maintenance import amocrm_webhook_maintenance
 from src.booking.tasks import create_booking_log_task
@@ -93,7 +95,11 @@ router = APIRouter(prefix="/booking", tags=["Booking"])
 router_v2 = APIRouter(prefix="/v2/booking", tags=["Booking"])
 
 
-@router.post("/create_booking", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/create_booking",
+    status_code=status.HTTP_201_CREATED,
+    response_model=models.ResponseBookingRetrieveModel | None,
+)
 async def create_booking_view(
     payload: models.RequestCreateBookingModel = Body(...),
     user_id: int | None = Depends(
@@ -109,6 +115,7 @@ async def create_booking_view(
     create_task_instance_service = (
         CreateTaskInstanceServiceFactory.create()
     )
+    check_profitbase_property_service = CheckProfitbasePropertyServiceFactory.create()
 
     resources: dict = dict(
         property_repo=properties_repos.PropertyRepo,
@@ -122,6 +129,8 @@ async def create_booking_view(
         profit_base_class=profitbase.ProfitBase,
         global_id_decoder=utils.from_global_id,
         create_task_instance_service=create_task_instance_service,
+        amocrm_status_repo=src_amocrm_repos.AmocrmStatusRepo,
+        check_profitbase_property_service=check_profitbase_property_service,
     )
     create_booking: use_cases.CreateBookingCase = use_cases.CreateBookingCase(
         **resources
@@ -129,7 +138,11 @@ async def create_booking_view(
     return await create_booking(user_id=user_id, payload=payload)
 
 
-@router.patch("/accept/{booking_id}", status_code=status.HTTP_200_OK)
+@router.patch(
+    "/accept/{booking_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=models.ResponseBookingRetrieveModel,
+)
 async def accept_booking_view(
     booking_id: int,
     user_id: int | None = Depends(
@@ -139,6 +152,7 @@ async def accept_booking_view(
     """
     Подтверждение договора офферты
     """
+
     resources: dict = dict(
         booking_repo=booking_repos.BookingRepo,
     )
@@ -148,7 +162,11 @@ async def accept_booking_view(
     return await accept_booking(user_id=user_id, booking_id=booking_id)
 
 
-@router.get("/documents/{booking_id}", status_code=status.HTTP_200_OK)
+@router.get(
+    "/documents/{booking_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=models.ResponseBookingDocumentModel,
+)
 async def get_booking_documents_view(
     booking_id: int,
     user_id: int | None = Depends(
@@ -168,7 +186,11 @@ async def get_booking_documents_view(
     return await get_document(booking_id=booking_id, user_id=user_id)
 
 
-@router.patch("/rebooking/{booking_id}", status_code=status.HTTP_200_OK)
+@router.patch(
+    "/rebooking/{booking_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=models.ResponseBookingRetrieveModel,
+)
 async def rebooking_view(
     booking_id: int,
     user_id: int | None = Depends(
@@ -184,6 +206,7 @@ async def rebooking_view(
         amocrm_class=amocrm.AmoCRM,
         profit_base_class=profitbase.ProfitBase,
         global_id_decoder=utils.from_global_id,
+        check_booking_task=tasks.check_booking_task,
     )
     rebooking: use_cases.RebookingCase = use_cases.RebookingCase(**resources)
     return await rebooking(user_id=user_id, booking_id=booking_id)
@@ -268,6 +291,7 @@ async def booking_repeat_view(
         check_booking_task=tasks.check_booking_task,
         check_profitbase_property_service=check_profitbase_property_service,
         activate_booking_class=activate_booking_class,
+        amocrm_class=amocrm.AmoCRM,
     )
     booking_repeat: use_cases.BookingRepeat = use_cases.BookingRepeat(**resources)
     return await booking_repeat(booking_id=payload.booking_id, user_id=user_id)
@@ -300,6 +324,7 @@ async def booking_repeat_view(
         check_booking_task=tasks.check_booking_task,
         check_profitbase_property_service=check_profitbase_property_service,
         activate_booking_class=activate_booking_class,
+        amocrm_class=amocrm.AmoCRM,
     )
     booking_repeat: use_cases.BookingRepeatV2 = use_cases.BookingRepeatV2(**resources)
     return await booking_repeat(booking_id=payload.booking_id, user_id=user_id)
@@ -347,12 +372,10 @@ async def fill_personal_view(
     """
     Заполнение персональных данных
     """
-    update_task_instance_status_service = UpdateTaskInstanceStatusServiceFactory.create()
     resources: dict[str, Any] = dict(
         global_id_decoder=utils.from_global_id,
         booking_repo=booking_repos.BookingRepo,
         building_booking_type_repo=buildings_repos.BuildingBookingTypeRepo,
-        update_task_instance_status_service=update_task_instance_status_service,
     )
     fill_personal: use_cases.FillPersonalCaseV2 = use_cases.FillPersonalCaseV2(**resources)
     return await fill_personal(booking_id=booking_id, user_id=user_id, payload=payload)
@@ -430,6 +453,7 @@ async def sberbank_link_view(
     resources: dict[str, Any] = dict(
         sberbank_class=sberbank.Sberbank,
         booking_repo=booking_repos.BookingRepo,
+        acquiring_repo=booking_repos.AcquiringRepo,
         global_id_decoder=utils.from_global_id,
         create_booking_log_task=tasks.create_booking_log_task,
     )
@@ -457,6 +481,7 @@ async def sberbank_link_view(
         booking_repo=booking_repos.BookingRepo,
         global_id_decoder=utils.from_global_id,
         create_booking_log_task=tasks.create_booking_log_task,
+        acquiring_repo=booking_repos.AcquiringRepo,
     )
     sberbank_link: use_cases.SberbankLinkCaseV2 = use_cases.SberbankLinkCaseV2(**resources)
     return await sberbank_link(booking_id=booking_id, user_id=user_id, payload=payload)
@@ -908,7 +933,10 @@ async def amocrm_webhook_view(
     except ClientDisconnect:
         payload: bytes = bytes()
         secret: str = "wrong_secret"
-
+    amo_webhook_request_enabled = request.app.unleash.is_enabled(request.app.feature_flags.amo_webhook_request)
+    if amo_webhook_request_enabled:
+        logger = structlog.getLogger("amo_webhook_request")
+        logger.info("AMOcrm webhook payload", payload=payload)
     create_task_instance_service = CreateTaskInstanceServiceFactory.create()
 
     update_task_instance_service = UpdateTaskInstanceStatusServiceFactory.create()

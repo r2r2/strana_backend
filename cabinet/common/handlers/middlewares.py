@@ -1,5 +1,6 @@
 from typing import Callable, Coroutine
 
+import sentry_sdk
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
@@ -21,5 +22,6 @@ class CatchExceptionsMiddleware(BaseHTTPMiddleware):
         try:
             return await call_next(request)
         except Exception as exception:
+            sentry_sdk.capture_exception(exception)
             logger.error(f'UNCAUGHT_ERROR', exc_info=get_exc_info(exception))
             raise exception

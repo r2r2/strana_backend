@@ -3,7 +3,7 @@ from typing import Any, Coroutine, Callable
 
 from aiohttp import ClientSession, TCPConnector
 
-from common.depreg.dto.depreg_response import DepregParticipantsDTO
+from common.depreg.dto import DepregParticipantsDTO, DepregGroupDTO
 from common.depreg.exceptions import DepregAPIError
 from common.requests import CommonRequest, CommonResponse
 from config import maintenance_settings, depreg_config
@@ -24,23 +24,23 @@ class DepregAPI:
             config = depreg_config
         self._base_url: str = config["base_url"]
         self._auth_type: str = config["auth_type"]
-        self._token: str = config["token"]
 
     async def get_participants(
         self,
         event_id: int,
+        token: str,
         fields: str | None = None,
         page: int | None = None
     ) -> DepregParticipantsDTO:
         """
         Позволяет получить постраничный доступ к списку участников мероприятия.
 
-        Parameters:
+        Parameters API:
             filter[eventId]* (integer): ID события; required: true;
             fields (string): Список полей, разделённых запятыми, которые будут возвращены.;
             page (integer): Страница списка; minimum: 1
 
-        Responses:
+        Response example:
             [
               {
                 "id": 0,
@@ -73,10 +73,37 @@ class DepregAPI:
             session=self._session,
             headers=self._headers,
             auth_type=self._auth_type,
-            token=self._token,
+            token=token,
         )
         response: CommonResponse = await self._make_request(request_data)
         return DepregParticipantsDTO(**{"data": response.data})
+
+    async def get_group_by_id(self, group_id: int, token: str) -> DepregGroupDTO:
+        """
+        Возвращает информацию о конкретной группе, чей ID указан в URL
+
+        Parameters API:
+            group_id* (integer): ID группы; required: true;
+
+        Response example:
+            {
+              "id": 4584,
+              "eventId": 1471,
+              "templateId": null,
+              "createdAt": "2023-10-10 13:45:24",
+              "name": "14:00-15:00"
+            }
+        """
+        request_data: dict[str, Any] = dict(
+            url=self._base_url + f"/groups/{group_id}",
+            method="GET",
+            session=self._session,
+            headers=self._headers,
+            auth_type=self._auth_type,
+            token=token,
+        )
+        response: CommonResponse = await self._make_request(request_data)
+        return DepregGroupDTO(**response.data)
 
     async def _make_request(self, request_data: dict[str, Any]) -> CommonResponse:
         request_get: Callable[..., Coroutine] = self._request_class(**request_data)

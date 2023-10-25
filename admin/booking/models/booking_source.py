@@ -5,6 +5,7 @@ class BookingSource(models.Model):
     """
     Источник бронирования
     """
+
     name: str = models.CharField(
         max_length=100,
         verbose_name="Название источника",
@@ -19,6 +20,6 @@ class BookingSource(models.Model):
 
     class Meta:
         managed = False
-        db_table = 'booking_source'
-        verbose_name = 'Источник бронирования'
-        verbose_name_plural = '1.9.3  Источники бронирования'
+        db_table = "booking_source"
+        verbose_name = "Источник бронирования"
+        verbose_name_plural = " 1.9.3. Источники бронирования"

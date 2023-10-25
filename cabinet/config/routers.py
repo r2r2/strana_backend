@@ -32,6 +32,7 @@ def get_routers() -> list[APIRouter]:
     from src.main_page.api import main_page_router
     from src.additional_services.api import add_services_router
     from src.events_list.api import events_list_router
+    from src.feature_flags.api import feature_flags_router
 
     routers: list[APIRouter] = list()
 
@@ -72,6 +73,7 @@ def get_routers() -> list[APIRouter]:
     routers.append(main_page_router)
     routers.append(add_services_router)
     routers.append(events_list_router)
+    routers.append(feature_flags_router)
 
     return routers
 

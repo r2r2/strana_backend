@@ -31,3 +31,9 @@ class PaymentPageNotificationNotFoundError(BaseNotificationException):
     message: str = "Шаблон оплаты не найден."
     status: int = HTTPStatus.NOT_FOUND
     reason: str = "payment_page_template_not_found"
+
+
+class SendQRCodeSMSNotEnoughDataError(BaseNotificationException):
+    message: str = "Не хватает данных для отправки смс с QR кодом."
+    status: int = HTTPStatus.BAD_REQUEST
+    reason: str = "send_qr_code_sms_not_enough_data"

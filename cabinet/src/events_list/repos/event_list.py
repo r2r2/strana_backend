@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date
 
 from tortoise import Model, fields
 
@@ -17,8 +17,13 @@ class EventList(Model):
         null=True,
     )
     token: str = fields.TextField(description="Токен для импорта мероприятия", null=True)
-    event_date: datetime = fields.DatetimeField(
-        description="Дата и время мероприятия",
+    event_id: int = fields.IntField(description="ID мероприятия", null=True)
+    event_date: date = fields.DateField(
+        description="Дата мероприятия",
+        null=True,
+    )
+    start_showing_date: date = fields.DateField(
+        description="Дата начала показа мероприятия",
         null=True,
     )
     title: str = fields.CharField(
@@ -31,8 +36,14 @@ class EventList(Model):
         max_length=255,
         null=True,
     )
+    text: str = fields.TextField(
+        description="Текст в модальном окне",
+        null=True,
+        default="QR-код активен 1 раз после прохода, пересылка третьим лицам запрещена",
+    )
 
     event_participant_list: fields.ReverseRelation["EventParticipantList"]
+    qrcode_sms: fields.ManyToManyRelation["QRcodeSMSNotify"]
 
     class Meta:
         table = "event_list"

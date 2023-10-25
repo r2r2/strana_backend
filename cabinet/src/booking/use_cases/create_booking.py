@@ -1,21 +1,27 @@
+import structlog
 from pytz import UTC
-from typing import Optional, Callable
+from typing import Optional, Callable, Any
 from datetime import datetime, timedelta
 
 from common.amocrm.types import AmoLead
 from common.profitbase import ProfitBase
+from common.sentry.utils import send_sentry_log
 from config import site_config, session_config
 from src.properties.repos import PropertyRepo, PropertyTypeRepo, PropertyType, Property
-from src.properties.services import ImportPropertyService
+from src.properties.services import ImportPropertyService, CheckProfitbasePropertyService
 from src.properties.exceptions import PropertyTypeMissingError, PropertyImportError
 from src.users.repos import User, UserRepo
-from src.booking.constants import BookingCreatedSources, BookingStages
+from src.booking.constants import BookingCreatedSources, BookingStages, BookingSubstages
 from src.buildings.repos import (
     BuildingBookingType as BookingType,
     BuildingBookingTypeRepo as BookingTypeRepo
 )
 from ..entities import BaseBookingCase
-from src.booking.exceptions import BookingTypeMissingError, BookingPropertyUnavailableError
+from src.booking.exceptions import (
+    BookingTypeMissingError,
+    BookingPropertyUnavailableError,
+    BookingPropertyAlreadyBookedError,
+)
 from ..models import RequestCreateBookingModel
 from src.booking.repos import Booking, BookingRepo, BookingSource
 from ..types import BookingAmoCRM
@@ -23,6 +29,9 @@ from src.task_management.services import CreateTaskInstanceService
 from src.booking.utils import get_booking_source
 from src.task_management.constants import OnlineBookingSlug
 from src.task_management.utils import get_booking_tasks
+from src.amocrm.repos import AmocrmStatus, AmocrmStatusRepo
+from src.task_management.dto import CreateTaskDTO
+from src.properties.constants import PropertyStatuses
 
 
 class CreateBookingCase(BaseBookingCase):
@@ -44,7 +53,9 @@ class CreateBookingCase(BaseBookingCase):
         booking_type_repo: type[BookingTypeRepo],
         amocrm_class: type[BookingAmoCRM],
         profit_base_class: type[ProfitBase],
+        amocrm_status_repo: type[AmocrmStatusRepo],
         create_task_instance_service: CreateTaskInstanceService,
+        check_profitbase_property_service: CheckProfitbasePropertyService,
         get_booking_reserv_time,
         global_id_decoder,
     ) -> None:
@@ -53,25 +64,34 @@ class CreateBookingCase(BaseBookingCase):
         self.booking_repo: BookingRepo = booking_repo()
         self.user_repo: UserRepo = user_repo()
         self.booking_type_repo: BookingTypeRepo = booking_type_repo()
+        self.amocrm_status_repo: AmocrmStatusRepo = amocrm_status_repo()
         self.import_property_service: ImportPropertyService = import_property_service
         self.amocrm_class: type[BookingAmoCRM] = amocrm_class
         self.profit_base_class: type[ProfitBase] = profit_base_class
         self.get_booking_reserv_time: Callable = get_booking_reserv_time
         self.global_id_decoder: Callable = global_id_decoder
         self.create_task_instance_service: CreateTaskInstanceService = create_task_instance_service
+        self.check_profitbase_property_service: CheckProfitbasePropertyService = check_profitbase_property_service
+
+        self.logger: structlog.BoundLogger = structlog.get_logger(__name__)
 
     async def __call__(self, user_id: int, payload: RequestCreateBookingModel) -> Booking | None:
-        property_type: Optional[PropertyType] = await self.property_type_repo.retrieve(
-            filters=dict(slug=payload.property_slug, is_active=True)
-        )
-        if not property_type:
-            raise PropertyTypeMissingError
-
-        booking_type: Optional[BookingType] = await self.booking_type_repo.retrieve(
-            filters=dict(id=payload.booking_type_id)
-        )
-        if not booking_type:
-            raise BookingTypeMissingError
+        try:
+            property_type, booking_type = await self._get_property_and_booking_type(payload=payload)
+        except (PropertyTypeMissingError, BookingTypeMissingError) as ex:
+            sentry_ctx: dict[str, Any] = dict(
+                property_slug=payload.property_slug,
+                booking_type_id=payload.booking_type_id,
+                property_global_id=payload.property_global_id,
+                user_id=user_id,
+                ex=ex,
+            )
+            await send_sentry_log(
+                tag="CreateBookingCase",
+                message="Не удалось получить тип объекта или тип бронирования",
+                context=sentry_ctx,
+            )
+            raise ex
 
         property_filters: dict = dict(global_id=payload.property_global_id)
         property_data: dict = dict(property_type_id=property_type.id)  # необходимо уточнение по полям
@@ -80,7 +100,21 @@ class CreateBookingCase(BaseBookingCase):
         )
         is_imported, loaded_property_from_backend = await self.import_property_service(property=created_property)
         if not is_imported:
+            sentry_ctx: dict[str, Any] = dict(
+                is_imported=is_imported,
+                loaded_property_from_backend=loaded_property_from_backend,
+                created_property=created_property,
+                property_data=property_data,
+                ex=PropertyImportError,
+            )
+            await send_sentry_log(
+                tag="CreateBookingCase",
+                message="Не удалось импортировать объект недвижимости с портала[ImportPropertyService]",
+                context=sentry_ctx,
+            )
             raise PropertyImportError
+
+        await self._check_property_in_profitbase(property_=loaded_property_from_backend)
 
         booking_source: BookingSource = await get_booking_source(slug=self.CREATED_SOURCE)
 
@@ -95,8 +129,16 @@ class CreateBookingCase(BaseBookingCase):
             loaded_property=loaded_property_from_backend,
             booking_type=booking_type,
         )
-        profit_base_is_booked: bool = await self._profit_base_booking(
-            amocrm_id=booking_amocrm_id, property_id=self.global_id_decoder(loaded_property_from_backend.global_id)[1]
+        profitbase_is_booked: bool = await self._profitbase_booking(
+            amocrm_id=booking_amocrm_id,
+            property_id=self.global_id_decoder(loaded_property_from_backend.global_id)[1],
+        )
+
+        amocrm_status: AmocrmStatus = await self.amocrm_status_repo.retrieve(
+            filters=dict(
+                name=BookingSubstages.BOOKING_LABEL,
+                pipeline_id=loaded_property_from_backend.project.amo_pipeline_id,
+            ),
         )
 
         booking_data: dict = dict(
@@ -104,6 +146,7 @@ class CreateBookingCase(BaseBookingCase):
             amocrm_id=booking_amocrm_id,
             amocrm_stage=self.BOOKING_STAGE,
             amocrm_substage=self.BOOKING_STAGE,
+            amocrm_status=amocrm_status,
             user_id=user_id,
             origin=f"https://{self.SITE_HOST}",
             created_source=self.CREATED_SOURCE,  # todo: deprecated
@@ -117,19 +160,31 @@ class CreateBookingCase(BaseBookingCase):
             payment_amount=booking_type.price,
         )
 
-        if profit_base_is_booked:
+        if profitbase_is_booked:
             booking: Booking = await self.booking_repo.create(data=booking_data)
             await self.create_task_instance(booking=booking)
+            await booking.fetch_related(
+                "building",
+                "ddu__participants",
+                "project__city",
+                "property__section",
+                "property__property_type",
+                "amocrm_status__group_status",
+                "floor",
+                "agent",
+                "agency",
+                "booking_source",
+            )
             booking.tasks = await get_booking_tasks(
                 booking_id=booking.id, task_chain_slug=OnlineBookingSlug.ACCEPT_OFFER.value
             )
             return booking
 
     async def _create_amo_lead(
-            self,
-            user: User,
-            loaded_property: Property,
-            booking_type: BookingType,
+        self,
+        user: User,
+        loaded_property: Property,
+        booking_type: BookingType,
     ) -> int:
         await loaded_property.fetch_related("project__city", "property_type")
         lead_options: dict = dict(
@@ -151,7 +206,32 @@ class CreateBookingCase(BaseBookingCase):
             lead_id: int = lead_data[0].id
         return lead_id
 
-    async def _profit_base_booking(self, amocrm_id: int, property_id: int) -> bool:
+    async def _check_property_in_profitbase(self, property_: Property) -> None:
+        property_status, property_available = await self.check_profitbase_property_service(
+            property_
+        )
+        property_status_free: bool = property_status == PropertyStatuses.FREE
+        if not property_available or not property_status_free:
+            sentry_ctx: dict[str, Any] = dict(
+                property_status=property_status,
+                property_available=property_available,
+                property_status_free=property_status_free,
+                property=property_,
+                ex=BookingPropertyAlreadyBookedError,
+            )
+            await send_sentry_log(
+                tag="CreateBookingCase",
+                message=(f"CreateBookingCase: Объект недвижимости недоступен. "
+                         f"booked={property_status_free}, in_deal={property_available}"),
+                context=sentry_ctx,
+            )
+            self.logger.info(
+                f"CreateBookingCase: Объект недвижимости недоступен. "
+                f"booked={property_status_free}, in_deal={property_available}"
+            )
+            raise BookingPropertyAlreadyBookedError
+
+    async def _profitbase_booking(self, amocrm_id: int, property_id: int) -> bool:
         """
         Бронирование в profit_base
         """
@@ -161,8 +241,41 @@ class CreateBookingCase(BaseBookingCase):
             in_deal: bool = data.get("code", None) == profit_base.dealed_code
         profit_base_booked: bool = booked or in_deal
         if not profit_base_booked:
+            sentry_ctx: dict[str, Any] = dict(
+                data=data,
+                booked=booked,
+                in_deal=in_deal,
+                amocrm_id=amocrm_id,
+                property_id=property_id,
+                ex=BookingPropertyUnavailableError,
+            )
+            await send_sentry_log(
+                tag="CreateBookingCase",
+                message=(f"CreateBookingCase: Объект недвижимости недоступен. "
+                         f"booked={booked}, in_deal={in_deal}"),
+                context=sentry_ctx,
+            )
             raise BookingPropertyUnavailableError(booked, in_deal)
         return profit_base_booked
 
     async def create_task_instance(self, booking: Booking) -> None:
-        await self.create_task_instance_service(booking_ids=booking.id)
+        task_context: CreateTaskDTO = CreateTaskDTO()
+        task_context.is_main = True
+        await self.create_task_instance_service(booking_ids=booking.id, task_context=task_context)
+
+    async def _get_property_and_booking_type(
+        self,
+        payload: RequestCreateBookingModel,
+    ) -> tuple[PropertyType, BookingType]:
+        property_type: Optional[PropertyType] = await self.property_type_repo.retrieve(
+            filters=dict(slug=payload.property_slug, is_active=True)
+        )
+        if not property_type:
+            raise PropertyTypeMissingError
+
+        booking_type: Optional[BookingType] = await self.booking_type_repo.retrieve(
+            filters=dict(id=payload.booking_type_id)
+        )
+        if not booking_type:
+            raise BookingTypeMissingError
+        return property_type, booking_type

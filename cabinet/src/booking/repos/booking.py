@@ -7,13 +7,18 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional, Union, Any, Iterable
 from uuid import UUID, uuid4
-import structlog
 import traceback
+from pytz import UTC
+
+import structlog
+from tortoise import Model, fields
+from tortoise.fields import ForeignKeyNullableRelation, OneToOneNullableRelation
+from tortoise.backends.base.client import BaseDBAsyncClient
+from tortoise.queryset import QuerySet
 
 from common import cfields, orm
 from common.email import EmailService
 from common.orm.mixins import CRUDMixin, FacetsMixin, SCountMixin, SpecsMixin
-from pytz import UTC
 
 from common.unleash.client import UnleashClient
 from config import MaintenanceSettings
@@ -24,18 +29,19 @@ from src.floors.repos import Floor
 from src.projects.repos import Project
 from src.properties.repos import Property
 from src.users.repos import User
-from tortoise import Model, fields
-from tortoise.fields import (ForeignKeyNullableRelation,
-                             OneToOneNullableRelation)
-from tortoise.backends.base.client import BaseDBAsyncClient
-from tortoise.queryset import QuerySet
-
-from ..constants import (BookingCreatedSources, BookingStages,
-                         BookingSubstages, OnlinePurchaseStatuses,
-                         OnlinePurchaseSteps, PaymentMethods, PaymentStatuses,
-                         PaymentView)
-from ..entities import BaseBookingRepo
 from src.booking.types import ScannedPassportData
+
+from ..constants import (
+    BookingCreatedSources,
+    BookingStages,
+    BookingSubstages,
+    OnlinePurchaseStatuses,
+    OnlinePurchaseSteps,
+    PaymentMethods,
+    PaymentStatuses,
+    PaymentView,
+)
+from ..entities import BaseBookingRepo
 from .bank_contact_info import BankContactInfo
 from .ddu import DDU
 
@@ -51,18 +57,26 @@ class Booking(Model):
     substages = BookingSubstages()
 
     id: int = fields.IntField(description="ID", pk=True)
-    origin: Optional[str] = fields.CharField(description="Сайт запроса", max_length=100, null=True)
+    origin: Optional[str] = fields.CharField(
+        description="Сайт запроса", max_length=100, null=True
+    )
     active: bool = fields.BooleanField(description="Активно", default=True)
     tags: Union[list, dict] = fields.JSONField(description="Тэги", null=True)
-    until: Optional[datetime] = fields.DatetimeField(description="Забронировано до", null=True)
+    until: Optional[datetime] = fields.DatetimeField(
+        description="Забронировано до", null=True
+    )
     booking_period: Optional[int] = fields.IntField(
         description="Длительность бронирования (дни)", null=True
     )
     created: Optional[datetime] = fields.DatetimeField(
         description="Создано", auto_now_add=True, null=True
     )
-    expires: Optional[datetime] = fields.DatetimeField(description="Истекает", null=True)
-    fixation_expires: Optional[datetime] = fields.DatetimeField(description="Фиксация истекает", null=True)
+    expires: Optional[datetime] = fields.DatetimeField(
+        description="Истекает", null=True
+    )
+    fixation_expires: Optional[datetime] = fields.DatetimeField(
+        description="Фиксация истекает", null=True
+    )
     should_be_deactivated_by_timer: bool = fields.BooleanField(
         description="Бронирование должно быть деактивировано по таймеру", default=False
     )
@@ -90,7 +104,16 @@ class Booking(Model):
         related_name="booking_price",
         description="Цена",
     )
-    price_payed: bool = fields.BooleanField(description="Стоимость оплачена (шаг 4)", default=False)
+    mortgage_type = fields.ForeignKeyField(
+        model_name="models.MortgageType",
+        on_delete=fields.SET_NULL,
+        null=True,
+        related_name="mortgage_type",
+        description="Тип ипотеки",
+    )
+    price_payed: bool = fields.BooleanField(
+        description="Стоимость оплачена (шаг 4)", default=False
+    )
     online_purchase_started: bool = fields.BooleanField(
         description="Клиент приступил к онлайн-покупке", default=False
     )
@@ -100,38 +123,58 @@ class Booking(Model):
     amocrm_agent_data_validated: bool = fields.BooleanField(
         description="Данные были проверены агентом", default=False
     )
-    ddu_created: bool = fields.BooleanField(description="ДДУ оформлен клиентом", default=False)
+    ddu_created: bool = fields.BooleanField(
+        description="ДДУ оформлен клиентом", default=False
+    )
     amocrm_ddu_uploaded_by_lawyer: bool = fields.BooleanField(
         description="ДДУ был загружен юристом", default=False
     )
-    ddu_accepted: bool = fields.BooleanField(description="Клиент согласовал ДДУ", default=False)
+    ddu_accepted: bool = fields.BooleanField(
+        description="Клиент согласовал ДДУ", default=False
+    )
     escrow_uploaded: bool = fields.BooleanField(
         description="Клиент загрузил эскроу-счёт", default=False
     )
     amocrm_signing_date_set: bool = fields.BooleanField(
         description="Дата подписания договора была назначена", default=False
     )
-    amocrm_signed: bool = fields.BooleanField(description="Договор был подписан", default=False)
+    amocrm_signed: bool = fields.BooleanField(
+        description="Договор был подписан", default=False
+    )
 
-    profitbase_booked: bool = fields.BooleanField(description="Забронировано в ПБ", default=False)
+    profitbase_booked: bool = fields.BooleanField(
+        description="Забронировано в ПБ", default=False
+    )
 
-    email_sent: bool = fields.BooleanField(description="Отправлено на почту", default=False)
-    email_force: bool = fields.BooleanField(description="Отправка без подтверждения", default=False)
+    email_sent: bool = fields.BooleanField(
+        description="Отправлено на почту", default=False
+    )
+    email_force: bool = fields.BooleanField(
+        description="Отправка без подтверждения", default=False
+    )
 
     payment_id: Optional[UUID] = fields.UUIDField(description="ID платежа", null=True)
     payment_currency: int = fields.IntField(description="Валюта платежа", default=643)
-    payment_order_number: UUID = fields.UUIDField(description="Номер заказа платежа", default=uuid4)
+    payment_order_number: UUID = fields.UUIDField(
+        description="Номер заказа платежа", default=uuid4
+    )
     payment_amount: Optional[Decimal] = fields.DecimalField(
         description="Стоимость платежа", decimal_places=2, max_digits=15, null=True
     )
     final_payment_amount: Optional[Decimal] = fields.DecimalField(
-        description="Итоговая стоимость платежа", decimal_places=2, max_digits=15, null=True
+        description="Итоговая стоимость платежа",
+        decimal_places=2,
+        max_digits=15,
+        null=True,
     )
     final_discount: Optional[Decimal] = fields.DecimalField(
         description="Общий размер скидки", decimal_places=2, max_digits=15, null=True
     )
     final_additional_options: Optional[Decimal] = fields.DecimalField(
-        description="Общая стоимость доп. опций", decimal_places=2, max_digits=15, null=True
+        description="Общая стоимость доп. опций",
+        decimal_places=2,
+        max_digits=15,
+        null=True,
     )
     payment_url: Optional[str] = fields.CharField(
         description="Ссылка на оплату платежа", max_length=350, null=True
@@ -162,13 +205,17 @@ class Booking(Model):
         description="Государственный займ (способ покупки)", default=False
     )
 
-    amocrm_id: Optional[int] = fields.BigIntField(description="ID в AmoCRM", null=True, unique=True)
+    amocrm_id: Optional[int] = fields.BigIntField(
+        description="ID в AmoCRM", null=True, unique=True
+    )
 
     # При разработке столкнулись с тем, что бронирований не было в AmoCRM, но были у нас.
     # То ли их там удалили, то ли ещё что произошло.
     # Крч, для синхронизации необходимо, чтобы не возникало ошибок,
     # связанных с тем, что у нас забронировано, а в profitbase и бэкенде - нет.
-    deleted_in_amo: bool = fields.BooleanField(description="Удалено в AmoCRM", default=False)
+    deleted_in_amo: bool = fields.BooleanField(
+        description="Удалено в AmoCRM", default=False
+    )
 
     amocrm_stage: Optional[str] = cfields.CharChoiceField(
         description="Этап", max_length=100, null=True, choice_class=BookingStages
@@ -178,7 +225,10 @@ class Booking(Model):
     )
 
     amocrm_status: ForeignKeyNullableRelation["AmocrmStatus"] = fields.ForeignKeyField(
-         null=True, description="ID статуса из амо", model_name="models.AmocrmStatus", related_name="bookings"
+        null=True,
+        description="ID статуса из амо",
+        model_name="models.AmocrmStatus",
+        related_name="bookings",
     )
 
     amocrm_purchase_status: Optional[str] = cfields.CharChoiceField(
@@ -197,28 +247,48 @@ class Booking(Model):
     commission_value: Optional[Decimal] = fields.DecimalField(
         description="Комиссия в рублях", decimal_places=2, max_digits=15, null=True
     )
-    decremented: bool = fields.BooleanField(description="Комиссия снижена", default=False)
+    decremented: bool = fields.BooleanField(
+        description="Комиссия снижена", default=False
+    )
     decrement_reason: Optional[str] = fields.CharField(
         description="Причина снижения", max_length=300, null=True
     )
 
     floor: ForeignKeyNullableRelation[Floor] = fields.ForeignKeyField(
-        description="Этаж", model_name="models.Floor", related_name="bookings", null=True
+        description="Этаж",
+        model_name="models.Floor",
+        related_name="bookings",
+        null=True,
     )
     user: ForeignKeyNullableRelation[User] = fields.ForeignKeyField(
-        description="Пользователь", model_name="models.User", related_name="bookings", null=True
+        description="Пользователь",
+        model_name="models.User",
+        related_name="bookings",
+        null=True,
     )
     agent: ForeignKeyNullableRelation[User] = fields.ForeignKeyField(
-        description="Агент", model_name="models.User", related_name="reservations", null=True
+        description="Агент",
+        model_name="models.User",
+        related_name="reservations",
+        null=True,
     )
     agency: ForeignKeyNullableRelation[Agency] = fields.ForeignKeyField(
-        description="Агентство", model_name="models.Agency", related_name="bookings", null=True
+        description="Агентство",
+        model_name="models.Agency",
+        related_name="bookings",
+        null=True,
     )
     project: ForeignKeyNullableRelation[Project] = fields.ForeignKeyField(
-        description="Проект", model_name="models.Project", related_name="bookings", null=True
+        description="Проект",
+        model_name="models.Project",
+        related_name="bookings",
+        null=True,
     )
     building: ForeignKeyNullableRelation[Building] = fields.ForeignKeyField(
-        description="Корпус", model_name="models.Building", related_name="bookings", null=True
+        description="Корпус",
+        model_name="models.Building",
+        related_name="bookings",
+        null=True,
     )
     property: ForeignKeyNullableRelation[Property] = fields.ForeignKeyField(
         description="Объект недвижимости",
@@ -270,7 +340,9 @@ class Booking(Model):
         max_length=100,
         choice_class=BookingCreatedSources,
     )
-    booking_source: ForeignKeyNullableRelation["BookingSource"] = fields.ForeignKeyField(
+    booking_source: ForeignKeyNullableRelation[
+        "BookingSource"
+    ] = fields.ForeignKeyField(
         description="Источник создания онлайн-бронирования",
         model_name="models.BookingSource",
         related_name="bookings",
@@ -282,10 +354,16 @@ class Booking(Model):
     send_notify: bool = fields.BooleanField(
         description="Отправить уведомление", default=True
     )
-    extension_number: int = fields.IntField(description="Оставшиеся количество попыток продления", null=True)
-    pay_extension_number: int = fields.IntField(description="Количество продлений при неуспешной оплате", null=True)
+    extension_number: int = fields.IntField(
+        description="Оставшиеся количество попыток продления", null=True
+    )
+    pay_extension_number: int = fields.IntField(
+        description="Количество продлений при неуспешной оплате", null=True
+    )
 
-    loyalty_point_amount: int | None = fields.IntField(description="Количество баллов лояльности", null=True)
+    loyalty_point_amount: int | None = fields.IntField(
+        description="Количество баллов лояльности", null=True
+    )
 
     task_instances: fields.ReverseRelation["TaskInstance"]
     property_id: Optional[int]
@@ -377,7 +455,8 @@ class Booking(Model):
             self.amocrm_agent_data_validated
             or self.payment_method_selected
             and (
-                self.payment_method in (PaymentMethods.CASH, PaymentMethods.INSTALLMENT_PLAN)
+                self.payment_method
+                in (PaymentMethods.CASH, PaymentMethods.INSTALLMENT_PLAN)
             )
         ):
             return OnlinePurchaseSteps.DDU_CREATE
@@ -394,7 +473,7 @@ class Booking(Model):
         return self.expires > datetime.now(tz=UTC)
 
     def is_can_pay(self) -> bool:
-        if self.pay_extension_number == -1:
+        if self.pay_extension_number is not None and self.pay_extension_number < 0:
             return False
 
         return True
@@ -406,7 +485,6 @@ class Booking(Model):
         force_create: bool = False,
         force_update: bool = False,
     ) -> None:
-
         if not force_create and (
             not self.until
             or not self.expires
@@ -489,7 +567,7 @@ class Booking(Model):
             "amocrm_purchase_status",
             "files",
             "created_source",
-            "amocrm_status"
+            "amocrm_status",
         )
 
 
@@ -534,7 +612,7 @@ class BookingRepo(BaseBookingRepo, CRUDMixin, SCountMixin, FacetsMixin, SpecsMix
         )
         return non_false_fields
 
-    async def create(self, data: dict[str, Any]) -> 'CreateMixin.model':
+    async def create(self, data: dict[str, Any]) -> "CreateMixin.model":
         model = await super().create(data)
 
         self.logger.debug("Booking create: ", id=model.id, data=data)
@@ -546,7 +624,7 @@ class BookingRepo(BaseBookingRepo, CRUDMixin, SCountMixin, FacetsMixin, SpecsMix
         self,
         filters: dict[str, Any],
         data: dict[str, Any],
-    ) -> 'UpdateOrCreateMixin.model':
+    ) -> "UpdateOrCreateMixin.model":
         """
         Создание или обновление модели
         """
@@ -556,7 +634,7 @@ class BookingRepo(BaseBookingRepo, CRUDMixin, SCountMixin, FacetsMixin, SpecsMix
                 await _send_email(
                     data=data.copy(),
                     model=booking,
-                    topic='Booking update_or_create',
+                    topic="Booking update_or_create",
                     stack_trace=stack_trace,
                     fields_to_check=self.non_false_fields + self.non_nullable_fields,
                 )
@@ -591,7 +669,7 @@ class BookingRepo(BaseBookingRepo, CRUDMixin, SCountMixin, FacetsMixin, SpecsMix
             await _send_email(
                 data=data,
                 model=model,
-                topic='Booking update',
+                topic="Booking update",
                 stack_trace=stack_trace,
                 fields_to_check=self.non_false_fields + self.non_nullable_fields,
             )
@@ -626,9 +704,10 @@ class BookingRepo(BaseBookingRepo, CRUDMixin, SCountMixin, FacetsMixin, SpecsMix
                     await _send_email(
                         data=data_copy,
                         model=booking,
-                        topic='Booking bulk_update',
+                        topic="Booking bulk_update",
                         stack_trace=stack_trace,
-                        fields_to_check=self.non_false_fields + self.non_nullable_fields,
+                        fields_to_check=self.non_false_fields
+                        + self.non_nullable_fields,
                     )
 
         for non_nullable_field in self.non_nullable_fields:
@@ -668,18 +747,18 @@ async def _send_email(
     if not send_email:
         return
 
-    topic += f' [{MaintenanceSettings().environment.value}]'
+    topic += f" [{MaintenanceSettings().environment.value}]"
     context = dict(
         booking=model.id,
         data=data,
         stack_trace=stack_trace,
     )
-    recipients: list[str] = ['krasnykh@artw.ru']
+    recipients: list[str] = ["krasnykh@artw.ru"]
     email_options: dict[str, Any] = dict(
         topic=topic,
         context=context,
         recipients=recipients,
-        template='src/booking/templates/booking_logs/booking_update.html',
+        template="src/booking/templates/booking_logs/booking_update.html",
     )
     email_service: EmailService = EmailService(**email_options)
     return email_service.as_task()

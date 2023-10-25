@@ -3,16 +3,15 @@ from typing import Any, Type
 from http import HTTPStatus
 
 from ..entities import BaseUserCase
-from ..models import RequestSuperuserLoginModel
+from ..models import RequestSuperuserClientLoginModel
 from ..repos import UserRepo, User
 from ..exceptions import WrongSuperuserAuthAsUserDataError
 
 
-class SuperuserAuthAsUserCase(BaseUserCase):
+class SuperuserAuthAsClientCase(BaseUserCase):
     """
-    Получение токена для авторизации суперюзера под выбранным пользователем по кукам админки.
+    Получение токена для авторизации суперюзера под выбранным клиентом по кукам админки.
     """
-    check_superuser_auth_link: str = "https://{}/admin/check_superuser_auth"
 
     def __init__(
         self,
@@ -26,12 +25,10 @@ class SuperuserAuthAsUserCase(BaseUserCase):
 
     async def __call__(
         self,
-        user_id: int,
-        payload: RequestSuperuserLoginModel,
+        payload: RequestSuperuserClientLoginModel,
     ) -> dict[str, str]:
-        user: User = await self.user_repo.retrieve(filters=dict(id=user_id))
-        superuser_is_authicated: bool = await self.check_superuser_auth(session_id=payload.session_id)
-        if not user or not superuser_is_authicated:
+        user: User = await self.user_repo.retrieve(filters=dict(id=payload.client_id))
+        if not user:
             raise WrongSuperuserAuthAsUserDataError
 
         extra: dict[str, Any] = dict(agency_id=user.agency_id)
@@ -39,18 +36,5 @@ class SuperuserAuthAsUserCase(BaseUserCase):
         token["id"]: int = user.id
         token["role"]: str = user.type.value
         token["is_fired"] = user.is_fired
-        return token
 
-    async def check_superuser_auth(self, session_id: str):
-        check_superuser_auth_link = self.check_superuser_auth_link.format(self.site_host)
-        cookies = dict(sessionid=session_id)
-
-        try:
-            response = requests.get(check_superuser_auth_link, cookies=cookies)
-        except requests.exceptions.RequestException:
-            return False
-
-        if response.status_code != HTTPStatus.OK:
-            return False
-
-        return True if response.json().get("is_superuser") else False
+        await self.user_repo.update(model=user, data=dict(client_token_for_superuser=token.get("token")))

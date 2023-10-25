@@ -13,6 +13,7 @@ from ..exceptions import UserNotFoundError
 
 class AgentListClientsCase(BaseUserCase):
     """Получение выборки клиентов для представителя агентства"""
+
     def __init__(
         self,
         user_repo: Type[UserRepo],
@@ -30,21 +31,63 @@ class AgentListClientsCase(BaseUserCase):
         pagination: UserPagination,
         agent_id: int,
     ):
+        bookings_substage_not_in_const = [
+            "start",
+            "assign_agent",
+            "make_appointment",
+            "meeting",
+            "Встреча назначена" "meeting_in_progress",
+            "make_decision",
+            "re_meeting",
+            "booking",
+            "paid_booking",
+            "mortgage_lead",
+            "apply_for_a_mortgage",
+            "mortgage_filed",
+            "mortgage_done",
+            "ddu_process",
+            "confirmation",
+            "ddu_signing",
+            "ddu_register",
+            "realized",
+            "money_process" "unrealized",
+            "termination",
+        ]
         search = init_filters.pop("search", [])
         ordering = init_filters.pop("ordering", "name")
+        booking_active_status = init_filters.pop("is_active", None)
 
         agent: User = await self.user_repo.retrieve(filters=dict(id=agent_id))
         if not agent:
             raise UserNotFoundError
-        additional_filters = dict(agent_id=agent_id, type=UserType.CLIENT)
+
+        if booking_active_status is None:  # показать всех
+            bookings_substage_not_in = []
+        elif booking_active_status is False:
+            bookings_substage_not_in = bookings_substage_not_in_const
+        else:
+            bookings_substage_not_in = [
+                BookingSubstages.REALIZED,
+                BookingSubstages.UNREALIZED,
+            ]
+
+        additional_filters = dict(
+            agent_id=agent_id,
+            type=UserType.CLIENT,
+            bookings__amocrm_substage__not_in=bookings_substage_not_in,
+            bookings__agent_id=agent_id,
+        )
         init_filters.update(additional_filters)
 
         q_filters = self._get_work_period_q_filters(init_filters)
         if search:
-            search_q_filters: list[Any] = [self.user_repo.q_builder(or_filters=search[0])]
-            q_filters += search_q_filters
-
-        bookings_count_annotations: dict[str, Any] = self._get_booking_count_annotation(agent_id)
+            search_q_filters: list[Any] = [
+                self.user_repo.q_builder(or_filters=search[0])
+            ]
+            q_filters += search_q_filters 
+        bookings_count_annotations: dict[str, Any] = self._get_booking_count_annotation(
+            agent_id
+        )
         users: List[User] = await self.user_repo.list(
             filters=init_filters,
             q_filters=q_filters,
@@ -56,23 +99,43 @@ class AgentListClientsCase(BaseUserCase):
                 "agent",
                 "agency",
                 "bookings",
-                dict(relation="users_checks",
-                     queryset=self.check_repo.list(ordering="-requested", related_fields=["unique_status"]),
-                     to_attr="statuses"),
-                dict(relation="users_pinning_status",
-                     queryset=self.user_pinning_repo.list(related_fields=["unique_status"]),
-                     to_attr="pinning_statuses"),
+                dict(
+                    relation="users_checks",
+                    queryset=self.check_repo.list(
+                        ordering="-requested", related_fields=["unique_status"]
+                    ),
+                    to_attr="statuses",
+                ),
+                dict(
+                    relation="users_pinning_status",
+                    queryset=self.user_pinning_repo.list(
+                        related_fields=["unique_status"]
+                    ),
+                    to_attr="pinning_statuses",
+                ),
             ],
         )
         counted: list[tuple[Union[int, str]]] = await self.user_repo.count(
-            filters=init_filters,
-            q_filters=q_filters
+            filters=init_filters, q_filters=q_filters
         )
         count = self._get_count(counted)
+
         for user in users:
             user.status = next(iter(user.statuses), None)
             user.pinning_status = next(iter(user.pinning_statuses), None)
-        data: dict[str, Any] = dict(count=count, result=users, page_info=pagination(count=count))
+        
+        if booking_active_status is None:
+            for user in users:
+                if user.active_bookings_count == 0:
+                    user.pinning_status = None
+        elif booking_active_status is False:
+            for user in users:
+                user.pinning_status = None
+        else:
+            pass
+        data: dict[str, Any] = dict(
+            count=count, result=users, page_info=pagination(count=count)
+        )
 
         return data
 
@@ -84,17 +147,23 @@ class AgentListClientsCase(BaseUserCase):
         )
         active_bookings = self.user_repo.a_builder.build_count(
             "bookings",
-            filter=~Q(bookings__amocrm_substage__in=[
-                BookingSubstages.REALIZED, BookingSubstages.UNREALIZED
-            ]) & Q(bookings__agent_id=agent_id),
+            filter=~Q(
+                bookings__amocrm_substage__in=[
+                    BookingSubstages.REALIZED,
+                    BookingSubstages.UNREALIZED,
+                ]
+            )
+            & Q(bookings__agent_id=agent_id),
         )
         successful_bookings = self.user_repo.a_builder.build_count(
             "bookings",
-            filter=Q(bookings__amocrm_substage=BookingSubstages.REALIZED) & Q(bookings__agent_id=agent_id),
+            filter=Q(bookings__amocrm_substage=BookingSubstages.REALIZED)
+            & Q(bookings__agent_id=agent_id),
         )
         unsuccessful_bookings = self.user_repo.a_builder.build_count(
             "bookings",
-            filter=Q(bookings__amocrm_substage=BookingSubstages.UNREALIZED) & Q(bookings__agent_id=agent_id),
+            filter=Q(bookings__amocrm_substage=BookingSubstages.UNREALIZED)
+            & Q(bookings__agent_id=agent_id),
         )
 
         bookings_count: dict[str, Any] = dict(
@@ -102,7 +171,7 @@ class AgentListClientsCase(BaseUserCase):
             active_bookings_count=active_bookings,
             successful_bookings_count=successful_bookings,
             unsuccessful_bookings_count=unsuccessful_bookings,
-        )
+        )  
         return bookings_count
 
     def _get_work_period_q_filters(self, init_filter: dict) -> Any:
@@ -125,13 +194,18 @@ class AgentListClientsCase(BaseUserCase):
 
         or_filters += [
             # work start between u_start and u_end
-            Q(work_end__isnull=False) & Q(work_start__lte=work_start) & Q(work_end__gte=work_start),
+            Q(work_end__isnull=False)
+            & Q(work_start__lte=work_start)
+            & Q(work_end__gte=work_start),
             # work end between u_start and u_end
-            Q(work_end__isnull=False) & Q(work_start__lte=work_end) & Q(work_end__gte=work_end),
+            Q(work_end__isnull=False)
+            & Q(work_start__lte=work_end)
+            & Q(work_end__gte=work_end),
             # work start less u_start and work end greater u_end
-            Q(work_end__isnull=False) & Q(work_start__gte=work_start) & Q(work_end__lte=work_end),
-
-            Q(work_end__isnull=True) & Q(work_start__lte=work_end)
+            Q(work_end__isnull=False)
+            & Q(work_start__gte=work_start)
+            & Q(work_end__lte=work_end),
+            Q(work_end__isnull=True) & Q(work_start__lte=work_end),
         ]
 
         return [self.user_repo.q_builder(or_filters=or_filters)]

@@ -4,6 +4,7 @@ from tortoise import Model
 
 from common.models import TimeBasedMixin
 from common.orm.entities import BaseRepo
+from common.pydantic import CamelCaseBaseModel
 
 
 class BaseTaskModel(Model, TimeBasedMixin):
@@ -15,6 +16,12 @@ class BaseTaskModel(Model, TimeBasedMixin):
 class BaseTaskSchema(BaseModel):
     """
     Базовая схема задачи
+    """
+
+
+class BaseTaskCamelCaseSchema(CamelCaseBaseModel):
+    """
+    Базовая схема задачи в camelCase
     """
 
 

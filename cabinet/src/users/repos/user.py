@@ -236,6 +236,18 @@ class User(Model):
     date_assignment_loyalty_status = fields.DatetimeField(
         description="Дата присвоения статуса лояльности", null=True,
     )
+    is_offer_accepted = fields.BooleanField(
+        description="Была ли оферта принята", default=False
+    )
+    is_ready_for_authorisation_by_superuser = fields.BooleanField(
+        description="Под данным пользователем может авторизоваться суперюзер", default=False,
+    )
+    can_login_as_another_user = fields.BooleanField(
+        description="Суперпользователь", default=False,
+    )
+    client_token_for_superuser: Optional[str] = fields.CharField(
+        description="Токен авторизации для клиента (для использования суперпользователями)", max_length=300, null=True
+    )
 
     def __str__(self) -> str:
         representation: str = str()
@@ -277,6 +289,7 @@ class User(Model):
             ("type", "phone"),
             ("type", "email"),
             ("type", "username"),
+            ("type", "amocrm_id"),
         )
         ordering = ["-created_at"]
 

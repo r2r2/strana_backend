@@ -114,6 +114,7 @@ async def admins_booking_retrieve_view(
         agent_repo=agents_repos.AgentRepo,
         user_pinning_repo=users_repos.UserPinningStatusRepo,
         booking_settings_repo=BookingSettingsRepo,
+        booking_tag_repo=booking_repos.BookingTagRepo,
     )
     booking_retrieve: use_cases.UserBookingRetrieveCase = \
         use_cases.UserBookingRetrieveCase(**resources)

@@ -8,6 +8,7 @@ from src.users.repos import UserRepo
 from src.users.types import UserBookingRepo, UserPagination
 from src.task_management.repos import TaskInstance
 from src.task_management.utils import TaskDataBuilder
+from src.task_management.constants import BOOKING_UPDATE_FIXATION_STATUSES
 from src.amocrm.repos import AmocrmGroupStatus, AmocrmGroupStatusRepo
 from src.booking.repos import Booking, BookingTag, BookingTagRepo
 from ..constants import UserType
@@ -80,9 +81,19 @@ class UsersBookingsCase(BaseUserCase, CurrentUserDataMixin):
 
         for booking in bookings:
             booking.tasks = await self._get_booking_tasks(booking=booking)
-
+            booking.show_update_fixation_info = False
             if booking.amocrm_status:
+                booking_group_status = (
+                    await booking.amocrm_status.group_status
+                    if booking.amocrm_status.group_status else None
+                )
                 await self._set_group_statuses(booking=booking)
+                if (
+                    booking_group_status
+                    and booking_group_status.name in BOOKING_UPDATE_FIXATION_STATUSES
+                ):
+                    booking.show_update_fixation_info = True
+
             booking.booking_tags = await self._get_booking_tags(booking)
 
         data: dict[str, Any] = dict(
@@ -91,9 +102,10 @@ class UsersBookingsCase(BaseUserCase, CurrentUserDataMixin):
         return data
 
     async def _get_booking_tags(self, booking: Booking) -> Optional[list[BookingTag]]:
+        booking_group_status = await booking.amocrm_status.group_status if booking.amocrm_status.group_status else None
         tag_filters: dict[str, Any] = dict(
             is_active=True,
-            group_statuses=booking.amocrm_status.group_status
+            group_statuses=booking_group_status
             if booking.amocrm_status else None,
         )
         return (
@@ -206,7 +218,7 @@ class UsersBookingsCase(BaseUserCase, CurrentUserDataMixin):
             final_group_status.id for final_group_status in final_group_statuses
         ]
 
-        booking_group_status = booking.amocrm_status.group_status
+        booking_group_status = await booking.amocrm_status.group_status if booking.amocrm_status.group_status else None
         if not booking_group_status:
             booking_group_status_current_step = 1
         elif booking_group_status.id in final_group_statuses_ids:

@@ -19,3 +19,6 @@ from .event_sms_notification import (
 )
 from .notification import Notification, NotificationRepo
 from .sms_notification import SmsTemplate, SmsTemplateRepo
+from .email_header import EmailHeaderTemplate, EmailHeaderTemplateRepo
+from .email_footer import EmailFooterTemplate, EmailFooterTemplateRepo
+from .event_qrcode_sms import QRcodeSMSNotify, QRcodeSMSNotifyRepo

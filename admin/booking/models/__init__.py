@@ -16,3 +16,6 @@ from .payment_methods import PaymentMethod
 from .price_offer_matrix import PriceOfferMatrix
 from .booking_source import BookingSource
 from .add_services_group_statuses import AdditionalServiceGroupStatus
+from .price_import_matrix import PriceImportMatrixCitiesThrough
+from .price_import_matrix import PriceImportMatrix
+from .price_schema import PriceSchema

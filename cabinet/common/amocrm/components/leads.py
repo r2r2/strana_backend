@@ -120,6 +120,8 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
     assign_agency_status_field_id: int = 828940
     booking_expires_datetime_field_id: int = 643043
     booking_is_agency_deal_field_id: int = 814164  # Сделка с Агентством?
+    house_field_id: int = 363959  # Дом
+    room_number_field_id: int = 363965  # Номер помещения
 
     # ID полей для встреч
     meeting_type_field_id = 815568
@@ -1060,6 +1062,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
             payload["update"][0]["custom_fields"]: list[Any] = custom_fields
 
         response: CommonResponse = await self._request_post(route=route, payload=payload)
+
         if response.data:
             data: list[Any] = response.data["_embedded"]["items"]
         else:

@@ -5,36 +5,6 @@ pytestmark = pytest.mark.asyncio
 
 
 class TestSetPreviousTaskStatusCase:
-    @pytest.fixture
-    async def setup(self, task_chain_repo, task_status_repo, task_instance_repo, booking):
-        task_chain = await task_chain_repo.create(data=dict(name="test_name"))
-        task_status_1 = await task_status_repo.create(
-            data=dict(
-                name="test_name_1",
-                slug="test_slug_1",
-                description="test_description_1",
-                type="test_type_1",
-                priority=1,
-                tasks_chain=task_chain,
-            )
-        )
-        task_status_2 = await task_status_repo.create(
-            data=dict(
-                name="test_name_2",
-                slug="test_slug_2",
-                description="test_description_2",
-                type="test_type_2",
-                priority=2,
-                tasks_chain=task_chain,
-            )
-        )
-        task_instance = await task_instance_repo.create(
-            data=dict(
-                status=task_status_2,
-                booking=booking,
-            )
-        )
-        return task_instance, task_status_1, task_status_2
 
     @pytest.mark.parametrize(
         "task_id, status_code, should_raise_error",
@@ -51,8 +21,10 @@ class TestSetPreviousTaskStatusCase:
         task_id,
         status_code,
         should_raise_error,
-        setup,
         task_instance_repo,
+        task_status,
+        task_status_2,
+        task_instance,
     ):
         headers = {"Authorization": agent_authorization}
         response = await async_client.post(
@@ -69,4 +41,4 @@ class TestSetPreviousTaskStatusCase:
             filters=dict(id=task_id),
             related_fields=["status"],
         )
-        assert task.status.slug == setup[1].slug
+        assert task.status.slug == task_status.slug

@@ -6,6 +6,7 @@ from typing import Any, Callable, Type, Union
 import sentry_sdk
 from pytz import UTC
 
+from common.sentry.utils import send_sentry_log
 from common.unleash.client import UnleashClient
 from config import sberbank_config
 from config.feature_flags import FeatureFlags
@@ -67,9 +68,8 @@ class CheckParamsCase(BaseBookingCase, BookingLogMixin):
         )
 
         profitbase_id = base64.b64decode(booking.property.global_id).decode("utf-8").split(":")[-1]
-        sentry_sdk.set_context(
-            "booking",
-            {
+        sentry_ctx: dict[str, Any] = {
+            "booking": {
                 "active": booking.active,
                 "amocrm_id": booking.amocrm_id,
                 "contract_accepted": booking.contract_accepted,
@@ -78,27 +78,38 @@ class CheckParamsCase(BaseBookingCase, BookingLogMixin):
                 "price_payed": booking.price_payed,
                 "expires": booking.expires,
             },
-        )
-        sentry_sdk.set_context(
-            "property",
-            {
+            "property": {
                 "status": PropertyStatuses.to_label(booking.property.status),
                 "profitbase_id": profitbase_id,
                 "building_name": booking.building.name,
                 "project_name": booking.project.name,
             },
-        )
+        }
 
         if not booking:
+            sentry_ctx.update({"ex": BookingNotFoundError})
+            await send_sentry_log(
+                tag="CheckParamsCase",
+                message="Бронирование не найдено",
+                context=sentry_ctx,
+            )
             sentry_sdk.capture_message("cabinet/CheckParamsCase: Бронирование не найдено")
             raise BookingNotFoundError
         if not booking.step_two():
-            sentry_sdk.capture_message(
-                "cabinet/CheckParamsCase: BookingWrongStepError: Персональные данные не заполнены"
+            sentry_ctx.update({"ex": BookingWrongStepError})
+            await send_sentry_log(
+                tag="CheckParamsCase",
+                message="Персональные данные не заполнены",
+                context=sentry_ctx,
             )
             raise BookingWrongStepError
         if not booking.time_valid():
-            sentry_sdk.capture_message("cabinet/CheckParamsCase: Таймер бронирования истёк")
+            sentry_ctx.update({"ex": BookingTimeOutError})
+            await send_sentry_log(
+                tag="CheckParamsCase",
+                message="Таймер бронирования истёк",
+                context=sentry_ctx,
+            )
             raise BookingTimeOutError
 
         data: dict[str, Any] = dict(
@@ -117,9 +128,17 @@ class CheckParamsCase(BaseBookingCase, BookingLogMixin):
                 amocrm_substage=BookingSubstages.BOOKING,
             )
             await self.booking_fail_logger(booking=booking, data=data)
-            sentry_sdk.capture_message(
-                "cabinet/CheckParamsCase: BookingOnlinePaymentError: "
-                "Не удалось сгенерировать ссылку для оплаты"
+            sentry_ctx.update(
+                {
+                    "ex": BookingOnlinePaymentError,
+                    "payment": payment,
+                    "data": data,
+                }
+            )
+            await send_sentry_log(
+                tag="CheckParamsCase",
+                message="Не удалось сгенерировать ссылку для оплаты",
+                context=sentry_ctx,
             )
             raise BookingOnlinePaymentError
 

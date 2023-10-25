@@ -39,3 +39,4 @@ from .booking_payment_conditions import (
     ResponseBookingPaymentConditionsCamelCaseModel
 )
 from .create_booking import RequestCreateBookingModel
+from .booking_document import ResponseBookingDocumentModel

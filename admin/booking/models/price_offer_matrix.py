@@ -30,4 +30,4 @@ class PriceOfferMatrix(models.Model):
         managed = False
         db_table = "payments_price_offer_matrix"
         verbose_name = "Матрица предложения цены"
-        verbose_name_plural = " 1.10. [Справочник] Матрицы предложения цены"
+        verbose_name_plural = "1.12. [Справочник] Матрицы предложения цены"

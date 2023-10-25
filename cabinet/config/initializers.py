@@ -27,6 +27,7 @@ def initialize_sentry(application: FastAPI) -> FastAPI:
             send_default_pii=sentry_config["send_default_pii"],
             before_send=utils.before_send,
             max_value_length=sentry_config["max_value_length"],
+            # ignore_errors=['ExceptionGroup', ],
         )
         application: FastAPI = SentryAsgiMiddleware(application)
     return application

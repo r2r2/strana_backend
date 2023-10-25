@@ -1,6 +1,8 @@
-from common.orm.mixins import CRUDMixin
+from decimal import Decimal
+
 from tortoise import Model, fields
 
+from common.orm.mixins import CRUDMixin
 from ..entities import BaseCityRepo
 
 
@@ -26,17 +28,21 @@ class City(Model):
     color: str = fields.CharField(default="#FFFFFF", max_length=8, description="Цвет")
     phone: str = fields.CharField(description="Номер отдела продаж", max_length=20, null=True)
     global_id: str = fields.CharField(max_length=50, description="ID из портала", null=True)
+    latitude: Decimal = fields.DecimalField(description="Широта", decimal_places=6, max_digits=9, null=True)
+    longitude: Decimal = fields.DecimalField(description="Долгота", decimal_places=6, max_digits=9, null=True)
+
 
     projects: fields.ReverseRelation["Project"]
     assign_clients: fields.ReverseRelation["AssignClientTemplate"]
+    metro_line: fields.ReverseRelation["MetroLine"]
+    acquiring: fields.ReverseRelation["Acquiring"]
 
     pinning_status_cities: fields.ManyToManyRelation["PinningStatus"]
     tickets: fields.ManyToManyRelation["Ticket"]
     blocks: fields.ManyToManyRelation["Block"]
     links: fields.ManyToManyRelation["Link"]
     elements: fields.ManyToManyRelation["Element"]
-    metro_line: fields.ReverseRelation["MetroLine"]
-    acquiring: fields.ReverseRelation["Acquiring"]
+    qrcode_sms: fields.ManyToManyRelation["QRcodeSMSNotify"]
 
     def __repr__(self):
         return self.name

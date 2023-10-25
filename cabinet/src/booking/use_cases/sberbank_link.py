@@ -6,6 +6,7 @@ from uuid import uuid4
 import sentry_sdk
 from pytz import UTC
 
+from common.sentry.utils import send_sentry_log
 from common.unleash.client import UnleashClient
 from config import sberbank_config
 from config.feature_flags import FeatureFlags
@@ -61,15 +62,23 @@ class SberbankLinkCase(BaseBookingCase, BookingLogMixin):
         )
 
         if not booking:
-            sentry_sdk.capture_message(
-                "cabinet/SberbankLinkCase: BookingNotFoundError: Бронирование не найдено"
+            sentry_ctx: dict[str, Any] = dict(
+                booking_id=booking_id,
+                user_id=user_id,
+                booking_filters=filters,
+                ex=BookingNotFoundError,
+                payload=payload,
+            )
+            await send_sentry_log(
+                tag="SberbankLinkCase",
+                message="Бронирование не найдено",
+                context=sentry_ctx,
             )
             raise BookingNotFoundError
 
         profitbase_id = base64.b64decode(booking.property.global_id).decode("utf-8").split(":")[-1]
-        sentry_sdk.set_context(
-            "booking",
-            {
+        sentry_ctx: dict[str, Any] = {
+            "booking": {
                 "active": booking.active,
                 "amocrm_id": booking.amocrm_id,
                 "contract_accepted": booking.contract_accepted,
@@ -78,31 +87,36 @@ class SberbankLinkCase(BaseBookingCase, BookingLogMixin):
                 "price_payed": booking.price_payed,
                 "expires": booking.expires,
             },
-        )
-        sentry_sdk.set_context(
-            "property",
-            {
+            "property": {
                 "status": PropertyStatuses.to_label(booking.property.status),
                 "profitbase_id": profitbase_id,
                 "building_name": booking.building.name,
                 "project_name": booking.project.name,
             },
-        )
+        }
 
         if not booking.step_three():
-            sentry_sdk.capture_message(
-                "cabinet/SberbankLinkCase: BookingWrongStepError: "
-                "Параметры бронирования не подтверждены"
+            sentry_ctx.update({"ex": BookingWrongStepError})
+            await send_sentry_log(
+                tag="SberbankLinkCase",
+                message="Параметры бронирования не подтверждены",
+                context=sentry_ctx,
             )
             raise BookingWrongStepError
         if booking.step_four():
-            sentry_sdk.capture_message(
-                "cabinet/SberbankLinkCase: BookingWrongStepError: Бронирование уже оплачено"
+            sentry_ctx.update({"ex": BookingWrongStepError})
+            await send_sentry_log(
+                tag="SberbankLinkCase",
+                message="Бронирование уже оплачено",
+                context=sentry_ctx,
             )
             raise BookingWrongStepError
         if not booking.time_valid():
-            sentry_sdk.capture_message(
-                "cabinet/SberbankLinkCase: BookingTimeOutError: Бронирование истекло"
+            sentry_ctx.update({"ex": BookingTimeOutError})
+            await send_sentry_log(
+                tag="SberbankLinkCase",
+                message="Бронирование истекло",
+                context=sentry_ctx,
             )
             raise BookingTimeOutError
 
@@ -122,9 +136,16 @@ class SberbankLinkCase(BaseBookingCase, BookingLogMixin):
             )
             data.update(extra_data)
             await self.booking_fail_logger(booking=booking, data=data)
-            sentry_sdk.capture_message(
-                "cabinet/SberbankLinkCase: BookingOnlinePaymentError: "
-                "Не удалось сгенерировать ссылку для оплаты"
+            sentry_ctx.update(
+                {
+                    "ex": BookingOnlinePaymentError,
+                    "payment": payment,
+                }
+            )
+            await send_sentry_log(
+                tag="SberbankLinkCase",
+                message="Не удалось сгенерировать ссылку для оплаты",
+                context=sentry_ctx,
             )
             raise BookingOnlinePaymentError
 

@@ -9,7 +9,7 @@ from src.agencies.models import AgencyRetrieveModel
 from src.agents.models import AgentRetrieveModel
 from src.properties.models import PropertyRetrieveModel
 from src.booking.entities import BaseBookingModel, BaseBookingCamelCaseModel
-from src.task_management.constants import TaskStatusType
+from src.task_management.constants import TaskStatusType, ButtonCondition
 
 from ..constants import (
     BookingCreatedSources,
@@ -140,6 +140,15 @@ class RequestBookingRetrieveModel(BaseBookingModel):
 class ButtonAction(BaseBookingCamelCaseModel):
     type: str
     id: str
+    condition: ButtonCondition.serializer | None
+
+    @root_validator
+    def validate_condition(cls, values):
+        if condition := values.get("condition"):
+            values["condition"] = condition.value
+        else:
+            values.pop("condition")
+        return values
 
     class Config:
         orm_mode = True
@@ -155,10 +164,12 @@ class Button(BaseBookingCamelCaseModel):
 
 
 class TaskInstanceResponseSchema(BaseBookingCamelCaseModel):
+    id: int
     type: str
     title: str
     hint: str | None
     text: str
+    is_main: bool
     current_step: str | None
     buttons: list[Button] | None
     buttons_detail_view: list[Button] | None

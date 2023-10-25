@@ -49,6 +49,7 @@ from src.users.repos import (
     CheckRepo,
     User,
     UserRepo,
+    UserRoleRepo,
     ConfirmClientAssignRepo,
     UserPinningStatusRepo,
     UniqueStatus, ConsultationTypeRepo, AmoCrmCheckLog
@@ -82,10 +83,12 @@ class AssignClientCase(BaseUserCase):
     previous_agent_email_slug = "previous_agent_email"
     sms_event_slug = "assign_client"
     ORIGIN: str = OriginType.AGENT_ASSIGN
+    user_client_type: str = UserType.CLIENT
 
     def __init__(
             self,
             user_repo: type[UserRepo],
+            user_role_repo: type[UserRoleRepo],
             check_repo: type[CheckRepo],
             project_repo: type[ProjectRepo],
             booking_repo: type[BookingRepo],
@@ -108,6 +111,7 @@ class AssignClientCase(BaseUserCase):
             logger: Optional[Any] = structlog.getLogger(__name__),
     ):
         self.user_repo: UserRepo = user_repo()
+        self.user_role_repo: UserRoleRepo = user_role_repo()
         self.check_repo: CheckRepo = check_repo()
         self.project_repo: ProjectRepo = project_repo()
         self.booking_repo: BookingRepo = booking_repo()
@@ -168,7 +172,9 @@ class AssignClientCase(BaseUserCase):
         client_id_filters: dict[str: Any] = dict(type=UserType.CLIENT, id=payload.user_id)
         client: User = await self.user_repo.retrieve(filters=client_id_filters)
         if not client:
-            client: User = await self.client_fetch_or_create(data=payload.user_data)
+            user_data = payload.user_data
+            user_data.update(dict(role=await self.user_role_repo.retrieve(filters=dict(slug=self.user_client_type))))
+            client: User = await self.client_fetch_or_create(data=user_data)
 
         if not payload.email:
             payload.email = client.email
@@ -232,13 +238,15 @@ class AssignClientCase(BaseUserCase):
             self._set_pinning_status(client=client),
         )
 
+        filters = dict(slug=payload.consultation_type)
+        consultation_type = await self.consultation_type_repo.retrieve(filters=filters)
+        message = f"{consultation_type.name}"
         if payload.assignation_comment:
-            filters = dict(slug=payload.consultation_type)
-            consultation_type = await self.consultation_type_repo.retrieve(filters=filters)
-            async with await self.amocrm_class() as amocrm:
-                amocrm_response = await amocrm.send_contact_note(
-                    contact_id=client.amocrm_id, message=f"{consultation_type.name}: {payload.assignation_comment}")
-                await self.amocrm_log_repo.create(**amocrm_response)
+            message += f": {payload.assignation_comment}"
+        async with await self.amocrm_class() as amocrm:
+            amocrm_response = await amocrm.send_contact_note(
+                contact_id=client.amocrm_id, message=message)
+            await self.amocrm_log_repo.create(**amocrm_response)
 
         client.booking_id = created_booking_id
 

@@ -14,7 +14,7 @@ from config.settings import (AerichSettings, AMOCrmSettings, AMOCrmSettingsOld,
                              TortoiseSettings, TrustedSettings, FakeSendSms,
                              UvicornSettings, LogsSettings, SenseiSettings,
                              KonturTalkSettings, RequestLimiterSettings, MCSettings,
-                             DadataSettings, UnleashSettings, DepregSettings,)
+                             UnleashSettings, DepregSettings,)
 
 
 base_dir: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -58,6 +58,5 @@ sensei_config: dict[str, Any] = SenseiSettings().dict()
 kontur_talk_config: dict[str, Any] = KonturTalkSettings().dict()
 logs_config: dict[str, Any] = LogsSettings().dict()
 request_limiter_config: dict[str, Any] = RequestLimiterSettings().dict()
-dadata_config: dict[str, Any] = DadataSettings().dict()
 unleash_config: dict[str, Any] = UnleashSettings().dict()
 depreg_config: dict[str, Any] = DepregSettings().dict()

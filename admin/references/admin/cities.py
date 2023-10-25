@@ -8,6 +8,7 @@ class CitiesAdmin(admin.ModelAdmin):
     list_display = (
         "name",
         "slug",
-        "phone"
+        "phone",
+        "timezone_offset",
     )
     search_fields = ("name", )

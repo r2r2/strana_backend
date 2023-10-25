@@ -31,10 +31,26 @@ class EmailTemplate(Model, TimeBasedMixin):
         max_length=100,
         unique=True,
     )
+    header_template: fields.ForeignKeyNullableRelation["EmailHeaderTemplate"] = fields.ForeignKeyField(
+        model_name="models.EmailHeaderTemplate",
+        on_delete=fields.CASCADE,
+        related_name="email_templates",
+        description="Шаблон хэдера",
+        null=True,
+    )
+    footer_template: fields.ForeignKeyNullableRelation["EmailFooterTemplate"] = fields.ForeignKeyField(
+        model_name="models.EmailFooterTemplate",
+        on_delete=fields.CASCADE,
+        related_name="email_templates",
+        description="Шаблон футера",
+        null=True,
+    )
     is_active = fields.BooleanField(
         description="Шаблон активен",
         default=True,
     )
+
+    content: str | None
 
     class Meta:
         table = "notifications_email_notification"

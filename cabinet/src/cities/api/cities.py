@@ -2,7 +2,6 @@ from typing import Any
 
 from fastapi import APIRouter, status, Request
 
-from common.requests import CommonRequest
 from src.cities import models
 from src.cities import repos as cities_repo
 from src.cities import use_cases
@@ -36,7 +35,7 @@ async def current_city(request: Request):
     resources: dict[str, Any] = dict(
         cities_repo=cities_repo.CityRepo,
         iplocation_repo=cities_repo.IPLocationRepo,
-        request_class=CommonRequest,
+        dadata_settings_repo=cities_repo.DaDataSettingsRepo,
     )
     cities_list: use_cases.CurrentCity = use_cases.CurrentCity(**resources)
     return await cities_list(request.client.host)

@@ -198,7 +198,6 @@ class CelerySettings(BaseSettings):
     accept_content: list[str] = Field(["json"])
     broker_url: str = Field("redis://redis-lk-broker:6379/0", env='LK_BROKER_URL')
     result_backend: str = Field("redis://redis-lk-broker:6379/0", env='LK_RESULT_BACKEND')
-    user_interest_task_time: str = Field("14", env='LK_USER_INTERESTS_TASK_TIME_BACKEND')
 
     class Config:
         env_file = ".env"
@@ -320,10 +319,10 @@ class TrustedSettings(BaseSettings):
 
 
 class RedisSettings(BaseSettings):
-    address: str = Field("redis://redis-lk-broker:6379/0", env='LK_REDDIS_URL')
+    address: str = Field("redis://redis-lk-broker:6379/13", env='LK_REDDIS_URL')
     host: str = Field("redis-lk-broker", env='LK_REDIS_HOST')
     port: int = Field(6379, env='LK_REDIS_PORT')
-    db: int = Field(0, env='LK_REDIS_DB')
+    db: int = Field(13, env='LK_REDIS_DB')
 
     deleted_users_key: str = Field("deleted_users")
     deleted_users_expire: int = Field(2_147_483_647)
@@ -607,15 +606,6 @@ class LogsSettings(BaseSettings):
         env_file_encoding = "utf-8"
 
 
-class DadataSettings(BaseSettings):
-    token: str = Field("", env="DADATA_TOKEN")
-    secret: str = Field("", env="DADATA_SECRET")
-
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-
-
 class UnleashSettings(BaseSettings):
     url: str = Field("", env="LK_UNLEASH_URL")
     instance_id: str = Field("", env="LK_UNLEASH_INSTANCE_ID")
@@ -631,7 +621,6 @@ class DepregSettings(BaseSettings):
     """
     base_url: str = Field("https://et.depreg.ru/api/v2", env="LK_DEPREG_BASE_URL")
     auth_type: str = Field("Bearer", env="LK_DEPREG_AUTH_TYPE")
-    token: str = Field("SecretToken", env="LK_DEPREG_TOKEN")
 
     class Config:
         env_file = ".env"

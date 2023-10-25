@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date
 
 from django.db import models
 
@@ -18,8 +18,18 @@ class EventList(models.Model):
         null=True,
         blank=True,
     )
-    event_date: datetime = models.DateTimeField(
+    event_id: int = models.IntegerField(
+        verbose_name="ID мероприятия",
+        null=True,
+        blank=True,
+    )
+    event_date: date = models.DateField(
         verbose_name="Дата и время мероприятия",
+        null=True,
+        blank=True,
+    )
+    start_showing_date: date = models.DateField(
+        verbose_name="Дата начала показа мероприятия",
         null=True,
         blank=True,
     )
@@ -34,6 +44,12 @@ class EventList(models.Model):
         max_length=255,
         null=True,
         blank=True,
+    )
+    text: str = models.TextField(
+        verbose_name="Текст в модальном окне",
+        null=True,
+        blank=True,
+        default="QR-код активен 1 раз после прохода, пересылка третьим лицам запрещена",
     )
 
     def __str__(self) -> str:

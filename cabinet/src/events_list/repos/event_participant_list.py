@@ -26,6 +26,12 @@ class EventParticipantList(Model):
         max_length=255,
         null=True,
     )
+    group_id: int = fields.IntField(description="ID группы", null=True)
+    timeslot: str = fields.CharField(
+        description="Время проведения мероприятия",
+        max_length=255,
+        null=True,
+    )
 
     class Meta:
         table = "event_participant_list"

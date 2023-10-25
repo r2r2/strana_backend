@@ -6,3 +6,6 @@ from .sms_template import SmsTemplate
 from .booking_notificaton import BookingNotification, BookingNotificationsProjectThrough
 from .booking_fixation_notificaton import BookingFixationNotification, BookingFixationNotificationsProjectThrough
 from .event_sms_notification import EventsSmsNotification, EventsSmsNotificationCityThrough
+from .email_header import EmailHeaderTemplate
+from .email_footer import EmailFooterTemplate
+from .event_qrcode_sms import QRcodeSMSNotify, QRcodeSMSCityThrough, QRcodeSMSEventListThrough

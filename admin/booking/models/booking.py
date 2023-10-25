@@ -143,6 +143,14 @@ class Booking(models.Model):
         related_name="booking_price",
         verbose_name="Цена",
     )
+    mortgage_type = models.ForeignKey(
+        to="properties.MortgageType",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="mortgage_type",
+        verbose_name="Тип ипотеки",
+    )
     loyalty_point_amount = models.IntegerField(
         verbose_name="Количество баллов лояльности",
         help_text="Только для информации, редактируется через микросервис лояльности",

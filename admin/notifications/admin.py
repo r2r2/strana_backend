@@ -1,7 +1,16 @@
 from django.contrib import admin
 from django.contrib.admin.widgets import FilteredSelectMultiple
 
-from .models import LogSms, LogEmail, EmailTemplate, SmsTemplate, AssignClientTemplate
+from .models import (
+    LogSms,
+    LogEmail,
+    EmailTemplate,
+    SmsTemplate,
+    AssignClientTemplate,
+    EmailHeaderTemplate,
+    EmailFooterTemplate,
+    QRcodeSMSNotify,
+)
 from .models.booking_notificaton import BookingNotification
 from .models.booking_fixation_notificaton import BookingFixationNotification
 from .models.event_sms_notification import EventsSmsNotification
@@ -75,6 +84,10 @@ class EmailTemplateAdmin(admin.ModelAdmin):
         "mail_event",
         "mail_event_slug",
         "template_topic",
+    )
+    autocomplete_fields = (
+        "header_template",
+        "footer_template",
     )
     search_fields = ("mail_event_slug", "mail_event", "template_topic", "template_text")
     list_filter = ("lk_type",)
@@ -185,14 +198,93 @@ class EventsSmsNotificationAdmin(admin.ModelAdmin):
         "id",
         "sms_template",
         "sms_event_type",
-        "days",
+        "get_cities_on_list",
+        "only_for_online",
+    )
+    search_fields = ("sms_template__sms_event_slug",)
+    list_filter = ("sms_template", "sms_event_type", "only_for_online")
+    filter_horizontal = ("cities",)
+
+    def get_cities_on_list(self, obj):
+        if obj.cities.exists():
+            return [city.name for city in obj.cities.all()]
+        else:
+            return "-"
+
+    get_cities_on_list.short_description = 'Города'
+
+    def formfield_for_manytomany(self, db_field, request, **kwargs):
+        if db_field.name == "cities":
+            kwargs['widget'] = FilteredSelectMultiple(
+                db_field.verbose_name, is_stacked=False
+            )
+        else:
+            return super().formfield_for_manytomany(db_field, request, **kwargs)
+        form_field = db_field.formfield(**kwargs)
+        msg = "Зажмите 'Ctrl' ('Cmd') или проведите мышкой, с зажатой левой кнопкой, чтобы выбрать несколько элементов."
+        form_field.help_text = msg
+        return form_field
+
+
+@admin.register(EmailHeaderTemplate)
+class EmailHeaderTemplateAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "description",
+        "slug",
+    )
+    search_fields = ("slug", "description", "text")
+    readonly_fields = (
+        "created_at",
+        "updated_at",
+    )
+
+
+@admin.register(EmailFooterTemplate)
+class EmailFooterTemplateAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "description",
+        "slug",
+    )
+    search_fields = ("slug", "description", "text")
+    readonly_fields = (
+        "created_at",
+        "updated_at",
+    )
+
+
+@admin.register(QRcodeSMSNotify)
+class QRcodeSMSNotifyAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "sms_template",
+        "sms_event_type",
+        "get_cities_on_list",
+        "get_events_on_list",
     )
     search_fields = ("sms_template__sms_event_slug",)
     list_filter = ("sms_template", "sms_event_type")
     filter_horizontal = ("cities",)
 
+    def get_cities_on_list(self, obj):
+        if obj.cities.exists():
+            return [city.name for city in obj.cities.all()]
+        else:
+            return "-"
+
+    get_cities_on_list.short_description = 'Города'
+
+    def get_events_on_list(self, obj):
+        if obj.events.exists():
+            return [event.name for event in obj.events.all()]
+        else:
+            return "-"
+
+    get_events_on_list.short_description = 'Мероприятия'
+
     def formfield_for_manytomany(self, db_field, request, **kwargs):
-        if db_field.name == "cities":
+        if db_field.name in ("cities", "events"):
             kwargs['widget'] = FilteredSelectMultiple(
                 db_field.verbose_name, is_stacked=False
             )

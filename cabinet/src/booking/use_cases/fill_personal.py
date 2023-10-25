@@ -1,8 +1,9 @@
-from typing import Callable, NamedTuple
+from typing import Callable, NamedTuple, Any
 
 from celery.app import task
 
 from common.amocrm.types import AmoLead
+from common.sentry.utils import send_sentry_log
 from config import EnvTypes, maintenance_settings
 from src.buildings.repos import BuildingBookingType, BuildingBookingTypeRepo
 from ..constants import (
@@ -23,7 +24,6 @@ from ..exceptions import (
     BookingTimeOutError,
     BookingWrongStepError,
 )
-from src.task_management.services import UpdateTaskInstanceStatusService
 from src.task_management.constants import OnlineBookingSlug
 from src.task_management.utils import get_booking_tasks
 
@@ -36,6 +36,7 @@ class BookingTypeNamedTuple(NamedTuple):
 class FillPersonalCase(BaseBookingCase, BookingLogMixin):
     """
     Кейс заполнения персональных данных
+    Deprecated
     """
 
     lk_client_tag: list[str] = ["ЛК Клиента"]
@@ -238,10 +239,8 @@ class FillPersonalCaseV2(BaseBookingCase, BookingLogMixin):
         booking_repo: type[BookingRepo],
         global_id_decoder: Callable[[str], tuple[str, str | int]],
         building_booking_type_repo: type[BuildingBookingTypeRepo],
-        update_task_instance_status_service: UpdateTaskInstanceStatusService,
     ) -> None:
         self.booking_repo: BookingRepo = booking_repo()
-        self.update_task_instance_status_service = update_task_instance_status_service
         self.building_booking_type_repo: BuildingBookingTypeRepo = (
             building_booking_type_repo()
         )
@@ -274,18 +273,37 @@ class FillPersonalCaseV2(BaseBookingCase, BookingLogMixin):
             ],
         )
         if not booking:
+            sentry_ctx: dict[str, Any] = dict(
+                booking_id=booking_id,
+                user_id=user_id,
+                payload=payload,
+            )
+            await send_sentry_log(
+                tag="FillPersonalCaseV2",
+                message="Бронирование не найдено",
+                context=sentry_ctx,
+            )
             raise BookingNotFoundError
 
         booking_source: BookingSource = booking.booking_source
         if booking_source and booking_source.slug in [BookingCreatedSources.AMOCRM]:
             return await self._fill_personal(booking=booking, user_id=user_id, data=personal_filled_data)
 
-        if not booking.step_one():
-            raise BookingWrongStepError
-        if booking.step_two():
-            raise BookingWrongStepError
-        if not booking.time_valid():
-            raise BookingTimeOutError
+        try:
+            self._check_booking_step(booking=booking)
+        except (BookingWrongStepError, BookingTimeOutError) as ex:
+            sentry_ctx: dict[str, Any] = dict(
+                booking_id=booking_id,
+                user_id=user_id,
+                payload=payload,
+                ex=ex,
+            )
+            await send_sentry_log(
+                tag="FillPersonalCaseV2",
+                message="Неверный шаг бронирования",
+                context=sentry_ctx,
+            )
+            raise ex
 
         data: dict = dict(
             tags=["Онлайн-бронирование"],
@@ -297,7 +315,6 @@ class FillPersonalCaseV2(BaseBookingCase, BookingLogMixin):
         booking.tasks = await get_booking_tasks(
             booking_id=booking.id, task_chain_slug=OnlineBookingSlug.ACCEPT_OFFER.value
         )
-        await self._update_task_status(booking=booking)
         return await self._fill_personal(booking=booking, user_id=user_id, data=personal_filled_data)
 
     async def _fill_personal(
@@ -321,11 +338,10 @@ class FillPersonalCaseV2(BaseBookingCase, BookingLogMixin):
         )
         return booking
 
-    async def _update_task_status(self, booking: Booking) -> None:
-        """
-        Обновление статуса задачи на 3. Подтвердите параметры бронирования
-        """
-        await self.update_task_instance_status_service(
-            booking_id=booking.id,
-            status_slug=OnlineBookingSlug.CONFIRM_BOOKING.value,
-        )
+    def _check_booking_step(self, booking: Booking) -> None:
+        if not booking.step_one():
+            raise BookingWrongStepError
+        if booking.step_two():
+            raise BookingWrongStepError
+        if not booking.time_valid():
+            raise BookingTimeOutError

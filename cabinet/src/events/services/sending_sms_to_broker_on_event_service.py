@@ -1,3 +1,4 @@
+import datetime
 from asyncio import Task
 from typing import Any, Type
 from copy import copy
@@ -11,6 +12,7 @@ from src.notifications.services import GetSmsTemplateService
 from ..entities import BaseEventCase
 from ..repos import (
     Event,
+    EventType,
     EventParticipantRepo,
     EventParticipantStatus,
     EventRepo,
@@ -62,6 +64,7 @@ class SendingSmsToBrokerOnEventService(BaseEventCase):
         )
         event: Event = await self.event_repo.retrieve(
             filters=dict(id=event_id),
+            related_fields=["city"],
             annotations=dict(
                 agent_recorded=self.event_repo.a_builder.build_exists(agent_exist_in_participants_qs),
             ),
@@ -71,9 +74,10 @@ class SendingSmsToBrokerOnEventService(BaseEventCase):
             await self._send_sms_to_broker(
                 user=broker,
                 sms_event_slug=sms_event_slug,
+                event=event,
             )
 
-    async def _send_sms_to_broker(self, user: User, sms_event_slug: str) -> Task:
+    async def _send_sms_to_broker(self, user: User, sms_event_slug: str, event: Event) -> Task:
         """
         Отправка смс сообщений брокеру.
         """
@@ -82,9 +86,24 @@ class SendingSmsToBrokerOnEventService(BaseEventCase):
             sms_event_slug=sms_event_slug,
         )
         if sms_notification_template and sms_notification_template.is_active:
+            if event.type == EventType.ONLINE:
+                broker_event_message = sms_notification_template.template_text.format(
+                    event_date=(event.meeting_date_start + datetime.timedelta(hours=3)).date().strftime("%m.%d.%Y"),
+                    event_time=(event.meeting_date_start + datetime.timedelta(hours=3)).time().strftime("%H.%M"),
+                    event_online_link=event.link,
+                ),
+            else:
+                timezone_offset = event.city.timezone_offset if event.city else 0
+                broker_event_message = sms_notification_template.template_text.format(
+                    event_date=(event.meeting_date_start + datetime.timedelta(hours=timezone_offset)).date(),
+                    event_time=(event.meeting_date_start + datetime.timedelta(hours=timezone_offset)).time(),
+                    event_offline_address=event.address,
+                    event_city=event.city.name if event.city else None,
+                ),
+
             sms_options: dict[str, Any] = dict(
                 phone=user.phone,
-                message=sms_notification_template.template_text,
+                message=broker_event_message,
                 lk_type=sms_notification_template.lk_type.value,
                 sms_event_slug=sms_notification_template.sms_event_slug,
             )

@@ -23,6 +23,7 @@ from src.users.loggers.wrappers import user_changes_logger
 from src.agencies.loggers.wrappers import agency_changes_logger
 from src.notifications.services import GetEmailTemplateService
 from src.users.services import UserCheckUniqueService
+from src.users.repos import UserRoleRepo
 from src.cities.repos import City, CityRepo
 
 
@@ -35,11 +36,13 @@ class ProcessRegisterCase(BaseRepresCase):
     admin_mail_event_slug = "admin_confirm_agency"
     link: str = "https://{}/confirm/represes/confirm_email?q={}&p={}"
     default_general_type_slug = "agency"
+    user_type = UserType.REPRES
 
     def __init__(
         self,
         site_config: dict[str, Any],
         repres_repo: Type[RepresRepo],
+        user_role_repo: type[UserRoleRepo],
         email_class: Type[EmailService],
         token_creator: Callable[[int], str],
         hasher: Callable[..., CryptContext],
@@ -59,6 +62,7 @@ class ProcessRegisterCase(BaseRepresCase):
     ) -> None:
         self.hasher: CryptContext = hasher()
         self.repres_repo: RepresRepo = repres_repo()
+        self.user_role_repo: UserRoleRepo = user_role_repo()
         self.city_repo: CityRepo = city_repo()
         self.repres_create = user_changes_logger(
             self.repres_repo.create, self, content="Создание представителя"
@@ -121,10 +125,11 @@ class ProcessRegisterCase(BaseRepresCase):
 
         password: str = data.pop("password")
         extra_data: dict[str, Any] = dict(
-            type=UserType.REPRES,
+            type=self.user_type,
             email_token=token_urlsafe(32),
             password=self.hasher.hash(password),
-            is_approved=True
+            is_approved=True,
+            role=await self.user_role_repo.retrieve(filters=dict(slug=self.user_type)),
         )
         data.update(extra_data)
         repres: User = await self.repres_create(data=data)
