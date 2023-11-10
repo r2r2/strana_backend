@@ -20,14 +20,6 @@ class Property(models.Model):
         blank=True,
         null=True,
     )
-    property_price = models.ForeignKey(
-        "properties.PropertyPrice",
-        on_delete=models.SET_NULL,
-        related_name="property_price",
-        verbose_name="Цена",
-        null=True,
-        blank=True,
-    )
     article = models.CharField(max_length=50, blank=True, null=True)
     plan = models.ImageField(max_length=300, blank=True, null=True, upload_to="p/p/p")
     plan_png = models.ImageField(max_length=300, blank=True, null=True, upload_to="p/p/pp")

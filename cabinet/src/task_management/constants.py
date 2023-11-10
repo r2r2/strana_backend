@@ -106,3 +106,28 @@ class OnlineBookingSlug(Slugs):
     PAYMENT: str = "online_booking_payment"  # 4. Оплатите бронирование
     PAYMENT_SUCCESS: str = "online_booking_payment_success"  # 5. Бронирование успешно оплачено
     TIME_IS_UP: str = "online_booking_time_is_up"  # 6. Время истекло
+
+
+class FastBookingSlug(Slugs):
+    """
+    Слаги для Быстрого бронирования
+    """
+    ACCEPT_OFFER: str = "fast_booking_accept_offer"  # 1. Ознакомьтесь с договором офертой
+    FILL_PERSONAL_DATA: str = "fast_booking_fill_personal_data"  # 2. Заполните персональные данные
+    CONFIRM_BOOKING: str = "fast_booking_confirm_booking"  # 3. Подтвердите параметры бронирования
+    PAYMENT: str = "fast_booking_payment"  # 4. Оплатите бронирование
+    PAYMENT_SUCCESS: str = "fast_booking_payment_success"  # 5. Бронирование успешно оплачено
+    TIME_IS_UP: str = "fast_booking_time_is_up"  # 6. Время истекло
+
+
+class FreeBookingSlug(Slugs):
+    """
+    Слаги для Бесплатного бронирования
+    """
+    EXTEND: str = "free_booking_extend"  # 1. Продлить бесплатаную бронь
+    ACCEPT_OFFER: str = "free_booking_accept_offer"  # 2. Ознакомьтесь с договором офертой
+    FILL_PERSONAL_DATA: str = "free_booking_fill_personal_data"  # 3. Заполните персональные данные
+    CONFIRM_BOOKING: str = "free_booking_confirm_booking"  # 4. Подтвердите параметры бронирования
+    PAYMENT: str = "free_booking_payment"  # 5. Оплатите бронирование
+    PAYMENT_SUCCESS: str = "free_booking_payment_success"  # 6. Бронирование успешно оплачено
+    TIME_IS_UP: str = "free_booking_time_is_up"  # 7. Время истекло

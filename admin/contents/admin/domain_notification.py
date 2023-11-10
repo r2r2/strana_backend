@@ -1,20 +1,20 @@
 from django.contrib import admin
 from django.contrib.admin.widgets import FilteredSelectMultiple
 
-from ..models import PriceImportMatrix
+from contents.models import Onboarding
 
 
-@admin.register(PriceImportMatrix)
-class PriceImportMatrixAdmin(admin.ModelAdmin):
-    """
-    Матрица сопоставления цен при импорте объекта
-    """
-
-    list_display = ("price_schema", "default")
+@admin.register(Onboarding)
+class OnboardingAdmin(admin.ModelAdmin):
+    list_display = (
+        "message",
+        "slug",
+        "button_text",
+    )
 
     def formfield_for_manytomany(self, db_field, request, **kwargs):
-        if db_field.name in ("cities",):
-            kwargs["widget"] = FilteredSelectMultiple(
+        if db_field.name in ("user",):
+            kwargs['widget'] = FilteredSelectMultiple(
                 db_field.verbose_name, is_stacked=False
             )
         else:

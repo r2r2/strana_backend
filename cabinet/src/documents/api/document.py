@@ -1,10 +1,11 @@
 from typing import Any
 from http import HTTPStatus
-from fastapi import APIRouter, Request, Path
+from fastapi import APIRouter, Request, Path, Depends
 
 from config import session_config
 from src.documents import use_cases, models
 from src.documents import repos as documents_repos
+from common import dependencies, paginations
 
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
@@ -75,3 +76,22 @@ async def get_instruction_by_slug(
     return await get_instruction_by_slug_case(
         slug=slug,
     )
+
+@router.get(
+    "/interactions",
+    status_code=HTTPStatus.OK,
+    response_model= models.ResponseGetInteractionDocument, 
+)
+async def get_interactions(
+    pagination: paginations.PagePagination = Depends(dependencies.Pagination()),
+):
+    """
+    Список взаимодействий
+    """
+    resources: dict[str, Any] = dict(
+        interaction_repo=documents_repos.InteractionDocumentRepo,
+    )
+
+    get_interaction_list: use_cases.GetInteractionDocumentCase = use_cases.GetInteractionDocumentCase(**resources)
+
+    return await get_interaction_list(pagination=pagination)

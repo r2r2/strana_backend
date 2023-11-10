@@ -35,11 +35,6 @@ def rate_limit_decorator(func):
 
 class RateLimitMeta(ABCMeta):
     def __new__(cls, name, bases, attrs):
-        unleash_client = UnleashClient()
-        strana_lk_1634_enabled = unleash_client.is_enabled(FeatureFlags.strana_lk_1634)
-        if not strana_lk_1634_enabled:
-            return super().__new__(cls, name, bases, attrs)
-
         decorated_attrs = {}
 
         rate_limit = attrs.get("rate_limit_decorator")

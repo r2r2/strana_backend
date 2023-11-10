@@ -7,7 +7,7 @@ from src.task_management.repos import (
     TaskInstanceRepo,
     TaskStatus,
     TaskChain,
-    TaskInstance,
+    TaskInstance, TaskGroupStatusRepo, TaskGroupStatus,
 )
 
 
@@ -27,6 +27,14 @@ def task_status_repo() -> TaskStatusRepo:
 def task_instance_repo() -> TaskInstanceRepo:
     task_instance_repo: TaskInstanceRepo = getattr(import_module("src.task_management.repos"), "TaskInstanceRepo")()
     return task_instance_repo
+
+
+@pytest.fixture(scope="function")
+def task_group_status_repo() -> TaskGroupStatusRepo:
+    task_group_status_repo: TaskGroupStatusRepo = getattr(
+        import_module("src.task_management.repos"), "TaskGroupStatusRepo"
+    )()
+    return task_group_status_repo
 
 
 @pytest.fixture(scope="function")
@@ -84,3 +92,24 @@ async def task_instance(task_instance_repo, task_status, booking) -> TaskInstanc
     )
     print(f'Created fixture task = {task_instance=} with id# {task_instance.id=}')
     return task_instance
+
+
+@pytest.fixture(scope="function")
+async def task_group_status(
+    task_group_status_repo,
+    task_chain,
+    task_status,
+    task_status_2,
+) -> TaskGroupStatus:
+    task_group_status: TaskGroupStatus = await task_group_status_repo.create(
+        data=dict(
+            name="test_task_group_status",
+            priority=1,
+            color="test_color",
+            slug="test_slug",
+            task_chain_id=task_chain.id,
+        )
+    )
+    await task_group_status.statuses.add(task_status, task_status_2)
+    await task_group_status.save()
+    return task_group_status

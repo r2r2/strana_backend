@@ -1,6 +1,11 @@
+from http import HTTPStatus
+
+import requests
 from django.contrib import admin
 from django.contrib.admin.widgets import FilteredSelectMultiple
+from django.http import HttpResponseRedirect
 
+from config.settings import AWS_S3_CUSTOM_DOMAIN, AWS_STORAGE_BUCKET_NAME
 from .models import (
     LogSms,
     LogEmail,
@@ -14,6 +19,7 @@ from .models import (
 from .models.booking_notificaton import BookingNotification
 from .models.booking_fixation_notificaton import BookingFixationNotification
 from .models.event_sms_notification import EventsSmsNotification
+from .models.template_content import TemplateContent
 
 
 @admin.register(LogEmail)
@@ -256,15 +262,16 @@ class EmailFooterTemplateAdmin(admin.ModelAdmin):
 
 @admin.register(QRcodeSMSNotify)
 class QRcodeSMSNotifyAdmin(admin.ModelAdmin):
+    change_form_template = "notifications/templates/send_sms.html"
     list_display = (
         "id",
         "sms_template",
-        "sms_event_type",
         "get_cities_on_list",
         "get_events_on_list",
+        "get_groups_on_list",
     )
     search_fields = ("sms_template__sms_event_slug",)
-    list_filter = ("sms_template", "sms_event_type")
+    list_filter = ("sms_template",)
     filter_horizontal = ("cities",)
 
     def get_cities_on_list(self, obj):
@@ -283,8 +290,16 @@ class QRcodeSMSNotifyAdmin(admin.ModelAdmin):
 
     get_events_on_list.short_description = 'Мероприятия'
 
+    def get_groups_on_list(self, obj):
+        if obj.groups.exists():
+            return [group.group_id for group in obj.groups.all()]
+        else:
+            return "-"
+
+    get_groups_on_list.short_description = 'Группы'
+
     def formfield_for_manytomany(self, db_field, request, **kwargs):
-        if db_field.name in ("cities", "events"):
+        if db_field.name in ("cities", "events", "groups"):
             kwargs['widget'] = FilteredSelectMultiple(
                 db_field.verbose_name, is_stacked=False
             )
@@ -294,3 +309,45 @@ class QRcodeSMSNotifyAdmin(admin.ModelAdmin):
         msg = "Зажмите 'Ctrl' ('Cmd') или проведите мышкой, с зажатой левой кнопкой, чтобы выбрать несколько элементов."
         form_field.help_text = msg
         return form_field
+
+    def response_change(self, request, obj: QRcodeSMSNotify):
+        if "_send" in request.POST:
+            try:
+                event_id: int = obj.events.all()[0].id
+            except (IndexError, AttributeError):
+                error_msg: str = "Не выбрано мероприятие"
+                self.message_user(request, error_msg)
+                return HttpResponseRedirect("../")
+
+            url = f'http://cabinet:1800/api/events_list/{event_id}/send_sms/{obj.id}'
+            response = requests.post(url=url)
+            if response.status_code == HTTPStatus.OK:
+                self.message_user(request, "SMS были отправлены")
+                return HttpResponseRedirect(".")
+            else:
+                error_response: list[bytes] = list(response.iter_lines())
+                error_msg: str = (f"Не получилось отправить SMS: "
+                                  f"{error_response[-3:]}")
+                self.message_user(request, error_msg)
+                return HttpResponseRedirect("../")
+        return super().response_change(request, obj)
+
+
+@admin.register(TemplateContent)
+class TemplateContentAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "description",
+        "slug",
+        "file_url",
+    )
+    search_fields = ("description", "slug")
+    readonly_fields = ("file_url",)
+
+    def file_url(self, instance):
+        if instance.file and instance.file.url:
+            return instance.file.url
+        else:
+            return "-"
+
+    file_url.short_description = "Ссылка на файл (для копирования)"

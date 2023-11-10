@@ -96,7 +96,6 @@ class AmoCRMWebhookCase(BaseBookingCase, BookingLogMixin):
             request_class: Type[BookingRequest],
             property_repo: Type[BookingPropertyRepo],
             webhook_request_repo: Type[WebhookRequestRepo],
-            # fast_booking_webhook_case: BaseBookingCase,
             create_meeting_room_service: CreateRoomService,
             statuses_repo: Type[AmoStatusesRepo],
             background_tasks: BackgroundTasks,
@@ -124,7 +123,6 @@ class AmoCRMWebhookCase(BaseBookingCase, BookingLogMixin):
         self.statuses_repo: AmoStatusesRepo = statuses_repo()
         self.amocrm_class: Type[BookingAmoCRM] = amocrm_class
         self.request_class: Type[BookingRequest] = request_class
-        # self.fast_booking_webhook_case: BaseBookingCase = fast_booking_webhook_case
         self.create_meeting_room_service: CreateRoomService = create_meeting_room_service
         self.background_tasks: BackgroundTasks = background_tasks
         self.create_task_instance_service: CreateTaskInstanceService = create_task_instance_service
@@ -179,33 +177,6 @@ class AmoCRMWebhookCase(BaseBookingCase, BookingLogMixin):
         ).value
         property_final_price: int | None = convert_str_to_int(_property_final_price)
         price_with_sale: int | None = convert_str_to_int(_price_with_sale)
-
-        # ToDo refactoring убрать вместе с self.fast_booking_webhook_case (убрать из /amocrm/notify_contact)
-        # Тег "Быстрая бронь" в амо
-        # is_fast_lead: bool = self.amocrm_class.fast_booking_tag_id in webhook_lead.tags.keys()
-        # fast_booking_data: dict[str, Any] = dict(
-        #     amocrm_id=webhook_lead.lead_id,
-        #     amocrm_stage=amocrm_stage,
-        #     amocrm_substage=amocrm_substage,
-        # )
-
-        # if booking and webhook_lead.tags:
-            # Есть бронирование и переданы теги
-            # fast_booking_data.update(booking=booking)
-            # if is_fast_lead and not booking.is_fast_booking():
-            #     # Пришел тег "Быстрая бронь" из амо, но в БД бронирование без тега "Быстрая бронь"
-            #     booking = await self.fast_booking_webhook_case(**fast_booking_data)
-            # else:
-            #     # Тег "Быстрая бронь" не пришел из амо, обновляем теги в БД
-            #     booking = await self.booking_repo.update(
-            #         model=booking, data=dict(
-            #             tags=list(webhook_lead.tags.values())
-            #         )
-            #     )
-
-        # elif is_fast_lead and not booking:
-            # Пришел тег "Быстрая бронь" из амо, но в БД нет бронирования
-            # booking = await self.fast_booking_webhook_case(**fast_booking_data)
 
         booking_creation_status = await self.amocrm_status_repo.retrieve(
             filters=dict(
@@ -327,8 +298,14 @@ class AmoCRMWebhookCase(BaseBookingCase, BookingLogMixin):
         filters: dict[str, Any] = dict(booking_id=booking.id)
         meeting = await self.meeting_repo.retrieve(
             filters=filters,
-            related_fields=["booking", "booking__agent", "booking__user", "status", "calendar_event"],
+            related_fields=["booking", "status", "calendar_event"],
+            prefetch_fields=["booking__agent", "booking__user"],
         )
+        print("2: _update_meeting_status")
+        print(f'{meeting=}')
+        print(f'{amocrm_substage=}')
+        print(f'{booking=}')
+        print(f'{task_context=}')
 
         meeting_data = dict()
         if meeting and amocrm_substage == BookingSubstages.MEETING \
@@ -581,12 +558,17 @@ class AmoCRMWebhookCase(BaseBookingCase, BookingLogMixin):
         Создание или обновление задачи для бронирования
         """
         task_created: bool = False
+        print('3: task_created_or_updated')
+        print(f'{booking=}')
+        print(f'{meeting=}')
+        print(f'{task_context=}')
         if meeting:
             # таски для цепочки заданий Встречи
             meeting_task_exists: bool = await check_task_instance_exists(
                 booking=booking,
                 task_status=MeetingsSlug.START.value,
             )
+            print(f'{meeting_task_exists=}')
             if meeting_task_exists:
                 await self.update_task_instance(booking=booking, task_context=task_context)
             else:
@@ -596,15 +578,6 @@ class AmoCRMWebhookCase(BaseBookingCase, BookingLogMixin):
         if not task_created:
             # таски для остальных цепочек заданий
             await self.create_task_instance(booking_ids=[booking.id])
-
-    async def _check_task_instance_exists(self, booking: Booking) -> bool:
-        """
-        Проверка наличия задачи для бронирования
-        """
-        await booking.fetch_related('task_instances')
-        if booking.task_instances:
-            return True
-        return False
 
     async def create_task_instance(
         self,

@@ -6,7 +6,7 @@ from ..use_cases.get_feature_flags import GetFeatureFlagsCase
 router = APIRouter(prefix="/feature-flags", tags=["feature-flags"])
 
 
-@router.get("/", status_code=status.HTTP_200_OK)
+@router.get("", status_code=status.HTTP_200_OK)
 async def get_feature_flags(
     request: Request,
     user_id: int | None = Depends(dependencies.CurrentOptionalUserIdWithoutRole()),

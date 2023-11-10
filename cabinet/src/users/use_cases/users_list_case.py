@@ -53,12 +53,9 @@ class UsersListCase(BaseUserCase, CurrentUserDataMixin):
             annotations=annotations,
             prefetch_fields=prefetch_fields,
         )
-        counted: list[tuple[Union[int, str]]] = await self.user_repo.count(
+        count: int = await self.user_repo.count(
             filters=filters, q_filters=q_filters
         )
-        count: int = len(counted)
-        if count and count == 1:
-            count: int = counted[0][0]
         data: dict[str, Any] = dict(count=count, result=users, page_info=pagination(count=count))
         return data
 

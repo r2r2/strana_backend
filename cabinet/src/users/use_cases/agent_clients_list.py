@@ -31,28 +31,6 @@ class AgentListClientsCase(BaseUserCase):
         pagination: UserPagination,
         agent_id: int,
     ):
-        bookings_substage_not_in_const = [
-            "start",
-            "assign_agent",
-            "make_appointment",
-            "meeting",
-            "Встреча назначена" "meeting_in_progress",
-            "make_decision",
-            "re_meeting",
-            "booking",
-            "paid_booking",
-            "mortgage_lead",
-            "apply_for_a_mortgage",
-            "mortgage_filed",
-            "mortgage_done",
-            "ddu_process",
-            "confirmation",
-            "ddu_signing",
-            "ddu_register",
-            "realized",
-            "money_process" "unrealized",
-            "termination",
-        ]
         search = init_filters.pop("search", [])
         ordering = init_filters.pop("ordering", "name")
         booking_active_status = init_filters.pop("is_active", None)
@@ -61,20 +39,9 @@ class AgentListClientsCase(BaseUserCase):
         if not agent:
             raise UserNotFoundError
 
-        if booking_active_status is None:  # показать всех
-            bookings_substage_not_in = []
-        elif booking_active_status is False:
-            bookings_substage_not_in = bookings_substage_not_in_const
-        else:
-            bookings_substage_not_in = [
-                BookingSubstages.REALIZED,
-                BookingSubstages.UNREALIZED,
-            ]
-
         additional_filters = dict(
             agent_id=agent_id,
             type=UserType.CLIENT,
-            bookings__amocrm_substage__not_in=bookings_substage_not_in,
             bookings__agent_id=agent_id,
         )
         init_filters.update(additional_filters)
@@ -115,26 +82,36 @@ class AgentListClientsCase(BaseUserCase):
                 ),
             ],
         )
-        counted: list[tuple[Union[int, str]]] = await self.user_repo.count(
+        count: int = await self.user_repo.count(
             filters=init_filters, q_filters=q_filters
         )
-        count = self._get_count(counted)
 
         for user in users:
             user.status = next(iter(user.statuses), None)
             user.pinning_status = next(iter(user.pinning_statuses), None)
         
-        if booking_active_status is None:
+        list_to_remove_users = list()
+        if booking_active_status is None: 
             for user in users:
                 if user.active_bookings_count == 0:
                     user.pinning_status = None
-        elif booking_active_status is False:
+        elif booking_active_status is False: 
             for user in users:
-                user.pinning_status = None
-        else:
-            pass
+                if user.active_bookings_count > 0:
+                    count-=1
+                    list_to_remove_users.append(user)
+                else:
+                    user.pinning_status = None
+        else: 
+            for user in users:
+                if user.active_bookings_count == 0:
+                    count-=1
+                    list_to_remove_users.append(user)
+        
+        result_users = [user for user in users if user not in list_to_remove_users]
+
         data: dict[str, Any] = dict(
-            count=count, result=users, page_info=pagination(count=count)
+            count=count, result=result_users, page_info=pagination(count=count)
         )
 
         return data
@@ -209,10 +186,3 @@ class AgentListClientsCase(BaseUserCase):
         ]
 
         return [self.user_repo.q_builder(or_filters=or_filters)]
-
-    def _get_count(self, counted: List[Any]) -> int:
-        """Получение кол-ва записей для пагинации"""
-        count: int = len(counted)
-        if count and count == 1:
-            count: int = counted[0][0]
-        return count

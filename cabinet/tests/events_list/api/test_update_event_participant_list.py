@@ -34,22 +34,26 @@ class TestUpdateEventParticipantList:
         get_timeslot: str = (
             "src.events_list.use_cases.event_participant_list_case.EventParticipantListCase.get_timeslots"
         )
+        save_event_group_data: str = (
+            "src.events_list.use_cases.event_participant_list_case.EventParticipantListCase.save_event_group_data"
+        )
         with patch(get_participants, new_callable=AsyncMock) as mock_get_participants:
             with patch(get_timeslot, new_callable=AsyncMock) as mock_get_timeslots:
-                mock_get_participants.return_value = DepregParticipantsDTO(
-                    data=[DepregParticipantDTO(
-                        phone=phone,
-                        code=code,
-                        eventId=event_list.id,
-                        groupId=1,
-                    )]
-                )
-                mock_get_timeslots.return_value = {1: "14:00-15:00"}
+                with patch(save_event_group_data, new_callable=AsyncMock):
+                    mock_get_participants.return_value = DepregParticipantsDTO(
+                        data=[DepregParticipantDTO(
+                            phone=phone,
+                            code=code,
+                            eventId=event_list.id,
+                            groupId=1,
+                        )]
+                    )
+                    mock_get_timeslots.return_value = {1: "14:00-15:00"}
 
-                response = await async_client.patch(
-                    f"events_list/{event_list.event_id}/update_event_participant_list/",
-                )
-                assert response.status_code == HTTPStatus.OK
+                    response = await async_client.patch(
+                        f"events_list/{event_list.event_id}/update_event_participant_list/",
+                    )
+                    assert response.status_code == HTTPStatus.OK
 
-                participant = await event_participant_list_repo.retrieve(filters={"phone": phone})
-                assert participant.code == expected_code
+                    participant = await event_participant_list_repo.retrieve(filters={"phone": phone})
+                    assert participant.code == expected_code

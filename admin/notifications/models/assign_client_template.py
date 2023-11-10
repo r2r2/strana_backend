@@ -61,4 +61,4 @@ class AssignClientTemplate(models.Model):
         managed = False
         db_table = 'notifications_assignclient'
         verbose_name = 'СМС для закрепления клиента'
-        verbose_name_plural = '4.5. [Настройки] Матрица определения текста SMS и страниц закрепления от города'
+        verbose_name_plural = ' 4.5. [Настройки] Матрица определения текста SMS и страниц закрепления от города'

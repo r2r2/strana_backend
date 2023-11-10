@@ -69,9 +69,9 @@ class MeetingsListCase(BaseMeetingCase):
             ordering="-date",
         )
 
-        counted = await self.meeting_repo.list(
+        counted = await self.meeting_repo.count(
             filters=filters,
-        ).count()
+        )
 
         data: dict = dict(
             count=counted,

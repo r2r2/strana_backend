@@ -15,6 +15,30 @@ from common import dependencies, paginations
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
 
+@router.get("/onboarding", status_code=HTTPStatus.OK, response_model=list[models.OnboardingModel])
+async def get_onboarding_list(
+    user_id: int = Depends(dependencies.CurrentAnyTypeUserId()),
+):
+    resources = dict(
+        onboarding_repo=notifications_repos.OnboardingRepo,
+        onboarding_through_repo=notifications_repos.OnboardingUserThroughRepo,
+    )
+    get_onboarding_list = use_cases.GetOnboardingListCase(**resources)
+    return await get_onboarding_list(user_id=user_id)
+
+
+@router.patch("/onboarding/{onboarding_id}", status_code=HTTPStatus.OK)
+async def update_onboarding(
+    user_id: int = Depends(dependencies.CurrentAnyTypeUserId()),
+    onboarding_id: int = Path(...),
+):
+    resources = dict(
+        onboarding_through_repo=notifications_repos.OnboardingUserThroughRepo,
+    )
+    update_onboarding_list = use_cases.ReadOnboardingCase(**resources)
+    await update_onboarding_list(user_id=user_id, onboarding_id=onboarding_id)
+
+
 @router.get(
     "/agents", status_code=HTTPStatus.OK, response_model=models.ResponseAgentsNotificationsListModel
 )

@@ -105,6 +105,7 @@ class DataBaseSettings(BaseSettings):
         ("main_page", "repos"),
         ("additional_services", "repos"),
         ("events_list", "repos"),
+        ("commercial_offers", "repos"),
     ]
 
     class Config:
@@ -621,6 +622,17 @@ class DepregSettings(BaseSettings):
     """
     base_url: str = Field("https://et.depreg.ru/api/v2", env="LK_DEPREG_BASE_URL")
     auth_type: str = Field("Bearer", env="LK_DEPREG_AUTH_TYPE")
+
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+
+
+class TildaSettings(BaseSettings):
+    base_url: str = Field("localhost", env="TILDA_BASE_URL")
+    template_url: str = Field("localhost", env="TILDA_TEMPLATE_URL")
+    client_id: str = Field("localhost", env="TILDA_CLIENT_ID")
+    auth_token: str = Field("token", env="TILDA_AUTH_TOKEN")
 
     class Config:
         env_file = ".env"

@@ -221,7 +221,7 @@ class CheckUniqueServiceV2(BaseUserService):
             if lead.status_id not in statuses_ids:
                 continue
 
-            # У сделки есть или нету агента
+            # У сделки есть или нет агента
             if term.is_agent != IsConType.SKIP:
                 has_agent = await self._check_lead_has_agent(lead=lead)
                 if not ((term.is_agent == IsConType.YES and has_agent) or

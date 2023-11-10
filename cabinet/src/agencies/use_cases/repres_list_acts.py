@@ -65,11 +65,10 @@ class ListActsCase(BaseAgencyCase):
             end=pagination.end,
         )
 
-        agency_acts_query_count: QuerySet = self.act_repo.list(
+        count: int = await self.act_repo.count(
             q_filters=q_filters,
             filters=init_filters,
         )
-        count: int = await agency_acts_query_count.count()
         agency_acts = await agency_acts_query
 
         data: dict[str, Any] = dict(count=count, result=agency_acts, page_info=pagination(count=count))

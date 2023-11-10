@@ -199,12 +199,13 @@ def check_user_interests() -> None:
         email_class=email.EmailService,
         user_repo=users_repos.UserRepo,
         interests_repo=users_repos.InterestsRepo,
+        property_repo=properties_repos.PropertyRepo,
+        template_content=notification_repos.TemplateContentRepo,
         orm_class=Tortoise,
         orm_config=tortoise_config,
         import_property_service=import_property_service,
-        property_repo=properties_repos.PropertyRepo,
-        token_creator=security.create_access_token,
         get_email_template_service=get_email_template_service,
+        token_creator=security.create_access_token,
     )
     check_client_interests: services.CheckClientInterestService = services.CheckClientInterestService(**resources)
     loop: Any = get_event_loop()

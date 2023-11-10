@@ -16,3 +16,4 @@ class TipListCase(BaseTipCase):
         tips: list[Tip] = await self.tip_repo.list()
         data: dict[str, Any] = dict(result=tips, count=len(tips))
         return data
+

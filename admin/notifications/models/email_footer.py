@@ -38,4 +38,4 @@ class EmailFooterTemplate(models.Model):
     class Meta:
         db_table = "notifications_email_footers"
         verbose_name = "Шаблон футера письма"
-        verbose_name_plural = "4.1.2. [Справочник] Шаблоны футера писем"
+        verbose_name_plural = " 4.1.2. [Справочник] Шаблоны футера писем"

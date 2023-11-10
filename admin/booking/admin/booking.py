@@ -201,7 +201,6 @@ class BookingAdmin(admin.ModelAdmin):
     save_on_top = True
     list_per_page = 15
     show_full_result_count = False
-    list_select_related = True
 
     def property_in_list(self, obj):
         return obj.property
@@ -310,7 +309,8 @@ class BookingAdmin(admin.ModelAdmin):
                 output_field=BooleanField(),
             ),
         )
-        return qs
+        return qs.select_related('project', 'building', 'user', 'agent', 'agency', 'property', 'floor',
+                                 'booking_source', 'amo_payment_method', 'price', 'mortgage_type', 'price_offer')
 
     def save_model(self, request, obj, form, change):
         booking_before_save = Booking.objects.get(id=obj.id)

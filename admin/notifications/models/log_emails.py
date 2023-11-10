@@ -45,4 +45,4 @@ class LogEmail(models.Model):
     class Meta:
         db_table = "common_log_email_notification"
         verbose_name = "Лог письма"
-        verbose_name_plural = "4.3. [Справочник] Логи писем"
+        verbose_name_plural = " 4.3. [Справочник] Логи писем"

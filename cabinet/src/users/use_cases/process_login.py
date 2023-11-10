@@ -120,7 +120,7 @@ class ProcessLoginCase(BaseProcessLoginCase):
             self.session[self.auth_key]: dict[str, str] = token
             await self.session.insert()
 
-            user.is_ready_for_authorisation_by_superuser = False
+            user.ready_for_super_auth = False
             await user.save()
 
         await self._import_amocrm_hook(user)

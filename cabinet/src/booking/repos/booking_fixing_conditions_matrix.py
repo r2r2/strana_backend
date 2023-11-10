@@ -2,6 +2,7 @@ from tortoise import Model, fields
 
 from common import cfields
 from common.orm.mixins import CRUDMixin
+from src.amocrm.repos import AmocrmPipeline
 from src.projects.repos import Project
 from src.booking.constants import BookingCreatedSources
 from src.booking.entities import BaseBookingRepo
@@ -60,12 +61,12 @@ class BookingFixingConditionsMatrix(Model):
         on_delete=fields.SET_NULL,
         description="Статус создаваемой сделки",
     )
-    pipelines: list[int] = fields.ManyToManyField(
+    pipelines: fields.ManyToManyRelation[AmocrmPipeline] = fields.ManyToManyField(
         description="Воронки",
         model_name='models.AmocrmPipeline',
         through="booking_fixing_conditions_matrix_pipeline_through",
-        backward_key="booking_fixing_conditions_matrix",
-        forward_key="pipeline",
+        backward_key="booking_fixing_conditions_matrix_id",
+        forward_key="pipeline_id",
     )
     amo_responsible_user_id: str | None = fields.CharField(
         description="ID ответственного в AmoCRM", max_length=200, null=True

@@ -49,6 +49,7 @@ from src.floors.repos import FloorRepo
 from src.projects.repos import ProjectRepo
 from src.properties.constants import PropertyStatuses
 from src.properties.repos import Feature, FeatureRepo, PropertyRepo
+from src.payments import repos as payment_repos
 
 from .import_building_booking_types import ImportBuildingBookingTypesService
 from ..entities import BasePropertyService
@@ -79,6 +80,10 @@ class ImportPropertyService(BasePropertyService):
         "building": ("BuildingType", "id"),
         "project": ("GlobalProjectType", "slug"),
     }
+    price_type_mapping: dict = {
+        "ordinary_price_slug": "ordinary",
+        "subsidy_price_slug": "subsidy",
+    }
 
     def __init__(
         self,
@@ -94,6 +99,8 @@ class ImportPropertyService(BasePropertyService):
         feature_repo: type[FeatureRepo],
         global_id_encoder: Callable[[str, str], str],
         global_id_decoder: Callable[[str], list[str]],
+        price_repo: type[payment_repos.PropertyPriceRepo] = payment_repos.PropertyPriceRepo,
+        price_type_repo: type[payment_repos.PropertyPriceTypeRepo] = payment_repos.PropertyPriceTypeRepo,
         orm_class: type[PropertyORM] | None = None,
         orm_config: dict | None = None,
         import_building_booking_types_service: ImportBuildingBookingTypesService | None = None,
@@ -112,6 +119,8 @@ class ImportPropertyService(BasePropertyService):
         self.transport_repo: TransportRepo = TransportRepo()
         self.transport_repo: TransportRepo = TransportRepo()
         self.section_repo: BuildingSectionRepo = BuildingSectionRepo()
+        self.price_repo = price_repo()
+        self.price_type_repo = price_type_repo()
 
         self.building_booking_type_repo: BuildingBookingTypeRepo = (
             building_booking_type_repo()
@@ -175,6 +184,7 @@ class ImportPropertyService(BasePropertyService):
                         description=back_feature.description,
                         order=back_feature.order,
                         is_button=back_feature.is_button,
+                        profit_id=back_feature.profit_id
                     ),
                 )
                 await _property.property_features.add(feature)
@@ -433,14 +443,41 @@ class ImportPropertyService(BasePropertyService):
         else:
             similar_property_global_id = None
             special_offers = None
+
+        # Создаем модель обычной цены для объекта недвижимости
+        if backend_property.full_final_price:
+            price_type_default = await self.price_type_repo.retrieve(
+                filters=dict(default=True),
+            )
+            if price_type_default:
+                price_data = dict(
+                    property=_property,
+                    price=backend_property.full_final_price,
+                    price_type=price_type_default,
+                )
+                await self.price_repo.create(data=price_data)
+
+        # Создаем модель субсидированной цены для объекта недвижимости
+        if backend_property.original_price:
+            subsidy_price_type = await self.price_type_repo.retrieve(
+                filters=dict(slug=self.price_type_mapping.get("subsidy_price_slug")),
+            )
+            if subsidy_price_type:
+                price_data = dict(
+                    property=_property,
+                    price=backend_property.original_price,
+                    price_type=subsidy_price_type,
+                )
+                await self.price_repo.create(data=price_data)
+
         property_data = dict(
             # global_id=property_global_id,
             article=backend_property.article,
             plan=backend_property.plan,
             plan_png=backend_property.plan_png,
-            price=backend_property.price,
+            price=backend_property.full_final_price or backend_property.price,
             original_price=backend_property.original_price,
-            final_price=backend_property.price,
+            final_price=backend_property.full_final_price or backend_property.price,
             area=backend_property.area,
             action=backend_property.action,
             status=backend_property.status,
@@ -456,6 +493,33 @@ class ImportPropertyService(BasePropertyService):
             total_floors=backend_property.section.total_floors,
             section_id=building_section.id,
             property_type_id=property_type.id if property_type else None,
+            profitbase_plan=backend_property.profitbase_plan,
+            balconies_count=backend_property.balconies_count,
+            is_bathroom_window=backend_property.is_bathroom_window,
+            master_bedroom = backend_property.master_bedroom,
+            window_view_profitbase=backend_property.window_view_profitbase,
+            ceil_height=backend_property.ceil_height,
+            is_cityhouse=backend_property.is_cityhouse,
+            corner_windows=backend_property.corner_windows,
+            open_plan=backend_property.open_plan,
+            frontage=backend_property.frontage,
+            has_high_ceiling=backend_property.has_high_ceiling,
+            is_euro_layout=backend_property.is_euro_layout,
+            is_studio=backend_property.is_studio,
+            loggias_count=backend_property.loggias_count,
+            has_panoramic_windows=backend_property.has_panoramic_windows,
+            has_parking=backend_property.has_parking,
+            is_penthouse=backend_property.is_penthouse,
+            furnish_price_per_meter=backend_property.furnish_price_per_meter,
+            is_discount_enable=backend_property.is_discount_enable,
+            profitbase_property_status=backend_property.profitbase_property_status,
+            smart_house=backend_property.smart_house,
+            has_terrace=backend_property.has_terrace,
+            has_two_sides_windows=backend_property.has_two_sides_windows,
+            view_park=backend_property.view_park,
+            view_river=backend_property.view_river,
+            view_square=backend_property.view_square,
+            wardrobes_count=backend_property.wardrobes_count,
         )
         _property = await self.property_repo.update(_property, data=property_data)
         _property = await self.update_features(backend_property, _property)
@@ -586,6 +650,8 @@ class ImportPropertyServiceFactory:
             import_building_booking_types_service=import_building_booking_types_service,
             backend_special_offers_repo=backend_repos.BackendSpecialOfferRepo,
             city_repo=CityRepo,
+            price_repo=payment_repos.PropertyPriceRepo,
+            price_type_repo=payment_repos.PropertyPriceTypeRepo,
         )
 
         return import_property_service

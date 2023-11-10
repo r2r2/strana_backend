@@ -96,9 +96,6 @@ x-app_environment: &app_environment
     - LK_STRANA_GETDOC_USER_ID
     - LK_STRANA_FAKE_NUMBER
     - LK_STRANA_FAKE_SMS_CODE
-    - PYTHON_ADMIN=itpro72.ru:5050/strana-artw/strana-backend/python-admin:latest
-    - PYTHON_BACKEND=itpro72.ru:5050/strana-artw/strana-backend/python-backend:latest
-    - PYTHON_CABINET=itpro72.ru:5050/strana-artw/strana-backend/python-cabinet:latest
     - REQUESTS_FULL_LOGGING
     - CELERY_BROKER_URL
     - CELERY_RESULT_BACKEND
@@ -123,33 +120,31 @@ x-app_environment: &app_environment
     - LK_MAX_REQUESTS_PERIOD
     - LK_UNLEASH_URL
     - LK_UNLEASH_INSTANCE_ID
+    - LK_EXTERNAL_BACKEND_URL
+    - TILDA_BASE_URL
+    - TILDA_TEMPLATE_URL
+    - TILDA_CLIENT_ID
+    - TILDA_AUTH_TOKEN
 
 services:
   cabinet:
+    <<: *app_environment
     container_name: cabinet
     image: ${CI_REGISTRY_IMAGE}/cabinet:${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHA}
-
-      #image: ${DOCKER_REGISTRY}cabinet:${TAG:-latest}
-      #    build
-      #      context: ./cabinet
-    <<: *app_environment
     networks:
       - strana
 
   admin:
+    <<: *app_environment
     container_name: admin
     image: ${CI_REGISTRY_IMAGE}/admin:${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHA:-latest}
-
-      #image: ${DOCKER_REGISTRY}admin:${TAG:-latest}
-      # build:
-      #   context: ./admin
-    <<: *app_environment
     networks:
       - strana
 
   redis:
     container_name: redis-lk-broker
     image: redis:6.0-alpine
+    hostname: redis-lk-broker
     volumes:
       - redisdata-lk-broker:/data
     networks:
@@ -158,16 +153,29 @@ services:
           - redis-lk-broker
 
   tasks:
+    <<: *app_environment
     container_name: tasks
     restart: always
     image: ${CI_REGISTRY_IMAGE}/cabinet:${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHA:-latest}
-#    command: celery -A config.celery worker -B -l info -c ${CELERY_THREAD:-4} -n tasks@strana.com -Q tasks
-    command: /app/entrypoint.start_celery_workers.sh
+    command: celery -A config.celery worker -B -l info -c ${CELERY_THREAD:-4} -n tasks@strana.com -Q tasks
+    #command: /app/entrypoint.start_celery_workers.sh
     depends_on:
       - redis
-    <<: *app_environment
     networks:
       - strana
+
+  schedule_tasks:
+    <<: *app_environment
+    container_name: schedule_tasks
+    restart: always
+    image: ${CI_REGISTRY_IMAGE}/cabinet:${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHA:-latest}
+    command: celery -A config.celery worker -l info -c 1 -n tasks@strana.com -Q scheduled
+    #command: /app/entrypoint.start_celery_workers.sh
+    depends_on:
+      - redis
+    networks:
+      - strana
+
 
 volumes:
   redisdata-lk-broker:

@@ -43,10 +43,6 @@ class EventsSmsNotification(Model):
         backward_key="event_sms_notification_id",
         forward_key="city_id",
     )
-    days: float = fields.FloatField(
-        description="За сколько дней до события / после события отправлять",
-        null=True,
-    )
     only_for_online: bool = fields.BooleanField(description="Только для онлайн мероприятий", default=False)
 
     class Meta:

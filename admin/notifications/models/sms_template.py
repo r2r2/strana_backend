@@ -49,4 +49,4 @@ class SmsTemplate(models.Model):
     class Meta:
         db_table = "notifications_sms_notification"
         verbose_name = "Шаблон смс сообщения"
-        verbose_name_plural = "4.2. [Справочник] Шаблоны смс сообщений"
+        verbose_name_plural = " 4.2. [Справочник] Шаблоны смс сообщений"

@@ -17,6 +17,7 @@ from users import models as users_models
 from amocrm import models as amocrm_models
 from additional_services import models as add_services_models
 from events_list import models as events_list_models
+from commercial_offers import models as commercial_offers_models
 
 from settings import models as settings_models
 
@@ -41,9 +42,7 @@ cabinet_models: list = [
     booking_models.PriceOfferMatrix,
     booking_models.BookingSource,
     booking_models.AdditionalServiceGroupStatus,
-    booking_models.PriceImportMatrixCitiesThrough,
-    booking_models.PriceImportMatrix,
-    booking_models.PriceSchema,
+    booking_models.PurchaseAmoMatrix,
     properties_models.Property,
     properties_models.Building,
     properties_models.BuildingBookingTypeThrough,
@@ -72,6 +71,7 @@ cabinet_models: list = [
     documents_models.AgencyAdditionalAgreementCreatingData,
     documents_models.AdditionalProjectThrough,
     documents_models.AdditionalAgencyThrough,
+    documents_models.DocumentInteraction,
     artefacts_models.CheckUnique,
     artefacts_models.ShowtimeRegistration,
     artefacts_models.Document,
@@ -117,6 +117,8 @@ cabinet_models: list = [
     contents_models.TextBlock,
     contents_models.BrokerRegistration,
     contents_models.Instruction,
+    contents_models.Onboarding,
+    contents_models.OnboardingUserThrough,
     questionnaire_models.FunctionalBlock,
     questionnaire_models.QuestionGroup,
     questionnaire_models.Question,
@@ -141,6 +143,10 @@ cabinet_models: list = [
     task_management_models.TaskChainBookingSourceThrough,
     task_management_models.ButtonDetailView,
     task_management_models.TaskStatusButtonsDetailThrough,
+    task_management_models.TaskGroupStatus,
+    task_management_models.TaskGroupStatusThrough,
+    task_management_models.TaskChainInterchangeableThrough,
+    task_management_models.TaskChainSystemsThrough,
     notifications_models.LogEmail,
     notifications_models.LogSms,
     notifications_models.EmailTemplate,
@@ -157,6 +163,8 @@ cabinet_models: list = [
     notifications_models.QRcodeSMSNotify,
     notifications_models.QRcodeSMSCityThrough,
     notifications_models.QRcodeSMSEventListThrough,
+    notifications_models.TemplateContent,
+    notifications_models.QRCodeSMSGroupThrough,
     event_models.Event,
     event_models.CalendarEvent,
     event_models.CalendarEventTypeSettings,
@@ -168,6 +176,7 @@ cabinet_models: list = [
     event_models.MeetingCreationSource,
     events_list_models.EventList,
     events_list_models.EventParticipantList,
+    events_list_models.EventGroup,
     dashboard_models.Ticket,
     dashboard_models.TicketCityThrough,
     dashboard_models.Block,
@@ -179,6 +188,7 @@ cabinet_models: list = [
     settings_models.BookingSettings,
     settings_models.AddServiceSettings,
     settings_models.DaDataSettings,
+    settings_models.SystemList,
     main_page_models.MainPageContent,
     main_page_models.MainPageOffer,
     main_page_models.MainPagePartnerLogo,
@@ -192,6 +202,10 @@ cabinet_models: list = [
     add_services_models.AdditionalServiceTicket,
     add_services_models.AdditionalServiceType,
     add_services_models.AdditionalServiceTemplate,
+    commercial_offers_models.OfferSource,
+    commercial_offers_models.Offer,
+    commercial_offers_models.OfferTemplate,
+    commercial_offers_models.OfferProperty,
 ]
 
 

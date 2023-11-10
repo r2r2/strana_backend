@@ -45,7 +45,7 @@ class CloseOldBookingCase:
             agency_id=None,
             amocrm_stage=Booking.stages.DDU_UNREGISTERED,
             amocrm_substage=Booking.substages.UNREALIZED,
-            active=False
+            active=False,
         )
         await self.booking_repo.bulk_update(filters=filters, data=update_data)
 
@@ -58,11 +58,10 @@ class CloseOldBookingCase:
             for booking in bookings:
                 if booking.amocrm_id:
                     lead_options: dict[str, Any] = dict(
-                        status=BookingSubstages.UNREALIZED,
+                        status_id=143,
                         lead_id=booking.amocrm_id,
-                        city_slug=booking.project.city.slug,
                     )
-                    await amocrm.update_lead(**lead_options)
+                    await amocrm.update_lead_v4(**lead_options)
 
     async def _get_bookings(self, days) -> list[Booking]:
         """

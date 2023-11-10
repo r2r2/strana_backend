@@ -7,8 +7,7 @@ async def upgrade(db: BaseDBAsyncClient) -> str:
             id SERIAL PRIMARY KEY,
             sms_template_id INT REFERENCES notifications_sms_notification(id) ON DELETE CASCADE,
             sms_event_type VARCHAR(100),
-            days_before_send DOUBLE PRECISION,
-            time_to_send TIME
+            time_to_send TIMESTAMPTZ
         );
         
         CREATE TABLE IF NOT EXISTS notifications_qrcode_sms_city_through (

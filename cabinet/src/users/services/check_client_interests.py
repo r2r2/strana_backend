@@ -8,6 +8,7 @@ from src.properties.constants import PropertyTypes, PropertyStatuses
 from src.properties.services import ImportPropertyService
 from src.properties.repos import Property, PropertyRepo
 from src.notifications.services import GetEmailTemplateService
+from src.notifications.repos import TemplateContentRepo, TemplateContent
 
 from ..entities import BaseUserService
 from ..repos import User
@@ -24,6 +25,7 @@ class CheckClientInterestService(BaseUserService):
     property_link = "https://{}/{}/flats/{}"
     mail_event_slug_offer = "check_client_interest_offer"
     mail_event_slug_status = "check_client_interest_status"
+    base_template_plan_slug = "base_template_plan"
 
     def __init__(
         self,
@@ -31,17 +33,19 @@ class CheckClientInterestService(BaseUserService):
         interests_repo: Type[UserInterestedRepo],
         user_repo: Type[UserRepo],
         property_repo: Type[PropertyRepo],
+        template_content: Type[TemplateContentRepo],
         import_property_service: Type[ImportPropertyService],
         get_email_template_service: GetEmailTemplateService,
         token_creator: Callable[[int], dict[str, Any]],
         orm_class: Optional[Type[UserORM]] = None,
         orm_config: Optional[dict[str, Any]] = None,
     ) -> None:
-        self.user_repo: Type[UserRepo] = user_repo()
-        self.property_repo: Type[PropertyRepo] = property_repo()
+        self.user_repo: UserRepo = user_repo()
+        self.property_repo: PropertyRepo = property_repo()
         self.email_class: Type[UserEmail] = email_class
-        self.interests_repo: Type[UserInterestedRepo] = interests_repo()
-        self.import_property_service: ImportPropertyService = import_property_service
+        self.template_content: TemplateContentRepo = template_content()
+        self.interests_repo: UserInterestedRepo = interests_repo()
+        self.import_property_service: Any = import_property_service
         self.get_email_template_service: GetEmailTemplateService = get_email_template_service
         self.token_creator: Callable[[int], dict[str, Any]] = token_creator
         self.orm_class: Union[Type[UserORM], None] = orm_class
@@ -187,14 +191,16 @@ class CheckClientInterestService(BaseUserService):
             return None
 
         # (обход проблемы/бага tortoise)
-        if updated_property.plan_png and isinstance(updated_property.plan_png, str):
-            plan = f'{aws_config["custom_domain"]}/{aws_config["storage_bucket_name"]}/{updated_property.plan_png}'
-        elif updated_property.plan_png:
+        if updated_property.plan_png:
             plan = updated_property.plan_png.get("aws")
-        elif isinstance(updated_property.plan, str):
-            plan = f'{aws_config["custom_domain"]}/{aws_config["storage_bucket_name"]}/{updated_property.plan}'
-        else:
+        elif updated_property.plan:
             plan = updated_property.plan.get("aws")
+        else:
+            base_template_plan: TemplateContent = await self.template_content.retrieve(
+                filters=dict(slug=self.base_template_plan_slug),
+            )
+            if base_template_plan and base_template_plan.file:
+                plan = base_template_plan.file.get("aws")
 
         properties_data[updated_property.global_id] = dict(
             global_id=updated_property.global_id,

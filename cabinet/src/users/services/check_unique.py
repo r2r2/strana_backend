@@ -155,7 +155,6 @@ class CheckUniqueService(BaseUserService):
         amo_leads = []
         for amo_lead_ids in partition_list(leads, self.partition_limit):
             amo_leads.extend(await amocrm.fetch_leads(lead_ids=amo_lead_ids))
-
         for lead in amo_leads:
             suits.append(self._check_lead_status(lead))
         return all(suits)

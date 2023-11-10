@@ -11,6 +11,7 @@ from src.task_management.utils import TaskDataBuilder
 from src.task_management.constants import BOOKING_UPDATE_FIXATION_STATUSES
 from src.amocrm.repos import AmocrmGroupStatus, AmocrmGroupStatusRepo
 from src.booking.repos import Booking, BookingTag, BookingTagRepo
+from src.projects.constants import ProjectStatus
 from ..constants import UserType
 from ..entities import BaseUserCase
 from ..mixins import CurrentUserDataMixin
@@ -80,7 +81,11 @@ class UsersBookingsCase(BaseUserCase, CurrentUserDataMixin):
         )
 
         for booking in bookings:
-            booking.tasks = await self._get_booking_tasks(booking=booking)
+            if booking.project and booking.project.status == ProjectStatus.FUTURE:
+                booking.tasks = None
+            else:
+                booking.tasks = await self._get_booking_tasks(booking=booking)
+
             booking.show_update_fixation_info = False
             if booking.amocrm_status:
                 booking_group_status = (

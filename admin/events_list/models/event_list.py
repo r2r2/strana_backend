@@ -24,7 +24,7 @@ class EventList(models.Model):
         blank=True,
     )
     event_date: date = models.DateField(
-        verbose_name="Дата и время мероприятия",
+        verbose_name="Дата мероприятия",
         null=True,
         blank=True,
     )

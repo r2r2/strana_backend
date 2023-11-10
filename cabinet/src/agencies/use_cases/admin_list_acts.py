@@ -50,11 +50,10 @@ class AdminListActsCase(BaseAgreementCase):
             end=pagination.end,
         )
 
-        acts_query_count: QuerySet = self.act_repo.list(
+        count: int = await self.act_repo.count(
             q_filters=q_filters,
             filters=init_filters,
         )
-        count: int = await acts_query_count.count()
         acts = await acts_queryset
 
         return dict(

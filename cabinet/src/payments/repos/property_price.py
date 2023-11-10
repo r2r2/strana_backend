@@ -29,11 +29,18 @@ class PropertyPrice(BasePaymentDatabaseModel):
     Цена объекта недвижимости
     """
     id: int = fields.IntField(description="ID", pk=True)
+    property = fields.ForeignKeyField(
+        description="Объект недвижимости",
+        model_name="models.Property",
+        related_name="property_prices",
+        on_delete=fields.CASCADE,
+        null=True,
+    )
     price = fields.DecimalField(description="Цена", max_digits=10, decimal_places=2, null=True)
     price_type = fields.ForeignKeyField(
         model_name="models.PropertyPriceType",
         on_delete=fields.CASCADE,
-        related_name="type",
+        related_name="property_prices",
         description="Тип цены",
     )
 

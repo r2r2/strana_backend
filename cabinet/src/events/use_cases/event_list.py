@@ -100,13 +100,13 @@ class EventListCase(BaseEventCase):
         events: list[Event] = await events_query
         count_events: int = await events_query.count()
 
-        record_count: int = await self.event_repo.list(
+        record_count: int = await self.event_repo.count(
             filters=dict(
                 participants__agent_id=user_id,
                 participants__status=EventParticipantStatus.RECORDED,
                 meeting_date_start__gte=datetime.datetime.now(tz=UTC),
             )
-        ).count()
+        )
 
         return dict(
             count=count_events,

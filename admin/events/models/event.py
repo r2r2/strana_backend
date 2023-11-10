@@ -100,11 +100,45 @@ class Event(models.Model):
         default=True,
         help_text="Неактивные мероприятия не показываются в календаре",
     )
+    time_to_send_sms_before: models.DateTimeField = models.DateTimeField(
+        verbose_name='Дата и время отправки смс участникам до начала мероприятия',
+        null=True,
+        blank=True,
+        help_text="Локальное время в браузере конвертируется в UTC - нужно учитывать, "
+                  "в каком часовом поясе заполняется админка",
+    )
+    time_to_send_sms_after: models.DateTimeField = models.DateTimeField(
+        verbose_name='Дата и время отправки смс участникам после окончания мероприятия',
+        null=True,
+        blank=True,
+        help_text="Локальное время в браузере конвертируется в UTC - нужно учитывать, "
+                  "в каком часовом поясе заполняется админка",
+    )
 
     def __str__(self):
         return self.name
 
     def clean(self):
+        if self.time_to_send_sms_before and self.time_to_send_sms_before > self.meeting_date_start:
+            raise ValidationError(
+                {"time_to_send_sms_before": "Дата и время отправки смс участникам до начала "
+                                            "мероприятия не может быть позже даты начала "
+                                            "мероприятия!"}
+            )
+        if self.time_to_send_sms_after:
+            if self.meeting_date_end and self.time_to_send_sms_after < self.meeting_date_end:
+                raise ValidationError(
+                    {"time_to_send_sms_after": "Дата и время отправки смс участникам после окончания "
+                                                "мероприятия не может быть раньше даты окончания "
+                                                "мероприятия!"}
+                )
+            elif self.time_to_send_sms_after < self.meeting_date_start:
+                raise ValidationError(
+                    {"time_to_send_sms_after": "Дата и время отправки смс участникам после окончания "
+                                               "мероприятия не может быть раньше даты начала "
+                                               "мероприятия (если нет даты окончания мероприятия)!"}
+                )
+
         if self.meeting_date_end and self.meeting_date_end < self.meeting_date_start:
             raise ValidationError({"meeting_date_end": "Дата окончания не может быть ранее даты начала!"})
         if self.type == EventType.OFFLINE and not self.city:

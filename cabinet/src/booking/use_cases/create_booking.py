@@ -26,7 +26,7 @@ from ..models import RequestCreateBookingModel
 from src.booking.repos import Booking, BookingRepo, BookingSource
 from ..types import BookingAmoCRM
 from src.task_management.services import CreateTaskInstanceService
-from src.booking.utils import get_booking_source
+from src.booking.utils import get_booking_source, create_lead_name, get_booking_reserv_time
 from src.task_management.constants import OnlineBookingSlug
 from src.task_management.utils import get_booking_tasks
 from src.amocrm.repos import AmocrmStatus, AmocrmStatusRepo
@@ -56,7 +56,7 @@ class CreateBookingCase(BaseBookingCase):
         amocrm_status_repo: type[AmocrmStatusRepo],
         create_task_instance_service: CreateTaskInstanceService,
         check_profitbase_property_service: CheckProfitbasePropertyService,
-        get_booking_reserv_time,
+        check_booking_task: Any,
         global_id_decoder,
     ) -> None:
         self.property_repo: PropertyRepo = property_repo()
@@ -68,10 +68,10 @@ class CreateBookingCase(BaseBookingCase):
         self.import_property_service: ImportPropertyService = import_property_service
         self.amocrm_class: type[BookingAmoCRM] = amocrm_class
         self.profit_base_class: type[ProfitBase] = profit_base_class
-        self.get_booking_reserv_time: Callable = get_booking_reserv_time
         self.global_id_decoder: Callable = global_id_decoder
         self.create_task_instance_service: CreateTaskInstanceService = create_task_instance_service
         self.check_profitbase_property_service: CheckProfitbasePropertyService = check_profitbase_property_service
+        self.check_booking_task: Any = check_booking_task
 
         self.logger: structlog.BoundLogger = structlog.get_logger(__name__)
 
@@ -117,9 +117,8 @@ class CreateBookingCase(BaseBookingCase):
         await self._check_property_in_profitbase(property_=loaded_property_from_backend)
 
         booking_source: BookingSource = await get_booking_source(slug=self.CREATED_SOURCE)
-
-        booking_reserv_time: float = await self.get_booking_reserv_time(
-            created_source=self.CREATED_SOURCE,
+        booking_reserv_time: float = await get_booking_reserv_time(
+            created_source=booking_source.slug,
             booking_property=loaded_property_from_backend,
         )
         user: User = await self.user_repo.retrieve(filters=dict(id=user_id))
@@ -178,6 +177,7 @@ class CreateBookingCase(BaseBookingCase):
             booking.tasks = await get_booking_tasks(
                 booking_id=booking.id, task_chain_slug=OnlineBookingSlug.ACCEPT_OFFER.value
             )
+            self.check_booking_task.apply_async((booking.id,), eta=expires)
             return booking
 
     async def _create_amo_lead(
@@ -192,6 +192,7 @@ class CreateBookingCase(BaseBookingCase):
             city_slug=loaded_property.project.city.slug,
             property_type=loaded_property.property_type.slug,
             user_amocrm_id=user.amocrm_id,
+            lead_name=create_lead_name(user),
             project_amocrm_name=loaded_property.project.amocrm_name,
             project_amocrm_enum=loaded_property.project.amocrm_enum,
             project_amocrm_organization=loaded_property.project.amocrm_organization,

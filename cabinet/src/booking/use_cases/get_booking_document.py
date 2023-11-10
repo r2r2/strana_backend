@@ -60,7 +60,7 @@ class GetBookingDocumentCase(BaseBookingCase):
 
         document_info_data: dict = dict(
             address=booking.building.address,
-            price=booking.building.booking_price,
+            price=booking.payment_amount if booking.payment_amount else booking.building.booking_period,
             period=booking.building.booking_period,
             premise=booking.property.premise.label,
         )

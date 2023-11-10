@@ -205,7 +205,6 @@ class CreateContactService(BaseUserService):
                 birth_date=birth_date
             )
             data.update(personal_data)
-        await self._validate_contact(data)
         return data
 
     @staticmethod

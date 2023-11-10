@@ -1,10 +1,22 @@
+from typing import Any
+
+from pydantic import root_validator, parse_obj_as
+
 from src.task_management.constants import TaskStatusType
-from src.task_management.entities import BaseTaskSchema
+from src.task_management.entities import BaseTaskCamelCaseSchema
+from src.task_management.repos import TaskStatus
 
 
-class TaskChainStatusesResponseSchema(BaseTaskSchema):
+class TaskChainSchema(BaseTaskCamelCaseSchema):
     """
-    Схема статусов цепочки заданий
+    Схема цепочки заданий
+    """
+    name: str
+
+
+class TaskStatusSchema(BaseTaskCamelCaseSchema):
+    """
+    Схема статуса задачи
     """
     name: str
     description: str
@@ -12,5 +24,22 @@ class TaskChainStatusesResponseSchema(BaseTaskSchema):
     priority: int
     slug: str
 
-    class Config:
-        orm_mode = True
+
+class TaskChainStatusesResponseSchema(BaseTaskCamelCaseSchema):
+    """
+    Схема статусов цепочки заданий
+    """
+    name: str
+    priority: int
+    color: str | None
+    slug: str
+    task_chain: TaskChainSchema
+    statuses: Any
+
+    @root_validator
+    def validate_statuses(cls, values):
+        if statuses := values.get('statuses'):
+            statuses: list[TaskStatus] = [status for status in statuses]
+            values['statuses'] = parse_obj_as(list[TaskStatusSchema], statuses)
+        return values
+

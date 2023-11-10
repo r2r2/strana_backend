@@ -36,8 +36,7 @@ class ProjectsListCase(BaseProjectCase):
             related_fields=["city"],
         )
         unique_projects = list({project.name: project for project in projects}.values())
-        count_list: list[tuple[int]] = await self.project_repo.count(filters=filters)
-        count = count_list[0][0]
+        count: int = await self.project_repo.count(filters=filters)
         data: dict[str, Any] = dict(count=count, result=unique_projects, page_info=pagination(count=count))
         return data
 

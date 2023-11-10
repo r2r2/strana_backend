@@ -6,6 +6,7 @@ from config import sberbank_config, site_config
 
 from ..requests import CommonRequest
 from .components import SberbankPay, SberbankStatus
+from ..unleash.client import UnleashClient
 
 
 class Sberbank(SberbankPay, SberbankStatus):

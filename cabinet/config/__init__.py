@@ -14,7 +14,7 @@ from config.settings import (AerichSettings, AMOCrmSettings, AMOCrmSettingsOld,
                              TortoiseSettings, TrustedSettings, FakeSendSms,
                              UvicornSettings, LogsSettings, SenseiSettings,
                              KonturTalkSettings, RequestLimiterSettings, MCSettings,
-                             UnleashSettings, DepregSettings,)
+                             UnleashSettings, DepregSettings, TildaSettings)
 
 
 base_dir: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -60,3 +60,4 @@ logs_config: dict[str, Any] = LogsSettings().dict()
 request_limiter_config: dict[str, Any] = RequestLimiterSettings().dict()
 unleash_config: dict[str, Any] = UnleashSettings().dict()
 depreg_config: dict[str, Any] = DepregSettings().dict()
+tilda_config: dict[str, Any] = TildaSettings().dict()

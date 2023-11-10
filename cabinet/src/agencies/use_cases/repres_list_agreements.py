@@ -58,11 +58,10 @@ class ListAgreementsCase(BaseAgencyCase):
             start=pagination.start,
             end=pagination.end,
         )
-        agreements_query_count: QuerySet = self.agreement_repo.list(
+        count: int = await self.agreement_repo.count(
             q_filters=q_filters,
             filters=dict(agency_id=agency.id),
         )
-        counted = await agreements_query_count.count()
         agreements = await agreements_query
-        data: dict[str, Any] = dict(count=counted, result=agreements, page_info=pagination(count=counted))
+        data: dict[str, Any] = dict(count=count, result=agreements, page_info=pagination(count=count))
         return data

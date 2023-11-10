@@ -1,12 +1,20 @@
 import asyncio
 from typing import Awaitable, Any
 
+from tortoise.transactions import atomic
+
 from common.depreg import DepregAPI
 from common.depreg.dto.depreg_response import DepregParticipantsDTO, DepregGroupDTO
 from common.utils import parse_phone
 from src.events_list.entities import BaseEventListCase
 from src.events_list.exceptions import EventListNotFoundError
-from src.events_list.repos import EventListRepo, EventParticipantListRepo, EventList, EventParticipantList
+from src.events_list.repos import (
+    EventListRepo,
+    EventParticipantListRepo,
+    EventList,
+    EventParticipantList,
+    EventGroupRepo, EventGroup,
+)
 
 
 class EventParticipantListCase(BaseEventListCase):
@@ -18,10 +26,12 @@ class EventParticipantListCase(BaseEventListCase):
         self,
         event_list_repo: type[EventListRepo],
         event_participant_list_repo: type[EventParticipantListRepo],
+        event_group_repo: type[EventGroupRepo],
         depreg_api: type[DepregAPI],
     ):
         self.event_list_repo: EventListRepo = event_list_repo()
         self.event_participant_list_repo: EventParticipantListRepo = event_participant_list_repo()
+        self.event_group_repo: EventGroupRepo = event_group_repo()
         self.depreg_api: type[DepregAPI] = depreg_api
 
     async def __call__(self, event_id: int) -> None:
@@ -33,6 +43,8 @@ class EventParticipantListCase(BaseEventListCase):
         timeslots: dict[int, str | None] = await self.get_timeslots(token=event.token, participants=participants)
 
         async_tasks: list[Awaitable | None] = []
+        event_group_data: list[dict[str, Any]] = []
+        groups_no_duplicates: set[int] = set()
         for participant in participants.data:
             if not (phone := await self.validate_phone(phone=participant.phone)):
                 continue
@@ -54,7 +66,21 @@ class EventParticipantListCase(BaseEventListCase):
                 async_tasks.append(
                     self.event_participant_list_repo.create(data=data)
                 )
+
+            if participant.group_id in groups_no_duplicates:
+                # Проверка на дубликаты групп
+                continue
+            groups_no_duplicates.add(participant.group_id)
+            event_group_data.append(
+                {
+                    "group_id": participant.group_id,
+                    "timeslot": timeslot,
+                    "event": event,
+                }
+            )
+
         await asyncio.gather(*async_tasks)
+        await self.save_event_group_data(event_group_data=event_group_data)
 
     async def get_participants(self, event_id: int, token: str) -> DepregParticipantsDTO:
         async with self.depreg_api() as depreg:
@@ -96,3 +122,27 @@ class EventParticipantListCase(BaseEventListCase):
         if not phone:
             return
         return parse_phone(phone)
+
+    async def save_event_group_data(self, event_group_data: list[dict[str, Any]]) -> None:
+        async_tasks: list[Awaitable] = []
+        for data in event_group_data:
+            async_tasks.append(
+                self.__save_event_group_data(data)
+            )
+        await asyncio.gather(*async_tasks)
+
+    @atomic(connection_name='cabinet')
+    async def __save_event_group_data(self, data: dict[str, Any]) -> None:
+        filters: dict[str, Any] = dict(
+            group_id=data['group_id'],
+        )
+        data: dict[str, Any] = dict(
+            group_id=data['group_id'],
+            timeslot=data['timeslot'],
+            event=data['event'],
+        )
+        event_group: EventGroup = await self.event_group_repo.retrieve(filters=filters)
+        if event_group:
+            await self.event_group_repo.update(model=event_group, data=data)
+        else:
+            await self.event_group_repo.create(data=data)

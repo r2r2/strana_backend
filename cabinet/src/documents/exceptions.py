@@ -19,3 +19,9 @@ class InstructionNotFoundError(BaseDocumentException):
     message: str = "Инструкция не найдена."
     status: int = HTTPStatus.NOT_FOUND
     reason: str = "instruction_not_found"
+
+
+class InteractionDocumentNotFoundError(BaseDocumentException):
+    message: str = "Взаимодействия не найдены."
+    status: int = HTTPStatus.NOT_FOUND
+    reason: str = "interaction_not_found"

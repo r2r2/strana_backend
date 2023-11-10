@@ -74,11 +74,8 @@ class RepresesAgentsListCase(BaseAgentCase):
             start=pagination.start,
             annotations=annotations,
         )
-        counted: list[tuple[Union[int, str]]] = await self.agent_repo.count(
+        count: int = await self.agent_repo.count(
             filters=filters, q_filters=q_filters
         )
-        count: int = len(counted)
-        if count and count == 1:
-            count: int = counted[0][0]
         data: dict[str, Any] = dict(count=count, result=agents, page_info=pagination(count=count))
         return data

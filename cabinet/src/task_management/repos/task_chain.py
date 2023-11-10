@@ -54,8 +54,31 @@ class TaskChain(BaseTaskModel):
         backward_key="task_chain_id",
         forward_key="booking_source_id",
     )
+    interchangeable_chains: fields.ManyToManyRelation["TaskChain"] = fields.ManyToManyField(
+        model_name="models.TaskChain",
+        related_name="taskchain_interchangeable_chains",
+        through="taskchain_interchangeable_through",
+        description="Взаимозаменяемые цепочки заданий",
+        null=True,
+        on_delete=fields.SET_NULL,
+        backward_key="task_chain_id",
+        forward_key="interchangeable_chain_id",
+    )
+    systems: fields.ManyToManyRelation["SystemList"] = fields.ManyToManyField(
+        model_name="models.SystemList",
+        related_name="taskchains",
+        through="taskchain_systems_through",
+        description="Список систем",
+        null=True,
+        on_delete=fields.SET_NULL,
+        backward_key="task_chain_id",
+        forward_key="system_id",
+    )
 
     task_statuses: fields.ReverseRelation["TaskStatus"]
+    task_group_statuses: fields.ReverseRelation["TaskGroupStatus"]
+
+    taskchain_interchangeable_chains: fields.ManyToManyRelation["TaskChain"]
 
     def __str__(self) -> str:
         return self.name
@@ -93,3 +116,51 @@ class TaskChainBookingSourceThrough(Model):
 
     class Meta:
         table = "taskchain_booking_source_through"
+
+
+class TaskChainInterchangeableThrough(Model):
+    """
+    Связующая таблица цепочки заданий и взаимозаменяемых цепочек
+    """
+    id: int = fields.IntField(description="ID", pk=True)
+    task_chain: fields.ForeignKeyRelation[TaskChain] = fields.ForeignKeyField(
+        model_name="models.TaskChain",
+        related_name="taskchain_through",
+        description="Цепочка заданий",
+        on_delete=fields.CASCADE,
+        backward_key="task_chain_id",
+    )
+    interchangeable_chain: fields.ForeignKeyRelation[TaskChain] = fields.ForeignKeyField(
+        model_name="models.TaskChain",
+        related_name="taskchain_interchangeable_through",
+        description="Взаимозаменяемая цепочка заданий",
+        on_delete=fields.CASCADE,
+        backward_key="interchangeable_chain_id",
+    )
+
+    class Meta:
+        table = "taskchain_interchangeable_through"
+
+
+class TaskChainSystemsThrough(Model):
+    """
+    Связующая таблица цепочки заданий и систем
+    """
+    id: int = fields.IntField(description="ID", pk=True)
+    task_chain: fields.ForeignKeyRelation[TaskChain] = fields.ForeignKeyField(
+        model_name="models.TaskChain",
+        related_name="taskchain_systems_through",
+        description="Цепочка заданий",
+        on_delete=fields.CASCADE,
+        backward_key="task_chain_id",
+    )
+    system: fields.ForeignKeyRelation["SystemList"] = fields.ForeignKeyField(
+        model_name="models.SystemList",
+        related_name="taskchain_systems_through",
+        description="Система",
+        on_delete=fields.CASCADE,
+        backward_key="system_id",
+    )
+
+    class Meta:
+        table = "taskchain_systems_through"

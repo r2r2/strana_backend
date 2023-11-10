@@ -4,6 +4,7 @@ from copy import copy
 from common.amocrm.constants import AmoCompanyEntityType, AmoLeadQueryWith
 from common.amocrm.types import AmoLead
 from common.amocrm.models import Entity
+from src.payments.repos import PurchaseAmoMatrix, PurchaseAmoMatrixRepo
 
 from ..entities import BaseBookingCase
 from ..mixins import BookingLogMixin
@@ -32,6 +33,7 @@ class UpdateAmoBookingService(BaseBookingCase, BookingLogMixin):
         self.amocrm_class: Type[BookingAmoCRM] = amocrm_class
         self.create_amocrm_log_task: Any = create_amocrm_log_task
         self.booking_repo: BookingRepo = booking_repo()
+        self.purchase_amo_matrix_repo: PurchaseAmoMatrixRepo = PurchaseAmoMatrixRepo()
 
         self.orm_class: Union[Type[BookingORM], None] = orm_class
         self.orm_config: Union[dict[str, Any], None] = copy(orm_config)
@@ -85,6 +87,16 @@ class UpdateAmoBookingService(BaseBookingCase, BookingLogMixin):
             agency_entities: Entity = Entity(ids=[booking.agency.amocrm_id], type=AmoCompanyEntityType.companies)
             new_entities.append(agency_entities)
 
+        # находим данные из матрицы для поля в амо "Тип оплаты"
+        purchase_amo: Optional[PurchaseAmoMatrix] = await self.purchase_amo_matrix_repo.list(
+            filters=dict(
+                payment_method_id=booking.amo_payment_method_id,
+                mortgage_type_id=booking.mortgage_type_id,
+            ),
+            ordering="priority",
+        ).first()
+        payment_type_enum: Optional[int] = purchase_amo.amo_payment_type if purchase_amo else None
+
         # обновляем сделку в амо (основные поля)
         await amocrm.update_lead_v4(
             lead_id=booking.amocrm_id,
@@ -98,6 +110,7 @@ class UpdateAmoBookingService(BaseBookingCase, BookingLogMixin):
             project_amocrm_responsible_user_id=booking.project.amo_responsible_user_id if booking.project else None,
             property_id=booking.property.global_id if booking.property else None,
             property_type=booking.property.type.value.lower() if booking.property and booking.property.type else None,
+            payment_type_enum=payment_type_enum,
         )
 
         # отвязываем старое агентство и старых агентов от сделки клиента в амо

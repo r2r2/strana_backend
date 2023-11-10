@@ -62,6 +62,9 @@ class Dispute(models.Model):
         null=True,
         blank=True,
     )
+    django_admin_email: str | None = models.CharField(
+        verbose_name="Email", max_length=100, null=True, blank=True
+    )
     comment = models.TextField(verbose_name="Комментарий агента", blank=True)
     admin_comment = models.TextField(verbose_name="Комментарий менеджера", blank=True)
     send_admin_email = models.BooleanField(

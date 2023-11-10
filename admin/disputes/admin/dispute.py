@@ -65,6 +65,7 @@ class DisputeAdmin(AdminChartMixin, admin.ModelAdmin):
         ("dispute_agent", "comment", "dispute_requested"),
         "admin_comment",
         "admin",
+        "django_admin_email",
     )
     search_fields = (
         "user__amocrm_id",
@@ -100,6 +101,7 @@ class DisputeAdmin(AdminChartMixin, admin.ModelAdmin):
         "send_admin_email",
         "send_rop_email",
         "amocrm_id",
+        "django_admin_email"
     )
     list_filter = (
         UniqueStatusFilter,
@@ -110,7 +112,7 @@ class DisputeAdmin(AdminChartMixin, admin.ModelAdmin):
     )
 
     def save_model(self, request, obj, form, change):
-        obj.admin_id = request.user.id
+        obj.django_admin_email = request.user.email
         super().save_model(request, obj, form, change)
 
         # Create a HistoricalDisputeData object and populate its fields

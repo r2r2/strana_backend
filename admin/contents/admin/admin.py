@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.admin import register, SimpleListFilter
 
-from .models import Caution, TextBlock, BrokerRegistration, Instruction
+from contents.models import Caution, TextBlock, BrokerRegistration, Instruction
 
 
 class CautionTypesFilter(SimpleListFilter):

@@ -40,11 +40,6 @@ class EventsSmsNotification(models.Model):
         blank=True,
         help_text="Только для офлайн мероприятий",
     )
-    days: models.FloatField = models.FloatField(
-        verbose_name='За сколько дней до / за сколько дней после события отправлять',
-        null=True,
-        blank=True,
-    )
     only_for_online: bool = models.BooleanField(verbose_name="Только для онлайн мероприятий", default=False)
 
     def __str__(self) -> str:
@@ -63,7 +58,7 @@ class EventsSmsNotification(models.Model):
         managed = False
         db_table = 'notifications_event_sms_notification'
         verbose_name = 'Настройки уведомлений для брокеров, участвующих в мероприятиях'
-        verbose_name_plural = '4.8. [Настройки] Отправка SMS по событию календаря (ERD)'
+        verbose_name_plural = ' 4.8. [Настройки] Отправка SMS по событию календаря (ERD)'
 
 
 class EventsSmsNotificationCityThrough(models.Model):

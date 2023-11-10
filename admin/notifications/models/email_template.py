@@ -69,4 +69,4 @@ class EmailTemplate(models.Model):
     class Meta:
         db_table = "notifications_email_notification"
         verbose_name = "Шаблон письма"
-        verbose_name_plural = "4.1. [Справочник] Шаблоны писем"
+        verbose_name_plural = " 4.1. [Справочник] Шаблоны писем"

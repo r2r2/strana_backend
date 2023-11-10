@@ -44,7 +44,7 @@ class BookingNotification(models.Model):
         managed = False
         db_table = 'booking_notifications'
         verbose_name = 'Уведомление при платном бронировании'
-        verbose_name_plural = '4.6. [Настройки] Напоминания о резервированиях'
+        verbose_name_plural = ' 4.6. [Настройки] Напоминания о резервированиях'
 
 
 class BookingNotificationsProjectThrough(models.Model):

@@ -149,7 +149,7 @@ class CabinetUserAdmin(ModelAdmin):
         "auth_last_at",
         "loyalty_point_amount",
         "loyalty_status_name",
-        "is_ready_for_authorisation_by_superuser",
+        "ready_for_super_auth",
         "can_login_as_another_user",
         "client_token_for_superuser",
     )
@@ -164,12 +164,16 @@ class CabinetUserAdmin(ModelAdmin):
         "origin",
         "type",
         "role",
+        "interested_sub",
     )
     exclude = ("user_cities",)
     list_per_page = 15
     show_full_result_count = False
-    list_select_related = True
     save_on_top = True
+
+    def get_queryset(self, request):
+        qs = super(CabinetUserAdmin, self).get_queryset(request)
+        return qs.select_related('role', 'agency', 'agent', 'interested_project').prefetch_related("user_cities")
 
     def get_readonly_fields(self, request, obj=None):
         if obj and obj.can_login_as_another_user:
@@ -283,6 +287,10 @@ class CabinetUserAdmin(ModelAdmin):
                 )
 
             get_client_token_from_cabinet(user.id)
+            messages.info(
+                request,
+                message=f"Сгенерирован токен для пользователя - {user.full_name()}",
+            )
 
     get_client_token.short_description = "Получить (актуализировать) токены для клиентов"
 
@@ -305,7 +313,7 @@ class CabinetUserAdmin(ModelAdmin):
                     )
                     return HttpResponseRedirect(request.path)
             else:
-                obj.is_ready_for_authorisation_by_superuser = True
+                obj.ready_for_super_auth = True
                 obj.save()
                 auth_link = superuser_auth_in_broker_link.format(broker_site_host, obj.id)
                 return HttpResponseRedirect(auth_link)
@@ -380,7 +388,7 @@ class CabinetAgentAdmin(CabinetUserAdmin):
     readonly_fields = (
         "loyalty_point_amount",
         "loyalty_status_name",
-        "is_ready_for_authorisation_by_superuser",
+        "ready_for_super_auth",
         "can_login_as_another_user",
     )
 
@@ -407,7 +415,7 @@ class CabinetClientAdmin(CabinetUserAdmin):
         "date_assignment_loyalty_status",
     )
     readonly_fields = (
-        "is_ready_for_authorisation_by_superuser",
+        "ready_for_super_auth",
         "can_login_as_another_user",
         "client_token_for_superuser",
     )
@@ -459,7 +467,7 @@ class CabinetAdminAdmin(CabinetAgentAdmin):
         "date_assignment_loyalty_status",
         "client_token_for_superuser",
     )
-    readonly_fields = ("is_ready_for_authorisation_by_superuser", "can_login_as_another_user",)
+    readonly_fields = ("ready_for_super_auth", "can_login_as_another_user",)
     filter_horizontal = ("user_cities",)
 
     def get_user_cities_on_list(self, obj):

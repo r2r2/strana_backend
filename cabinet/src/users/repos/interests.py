@@ -1,7 +1,7 @@
 from typing import Optional
 
 from common import cfields
-from common.orm.mixins import ReadWriteMixin
+from common.orm.mixins import ReadWriteMixin, CountMixin
 from src.users.constants import SlugType
 from src.users.entities import BaseUserRepo
 from tortoise import Model, fields
@@ -43,7 +43,7 @@ class UsersInterests(Model):
         table = 'users_interests'
 
 
-class InterestsRepo(BaseUserRepo, ReadWriteMixin):
+class InterestsRepo(BaseUserRepo, ReadWriteMixin, CountMixin):
     """
     Репозиторий для избранного
     """

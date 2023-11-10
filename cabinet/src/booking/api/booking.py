@@ -74,6 +74,7 @@ from src.properties.services import (
     ImportPropertyService,
     ImportPropertyServiceFactory,
 )
+from src.payments import repos as payment_repos
 from src.task_management import use_cases as task_management_use_cases
 from src.users import constants as users_constants
 from src.users import repos as users_repos
@@ -81,7 +82,6 @@ from src.users import services as users_services
 from src.task_management.tasks import update_task_instance_status_task
 from starlette.requests import ClientDisconnect
 from tortoise import Tortoise
-
 
 from src.booking.factories import ActivateBookingServiceFactory
 from ..maintenance import amocrm_webhook_maintenance
@@ -124,13 +124,13 @@ async def create_booking_view(
         booking_repo=booking_repos.BookingRepo,
         user_repo=users_repos.UserRepo,
         import_property_service=import_property_service,
-        get_booking_reserv_time=get_booking_reserv_time,
         amocrm_class=amocrm.AmoCRM,
         profit_base_class=profitbase.ProfitBase,
         global_id_decoder=utils.from_global_id,
         create_task_instance_service=create_task_instance_service,
         amocrm_status_repo=src_amocrm_repos.AmocrmStatusRepo,
         check_profitbase_property_service=check_profitbase_property_service,
+        check_booking_task=tasks.check_booking_task,
     )
     create_booking: use_cases.CreateBookingCase = use_cases.CreateBookingCase(
         **resources
@@ -783,6 +783,7 @@ async def amocrm_webhook_fast_booking_view(request: Request):
     create_amocrm_contact_service: users_services.CreateContactService = (
         users_services.CreateContactService(**resources)
     )
+    create_task_instance_service = CreateTaskInstanceServiceFactory.create()
     resources: dict[str, Any] = dict(
         backend_config=backend_config,
         check_booking_task=tasks.check_booking_task,
@@ -804,6 +805,7 @@ async def amocrm_webhook_fast_booking_view(request: Request):
         get_sms_template_service=get_sms_template_service,
         get_email_template_service=get_email_template_service,
         statuses_repo=src_amocrm_repos.AmocrmStatusRepo,
+        create_task_instance_service=create_task_instance_service,
     )
 
     fast_booking_webhook_case: use_cases.FastBookingWebhookCase = (
@@ -882,6 +884,7 @@ async def amocrm_webhook_notify_view(request: Request):
     create_amocrm_contact_service: users_services.CreateContactService = (
         users_services.CreateContactService(**resources)
     )
+    create_task_instance_service = CreateTaskInstanceServiceFactory.create()
     resources: dict[str, Any] = dict(
         backend_config=backend_config,
         check_booking_task=tasks.check_booking_task,
@@ -903,6 +906,7 @@ async def amocrm_webhook_notify_view(request: Request):
         get_sms_template_service=get_sms_template_service,
         get_email_template_service=get_email_template_service,
         statuses_repo=src_amocrm_repos.AmocrmStatusRepo,
+        create_task_instance_service=create_task_instance_service,
     )
     fast_booking_webhook_case: use_cases.FastBookingWebhookCase = (
         use_cases.FastBookingWebhookCase(**resources)
@@ -1093,6 +1097,7 @@ async def booking_list_view(
         booking_repo=booking_repos.BookingRepo,
         booking_tag_repo=booking_repos.BookingTagRepo,
         amocrm_group_status_repo=src_amocrm_repos.AmocrmGroupStatusRepo,
+        price_offer_matrix_repo=payment_repos.PriceOfferMatrixRepo,
     )
     booking_list: use_cases.BookingListCase = use_cases.BookingListCase(**resources)
     return await booking_list(
@@ -1167,6 +1172,7 @@ async def booking_retrieve_view(
         booking_tag_repo=booking_repos.BookingTagRepo,
         amocrm_group_status_repo=src_amocrm_repos.AmocrmGroupStatusRepo,
         booking_type_repo=buildings_repos.BuildingBookingTypeRepo,
+        price_offer_matrix_repo=payment_repos.PriceOfferMatrixRepo,
     )
     booking_retrieve: use_cases.BookingRetrieveCase = use_cases.BookingRetrieveCase(
         **resources

@@ -43,10 +43,10 @@ class ListAdminAdditionalAgreementsCase(BaseAgencyCase):
             q_filters=q_filters,
             related_fields=select_related,
         )
-        counted = await self.additional_agreement_repo.list(
+        count: int = await self.additional_agreement_repo.count(
             q_filters=q_filters,
-        ).count()
+        )
 
-        data: dict[str, Any] = dict(count=counted, result=additional_agreements, page_info=pagination(count=counted))
+        data: dict[str, Any] = dict(count=count, result=additional_agreements, page_info=pagination(count=count))
 
         return data

@@ -92,6 +92,8 @@ class CeleryTaskQueue:
         self._app.conf.beat_schedule = self._beat_schedule
         self._app.conf.beat_cron_starting_deadline = 60 * 5  # seconds
         self._app.conf.worker_prefetch_multiplier = 1
+        self._app.conf.broker_connection_retry = True
+        self._app.conf.worker_cancel_long_running_tasks_on_connection_loss = True
 
     def _add_workers(self) -> None:
         """
@@ -277,6 +279,17 @@ class CeleryTaskQueue:
                 # "schedule": crontab(minute=0, hour='21'),
                 "schedule": crontab(hour='*/1', minute='0'),
                 "task": "src.agencies.tasks.periodic_update_missed_amocrm_id_task",
+                "options": {
+                    "priority": self._priority.low,
+                    # "queue": self._q_periodic_tasks,
+                    # "exchange": self._q_periodic_tasks,
+                    # "routing_key": self._q_periodic_tasks,
+                }
+            },
+            "periodic_send_qrcode_sms_task": {
+                # "schedule": crontab(hour='3', minute='0'),
+                "schedule": crontab(minute='*/5'),
+                "task": "src.notifications.tasks.periodic_send_qrcode_sms_task",
                 "options": {
                     "priority": self._priority.low,
                     # "queue": self._q_periodic_tasks,

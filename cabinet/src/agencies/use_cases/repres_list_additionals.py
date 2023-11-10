@@ -64,11 +64,11 @@ class ListAdditionalAgreementsCase(BaseAgencyCase):
             filters=dict(agency_id=agency.id),
             related_fields=select_related,
         )
-        counted = await self.additional_agreement_repo.list(
+        count = await self.additional_agreement_repo.count(
             q_filters=q_filters,
             filters=dict(agency_id=agency.id),
-        ).count()
+        )
 
-        data: dict[str, Any] = dict(count=counted, result=additional_agreements, page_info=pagination(count=counted))
+        data: dict[str, Any] = dict(count=count, result=additional_agreements, page_info=pagination(count=count))
 
         return data

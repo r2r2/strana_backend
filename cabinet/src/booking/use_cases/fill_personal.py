@@ -24,8 +24,9 @@ from ..exceptions import (
     BookingTimeOutError,
     BookingWrongStepError,
 )
-from src.task_management.constants import OnlineBookingSlug
+from src.task_management.constants import OnlineBookingSlug, FastBookingSlug, FreeBookingSlug
 from src.task_management.utils import get_booking_tasks
+from ..utils import create_lead_name
 
 
 class BookingTypeNamedTuple(NamedTuple):
@@ -144,6 +145,13 @@ class FillPersonalCase(BaseBookingCase, BookingLogMixin):
             ],
             prefetch_fields=["ddu__participants"],
         )
+        interested_task_chains: list[str] = [
+            OnlineBookingSlug.ACCEPT_OFFER.value,
+            FastBookingSlug.ACCEPT_OFFER.value,
+        ]
+        booking.tasks = await get_booking_tasks(
+            booking_id=booking.id, task_chain_slug=interested_task_chains
+        )
         return booking
 
     async def _amocrm_booking(self, booking: Booking) -> int:
@@ -173,6 +181,7 @@ class FillPersonalCase(BaseBookingCase, BookingLogMixin):
                 property_id=self.global_id_decoder(booking.property.global_id)[1],
                 property_type=booking.property.type.value.lower(),
                 user_amocrm_id=booking.user.amocrm_id,
+                lead_name=create_lead_name(booking.user),
                 booking_type_id=booking_type.amocrm_id,
                 project_amocrm_name=booking.project.amocrm_name,
                 project_amocrm_enum=booking.project.amocrm_enum,
@@ -312,9 +321,6 @@ class FillPersonalCaseV2(BaseBookingCase, BookingLogMixin):
             amocrm_substage=BookingSubstages.BOOKING,
         )
         booking: Booking = await self.booking_update(booking=booking, data=data)
-        booking.tasks = await get_booking_tasks(
-            booking_id=booking.id, task_chain_slug=OnlineBookingSlug.ACCEPT_OFFER.value
-        )
         return await self._fill_personal(booking=booking, user_id=user_id, data=personal_filled_data)
 
     async def _fill_personal(
@@ -335,6 +341,14 @@ class FillPersonalCaseV2(BaseBookingCase, BookingLogMixin):
                 "agency",
             ],
             prefetch_fields=["ddu__participants"],
+        )
+        interested_task_chains: list[str] = [
+            OnlineBookingSlug.ACCEPT_OFFER.value,
+            FastBookingSlug.ACCEPT_OFFER.value,
+            FreeBookingSlug.EXTEND.value,
+        ]
+        booking.tasks = await get_booking_tasks(
+            booking_id=booking.id, task_chain_slug=interested_task_chains
         )
         return booking
 

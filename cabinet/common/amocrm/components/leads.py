@@ -55,7 +55,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
     }
 
     # Common attributes
-    lead_name: str = "Бронирование"
+    default_lead_name: str = "Бронирование"
 
     # Registration attributes
     start_status_id: int = 37592457
@@ -133,6 +133,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
     meeting_property_type_field_id = 366965
     meeting_user_name_field_id = 676461
     meeting_type_next_contact_field_id = 694316
+    commercial_offer_field_id = 826886
     meeting_types_next_contact_map: dict[str, dict] = {
         "Meet": {"enum_id": 1323738, "value": "Встреча"},
         "ZOOM": {"enum_id": 1325614, "value": "Назначить ZOOM КЦ"},
@@ -199,6 +200,30 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         "COMMERCIAL_APARTMENT": "GlobalFlatType",
         "COMMERCIAL": "GlobalCommercialSpaceType",
         "APARTMENT": "GlobalFlatType",
+    }
+    booking_payment_types_values: dict[int, dict[str, Union[str, int]]] = {
+        714853: {"enum_id": 714853, "value": "100%"},
+        714855: {"enum_id": 714855, "value": "Ипотека"},
+        714857: {"enum_id": 714857, "value": "Ипотека субсидированная"},
+        714859: {"enum_id": 714859, "value": "наличные+ МСК"},
+        714861: {"enum_id": 714861, "value": "Рассрочка"},
+        714863: {"enum_id": 714863, "value": "Сертификат"},
+        1284003: {"enum_id": 1284003, "value": "Ипотека+МСК"},
+        1324226: {"enum_id": 1324226, "value": "Рассрочка+МСК"},
+        1315751: {"enum_id": 1315751, "value": "Ипотека +сертификат"},
+        1315753: {"enum_id": 1315753, "value": "Наличные+сертификат"},
+        1317511: {"enum_id": 1317511, "value": "Наличные+сертификат+займ"},
+        1317513: {"enum_id": 1317513, "value": "Наличные+ипотека+сертификат+займ"},
+        1317551: {"enum_id": 1317551, "value": "Наличные+сертификат+займ+МСК"},
+        1317705: {"enum_id": 1317705, "value": "Ипотека субсидированная"},
+        1318019: {"enum_id": 1318019, "value": "Ипотека несубсидированная"},
+        1324558: {"enum_id": 1324558, "value": "Цена за наличные"},
+        1326788: {"enum_id": 1326788, "value": "Ипотека несубсидированная"},
+        1330204: {"enum_id": 1330204, "value": "Ипотека субсидированная"},
+        1333270: {"enum_id": 1333270, "value": "Цена за наличные"},
+        1338116: {"enum_id": 1338116, "value": "Ипотека несубсидированная"},
+        1338552: {"enum_id": 1338552, "value": "Ипотека несубсидированная"},
+        1338556: {"enum_id": 1338556, "value": "Цена за наличные"},
     }
 
     online_purchase_status_map = {
@@ -527,6 +552,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         city_slug: str,
         user_amocrm_id: int,
         project_amocrm_responsible_user_id: Union[str, int],
+        lead_name: str | None = None,
         project_amocrm_name: Optional[str] = None,
         project_amocrm_enum: Optional[int] = None,
         project_amocrm_pipeline_id: Union[str, int, None] = None,
@@ -559,11 +585,15 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         @param booking_type_id: int
         @param companies: Optional[list[int]]. Список id компаний из амо
         @param is_agency_deal: Сделка с Агентством?
+        @param lead_name: Название сделки, для общего случая можно использовать метод create_lead_name, он лежит в
+        booking.utils
         @return: list[AmoLead]
         """
         route: str = "/leads"
         if not status_id:
             status_id = getattr(self, f"{self.lead_city_mapping[city_slug]}_status_ids")[status]
+        if not lead_name:
+            lead_name = self.default_lead_name
         tags: list[AmoTag] = [AmoTag(name=tag) for tag in (tags + self._lead_tags)]
         if companies:
             companies: list[AmoLeadCompany] = [AmoLeadCompany(id=company) for company in companies]
@@ -585,7 +615,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         )
         self.logger.debug("AmoCRM create lead", custom_fields=custom_fields)
         payload: AmoLead = AmoLead(
-            name=self.lead_name,
+            name=lead_name,
             created_at=int(datetime.now(tz=UTC).timestamp()),
             updated_at=int(datetime.now(tz=UTC).timestamp()),
             status_id=status_id,
@@ -667,6 +697,8 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         meeting_date_next_contact: Optional[datetime.timestamp] = None,
         meeting_type_next_contact: Optional[str] = None,
         tags: Optional[list[AmoTag]] = None,
+        payment_type_enum: Optional[int] = None,
+        tilda_offer_amo: Optional[dict] = None
     ):
         route: str = f"/leads/{lead_id}"
         custom_fields = []
@@ -765,6 +797,23 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
                 )
             )
 
+        #  Тип оплаты (по матрице способов оплаты из амо)
+        if payment_type_enum is not None:
+            custom_fields.append(
+                dict(
+                    field_id=self.booking_payment_type_field_id,
+                    values=[self.booking_payment_types_values.get(payment_type_enum, {})]
+                )
+            )
+
+        if tilda_offer_amo:
+            custom_fields.append(
+                dict(
+                    field_id=self.commercial_offer_field_id,
+                    values=[dict(value=str(tilda_offer_amo).replace("'", '"').replace("None", "null"))]
+                )
+            )
+
         payload = dict(custom_fields_values=custom_fields)
 
         if price:
@@ -785,6 +834,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
                     ).dict(exclude_unset=True)
                 )
             )
+
         self.logger.debug(f"Payload lead v4: {payload}")
         response: CommonResponse = await self._request_patch_v4(route=route, payload=payload)
         if response:
@@ -923,6 +973,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         property_type: Optional[str] = None,
         booking_type_id: Optional[int] = None,
         is_agency_deal: Optional[bool] = None,
+        payment_type_enum: Optional[int] = None,
     ) -> list[Any]:
         """
         Lead mutation
@@ -1008,7 +1059,17 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
                     values=[dict(value=online_purchase_start_datetime)],
                 )
             )
-        # Тип оплаты
+
+        #  Тип оплаты (по матрице способов оплаты из амо)
+        if payment_type_enum is not None:
+            custom_fields.append(
+                dict(
+                    field_id=self.booking_payment_type_field_id,
+                    values=[self.booking_payment_types_values.get(payment_type_enum, {})]
+                )
+            )
+
+        #  Тип оплаты
         if payment_method is not None:
             payment_method_value = AmoCRMPaymentMethodMapping[payment_method]
             custom_fields.append(
@@ -1111,7 +1172,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         payload: dict[str, Any] = dict(
             add=[
                 dict(
-                    name=self.lead_name,
+                    name=self.default_lead_name,
                     created_at=int(datetime.now(tz=UTC).timestamp()),
                     updated_at=int(datetime.now(tz=UTC).timestamp()),
                     status_id=self.start_status_id,

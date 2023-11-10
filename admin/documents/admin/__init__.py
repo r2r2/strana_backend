@@ -8,3 +8,4 @@ from .agency_act import AgencyActAdmin
 from .agency_agreement import AgencyAgreementAdmin
 from .agency_additional_agreement import AgencyAdditionalAgreementAdmin
 from .agency_additional_agreement_data import AgencyAdditionalAgreementCreatingDataAdmin
+from .doc_interaction import InteractionDocumentAdmin

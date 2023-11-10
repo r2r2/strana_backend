@@ -15,6 +15,7 @@ from ..types import (
 )
 from common.amocrm.types import AmoLead
 from config import backend_config
+from ..utils import create_lead_name
 from ...task_management.constants import PaidBookingSlug
 
 
@@ -144,6 +145,7 @@ class RepeatBookingService(BaseBookingService):
                     city_slug=booking.project.city.slug,
                     property_type=booking.property.type.value.lower(),
                     user_amocrm_id=booking.user.amocrm_id,
+                    lead_name=create_lead_name(booking.user),
                     project_amocrm_name=booking.project.amocrm_name,
                     project_amocrm_enum=booking.project.amocrm_enum,
                     project_amocrm_organization=booking.project.amocrm_organization,

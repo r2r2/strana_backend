@@ -23,11 +23,17 @@ class PropertyPrice(models.Model):
     """
     Цена объекта недвижимости
     """
+    property = models.ForeignKey(
+        to="properties.Property",
+        related_name='property_prices',
+        on_delete=models.CASCADE,
+        verbose_name="Объект недвижимости",
+    )
     price = models.DecimalField(verbose_name="Цена", max_digits=10, decimal_places=2, null=True)
     price_type = models.ForeignKey(
         "properties.PropertyPriceType",
         on_delete=models.CASCADE,
-        related_name="type",
+        related_name="property_prices",
         verbose_name="Тип цены",
     )
 

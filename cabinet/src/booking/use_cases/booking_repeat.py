@@ -24,6 +24,8 @@ from ..repos import Booking, BookingRepo
 from ..services import ActivateBookingService
 from ..types import BookingPropertyRepo
 from src.properties.repos import Property
+from src.task_management.constants import OnlineBookingSlug
+from src.task_management.utils import get_booking_tasks
 
 
 class BookingRepeat(BaseBookingCase, BookingLogMixin):
@@ -120,6 +122,9 @@ class BookingRepeat(BaseBookingCase, BookingLogMixin):
             filters=filters,
             related_fields=["project__city", "property", "floor", "building", "ddu", "agent", "agency"],
             prefetch_fields=["ddu__participants"],
+        )
+        booking.tasks = await get_booking_tasks(
+            booking_id=booking.id, task_chain_slug=OnlineBookingSlug.ACCEPT_OFFER.value
         )
         return booking
 

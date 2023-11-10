@@ -40,6 +40,7 @@ class Feature(Model):
         backward_key="feature_id",
         forward_key="property_id",
     )
+    profit_id: str = fields.CharField(description="ID в Profitbase", max_length=64, null=True)
 
     def __str__(self) -> str:
         return self.name

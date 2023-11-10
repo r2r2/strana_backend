@@ -23,6 +23,8 @@ class BaseTaskCamelCaseSchema(CamelCaseBaseModel):
     """
     Базовая схема задачи в camelCase
     """
+    class Config:
+        orm_mode = True
 
 
 class BaseTaskRepo(BaseRepo):

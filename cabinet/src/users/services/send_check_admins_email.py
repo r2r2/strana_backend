@@ -94,19 +94,16 @@ class SendCheckAdminsEmailService(BaseUserService):
                 users_cities__in=[client_city],
             ),
         )
-        unleash_client = UnleashClient()
-        is_strana_lk_2257_enable = unleash_client.is_enabled(FeatureFlags.strana_lk_2257)
 
-        if is_strana_lk_2257_enable:
-            if await self.is_need_send_to_rop(check):
-                rop_role = await self.user_role_repo.retrieve(filters=dict(slug=constants.UserType.ROP))
-                if rop_role:
-                    admins += await self.admin_repo.list(
-                        filters=dict(
-                            role=rop_role,
-                            users_cities__in=[client_city],
-                        ),
-                    )
+        if await self.is_need_send_to_rop(check):
+            rop_role = await self.user_role_repo.retrieve(filters=dict(slug=constants.UserType.ROP))
+            if rop_role:
+                admins += await self.admin_repo.list(
+                    filters=dict(
+                        role=rop_role,
+                        users_cities__in=[client_city],
+                    ),
+                )
 
         recipients: list[str] = [admin.email for admin in admins if admin.email]
 

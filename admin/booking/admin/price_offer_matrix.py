@@ -18,6 +18,7 @@ class PriceOfferMatrixAdmin(admin.ModelAdmin):
                 "fields": (
                     "name",
                     "payment_method",
+                    "mortgage_type",
                     "by_dev",
                 )
             }

@@ -107,12 +107,6 @@ class UserMissMatchError(BaseUserException):
     reason: str = "user_miss_match"
 
 
-class UserAlreadyBoundError(BaseUserException):
-    message: str = "Пользователь уже привязан."
-    status: int = HTTPStatus.BAD_REQUEST
-    reason: str = "user_already_bound"
-
-
 class UserAmoCreateError(BaseUserException):
     message: str = "Пользователь не был создан в амо."
     status: int = HTTPStatus.BAD_REQUEST

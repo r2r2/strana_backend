@@ -9,7 +9,8 @@ from tortoise.expressions import F, Q
 from tortoise.functions import Count, Max, Min
 from tortoise.query_utils import Prefetch
 from tortoise.queryset import (CountQuery, ExistsQuery, QuerySet,
-                               QuerySetSingle, ValuesListQuery, ValuesQuery)
+                               QuerySetSingle, ValuesListQuery, ValuesQuery,
+                               CountQuery)
 
 
 class BaseMixin:
@@ -195,11 +196,10 @@ class ListMixin(BaseMixin):
 class CountMixin(BaseMixin):
     """
     Count Mixin
-    todo: Отрефакторить, чтобы возвращался инт, а не список кортежей с одним элементом.
     """
     def count(
         self, filters: Optional[dict[str, Any]] = None, q_filters: Optional[list[Q]] = None
-    ) -> ValuesListQuery:
+    ) -> CountQuery:
         """
         Количество агентов
         """
@@ -208,8 +208,8 @@ class CountMixin(BaseMixin):
             models: QuerySet[Model] = models.filter(**filters)
         if q_filters:
             models: QuerySet[Model] = models.filter(*q_filters)
-        models: ValuesListQuery = models.annotate(count=Count("id", distinct=True)).values_list("count")
-        return models
+        models: CountQuery = models.annotate(count=Count("id", distinct=True))
+        return models.count()
 
 
 class SCountMixin(BaseMixin):

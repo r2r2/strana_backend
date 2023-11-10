@@ -31,10 +31,14 @@ services:
     volumes:
       - cabinetlog:/app/logs/:ro
       - adminstatic:/app/static/:delegated
-
   redis:
     restart: always
-
+    
+  tasks:
+    deploy:
+      resources:
+        limits:
+          cpus: $CPU_NUM
 volumes:
   cabinetlog:
     name: cabinetlog

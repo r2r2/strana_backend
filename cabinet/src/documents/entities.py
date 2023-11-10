@@ -24,7 +24,7 @@ class BaseDocumentCase(object):
 
     async def __call__(self, *args: list[Any], **kwargs: dict[str, Any]) -> Any:
         raise NotImplementedError
-
+    
 
 class BaseDocumentException(Exception):
     """

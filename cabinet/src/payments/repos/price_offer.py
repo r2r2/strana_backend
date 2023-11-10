@@ -13,16 +13,23 @@ class PriceOfferMatrix(BasePaymentDatabaseModel):
     payment_method = fields.ForeignKeyField(
         model_name="models.PaymentMethod",
         on_delete=fields.CASCADE,
-        related_name="payment_method",
+        related_name="price_offer",
         description="ИД предложения из ИК",
     )
     # guid обсудить
     by_dev: bool = fields.BooleanField(default=False, description="Субсидированная ипотека")
-    price_type = fields.ForeignKeyField(
+    price_type = fields.OneToOneField(
         model_name="models.PropertyPriceType",
         on_delete=fields.CASCADE,
-        related_name="price_type",
+        related_name="price_offer",
         description="Тип цены",
+    )
+    mortgage_type = fields.ForeignKeyField(
+        model_name="models.MortgageType",
+        on_delete=fields.CASCADE,
+        related_name="mortgage_type",
+        description="Тип ипотеки",
+        null=True,
     )
     priority: int = fields.IntField(default=0, description="Приоритет")
 

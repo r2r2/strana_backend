@@ -33,7 +33,7 @@ class GetDocumentCase(BaseDocumentCase):
             city: str = document_info["city"]
             address: str = document_info["address"]
             premise: str = document_info["premise"]
-            price: int = int(document_info["price"])
+            price: int = document_info["price"]
             period: int = int(document_info["period"])
         else:
             raise DocumentNotFoundError

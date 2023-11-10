@@ -30,6 +30,7 @@ from src.properties.entities import BasePropertyCase
 from src.properties.exceptions import PropertyNotFoundError
 from src.properties.models import RequestBindBookingPropertyModel
 from src.properties.repos import Property, PropertyRepo
+from src.payments.repos import PurchaseAmoMatrix, PurchaseAmoMatrixRepo
 
 
 class BindBookingPropertyCase(BasePropertyCase):
@@ -72,6 +73,7 @@ class BindBookingPropertyCase(BasePropertyCase):
         )
         self.building_booking_type_repo: BuildingBookingTypeRepo = building_booking_type_repo()
         self.amocrm_status_repo: AmocrmStatusRepo = amocrm_status_repo()
+        self.purchase_amo_matrix_repo: PurchaseAmoMatrixRepo = PurchaseAmoMatrixRepo()
 
         self.amocrm_class: Type[BookingAmoCRM] = amocrm_class
         self.activate_bookings_service: ActivateBookingService = activate_bookings_service
@@ -212,6 +214,16 @@ class BindBookingPropertyCase(BasePropertyCase):
             prefetch_fields=["building", "project", "project__city"]
         )
 
+        # находим данные из матрицы для поля в амо "Тип оплаты"
+        purchase_amo: Optional[PurchaseAmoMatrix] = await self.purchase_amo_matrix_repo.list(
+            filters=dict(
+                payment_method_id=booking.amo_payment_method_id,
+                mortgage_type_id=booking.mortgage_type_id,
+            ),
+            ordering="priority",
+        ).first()
+        payment_type_enum: Optional[int] = purchase_amo.amo_payment_type if purchase_amo else None
+
         tags: list[AmoTag] = [AmoTag(name=tag) for tag in tags]
         default_booking_type: BuildingBookingType = await self.building_booking_type_repo.list().first()
         lead_options: dict[str, Any] = dict(
@@ -229,6 +241,7 @@ class BindBookingPropertyCase(BasePropertyCase):
             project_amocrm_pipeline_id=booking_property.project.amo_pipeline_id,
             project_amocrm_organization=booking_property.project.amocrm_organization,
             project_amocrm_responsible_user_id=booking_property.project.amo_responsible_user_id,
+            payment_type_enum=payment_type_enum,
             tags=tags,
         )
         async with await self.amocrm_class() as amocrm:

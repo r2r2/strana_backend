@@ -118,13 +118,13 @@ class CalendarEventListCase(BaseEventCase):
         else:
             calendar_count_events: int = await calendar_events_query.count()
 
-        record_count: int = await self.calendar_event_repo.list(
+        record_count: int = await self.calendar_event_repo.count(
             filters=dict(
                 event__participants__agent_id=user_id,
                 event__participants__status=EventParticipantStatus.RECORDED,
                 event__meeting_date_start__gte=datetime.datetime.now(tz=UTC),
             ),
-        ).count()
+        )
 
         return dict(
             count=calendar_count_events,

@@ -38,4 +38,4 @@ class EmailHeaderTemplate(models.Model):
     class Meta:
         db_table = "notifications_email_headers"
         verbose_name = "Шаблон хэдера письма"
-        verbose_name_plural = "4.1.1. [Справочник] Шаблоны хэдеров писем"
+        verbose_name_plural = " 4.1.1. [Справочник] Шаблоны хэдеров писем"

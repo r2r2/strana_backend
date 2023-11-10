@@ -1,18 +1,22 @@
 from decimal import Decimal
+from typing import Any
 
+import sentry_sdk
+import structlog
 from dadata import DadataAsync
 from haversine import haversine
 from httpx import HTTPError
 
+from common.sentry.utils import send_sentry_log
 from src.cities import repos as city_repo
 from ..entities import BaseCityCase
 
 
 class CurrentCity(BaseCityCase):
     """
-    Класс который определяет место положение по айпи
+    Класс, который определяет местоположение по айпи
     (прям как в детстве на серваках cs 1.6 обещали вычислить по айпи, гештальт закрыт)
-    Если как-то менять логику связи айпи и города то желательно почистить cities_iplocation табличку
+    Если как-то менять логику связи айпи и города, то желательно почистить cities_iplocation табличку
     """
 
     def __init__(
@@ -24,8 +28,11 @@ class CurrentCity(BaseCityCase):
         self.iplocation_repo = iplocation_repo()
         self.dadata_settings_repo = dadata_settings_repo()
         self.cities_repo = cities_repo()
+        self.logger = structlog.get_logger(__name__)
 
     async def __call__(self, ip_address: str):
+        default_city: str = "Тюмень"
+
         if location := await self.iplocation_repo.retrieve(filters=dict(ip_address=ip_address),
                                                            related_fields=["city"]):
             return location.city
@@ -35,14 +42,26 @@ class CurrentCity(BaseCityCase):
         try:
             async with DadataAsync(dadata_settings.api_key, dadata_settings.secret_key) as dadata:
                 result = await dadata.iplocate(ip_address)
-        except HTTPError as e:
-            self.logger.info("Не удалось получить данные из DaData.", e)
-            return await self.cities_repo.retrieve(dict(name="Тюмень"))
-        except Exception as e:
+        except HTTPError as exc:
+            sentry_sdk.capture_exception(exc)
+            self.logger.info("Не удалось получить данные из DaData.", exc)
+            return await self.cities_repo.retrieve(dict(name=default_city))
+        except Exception as exc:
+            sentry_sdk.capture_exception(exc)
             self.logger.exception("Произошла неизвестная ошибка")
-            return await self.cities_repo.retrieve(dict(name="Тюмень"))
+            return await self.cities_repo.retrieve(dict(name=default_city))
         if not result or 'data' not in result.keys():
-            return await self.cities_repo.retrieve(dict(name="Тюмень"))
+            sentry_ctx: dict[str, Any] = dict(
+                ip_address=ip_address,
+                result=result,
+            )
+            await send_sentry_log(
+                tag="CurrentCity",
+                message="Не удалось определить город по IP",
+                context=sentry_ctx,
+            )
+            self.logger.info("Не удалось определить город по IP")
+            return await self.cities_repo.retrieve(dict(name=default_city))
 
         current_geo = (Decimal(result['data']['geo_lat']), Decimal(result['data']['geo_lon']))
 
@@ -65,4 +84,4 @@ class CurrentCity(BaseCityCase):
             await self.iplocation_repo.create(dict(ip_address=ip_address, city=city))
             return city
 
-        return await self.cities_repo.retrieve(dict(name="Тюмень"))
+        return await self.cities_repo.retrieve(dict(name=default_city))

@@ -41,4 +41,4 @@ class LogSms(models.Model):
     class Meta:
         db_table = "common_log_sms_notification"
         verbose_name = "Лог смс сообщений"
-        verbose_name_plural = "4.4. [Логи] Логи смс сообщений"
+        verbose_name_plural = " 4.4. [Логи] Логи смс сообщений"

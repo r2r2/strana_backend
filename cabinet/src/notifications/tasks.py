@@ -4,11 +4,12 @@ from typing import Any
 from common import email, messages
 from common.settings.repos import BookingSettingsRepo
 from common.celery.utils import redis_lock
-from config import celery, tortoise_config, logs_config
+from config import celery, tortoise_config, logs_config, site_config
 from tortoise import Tortoise
 from common.email.repos import LogEmailRepo
 from common.messages.repos import LogSmsRepo
 from src.booking import repos as booking_repos
+from src.events_list import repos as events_list_repos
 from src.notifications import repos as notification_repos
 from src.notifications.services import (
     BookingNotificationService,
@@ -17,7 +18,10 @@ from src.notifications.services import (
     BookingFixationNotificationService,
     SendEmailBookingFixationNotifyService,
     GetEmailTemplateService,
+    CheckQRCodeSMSSend,
+    SendQRCodeSMS,
 )
+from src.users import repos as users_repos
 
 
 @celery.app.task
@@ -125,3 +129,43 @@ def send_booking_fixation_notify_email_task(data: dict[str, Any]) -> None:
     loop.run_until_complete(
         celery.sentry_catch(celery.init_orm(send_booking_fixation_notify_service))(data=data)
     )
+
+
+@celery.app.task
+def periodic_send_qrcode_sms_task() -> None:
+    """
+    Проверка условий для отправки смс с QR кодом участнику мероприятия.
+    """
+    print(f'start periodic_send_qrcode_sms_task')
+
+    resources: dict[str, Any] = dict(
+        qrcode_sms_notify_repo=notification_repos.QRcodeSMSNotifyRepo,
+        send_qrcode_sms_task=send_qrcode_sms_task,
+        orm_class=Tortoise,
+        orm_config=tortoise_config,
+    )
+    check_qrcode_sms_send: CheckQRCodeSMSSend = CheckQRCodeSMSSend(**resources)
+    loop: Any = get_event_loop()
+    loop.run_until_complete(celery.sentry_catch(celery.init_orm(check_qrcode_sms_send))())
+    print("finish periodic_send_qrcode_sms_task")
+
+
+@celery.app.task
+def send_qrcode_sms_task(data: dict[str, int]) -> None:
+    """
+    Отправка смс с QR кодом.
+    """
+    print(f'start send_qrcode_sms_task with {data=}')
+    resources: dict[str, Any] = dict(
+        event_participant_repo=events_list_repos.EventParticipantListRepo,
+        qrcode_sms_notify_repo=notification_repos.QRcodeSMSNotifyRepo,
+        event_list_repo=events_list_repos.EventListRepo,
+        sms_class=messages.SmsService,
+        site_config=site_config,
+        orm_class=Tortoise,
+        orm_config=tortoise_config,
+    )
+    send_qrcode_sms: SendQRCodeSMS = SendQRCodeSMS(**resources)
+    loop: Any = get_event_loop()
+    loop.run_until_complete(celery.sentry_catch(celery.init_orm(send_qrcode_sms))(data=data))
+    print("finish send_qrcode_sms_task")

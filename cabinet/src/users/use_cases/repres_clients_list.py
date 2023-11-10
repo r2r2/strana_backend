@@ -13,6 +13,7 @@ from ..exceptions import UserNoAgencyError, UserNotFoundError
 
 class RepresListClientsCase(BaseUserCase):
     """Получение выборки клиентов для представителя агентства"""
+
     def __init__(
         self,
         user_repo: Type[UserRepo],
@@ -32,6 +33,7 @@ class RepresListClientsCase(BaseUserCase):
     ):
         search = init_filters.pop("search", [])
         ordering = init_filters.pop("ordering", "-id")
+        booking_active_status = init_filters.pop("is_active", None)
 
         repres: User = await self.user_repo.retrieve(filters=dict(id=repres_id))
         if not repres:
@@ -40,15 +42,22 @@ class RepresListClientsCase(BaseUserCase):
         if not agency_id:
             raise UserNoAgencyError
 
-        additional_filters = dict(agency_id=agency_id, type=UserType.CLIENT)
+        additional_filters = dict(
+            agency_id=agency_id,
+            type=UserType.CLIENT,
+        )
         init_filters.update(additional_filters)
 
         q_filters = self._get_work_period_q_filters(init_filters)
         if search:
-            search_q_filters: list[Any] = [self.user_repo.q_builder(or_filters=search[0])]
+            search_q_filters: list[Any] = [
+                self.user_repo.q_builder(or_filters=search[0])
+            ]
             q_filters += search_q_filters
 
-        bookings_count_annotations: dict[str, Any] = self._get_booking_count_annotation(agency_id)
+        bookings_count_annotations: dict[str, Any] = self._get_booking_count_annotation(
+            agency_id
+        )
         users: List[User] = await self.user_repo.list(
             filters=init_filters,
             q_filters=q_filters,
@@ -60,23 +69,52 @@ class RepresListClientsCase(BaseUserCase):
                 "agent",
                 "agency",
                 "bookings",
-                dict(relation="users_checks",
-                     queryset=self.check_repo.list(ordering="-requested", related_fields=["unique_status"]),
-                     to_attr="statuses"),
-                dict(relation="users_pinning_status",
-                     queryset=self.user_pinning_repo.list(related_fields=["unique_status"]),
-                     to_attr="pinning_statuses"),
+                dict(
+                    relation="users_checks",
+                    queryset=self.check_repo.list(
+                        ordering="-requested", related_fields=["unique_status"]
+                    ),
+                    to_attr="statuses",
+                ),
+                dict(
+                    relation="users_pinning_status",
+                    queryset=self.user_pinning_repo.list(
+                        related_fields=["unique_status"]
+                    ),
+                    to_attr="pinning_statuses",
+                ),
             ],
         )
-        counted: list[tuple[Union[int, str]]] = await self.user_repo.count(
-            filters=init_filters,
-            q_filters=q_filters
+        count: int  = await self.user_repo.count(
+            filters=init_filters, q_filters=q_filters
         )
-        count = self._get_count(counted)
         for user in users:
             user.status = next(iter(user.statuses), None)
             user.pinning_status = next(iter(user.pinning_statuses), None)
-        data: dict[str, Any] = dict(count=count, result=users, page_info=pagination(count=count))
+
+        list_to_remove_users = list()
+        if booking_active_status is None:
+            for user in users:
+                if user.active_bookings_count == 0:
+                    user.pinning_status = None
+        elif booking_active_status is False:
+            for user in users:
+                if user.active_bookings_count > 0:
+                    count -= 1
+                    list_to_remove_users.append(user)
+                else:
+                    user.pinning_status = None
+        else:
+            for user in users:
+                if user.active_bookings_count == 0:
+                    count -= 1
+                    list_to_remove_users.append(user)
+
+        result_users = [user for user in users if user not in list_to_remove_users]
+
+        data: dict[str, Any] = dict(
+            count=count, result=result_users, page_info=pagination(count=count)
+        )
 
         return data
 
@@ -88,17 +126,23 @@ class RepresListClientsCase(BaseUserCase):
         )
         active_bookings = self.user_repo.a_builder.build_count(
             "bookings",
-            filter=~Q(bookings__amocrm_substage__in=[
-                BookingSubstages.REALIZED, BookingSubstages.UNREALIZED
-            ]) & Q(bookings__agency_id=agency_id),
+            filter=~Q(
+                bookings__amocrm_substage__in=[
+                    BookingSubstages.REALIZED,
+                    BookingSubstages.UNREALIZED,
+                ]
+            )
+            & Q(bookings__agency_id=agency_id),
         )
         successful_bookings = self.user_repo.a_builder.build_count(
             "bookings",
-            filter=Q(bookings__amocrm_substage=BookingSubstages.REALIZED) & Q(bookings__agency_id=agency_id),
+            filter=Q(bookings__amocrm_substage=BookingSubstages.REALIZED)
+            & Q(bookings__agency_id=agency_id),
         )
         unsuccessful_bookings = self.user_repo.a_builder.build_count(
             "bookings",
-            filter=Q(bookings__amocrm_substage=BookingSubstages.UNREALIZED) & Q(bookings__agency_id=agency_id),
+            filter=Q(bookings__amocrm_substage=BookingSubstages.UNREALIZED)
+            & Q(bookings__agency_id=agency_id),
         )
 
         bookings_count: dict[str, Any] = dict(
@@ -129,20 +173,18 @@ class RepresListClientsCase(BaseUserCase):
 
         or_filters += [
             # work start between u_start and u_end
-            Q(work_end__isnull=False) & Q(work_start__lte=work_start) & Q(work_end__gte=work_start),
+            Q(work_end__isnull=False)
+            & Q(work_start__lte=work_start)
+            & Q(work_end__gte=work_start),
             # work end between u_start and u_end
-            Q(work_end__isnull=False) & Q(work_start__lte=work_end) & Q(work_end__gte=work_end),
+            Q(work_end__isnull=False)
+            & Q(work_start__lte=work_end)
+            & Q(work_end__gte=work_end),
             # work start less u_start and work end greater u_end
-            Q(work_end__isnull=False) & Q(work_start__gte=work_start) & Q(work_end__lte=work_end),
-
-            Q(work_end__isnull=True) & Q(work_start__lte=work_end)
+            Q(work_end__isnull=False)
+            & Q(work_start__gte=work_start)
+            & Q(work_end__lte=work_end),
+            Q(work_end__isnull=True) & Q(work_start__lte=work_end),
         ]
 
         return [self.user_repo.q_builder(or_filters=or_filters)]
-
-    def _get_count(self, counted: List[Any]) -> int:
-        """Получение кол-ва записей для пагинации"""
-        count: int = len(counted)
-        if count and count == 1:
-            count: int = counted[0][0]
-        return count

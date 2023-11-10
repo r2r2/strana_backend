@@ -42,7 +42,7 @@ class BookingFixationNotification(models.Model):
         managed = False
         db_table = 'booking_fixation_notifications'
         verbose_name = 'Уведомление при окончании фиксации'
-        verbose_name_plural = '4.7. [Настройки] Напоминания о фиксировании'
+        verbose_name_plural = ' 4.7. [Настройки] Напоминания о фиксировании'
 
 
 class BookingFixationNotificationsProjectThrough(models.Model):

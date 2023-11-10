@@ -20,7 +20,7 @@ from ..models import RequestCheckParamsModel
 from ..repos import Booking, BookingRepo, AcquiringRepo
 from ..types import BookingSberbank
 from src.task_management.services import UpdateTaskInstanceStatusService
-from src.task_management.constants import OnlineBookingSlug
+from src.task_management.constants import OnlineBookingSlug, FastBookingSlug
 from src.task_management.utils import get_booking_tasks
 
 
@@ -158,6 +158,13 @@ class CheckParamsCase(BaseBookingCase, BookingLogMixin):
             filters=filters,
             related_fields=["project__city", "property", "floor", "building", "ddu", "agent", "agency"],
             prefetch_fields=["ddu__participants"],
+        )
+        interested_task_chains: list[str] = [
+            OnlineBookingSlug.ACCEPT_OFFER.value,
+            FastBookingSlug.ACCEPT_OFFER.value,
+        ]
+        booking.tasks = await get_booking_tasks(
+            booking_id=booking.id, task_chain_slug=interested_task_chains
         )
         return booking
 

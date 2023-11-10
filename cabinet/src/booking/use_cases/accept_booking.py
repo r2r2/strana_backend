@@ -4,7 +4,7 @@ from common.sentry.utils import send_sentry_log
 from src.booking.exceptions import BookingNotFoundError
 from src.booking.repos import Booking, BookingRepo
 from src.booking.entities import BaseBookingCase
-from src.task_management.constants import OnlineBookingSlug
+from src.task_management.constants import OnlineBookingSlug, FastBookingSlug
 from src.task_management.utils import get_booking_tasks
 
 
@@ -48,7 +48,11 @@ class AcceptBookingCase(BaseBookingCase):
             "agency",
             "booking_source",
         )
+        interested_task_chains: list[str] = [
+            OnlineBookingSlug.ACCEPT_OFFER.value,
+            FastBookingSlug.ACCEPT_OFFER.value,
+        ]
         booking.tasks = await get_booking_tasks(
-            booking_id=booking.id, task_chain_slug=OnlineBookingSlug.ACCEPT_OFFER.value
+            booking_id=booking.id, task_chain_slug=interested_task_chains
         )
         return booking

@@ -56,11 +56,10 @@ class ListClientsCase(BaseUserCase):
                 "agency"
             ]
         )
-        counted: list[tuple[Union[int, str]]] = await self.user_repo.count(
+        count: int = await self.user_repo.count(
             filters=init_filters,
             q_filters=q_filters
         )
-        count = self._get_count(counted)
         self._set_related_objects(users)
         data: dict[str, Any] = dict(count=count, result=users, page_info=pagination(count=count))
 
@@ -103,10 +102,3 @@ class ListClientsCase(BaseUserCase):
         for user in users:
             setattr(user, "checks", user.users_checks.related_objects)
             setattr(user, "bookings_list", user.bookings.related_objects)
-
-    def _get_count(self, counted: List[Any]) -> int:
-        """Получение кол-ва записей для пагинации"""
-        count: int = len(counted)
-        if count and count == 1:
-            count: int = counted[0][0]
-        return count

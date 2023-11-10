@@ -4,7 +4,7 @@ from datetime import datetime
 from tortoise import fields
 
 from common import cfields, orm
-from common.orm.mixins import CRUDMixin
+from common.orm.mixins import CRUDMixin, CountMixin
 from ..entities import BaseMeetingDatabaseModel, BaseMeetingRepo
 from ..constants import MeetingType, MeetingPropertyType, MeetingTopicType
 
@@ -70,7 +70,7 @@ class Meeting(BaseMeetingDatabaseModel):
         table = "meetings_meeting"
 
 
-class MeetingRepo(BaseMeetingRepo, CRUDMixin):
+class MeetingRepo(BaseMeetingRepo, CRUDMixin, CountMixin):
     """
     Репозиторий встречи
     """

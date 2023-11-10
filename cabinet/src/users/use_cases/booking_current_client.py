@@ -16,7 +16,7 @@ from src.booking.constants import (BookingCreatedSources, BookingStages,
 from src.booking.loggers import booking_changes_logger
 from src.booking.models import ResponseBookingRetrieveModel
 from src.booking.repos import Booking, BookingRepo, BookingSource
-from src.booking.utils import get_booking_source
+from src.booking.utils import get_booking_source, create_lead_name
 from src.projects.repos import Project, ProjectRepo
 from src.task_management.dto import CreateTaskDTO
 from src.task_management.services import CreateTaskInstanceService
@@ -317,6 +317,7 @@ class BookingCurrentClientCase(BaseUserCase):
                 property_id=None,
                 property_type=None,
                 user_amocrm_id=client.amocrm_id,
+                lead_name=create_lead_name(client),
                 project_amocrm_name=project.amocrm_name,
                 project_amocrm_enum=project.amocrm_enum,
                 project_amocrm_organization=project.amocrm_organization,

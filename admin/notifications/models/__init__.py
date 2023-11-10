@@ -8,4 +8,5 @@ from .booking_fixation_notificaton import BookingFixationNotification, BookingFi
 from .event_sms_notification import EventsSmsNotification, EventsSmsNotificationCityThrough
 from .email_header import EmailHeaderTemplate
 from .email_footer import EmailFooterTemplate
-from .event_qrcode_sms import QRcodeSMSNotify, QRcodeSMSCityThrough, QRcodeSMSEventListThrough
+from .event_qrcode_sms import QRcodeSMSNotify, QRcodeSMSCityThrough, QRcodeSMSEventListThrough, QRCodeSMSGroupThrough
+from .template_content import TemplateContent

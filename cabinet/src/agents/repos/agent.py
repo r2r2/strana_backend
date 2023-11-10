@@ -1,11 +1,11 @@
 from common import orm
-from common.orm.mixins import GenericMixin
+from common.orm.mixins import GenericMixin, CountMixin
 
 from src.users.repos import User
 from ..entities import BaseAgentRepo
 
 
-class AgentRepo(BaseAgentRepo, GenericMixin):
+class AgentRepo(BaseAgentRepo, GenericMixin, CountMixin):
     """
     Репозиторий агента
     """

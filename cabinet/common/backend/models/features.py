@@ -26,6 +26,7 @@ class BackendFeature(Model):
     description = fields.TextField(description="Описание", blank=True)
     order = fields.IntField(description="Очередность", default=0, db_index=True)
     is_button = fields.BooleanField(description="Выводить кнопкой", default=False)
+    profit_id = fields.CharField(description="ID в Profitbase", max_length=64, null=True)
     city: fields.ManyToManyRelation["BackendCity"] = fields.ManyToManyField(
         model_name="backend.BackendCity",
         related_name="features",

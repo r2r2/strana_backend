@@ -12,6 +12,8 @@ from src.booking.constants import BookingStages, BookingSubstages
 from src.amocrm.repos import AmocrmStatus, AmocrmStatusRepo
 from src.notifications.services import GetEmailTemplateService
 from src.properties.constants import PropertyStatuses
+from src.payments.repos import PurchaseAmoMatrix, PurchaseAmoMatrixRepo
+
 from ..entities import BaseBookingService
 from ..repos import Booking, BookingRepo
 from ..types import (
@@ -55,6 +57,7 @@ class CheckBookingService(BaseBookingService):
         self.logger = logger
         self.booking_repo: BookingRepo = booking_repo()
         self.property_repo: BookingPropertyRepo = property_repo()
+        self.purchase_amo_matrix_repo: PurchaseAmoMatrixRepo = PurchaseAmoMatrixRepo()
 
         self.amocrm_class: Type[BookingAmoCRM] = amocrm_class
         self.request_class: Type[BookingRequest] = request_class
@@ -173,11 +176,22 @@ class CheckBookingService(BaseBookingService):
         """
         Amocrm unbooking
         """
+        # находим данные из матрицы для поля в амо "Тип оплаты"
+        purchase_amo: Optional[PurchaseAmoMatrix] = await self.purchase_amo_matrix_repo.list(
+            filters=dict(
+                payment_method_id=booking.amo_payment_method_id,
+                mortgage_type_id=booking.mortgage_type_id,
+            ),
+            ordering="priority",
+        ).first()
+        payment_type_enum: Optional[int] = purchase_amo.amo_payment_type if purchase_amo else None
+
         async with await self.amocrm_class() as amocrm:
             lead_options: dict[str, Any] = dict(
                 status_id=status_id,
                 lead_id=booking.amocrm_id,
                 city_slug=booking.project.city.slug,
+                payment_type_enum=payment_type_enum,
             )
             data: list[Any] = await amocrm.update_lead(**lead_options)
             lead_id: int = data[0]["id"]

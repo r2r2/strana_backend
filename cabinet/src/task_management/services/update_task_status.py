@@ -149,10 +149,7 @@ class UpdateTaskInstanceStatusService(BaseTaskService):
         Кейс для статуса задачи фиксации, когда сделка нуждается в продлении
         """
         booking_settings: BookingSettings = await self.booking_settings_repo.list().first()
-        if self.task_instance.status.slug not in [
-            FixationExtensionSlug.NO_EXTENSION_NEEDED.value,
-            FixationExtensionSlug.DEAL_NEED_EXTENSION.value,
-        ]:
+        if self.task_instance.status.slug != FixationExtensionSlug.NO_EXTENSION_NEEDED.value:
             self.task_status = None
         elif (
             self.booking.amocrm_status
@@ -178,7 +175,7 @@ class UpdateTaskInstanceStatusService(BaseTaskService):
             # оставляем task_status, полученный по переданному status_slug
             # создаем отложенную задачу на изменение статуса по истечению дедлайна фиксации
             self.update_task_instance_status_task.apply_async(
-                (self.booking.id, FixationExtensionSlug.CANT_EXTEND_DEAL_BY_DATE.value),
+                (self.booking.id, FixationExtensionSlug.CANT_EXTEND_DEAL_BY_DATE.value, self.__class__.__name__),
                 eta=self.booking.fixation_expires,
             )
             # запускаем отложенные таски по отправке писем за N часов до окончания фиксации
@@ -189,10 +186,7 @@ class UpdateTaskInstanceStatusService(BaseTaskService):
         """
         Кейс для статуса задачи фиксации, когда продление не требуется
         """
-        if self.task_instance.status.slug not in [
-            FixationExtensionSlug.NO_EXTENSION_NEEDED.value,
-            FixationExtensionSlug.DEAL_NEED_EXTENSION.value,
-        ]:
+        if self.task_instance.status.slug != FixationExtensionSlug.DEAL_NEED_EXTENSION.value:
             self.task_status = None
         else:
             booking_settings: BookingSettings = await self.booking_settings_repo.list().first()
@@ -219,14 +213,6 @@ class UpdateTaskInstanceStatusService(BaseTaskService):
 
                 # продлеваем фиксацию в АМО
                 await self._send_sensei_request()
-            else:
-                task_date: datetime = self.booking.fixation_expires - timedelta(
-                    days=booking_settings.extension_deadline
-                )
-                self.update_task_instance_status_task.apply_async(
-                    (self.booking.id, FixationExtensionSlug.DEAL_NEED_EXTENSION.value),
-                    eta=task_date,
-                )
 
     async def _set_booking(self, booking_id: int) -> None:
         """

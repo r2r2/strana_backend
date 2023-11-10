@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Optional, Union
+from typing import Any
 from pytz import UTC
 
 from tortoise.queryset import QUERY
@@ -38,22 +38,22 @@ class TaskDataBuilder:
 
     def __init__(
         self,
-        task_instances: Union[list[TaskInstance], TaskInstance],
+        task_instances: list[TaskInstance] | TaskInstance,
         booking: Booking,
-        booking_settings: Optional[BookingSettings] = None,
+        booking_settings: BookingSettings | None = None,
     ):
         if isinstance(task_instances, list):
-            self.task_instances = task_instances
+            self.task_instances: list[TaskInstance] = task_instances
         else:
-            self.task_instances = [task_instances]
+            self.task_instances: list[TaskInstance] = [task_instances]
 
         self.booking = booking
         self.booking_settings = booking_settings
 
-        self.task: Optional[TaskInstance] = None
-        self.result: list[Optional[dict[str, Any]]] = []
+        self.task: TaskInstance | None = None
+        self.result: list[dict[str, Any] | None] = []
 
-    async def build(self) -> list[Optional[dict[str, Any]]]:
+    async def build(self) -> list[dict[str, Any] | None]:
         """
          Сборка данных для отображения задач
          """
@@ -66,6 +66,7 @@ class TaskDataBuilder:
                 "status__button_detail_views",
                 "status__buttons",
                 "status__tasks_chain__task_visibility",
+                "status__tasks_chain__systems",
             )
             task_visibility: list[AmocrmStatus] = self.task.status.tasks_chain.task_visibility
             if self.booking.amocrm_status not in task_visibility:
@@ -104,6 +105,7 @@ class TaskDataBuilder:
                 and self.booking.fixation_expires
                 and self.booking.extension_number
             ) else None,
+            "systems": [system.slug for system in self.task.status.tasks_chain.systems],
         }
         self.result.append(task_data)
 
@@ -134,7 +136,7 @@ class TaskDataBuilder:
             str(days_before_fixation_expires.days),
         )
 
-    async def _build_buttons(self, buttons_list: list[Button | ButtonDetailView]) -> list[Optional[dict[str, Any]]]:
+    async def _build_buttons(self, buttons_list: list[Button | ButtonDetailView]) -> list[dict[str, Any] | None]:
         """
         Сборка кнопок для задачи.
         Чем меньше приоритет - тем выше кнопка выводится в задании.
@@ -155,7 +157,7 @@ class TaskDataBuilder:
         } for button in sorted_buttons]
         return buttons
 
-    async def _build_meeting_data(self) -> Optional[dict[str, Any]]:
+    async def _build_meeting_data(self) -> dict[str, Any] | None:
         """
         Сборка данных для отображения встречи
         """
@@ -192,7 +194,7 @@ class TaskDataBuilder:
         }
         return meeting_data
 
-    async def _build_fixation_data(self) -> Optional[dict[str, Any]]:
+    async def _build_fixation_data(self) -> dict[str, Any] | None:
         """
         Сборка данных для отображения полей для сделок фиксаций.
         """
@@ -214,7 +216,7 @@ async def check_task_instance_exists(booking: Booking, task_status: str) -> bool
     @param task_status: статус задачи, по которому проверим, есть ли задача в цепочке
     """
     slug_values: list[str] = Slugs.get_slug_values(task_status)
-    task_instance: Optional[TaskInstance] = await TaskInstanceRepo().retrieve(
+    task_instance: TaskInstance | None = await TaskInstanceRepo().retrieve(
         filters=dict(
             booking=booking,
             status__slug__in=slug_values,
@@ -237,7 +239,7 @@ async def get_interesting_task_chain(status: str) -> TaskChain:
     """
     Получение интересующей цепочки задач по статусу
     """
-    interested_task_status: Optional[TaskStatus] = await TaskStatusRepo().retrieve(
+    interested_task_status: TaskStatus | None = await TaskStatusRepo().retrieve(
         filters=dict(slug=status),
         prefetch_fields=["tasks_chain__task_statuses"],
     )
@@ -246,10 +248,13 @@ async def get_interesting_task_chain(status: str) -> TaskChain:
     return interested_task_status.tasks_chain
 
 
-async def get_booking_tasks(booking_id: int, task_chain_slug: str) -> list[Optional[dict[str, Any]]]:
+async def get_booking_tasks(booking_id: int, task_chain_slug: str | list[str]) -> list[dict[str, Any] | None]:
     """
     Получение задач по бронированию для интересующей цепочки задач
     """
+    if isinstance(task_chain_slug, str):
+        task_chain_slug: list[str] = [task_chain_slug]
+
     booking: Booking = await BookingRepo().retrieve(
         filters=dict(id=booking_id),
         prefetch_fields=[
@@ -261,7 +266,10 @@ async def get_booking_tasks(booking_id: int, task_chain_slug: str) -> list[Optio
     )
     if not booking:
         raise BookingNotFoundError
-    interested_task_chain_slugs: list[str] = Slugs.get_slug_values(task_chain_slug)
+    interested_task_chain_slugs: list[str] = []
+    for slug in task_chain_slug:
+        interested_task_chain_slugs += Slugs.get_slug_values(slug)
+
     # берем все таски, которые есть в интересующей цепочке задач
     task_instances: list[TaskInstance] = [
         task for task in booking.task_instances if

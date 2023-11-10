@@ -1,5 +1,4 @@
 import asyncio
-import json
 
 import structlog
 from copy import copy
@@ -35,6 +34,7 @@ from src.events_list.repos import (
 )
 from src.users.repos import UserRepo, User
 from src.users.constants import UserType
+from src.cities.repos import City
 
 
 class CleanLogsNotificationService(BaseNotificationService):
@@ -497,18 +497,19 @@ class SendEmailBookingFixationNotifyService(BaseNotificationService):
 
 
 class CheckQRCodeSMSSend(BaseNotificationService):
+    """
+    Проверка условий для отправки смс с QR кодом участнику мероприятия.
+    Запускается ежедневно celery beat.
+    """
 
     def __init__(
         self,
-        # event_participant_repo: type[EventParticipantListRepo],
         qrcode_sms_notify_repo: type[QRcodeSMSNotifyRepo],
         send_qrcode_sms_task: Any,
         orm_class: Optional[Tortoise] = None,
         orm_config: Optional[dict[str, Any]] = None,
     ):
-        # self.event_participant_repo: EventParticipantListRepo = event_participant_repo()
         self.qrcode_sms_notify_repo: QRcodeSMSNotifyRepo = qrcode_sms_notify_repo()
-
         self.send_qrcode_sms_task: Any = send_qrcode_sms_task
 
         self.orm_class: Union[Type[Tortoise], None] = orm_class
@@ -521,47 +522,62 @@ class CheckQRCodeSMSSend(BaseNotificationService):
 
     async def __call__(self) -> None:
         event_notifications: list[QRcodeSMSNotify] = await self.qrcode_sms_notify_repo.list(
-            prefetch_fields=["events"]
+            prefetch_fields=["events", "cities"],
         )
-
-        process_event_async: list[Awaitable] = []
+        self.logger.info(f'Found notifications to process: {event_notifications=}')
+        async_tasks: list[Awaitable] = []
         for notification in event_notifications:
             for event in notification.events:
-                process_event_async.append(self._process_event(event=event, notification=notification))
-        await asyncio.gather(*process_event_async)
+                async_tasks.append(self._process_event(event=event, notification=notification))
+        await asyncio.gather(*async_tasks)
 
     async def _process_event(self, event: EventList, notification: QRcodeSMSNotify) -> None:
-        if notification.days_before_send:
-            if self.today == event.event_date - timedelta(days=notification.days_before_send):
+        self.logger.info(f"Process event: {event=}, {notification=}")
+        if notification.time_to_send:
+            if self.today == notification.time_to_send.date():
+                self.logger.info(f'Today is the date to send sms {notification.time_to_send.date()}')
+                # Смотрим, нужно ли сегодня отправлять уведомления
                 await self.create_task_send_sms(event=event, notification=notification)
 
     async def create_task_send_sms(self, event: EventList, notification: QRcodeSMSNotify) -> None:
-        data: dict[str, Any] = dict(
+        city: City | None = notification.cities[0] if notification.cities else None
+        if not city:
+            self.logger.info(f"Not found city: {notification.cities=}")
+            return
+        time_to_send: datetime = notification.time_to_send.astimezone(tz=UTC)
+        eta: datetime = time_to_send + timedelta(hours=city.timezone_offset)
+        data: dict[str, int] = dict(
             event_id=event.id,
             notification_id=notification.id,
         )
-        eta: datetime = datetime.combine(self.today, notification.time_to_send, tzinfo=UTC)
         self.send_qrcode_sms_task.apply_async((data,), eta=eta)
+        self.logger.info(f"Create task to send sms: {data=}, {eta=}")
 
 
 class SendQRCodeSMS(BaseNotificationService):
+    """
+    Отправка смс с QR кодом участнику мероприятия.
+    """
 
     def __init__(
         self,
         event_participant_repo: type[EventParticipantListRepo],
         qrcode_sms_notify_repo: type[QRcodeSMSNotifyRepo],
-        user_repo: type[UserRepo],
         event_list_repo: type[EventListRepo],
         sms_class: type[SmsService],
+        site_config: dict[str, Any],
         orm_class: Optional[Tortoise] = None,
         orm_config: Optional[dict[str, Any]] = None,
     ):
         self.event_participant_repo: EventParticipantListRepo = event_participant_repo()
         self.qrcode_sms_notify_repo: QRcodeSMSNotifyRepo = qrcode_sms_notify_repo()
-        self.user_repo: UserRepo = user_repo()
         self.event_list_repo: EventListRepo = event_list_repo()
-
         self.sms_class: type[SmsService] = sms_class
+
+        self.lk_site_host = site_config['site_host']
+        self.broker_site_host = site_config['broker_site_host']
+        self.main_site_host = site_config['main_site_host']
+
         self.orm_class: Union[Type[Tortoise], None] = orm_class
         self.orm_config: Union[dict[str, Any], None] = copy(orm_config)
         if self.orm_config:
@@ -569,10 +585,14 @@ class SendQRCodeSMS(BaseNotificationService):
 
         self.logger = structlog.get_logger("SendQRCodeSMS")
 
-    async def __call__(self, data: dict[str, Any]) -> None:
+    async def __call__(self, data: dict[str, int]) -> None:
+        self.logger.info(f"start SendQRCodeSMS service with data: {data=}")
         event_id: int = data.get("event_id")
         notification_id: int = data.get("notification_id")
         event, notification, participants = await self._get_data(event_id=event_id, notification_id=notification_id)
+        if not notification.sms_template or not notification.sms_template.is_active:
+            self.logger.info(f"SMS template is not active: {notification.sms_template=}")
+            return
 
         process_async: list[Awaitable] = [
             self._process_participant(
@@ -597,60 +617,25 @@ class SendQRCodeSMS(BaseNotificationService):
         то в ссылку смс формируем на ЛК брокера, т.е. для агента.
         Агент имеет больший приоритет.
         """
-        #
-        users: list[User] = await self.user_repo.list(
-            filters=dict(id=participant.phone),
+        self.logger.info(f"Build message for participant: {participant=}")
+        message: str = await self._build_message(
+            event=event,
+            notification=notification,
+            participant=participant,
         )
-        if not users:
-            self.logger.info(f"Not found user: {participant.phone=}")
-            return
-
-        if len(users) > 1:
-            # Если у нас есть агент и клиент с одним номером, то отправляем смс агенту.
-            user: User = [user for user in users if user.type == UserType.AGENT][0]
-        else:
-            # Тут может быть как клиент, так и агент.
-            user: User = users[0]
-
-        message: str = await self._build_message(user=user, event=event, notification=notification)
-        await self._send_sms(phone=user.phone, message=message)
+        await self._send_sms(phone=participant.phone, message=message)
 
     async def _build_message(
         self,
-        user: User,
         event: EventList,
         notification: QRcodeSMSNotify,
+        participant: EventParticipantList,
     ) -> str:
-        match user.type:
-            case UserType.CLIENT:
-                url: str = await self._get_url(type_=)
-            case UserType.AGENT:
-                url: str = await self._get_url(user=user)
-
-    async def _get_url(self, user):
-        token: str = self._generate_token(user=user)
-
-    def _generate_token(self, user: User) -> tuple[str, str]:
-        """
-        Генерация токена для авторизации
-        """
-        data = json.dumps(dict(user_id=user.id))
-        create_access_token(data)
-        
-        b64_data = b64encode(data.encode()).decode()
-        b64_data = b64_data.replace("&", "%26")
-        token = self.hasher.hash(b64_data)
-        return b64_data, token
-
-    def generate_unassign_link(self, agent_id: int, client_id: int) -> str:
-        """
-        Генерация ссылки для страницы открепления клиента от юзера
-        @param agent_id: int
-        @param client_id: int
-        @return: str
-        """
-        b64_data, token = self.generate_tokens(agent_id=agent_id, client_id=client_id)
-        return f"https://{self.main_site_host}/unassign?t={token}%26d={b64_data}"
+        message: str = notification.sms_template.template_text.format(
+            date=event.event_date,
+            time=participant.timeslot,
+        )
+        return message
 
     async def _get_data(
         self,
@@ -663,9 +648,12 @@ class SendQRCodeSMS(BaseNotificationService):
         notification: QRcodeSMSNotify = await self.qrcode_sms_notify_repo.retrieve(
             filters=dict(id=notification_id),
             related_fields=["sms_template"],
+            prefetch_fields=["groups"],
         )
+        group_ids: set[int] = {group.group_id for group in notification.groups}
+
         participants: list[EventParticipantList] = await self.event_participant_repo.list(
-            filters=dict(event=event),
+            filters=dict(event=event, group_id__in=group_ids),
         )
         if not all((event, notification, participants)):
             self.logger.info(
@@ -687,3 +675,4 @@ class SendQRCodeSMS(BaseNotificationService):
         )
         send_sms: SmsService = self.sms_class(**sms_options)
         await send_sms()
+        self.logger.info(f"SMS sent: {phone=}, {message=}")

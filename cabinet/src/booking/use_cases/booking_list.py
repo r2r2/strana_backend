@@ -5,6 +5,7 @@ from src.task_management.utils import (
     is_task_in_compare_task_chain,
     TaskDataBuilder,
 )
+from src.payments import repos as payment_repos
 from ..entities import BaseBookingCase
 from ..models import BookingListFilters
 from ..repos import Booking, BookingRepo, BookingTag, BookingTagRepo
@@ -20,12 +21,14 @@ class BookingListCase(BaseBookingCase):
         booking_repo: type[BookingRepo],
         booking_tag_repo: type[BookingTagRepo],
         amocrm_group_status_repo: type[AmocrmGroupStatusRepo],
+        price_offer_matrix_repo: type[payment_repos.PriceOfferMatrixRepo]
     ) -> None:
         self.booking_repo: BookingRepo = booking_repo()
         self.booking_tag_repo: BookingTagRepo = booking_tag_repo()
         self.amocrm_group_status_repo: AmocrmGroupStatusRepo = (
             amocrm_group_status_repo()
         )
+        self.price_offer_matrix_repo: payment_repos.PriceOfferMatrixRepo = price_offer_matrix_repo()
 
     async def __call__(
         self,
@@ -74,6 +77,17 @@ class BookingListCase(BaseBookingCase):
             if booking.amocrm_status:
                 await self._set_group_statuses(booking=booking)
             booking.booking_tags = await self._get_booking_tags(booking)
+
+            price_offer: payment_repos.PriceOfferMatrix = await self.price_offer_matrix_repo.retrieve(
+                filters=dict(
+                    payment_method_id=booking.amo_payment_method_id,
+                    mortgage_type_id=booking.mortgage_type_id,
+                ),
+            )
+            if price_offer and price_offer.by_dev:
+                booking.has_subsidy_price = True
+            else:
+                booking.has_subsidy_price = False
 
         data: dict = dict(result=bookings, count=len(bookings))
 

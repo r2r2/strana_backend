@@ -66,10 +66,12 @@ class UpdateMeetingCase(BaseMeetingCase):
             related_fields=[
                 "status",
                 "project",
-                "project__city",
                 "city",
                 "calendar_event",
                 "booking",
+            ],
+            prefetch_fields=[
+                "project__city",
                 "booking__user",
                 "booking__agent",
                 "booking__agency",
@@ -94,19 +96,35 @@ class UpdateMeetingCase(BaseMeetingCase):
         updated_meeting_status = await self.meeting_status_repo.retrieve(
             filters=dict(slug=MeetingStatusChoice.NOT_CONFIRM)
         )
-        update_data = dict(statu_id=updated_meeting_status.id, date=payload.date)
+        update_data = dict(status_id=updated_meeting_status.id, date=payload.date)
         update_meeting: Meeting = await self.meeting_repo.update(model=meeting, data=update_data)
+        prefetch_fields: list[str] = [
+            "project__city",
+            "booking__user",
+            "booking__agent",
+            "booking__agency",
+            "booking__property",
+        ]
+        await update_meeting.fetch_related(*prefetch_fields)
 
         # обновляем связанное событие календаря со встречей
         calendar_event_data = dict(date_start=update_meeting.date)
         await self.calendar_event_repo.update(model=update_meeting.calendar_event, data=calendar_event_data)
 
-        amocrm_status: AmocrmStatus = await self.amocrm_status_repo.retrieve(
-            filters=dict(
-                pipeline_id=meeting.project.amo_pipeline_id,
-                name__icontains="Назначить встречу",
+        if meeting.project:
+            amocrm_status: AmocrmStatus = await self.amocrm_status_repo.retrieve(
+                filters=dict(
+                    pipeline_id=meeting.project.amo_pipeline_id,
+                    name__icontains="Назначить встречу",
+                )
             )
-        )
+        else:
+            amocrm_status: AmocrmStatus = await self.amocrm_status_repo.retrieve(
+                filters=dict(
+                    pipeline_id=self.amocrm_class.PipelineIds.CALL_CENTER,
+                    name__icontains="Назначен Zoom",
+                )
+            )
         booking_data: dict = dict(
             amocrm_status_id=amocrm_status.id,
             amocrm_substage=BookingSubstages.MAKE_APPOINTMENT,

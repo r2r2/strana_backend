@@ -15,6 +15,8 @@ from common.amocrm.repos import AmoStatusesRepo
 from common.amocrm.types import AmoContact, AmoCustomField, AmoLead
 from common.backend.models import AmocrmStatus
 from common.utils import partition_list
+from common.unleash.client import UnleashClient
+from config.feature_flags import FeatureFlags
 from src.amocrm.repos import AmocrmStatusRepo
 from src.agents.repos import AgentRepo
 from src.booking.loggers.wrappers import booking_changes_logger
@@ -29,6 +31,7 @@ from src.users.loggers.wrappers import user_changes_logger
 from src.users.repos import User, UserRepo
 from src.task_management.constants import FixationExtensionSlug, BOOKING_UPDATE_FIXATION_STATUSES
 from src.projects.constants import ProjectStatus
+from src.payments.repos import PurchaseAmoMatrix, PurchaseAmoMatrixRepo
 
 from ..constants import BookingStagesMapping, BookingSubstages
 from ..entities import BaseBookingService
@@ -105,6 +108,7 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
         self.import_property_service: ImportPropertyService = import_property_service
         self.check_pinning = check_pinning
         self.amocrm_status_repo: AmocrmStatusRepo = amocrm_status_repo()
+        self.purchase_amo_matrix_repo: PurchaseAmoMatrixRepo = PurchaseAmoMatrixRepo()
         self.update_task_instance_status_task = update_task_instance_status_task
         self.user_update = user_changes_logger(
             self.user_repo.update, self, content="Импорт бронирований из АМО"
@@ -194,6 +198,7 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
         Update lead
         """
         booking: Optional[Booking] = None
+        booking_purchase_data: Optional[dict] = None
         if lead.id in booking_ids:
             booking = await self.booking_repo.retrieve(filters=dict(amocrm_id=lead.id))
 
@@ -226,6 +231,7 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
             self.update_task_instance_status_task.delay(
                 booking_id=booking.id,
                 status_slug=FixationExtensionSlug.DEAL_ALREADY_BOOKED.value,
+                caller_info=self.__class__.__name__,
             )
 
         property_id: Optional[int] = None
@@ -282,6 +288,20 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
                 lead_expires: datetime = datetime.fromtimestamp(lead_expires_amo_timestamp, tz=UTC)
             if custom_field.field_id == amocrm.project_field_id:
                 lead_project_enum: int = custom_field.values[0].enum_id
+            if custom_field.field_id == amocrm.booking_payment_type_field_id and self.__is_strana_lk_2494_enable:
+                purchase_type_enum: Optional[int] = custom_field.values[0].enum_id
+                if purchase_type_enum:
+                    purchase_amo: Optional[PurchaseAmoMatrix] = await self.purchase_amo_matrix_repo.retrieve(
+                        filters=dict(amo_payment_type=purchase_type_enum),
+                    )
+                    if not purchase_amo:
+                        purchase_amo: PurchaseAmoMatrix = await self.purchase_amo_matrix_repo.retrieve(
+                            filters=dict(default=True),
+                        )
+                    booking_purchase_data = dict(
+                        amo_payment_method=purchase_amo.payment_method,
+                        mortgage_type=purchase_amo.mortgage_type,
+                    )
 
         property_type: str = property_type or property_str_type
         if property_id and property_type:
@@ -341,6 +361,9 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
             amocrm_status_id=lead.status_id,
             amocrm_status=amocrm_status,
         )
+
+        if booking_purchase_data:
+            data.update(booking_purchase_data)
 
         if booking and booking.is_agent_assigned():
             data.pop("commission")
@@ -407,3 +430,7 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
             filters=filters, data=data)
         await self.import_property_service(property=booking_property)
         return booking_property
+
+    @property
+    def __is_strana_lk_2494_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_2494)

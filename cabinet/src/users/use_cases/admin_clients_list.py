@@ -58,11 +58,10 @@ class AdminListClientsCase(BaseUserCase):
                      to_attr="pinning_statuses"),
             ],
         )
-        counted: list[tuple[Union[int, str]]] = await self.user_repo.count(
+        count: int = await self.user_repo.count(
             filters=init_filters,
             q_filters=q_filters
         )
-        count = self._get_count(counted)
         for user in users:
             user.status = next(iter(user.statuses), None)
             user.pinning_status = next(iter(user.pinning_statuses), None)
@@ -123,10 +122,3 @@ class AdminListClientsCase(BaseUserCase):
         ]
 
         return [self.user_repo.q_builder(or_filters=or_filters)]
-
-    def _get_count(self, counted: List[Any]) -> int:
-        """Получение кол-ва записей для пагинации"""
-        count: int = len(counted)
-        if count and count == 1:
-            count: int = counted[0][0]
-        return count

@@ -117,10 +117,12 @@ class Button(BaseBookingCamelCaseModel):
 
 
 class TaskInstanceResponseSchema(BaseBookingCamelCaseModel):
+    id: int
     type: str
     title: str
     hint: str | None
     text: str
+    is_main: bool
     current_step: str | None
     buttons: Optional[list[Button]]
 
@@ -176,6 +178,7 @@ class _BookingListModel(BaseBookingModel):
     escrow_uploaded: bool
     amocrm_signing_date_set: bool
     amocrm_signed: bool
+    has_subsidy_price: bool
     amocrm_status: Optional[_BookingStatusListModel]
     booking_tags: Optional[list[BookingTagListModel]]
 

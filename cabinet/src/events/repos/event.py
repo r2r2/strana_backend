@@ -1,7 +1,7 @@
 from datetime import date
 from typing import Optional, Any
 from common import cfields, mixins, orm
-from common.orm.mixins import CRUDMixin
+from common.orm.mixins import CRUDMixin, CountMixin
 from tortoise import Model, fields
 
 from ..entities import BaseEventRepo
@@ -85,6 +85,14 @@ class Event(Model):
         description="Мепроприятие активно",
         default=True,
     )
+    time_to_send_sms_before: fields.DatetimeField = fields.DatetimeField(
+        description='Дата и время отправки смс до начала мероприятия',
+        null=True,
+    )
+    time_to_send_sms_after: fields.DatetimeField = fields.DatetimeField(
+        description='Дата и время отправки смс после окончания мероприятия',
+        null=True,
+    )
 
     def __repr__(self):
         return self.name
@@ -93,7 +101,7 @@ class Event(Model):
         table = "event_event"
 
 
-class EventRepo(BaseEventRepo, CRUDMixin):
+class EventRepo(BaseEventRepo, CRUDMixin, CountMixin):
     """
     Репозиторий мероприятия.
     """

@@ -1,6 +1,7 @@
 """
 Booking repo
 """
+
 import asyncio
 from collections import OrderedDict
 from datetime import date, datetime
@@ -18,7 +19,7 @@ from tortoise.queryset import QuerySet
 
 from common import cfields, orm
 from common.email import EmailService
-from common.orm.mixins import CRUDMixin, FacetsMixin, SCountMixin, SpecsMixin
+from common.orm.mixins import CRUDMixin, FacetsMixin, SCountMixin, SpecsMixin, CountMixin
 
 from common.unleash.client import UnleashClient
 from config import MaintenanceSettings
@@ -90,26 +91,34 @@ class Booking(Model):
     params_checked: bool = fields.BooleanField(
         description="Параметры проверены (шаг 3)", default=False
     )
-    payment_method = fields.ForeignKeyField(
+    amo_payment_method = fields.ForeignKeyField(
         model_name="models.PaymentMethod",
         on_delete=fields.SET_NULL,
         null=True,
         related_name="booking_payment_method",
         description="Способ оплаты",
     )
+
     price = fields.ForeignKeyField(
         model_name="models.PropertyPrice",
         on_delete=fields.SET_NULL,
-        null=True,
-        related_name="booking_price",
+        related_name="bookings",
         description="Цена",
+        null=True,
     )
     mortgage_type = fields.ForeignKeyField(
         model_name="models.MortgageType",
         on_delete=fields.SET_NULL,
-        null=True,
-        related_name="mortgage_type",
+        related_name="bookings",
         description="Тип ипотеки",
+        null=True,
+    )
+    price_offer = fields.ForeignKeyField(
+        model_name="models.PriceOfferMatrix",
+        on_delete=fields.SET_NULL,
+        related_name="bookings",
+        description="Матрица предложения цены",
+        null=True,
     )
     price_payed: bool = fields.BooleanField(
         description="Стоимость оплачена (шаг 4)", default=False
@@ -189,12 +198,12 @@ class Booking(Model):
         default=PaymentView.DESKTOP,
         choice_class=PaymentView,
     )
-    payment_method: str = cfields.CharChoiceField(
-        description="Способ покупки",
-        max_length=20,
-        choice_class=PaymentMethods,
-        null=True,
-    )
+    # payment_method: str = cfields.CharChoiceField(
+    #     description="Способ покупки",
+    #     max_length=20,
+    #     choice_class=PaymentMethods,
+    #     null=True,
+    # )
     maternal_capital: bool = fields.BooleanField(
         description="Материнский капитал (способ покупки)", default=False
     )
@@ -340,9 +349,7 @@ class Booking(Model):
         max_length=100,
         choice_class=BookingCreatedSources,
     )
-    booking_source: ForeignKeyNullableRelation[
-        "BookingSource"
-    ] = fields.ForeignKeyField(
+    booking_source: ForeignKeyNullableRelation["BookingSource"] = fields.ForeignKeyField(
         description="Источник создания онлайн-бронирования",
         model_name="models.BookingSource",
         related_name="bookings",
@@ -366,6 +373,7 @@ class Booking(Model):
     )
 
     task_instances: fields.ReverseRelation["TaskInstance"]
+    mortgage_type_id: int | None
     property_id: Optional[int]
     project_id: Optional[int]
     agency_id: Optional[int]
@@ -505,6 +513,42 @@ class Booking(Model):
             or not self.price_payed
         ):
             booking: Booking = await BookingRepo().retrieve(filters=dict(id=self.id))
+            ##########################################
+            unleash_client = UnleashClient()
+            is_strana_lk_2398_enable: bool = unleash_client.is_enabled(FeatureFlags.strana_lk_2398)
+            if is_strana_lk_2398_enable:
+                stack_trace: str = "".join(traceback.format_stack(limit=5))
+                fields_to_check: tuple[str, ...] = (
+                    "until",
+                    "expires",
+                    "payment_id",
+                    "payment_amount",
+                    "payment_url",
+                    "payment_order_number",
+                    "final_payment_amount",
+                    "property_id",
+                    "property",
+                    "fixation_expires",
+                    "extension_number",
+                    "project_id",
+                    "contract_accepted",
+                    "personal_filled",
+                    "params_checked",
+                    "price_payed",
+                )
+                data: dict[str, Any] = {}
+                for field in fields_to_check:
+                    if getattr(self, field) != getattr(booking, field):
+                        data.update({field: getattr(self, field)})
+
+                await _send_email(
+                    data=data,
+                    model=booking,
+                    topic='Booking save',
+                    stack_trace=stack_trace,
+                    fields_to_check=fields_to_check,
+                )
+            ##########################################
             if not self.until and booking.until:
                 self.until = booking.until
             if not self.expires and booking.expires:
@@ -571,7 +615,7 @@ class Booking(Model):
         )
 
 
-class BookingRepo(BaseBookingRepo, CRUDMixin, SCountMixin, FacetsMixin, SpecsMixin):
+class BookingRepo(BaseBookingRepo, CRUDMixin, SCountMixin, FacetsMixin, SpecsMixin, CountMixin):
     """
     Репозиторий бронирования
     """

@@ -238,7 +238,7 @@ class CabinetUser(models.Model):
         verbose_name="Принята оферта",
         default=False,
     )
-    is_ready_for_authorisation_by_superuser = models.BooleanField(
+    ready_for_super_auth = models.BooleanField(
         verbose_name="Под данным пользователем может авторизоваться суперюзер",
         default=False,
     )

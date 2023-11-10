@@ -7,16 +7,6 @@ from common.amocrm.components import AmoCRMAvailableMeetingSlots
 from common.settings.repos import BookingSettingsRepo
 from src.amocrm import repos as amocrm_repos
 from src.booking import repos as booking_repos
-from src.cities import repos as city_repo
-from src.events import repos as event_repo
-from src.meetings import models, repos as meeting_repos, use_cases
-from src.projects.repos import ProjectRepo
-from src.users import repos as user_repo
-from src.notifications import repos as notification_repos, services as notification_services
-from src.task_management import services as task_management_services, repos as task_management_repos
-from src.task_management.tasks import update_task_instance_status_task
-from src.notifications.tasks import booking_fixation_notification_email_task
-from src.cities.repos import CityRepo
 from src.meetings import models
 from src.meetings import repos as meeting_repos
 from src.meetings import use_cases
@@ -25,7 +15,6 @@ from src.task_management.factories import UpdateTaskInstanceStatusServiceFactory
 from src.users import repos as user_repo
 from src.cities import repos as city_repo
 from src.events import repos as event_repo
-from src.amocrm.repos import AmocrmGroupStatusRepo
 from src.notifications import repos as notification_repos
 from src.notifications import services as notification_services
 

@@ -7,6 +7,7 @@ from src.booking.repos import Booking, BookingTagRepo, BookingTag
 from src.users.repos import CheckRepo, UserPinningStatus, UserPinningStatusRepo
 from src.users.types import UserBookingRepo
 from src.users.repos import User
+from src.projects.constants import ProjectStatus
 from src.task_management.utils import TaskDataBuilder
 from src.task_management.constants import BOOKING_UPDATE_FIXATION_STATUSES
 
@@ -100,11 +101,15 @@ class UserBookingRetrieveCase(BaseBookingCase):
 
         task_instances = sorted(booking.task_instances, key=lambda x: x.status.priority)
         booking_settings = await self.booking_settings_repo.list().first()
-        booking.tasks = await TaskDataBuilder(
-            task_instances=task_instances,
-            booking=booking,
-            booking_settings=booking_settings,
-        ).build()
+
+        if booking.project and booking.project.status == ProjectStatus.FUTURE:
+            booking.tasks = None
+        else:
+            booking.tasks = await TaskDataBuilder(
+                task_instances=task_instances,
+                booking=booking,
+                booking_settings=booking_settings,
+            ).build()
 
         booking: Booking = await self._deactivated_booking_response(booking=booking)
 

@@ -61,9 +61,9 @@ class TextBlockHandlerService(BaseTextBlockCase):
             if not agent or (user_type == UserType.REPRES and agent.agency_id and agent.agency_id != user.agency_id):
                 raise AgentDataIncorrectError
 
-        clients = await self.users_repo.list(filters=dict(agent_id=agent.id)).count()
-        active_bookings = await self.booking_repo.list(filters=dict(agent_id=agent.id, active=True)).count()
-        closed_bookings = await self.booking_repo.list(filters=dict(agent_id=agent.id, active=False)).count()
+        clients = await self.users_repo.count(filters=dict(agent_id=agent.id))
+        active_bookings = await self.booking_repo.count(filters=dict(agent_id=agent.id, active=True))
+        closed_bookings = await self.booking_repo.count(filters=dict(agent_id=agent.id, active=False))
 
         text_block.text = text_block.text.format(
             clients=clients,

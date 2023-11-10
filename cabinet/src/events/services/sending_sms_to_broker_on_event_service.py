@@ -91,7 +91,7 @@ class SendingSmsToBrokerOnEventService(BaseEventCase):
                     event_date=(event.meeting_date_start + datetime.timedelta(hours=3)).date().strftime("%m.%d.%Y"),
                     event_time=(event.meeting_date_start + datetime.timedelta(hours=3)).time().strftime("%H.%M"),
                     event_online_link=event.link,
-                ),
+                )
             else:
                 timezone_offset = event.city.timezone_offset if event.city else 0
                 broker_event_message = sms_notification_template.template_text.format(
@@ -99,7 +99,7 @@ class SendingSmsToBrokerOnEventService(BaseEventCase):
                     event_time=(event.meeting_date_start + datetime.timedelta(hours=timezone_offset)).time(),
                     event_offline_address=event.address,
                     event_city=event.city.name if event.city else None,
-                ),
+                )
 
             sms_options: dict[str, Any] = dict(
                 phone=user.phone,

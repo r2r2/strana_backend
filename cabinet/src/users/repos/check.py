@@ -69,6 +69,9 @@ class Check(Model):
         related_name="admin_checks",
         null=True,
     )
+    django_admin_email: str | None = fields.CharField(
+        description="Email", max_length=100, null=True
+    )
     comment: str | None = fields.TextField(description="Комментарий агента", null=True)
     admin_comment: str | None = fields.TextField(
         description="Комментарий менеджера", null=True

@@ -75,12 +75,9 @@ class AdminsAgenciesListCase(BaseAgencyCase):
             annotations=annotations,
             prefetch_fields=["maintainer"],
         )
-        counted: list[tuple[Union[int, str]]] = await self.agency_repo.count(
+        count: int = await self.agency_repo.count(
             filters=filters, q_filters=q_filters
         )
-        count: int = len(counted)
-        if count and count == 1:
-            count: int = counted[0][0]
 
         data: dict[str, Any] = dict(count=count, result=agencies, page_info=pagination(count=count))
         return data

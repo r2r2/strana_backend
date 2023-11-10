@@ -1,14 +1,4 @@
 from django.db import models
-from django.utils.translation import gettext_lazy as _
-
-
-class QRcodeSMSNotifyType(models.TextChoices):
-    """
-    Типы смс уведомлений о QR-коде для смс.
-    """
-
-    BEFORE = "before", _("До мероприятия")
-    AFTER = "after", _("После окончания мероприятия")
 
 
 class QRcodeSMSNotify(models.Model):
@@ -21,13 +11,6 @@ class QRcodeSMSNotify(models.Model):
         on_delete=models.CASCADE,
         related_name='qrcode_sms',
         verbose_name='Шаблон cмс',
-        null=True,
-        blank=True,
-    )
-    sms_event_type: models.CharField = models.CharField(
-        choices=QRcodeSMSNotifyType.choices,
-        verbose_name='Тип события отправки смс',
-        max_length=100,
         null=True,
         blank=True,
     )
@@ -45,14 +28,17 @@ class QRcodeSMSNotify(models.Model):
         verbose_name='Мероприятия',
         blank=True,
     )
-    days_before_send: models.FloatField = models.FloatField(
-        verbose_name='За сколько дней до события отправлять',
+    time_to_send: models.DateTimeField = models.DateTimeField(
+        verbose_name='Дата и время отправки смс',
         null=True,
         blank=True,
+        help_text="СМС-уведомление отправляется по местному времени первого города, указанного для отправки уведомления"
     )
-    time_to_send: models.TimeField = models.TimeField(
-        verbose_name='Время отправки',
-        null=True,
+    groups: models.ManyToManyField = models.ManyToManyField(
+        to='events_list.EventGroup',
+        related_name='qrcode_sms',
+        through='QRCodeSMSGroupThrough',
+        verbose_name='Группы',
         blank=True,
     )
 
@@ -63,7 +49,7 @@ class QRcodeSMSNotify(models.Model):
         managed = False
         db_table = 'notifications_qrcode_sms'
         verbose_name = "Уведомление о QR-коде для смс"
-        verbose_name_plural = "4.9 [Настройки] Отправка SMS по QR-кодам"
+        verbose_name_plural = " 4.9. [Настройки] Отправка SMS по QR-кодам"
 
 
 class QRcodeSMSCityThrough(models.Model):
@@ -112,3 +98,27 @@ class QRcodeSMSEventListThrough(models.Model):
         db_table = 'notifications_qrcode_sms_eventlist_through'
         verbose_name = "Мероприятия, для которых настроено уведомление о QR-коде для смс"
         verbose_name_plural = "Мероприятия, для которых настроено уведомление о QR-коде для смс"
+
+
+class QRCodeSMSGroupThrough(models.Model):
+    """
+    Группы, для которых настроено уведомление о QR-коде для смс.
+    """
+    qrcode_sms: models.ForeignKey = models.ForeignKey(
+        to='notifications.QRcodeSMSNotify',
+        related_name='group_through',
+        verbose_name='Уведомление о QR-коде для смс',
+        on_delete=models.CASCADE,
+    )
+    event_group: models.ForeignKey = models.ForeignKey(
+        to='events_list.EventGroup',
+        related_name='qrcode_sms_through',
+        verbose_name='Группа',
+        on_delete=models.CASCADE,
+    )
+
+    class Meta:
+        managed = False
+        db_table = 'notifications_qrcode_sms_eventgroup_through'
+        verbose_name = "Группы, для которых настроено уведомление о QR-коде для смс"
+        verbose_name_plural = "Группы, для которых настроено уведомление о QR-коде для смс"

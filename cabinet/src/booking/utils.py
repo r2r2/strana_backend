@@ -2,6 +2,7 @@ from common.settings.repos import BookingSettings, BookingSettingsRepo
 from src.booking.exceptions import BookingSourceNotFoundError
 from src.properties.repos import Property
 from src.booking.repos import BookingReservationMatrix, BookingReservationMatrixRepo, BookingSource, BookingSourceRepo
+from src.users.repos import User
 
 
 async def get_booking_reserv_time(created_source: str, booking_property: Property) -> float:
@@ -34,3 +35,14 @@ async def get_booking_source(slug: str) -> BookingSource:
     if not booking_source:
         raise BookingSourceNotFoundError
     return booking_source
+
+
+def create_lead_name(user: User) -> str | None:
+    lead_name = None
+    if user.name and user.surname and user.patronymic:
+        lead_name = f"{user.surname} {user.name} {user.patronymic}"
+    elif user.name and user.surname:
+        lead_name = f"{user.surname} {user.name}"
+    elif user.name:
+        lead_name = user.name
+    return lead_name

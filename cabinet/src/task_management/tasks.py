@@ -9,6 +9,7 @@ from src.task_management import loggers
 from src.task_management import services
 from src.task_management.dto import UpdateTaskDTO, CreateTaskDTO
 from src.task_management.factories import CreateTaskInstanceServiceFactory, UpdateTaskInstanceStatusServiceFactory
+from icecream import ic
 
 
 @celery.app.task
@@ -30,10 +31,12 @@ def update_task_instance_status_task(
     booking_id: int,
     status_slug: str,
     task_context: UpdateTaskDTO | None = None,
+    caller_info: str | None = None,
 ) -> None:
     """
     Обновление статуса инстанса задачи
     """
+    ic(caller_info)
     update_status_service: services.UpdateTaskInstanceStatusService = UpdateTaskInstanceStatusServiceFactory.create()
     loop: Any = get_event_loop()
     loop.run_until_complete(

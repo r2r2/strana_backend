@@ -19,6 +19,8 @@ from src.task_management.constants import (
     MeetingsSlug,
     FixationExtensionSlug,
     OnlineBookingSlug,
+    FastBookingSlug,
+    FreeBookingSlug,
 )
 from src.task_management.dto import CreateTaskDTO
 from src.task_management.entities import BaseTaskService
@@ -76,6 +78,8 @@ class CreateTaskInstanceService(BaseTaskService):
         self.meetings_statuses: type[MeetingsSlug] = MeetingsSlug
         self.fixations_statuses: type[FixationExtensionSlug] = FixationExtensionSlug
         self.online_booking_statuses: type[OnlineBookingSlug] = OnlineBookingSlug
+        self.fast_booking_statuses: type[FastBookingSlug] = FastBookingSlug
+        self.free_booking_statuses: type[FreeBookingSlug] = FreeBookingSlug
 
         self.status_to_case_mapping: dict[str, Callable[..., Any]] = {
             self.paid_booking_statuses.START.value: self.paid_booking_case,
@@ -83,6 +87,8 @@ class CreateTaskInstanceService(BaseTaskService):
             self.meetings_statuses.SIGN_UP.value: self.meetings_case,
             self.fixations_statuses.NO_EXTENSION_NEEDED.value: self.fixation_extension_case,
             self.online_booking_statuses.ACCEPT_OFFER.value: self.online_booking_case,
+            self.fast_booking_statuses.ACCEPT_OFFER.value: self.fast_booking_case,
+            self.free_booking_statuses.EXTEND.value: self.free_booking_case,
         }
 
     async def __call__(
@@ -127,6 +133,7 @@ class CreateTaskInstanceService(BaseTaskService):
             # Тут определяем, что нужно создать задачу
             if await self._check_if_need_to_create_task(booking=booking, task_chain=task_chain):
                 self.logger.info(f"Бронирование #{booking} подходит для цепочки задач [{task_chain}]")
+
                 await self.process_use_case(booking=booking, task_chain=task_chain)
 
     async def _check_if_need_to_create_task(self, booking: Booking, task_chain: TaskChain) -> bool:
@@ -200,7 +207,7 @@ class CreateTaskInstanceService(BaseTaskService):
                 # когда фиксация подходит к концу
                 update_task_date = booking.fixation_expires - timedelta(days=booking_settings.extension_deadline)
                 self.update_task_instance_status_task.apply_async(
-                    (booking.id, self.fixations_statuses.DEAL_NEED_EXTENSION.value),
+                    (booking.id, self.fixations_statuses.DEAL_NEED_EXTENSION.value, self.__class__.__name__),
                     eta=update_task_date,
                 )
 
@@ -275,6 +282,27 @@ class CreateTaskInstanceService(BaseTaskService):
                 task_chain=task_chain,
             )
 
+    async def fast_booking_case(self, booking: Booking, task_chain: TaskChain) -> None:
+        """
+        Создание задания для цепочки Быстрого бронирования
+        """
+        filters: dict[str: str] = dict(slug=self.fast_booking_statuses.ACCEPT_OFFER.value)
+        task_status: TaskStatus = await self.get_task_status(filters=filters)
+        await self.create_task_instance(
+            booking=booking,
+            task_status=task_status,
+            task_chain=task_chain,
+        )
+
+    async def free_booking_case(self, booking: Booking, task_chain: TaskChain) -> None:
+        filters: dict[str, Any] = dict(slug=self.free_booking_statuses.EXTEND.value)
+        task_status: TaskStatus = await self.get_task_status(filters=filters)
+        await self.create_task_instance(
+            booking=booking,
+            task_status=task_status,
+            task_chain=task_chain,
+        )
+
     async def get_task_status(self, filters: dict[str, Any]) -> TaskStatus:
         """
         Получение статуса задачи
@@ -343,7 +371,7 @@ class CreateTaskInstanceService(BaseTaskService):
         )
         # If current TaskChain already have associated TaskInstance, do not need to create new one
         if task_instance:
-            self.logger.info(f"Задача [{task_instance}] уже есть в цепочке [{task_chain}]")
+            self.logger.info(f"Задача [{task_instance}] уже есть в цепочке [{task_chain}]. Не создаем новую задачу")
             return False
-        self.logger.info(f"Задачи в цепочке [{task_chain}] нет")
+        self.logger.info(f"Задачи в цепочке [{task_chain}] нет. Создаем новую задачу")
         return True

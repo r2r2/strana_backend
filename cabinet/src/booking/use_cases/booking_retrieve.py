@@ -1,12 +1,13 @@
 from src.amocrm.repos import AmocrmGroupStatus, AmocrmGroupStatusRepo
-from src.task_management.constants import OnlineBookingSlug
-from src.task_management.repos import TaskStatus
+from src.task_management.constants import OnlineBookingSlug, FastBookingSlug, FreeBookingSlug
+from src.task_management.repos import TaskStatus, TaskInstance
 from src.task_management.utils import (
     is_task_in_compare_task_chain,
     get_interesting_task_chain,
     TaskDataBuilder,
 )
 from src.buildings.repos import BuildingBookingType, BuildingBookingTypeRepo
+from src.payments import repos as payment_repos
 from ..constants import BookingCreatedSources
 from ..entities import BaseBookingCase
 from ..exceptions import (
@@ -31,10 +32,12 @@ class BookingRetrieveCase(BaseBookingCase):
         booking_tag_repo: type[BookingTagRepo],
         booking_type_repo: type[BuildingBookingTypeRepo],
         amocrm_group_status_repo: type[AmocrmGroupStatusRepo],
+        price_offer_matrix_repo: type[payment_repos.PriceOfferMatrixRepo]
     ) -> None:
         self.booking_repo: BookingRepo = booking_repo()
         self.booking_tag_repo: BookingTagRepo = booking_tag_repo()
         self.booking_type_repo: BuildingBookingTypeRepo = booking_type_repo()
+        self.price_offer_matrix_repo: payment_repos.PriceOfferMatrixRepo = price_offer_matrix_repo()
         self.amocrm_group_status_repo: AmocrmGroupStatusRepo = (
             amocrm_group_status_repo()
         )
@@ -70,10 +73,28 @@ class BookingRetrieveCase(BaseBookingCase):
         if not booking:
             raise BookingNotFoundError
 
-        document_info: dict = dict(
+        validated_price = None
+
+        if booking.payment_amount is not None:
+            validated_price = int(booking.payment_amount)
+        elif booking.building and (booking.building.booking_price is not None):
+            validated_price = int(booking.building.booking_price)
+
+        price_offer: payment_repos.PriceOfferMatrix = await self.price_offer_matrix_repo.retrieve(
+            filters=dict(
+                payment_method_id=booking.amo_payment_method_id,
+                mortgage_type_id=booking.mortgage_type_id,
+            ),
+        )
+        if price_offer and price_offer.by_dev:
+            booking.has_subsidy_price = True
+        else:
+            booking.has_subsidy_price = False
+
+        document_info: dict = dict( 
             city=booking.project.city.slug if booking.project else None,
             address=booking.building.address if booking.building else None,
-            price=booking.building.booking_price if booking.building else None,
+            price=validated_price, 
             period=booking.building.booking_period if booking.building else None,
             premise=booking.property.premise.label if booking.property else None,
         )
@@ -127,19 +148,27 @@ class BookingRetrieveCase(BaseBookingCase):
 
     async def _get_booking_tasks(self, booking: Booking) -> list[dict | None]:
         """Get booking tasks"""
-        online_booking_tasks = [
-            task
-            for task in booking.task_instances
+        # todo: refactor this
+        _booking_tasks: list[TaskInstance | None] = []
+        for task in booking.task_instances:
             if await is_task_in_compare_task_chain(
                 status=task.status, compare_status=OnlineBookingSlug.ACCEPT_OFFER.value
-            )
-        ]
+            ):
+                _booking_tasks.append(task)
+            if await is_task_in_compare_task_chain(
+                status=task.status, compare_status=FastBookingSlug.ACCEPT_OFFER.value
+            ):
+                _booking_tasks.append(task)
+            if await is_task_in_compare_task_chain(
+                status=task.status, compare_status=FreeBookingSlug.EXTEND.value
+            ):
+                _booking_tasks.append(task)
 
-        if not online_booking_tasks:
+        if not _booking_tasks:
             return []
 
         tasks = await TaskDataBuilder(
-            task_instances=online_booking_tasks, booking=booking
+            task_instances=_booking_tasks, booking=booking
         ).build()
 
         return tasks

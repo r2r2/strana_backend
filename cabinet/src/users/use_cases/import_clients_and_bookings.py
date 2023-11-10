@@ -4,8 +4,10 @@ from asyncio import create_task
 
 from src.users.entities import BaseUserCase
 from src.agents.services import ImportClientsService
-from ..models import RequestImportClientsAndBookingsModel
 from src.users.repos import User, UserRepo
+from src.users.exceptions import UserWasDeletedError
+
+from ..models import RequestImportClientsAndBookingsModel
 
 
 class ImportClientsAndBookingsModelCase(BaseUserCase):
@@ -30,14 +32,10 @@ class ImportClientsAndBookingsModelCase(BaseUserCase):
 
         broker: User = await self.user_repo.retrieve(filters=dict(id=payload.broker_id))
 
-        if not broker.auth_first_at:
-            self.logger.warning(
-                f"Брокер {broker} ни разу не был авторизован в кабинете"
-            )
-
         if not broker.is_deleted:
             self.logger.warning(
                 f"Брокер {broker} удален из кабинета"
             )
+            raise UserWasDeletedError
 
         create_task(self.import_clients_service(agent_id=payload.broker_id))

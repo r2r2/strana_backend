@@ -2,7 +2,7 @@ from decimal import Decimal
 
 from tortoise import fields
 
-from common.orm.mixins import ReadWriteMixin
+from common.orm.mixins import ReadWriteMixin, CountMixin
 
 from ..entities import BaseAdditionalServiceDatabaseModel, BaseAdditionalServiceRepo
 
@@ -49,7 +49,7 @@ class AdditionalServiceTicket(BaseAdditionalServiceDatabaseModel):
         table = "additional_services_ticket"
 
 
-class AdditionalServiceTicketRepo(BaseAdditionalServiceRepo, ReadWriteMixin):
+class AdditionalServiceTicketRepo(BaseAdditionalServiceRepo, ReadWriteMixin, CountMixin):
     """
     Репозиторий заявки на доп услуги
     """

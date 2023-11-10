@@ -13,6 +13,8 @@ from src.booking.exceptions import (
 from src.booking.repos import Booking, BookingRepo
 from src.booking.entities import BaseBookingCase
 from src.booking.types import BookingAmoCRM
+from src.task_management.constants import OnlineBookingSlug, FastBookingSlug
+from src.task_management.utils import get_booking_tasks
 
 
 class RebookingCase(BaseBookingCase):
@@ -96,6 +98,13 @@ class RebookingCase(BaseBookingCase):
                 portal_property_id=self.global_id_decoder(booking_property.global_id)[1],
             )
         self.check_booking_task.apply_async((booking.id,), eta=expires)
+        interested_task_chains: list[str] = [
+            OnlineBookingSlug.ACCEPT_OFFER.value,
+            FastBookingSlug.ACCEPT_OFFER.value,
+        ]
+        booking.tasks = await get_booking_tasks(
+            booking_id=booking.id, task_chain_slug=interested_task_chains
+        )
         return booking
 
     async def _update_amo_booking(

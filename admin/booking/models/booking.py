@@ -126,7 +126,7 @@ class Booking(models.Model):
         null=True,
         blank=True,
     )
-    payment_method = models.ForeignKey(
+    amo_payment_method = models.ForeignKey(
         "booking.PaymentMethod",
         on_delete=models.SET_NULL,
         null=True,
@@ -138,18 +138,26 @@ class Booking(models.Model):
     price = models.ForeignKey(
         "properties.PropertyPrice",
         on_delete=models.SET_NULL,
+        related_name="bookings",
+        verbose_name="Цена",
         null=True,
         blank=True,
-        related_name="booking_price",
-        verbose_name="Цена",
     )
     mortgage_type = models.ForeignKey(
         to="properties.MortgageType",
         on_delete=models.SET_NULL,
+        related_name="bookings",
+        verbose_name="Тип ипотеки",
         null=True,
         blank=True,
-        related_name="mortgage_type",
-        verbose_name="Тип ипотеки",
+    )
+    price_offer = models.ForeignKey(
+        to="booking.PriceOfferMatrix",
+        on_delete=models.SET_NULL,
+        related_name="bookings",
+        verbose_name="Матрица предложения цены",
+        null=True,
+        blank=True,
     )
     loyalty_point_amount = models.IntegerField(
         verbose_name="Количество баллов лояльности",

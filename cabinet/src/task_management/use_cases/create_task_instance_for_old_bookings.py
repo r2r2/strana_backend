@@ -123,7 +123,7 @@ class CreateTaskInstanceForOldBookingCase:
                 booking_settings.extension_deadline
             )
             self.update_task_instance_status_task.apply_async(
-                (booking.id, FixationExtensionSlug.DEAL_NEED_EXTENSION.value),
+                (booking.id, FixationExtensionSlug.DEAL_NEED_EXTENSION.value, self.__class__.__name__),
                 eta=update_task_date,
             )
 
@@ -144,7 +144,7 @@ class CreateTaskInstanceForOldBookingCase:
             # оставляем task_status, полученный по переданному status_slug
             # создаем отложенную задачу на изменение статуса по истечению дедлайна фиксации
             self.update_task_instance_status_task.apply_async(
-                (booking.id, FixationExtensionSlug.CANT_EXTEND_DEAL_BY_DATE.value),
+                (booking.id, FixationExtensionSlug.CANT_EXTEND_DEAL_BY_DATE.value, self.__class__.__name__),
                 eta=booking.fixation_expires,
             )
             # запускаем отложенные таски по отправке писем за N часов до окончания фиксации

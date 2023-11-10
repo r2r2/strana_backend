@@ -5,7 +5,7 @@ import traceback
 import structlog
 
 from common import cfields, orm
-from common.orm.mixins import ExistsMixin, GenericMixin
+from common.orm.mixins import ExistsMixin, GenericMixin, CountMixin
 from src.agencies.repos import Agency
 from src.projects.repos import Project
 from src.properties.constants import PropertyTypes
@@ -239,7 +239,7 @@ class User(Model):
     is_offer_accepted = fields.BooleanField(
         description="Была ли оферта принята", default=False
     )
-    is_ready_for_authorisation_by_superuser = fields.BooleanField(
+    ready_for_super_auth = fields.BooleanField(
         description="Под данным пользователем может авторизоваться суперюзер", default=False,
     )
     can_login_as_another_user = fields.BooleanField(
@@ -294,7 +294,7 @@ class User(Model):
         ordering = ["-created_at"]
 
 
-class UserRepo(BaseUserRepo, UserRepoSpecsMixin, UserRepoFacetsMixin, GenericMixin, ExistsMixin):
+class UserRepo(BaseUserRepo, UserRepoSpecsMixin, UserRepoFacetsMixin, GenericMixin, ExistsMixin, CountMixin):
     """
     Репозиторий пользователя
     """
@@ -339,6 +339,17 @@ class UserRepo(BaseUserRepo, UserRepoSpecsMixin, UserRepoFacetsMixin, GenericMix
         self.logger.debug("User fetch_or_create: ", id=model.id, filters=filters, data=data)
         self.logger.debug(traceback.print_stack(limit=5))
         return model
+
+    async def delete(
+        self,
+        model: User,
+    ):
+        """
+        Удаление пользователя
+        """
+        self.logger.debug("User delete: ", id=model.id)
+        self.logger.debug(traceback.print_stack(limit=5))
+        await super().delete(model)
 
     async def add_m2m(self, model: User, relation: str, instances: list[Model]) -> None:
         """

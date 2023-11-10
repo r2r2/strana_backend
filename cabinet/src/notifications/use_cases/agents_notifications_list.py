@@ -19,7 +19,7 @@ class AgentsNotificationsListCase(BaseNotificationCase):
         notifications: list[Notification] = await self.notification_repo.list(
             filters=filters, end=pagination.end, start=pagination.start
         )
-        counted: list[tuple[Union[int, str]]] = await self.notification_repo.count(filters=filters)
+        count: int = await self.notification_repo.count(filters=filters)
         futures: list[Future] = list()
         for notification in notifications:
             if not notification.is_sent:
@@ -29,9 +29,6 @@ class AgentsNotificationsListCase(BaseNotificationCase):
                         self.notification_repo.update(notification, data=data)
                     )
                 )
-        count: int = len(counted)
-        if count and count == 1:
-            count: int = counted[0][0]
         data: dict[str, Any] = dict(
             count=count, page_info=pagination(count=count), result=notifications
         )

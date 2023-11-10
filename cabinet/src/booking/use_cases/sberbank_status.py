@@ -13,7 +13,7 @@ from pytz import UTC
 
 from common.sentry.utils import send_sentry_log
 from common.settings.repos import BookingSettingsRepo
-from ..constants import BookingPayKind
+from src.booking.constants import BookingPayKind, BookingCreatedSources
 from common.unleash.client import UnleashClient
 from config import sberbank_config
 from config.feature_flags import FeatureFlags
@@ -27,7 +27,7 @@ from ..mixins import BookingLogMixin
 from ..repos import Booking, BookingRepo, AcquiringRepo
 from ..services import HistoryService, ImportBookingsService
 from ..types import BookingAmoCRM, BookingEmail, BookingSberbank, BookingSms
-from src.task_management.constants import PaidBookingSlug, OnlineBookingSlug
+from src.task_management.constants import PaidBookingSlug, OnlineBookingSlug, FastBookingSlug
 from src.task_management.services import UpdateTaskInstanceStatusService
 from src.notifications.services import GetSmsTemplateService, GetEmailTemplateService
 from src.task_management.repos import TaskInstance
@@ -106,7 +106,14 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
         booking: Booking = await self.booking_repo.retrieve(
             filters=filters,
             related_fields=[
-                "user", "agent", "project", "project__city", "property", "building", "floor",
+                "user",
+                "agent",
+                "project",
+                "project__city",
+                "property",
+                "building",
+                "floor",
+                "booking_source",
             ]
         )
 
@@ -143,18 +150,13 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
                 context=sentry_extra,
             )
 
-        params = {"status": kind.value, "description": action_code_description}
-        if booking.is_fast_booking():
-            base_url = f"{booking.origin}{self.frontend_return_url}/{booking.id}/4/?"
-        else:
-            task: TaskInstance = await get_booking_task(
-                booking_id=booking.id,
-                task_chain_slug=OnlineBookingSlug.PAYMENT.value,
-            )
-            base_url = f"{booking.origin}{self.frontend_return_url}/payment-status?"
-            params.update({"taskId": task.id, "bookingId": booking.id})
-
-        url = f"{base_url}{urlencode(params)}"
+        task: TaskInstance = await self._get_booking_task(booking=booking)
+        url: str = self._get_url(
+            kind=kind.value,
+            description=action_code_description,
+            task=task,
+            booking=booking,
+        )
 
         return url
 
@@ -402,5 +404,35 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
         statuses_to_update: list[str] = [
             PaidBookingSlug.SUCCESS.value,
             OnlineBookingSlug.PAYMENT_SUCCESS.value,
+            FastBookingSlug.PAYMENT_SUCCESS.value,
         ]
         await self.update_task_instance_status_service(booking_id=booking_id, status_slug=statuses_to_update)
+
+    async def _get_booking_task(self, booking: Booking) -> TaskInstance:
+        if booking.booking_source.slug == BookingCreatedSources.FAST_BOOKING:
+            task_chain_slug: str = FastBookingSlug.PAYMENT.value
+        else:
+            task_chain_slug: str = OnlineBookingSlug.PAYMENT.value
+
+        task: TaskInstance = await get_booking_task(
+            booking_id=booking.id,
+            task_chain_slug=task_chain_slug,
+        )
+        return task
+
+    def _get_url(
+        self,
+        kind: str,
+        description: str,
+        task: TaskInstance,
+        booking: Booking,
+    ) -> str:
+        query_params = {
+            "status": kind,
+            "description": description,
+            "taskId": task.id,
+            "bookingId": booking.id,
+        }
+        base_url = f"{booking.origin}{self.frontend_return_url}/payment-status?"
+        url = f"{base_url}{urlencode(query_params)}"
+        return url

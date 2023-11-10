@@ -43,6 +43,8 @@ class EventList(Model):
     )
 
     event_participant_list: fields.ReverseRelation["EventParticipantList"]
+    groups: fields.ReverseRelation["EventGroup"]
+
     qrcode_sms: fields.ManyToManyRelation["QRcodeSMSNotify"]
 
     class Meta:

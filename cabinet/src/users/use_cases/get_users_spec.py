@@ -35,13 +35,13 @@ class GetUsersSpecs(BaseUserCase):
             building_id__isnull=False,
             project_id__isnull=False,
         )
-        active_bookings = await self.booking_repos.list(filters=booking_filters).count()
-        released_bookings = await self.booking_repos.list(filters=dict(user_id=user_id),
+        active_bookings = await self.booking_repos.count(filters=booking_filters)
+        released_bookings = await self.booking_repos.count(filters=dict(user_id=user_id),
                                                           q_filters=[
-                                                              Q(amocrm_signed=True) | Q(price_payed=True)]).count()
+                                                              Q(amocrm_signed=True) | Q(price_payed=True)])
 
         interests_filter = dict(user_id=user_id)
-        interest = await self.users_interested_repos.list(filters=interests_filter).count()
+        interest = await self.users_interested_repos.count(filters=interests_filter)
 
         city = await self.city_repos.retrieve(filters=dict(slug=city_slug))
 

@@ -61,6 +61,14 @@ class ImportMeetingFromAmoService(BaseMeetingService):
                 meeting_address=data_from_amo.get("meeting_address"),
                 meeting_link=data_from_amo.get("meeting_link"),
             )
+            print("1: ImportMeetingFromAmoService")
+            print(f'{webhook_lead=}')
+            print(f'{meeting=}')
+            print(f'{data_from_amo=}')
+            print(f'{meeting_date_from_amo=}')
+            print(f"{meeting.date=}")
+            print(f'{meeting.date != meeting_date_from_amo=}')
+            print("-" * 50)
 
             if meeting.date != meeting_date_from_amo:
                 task_context.update(meeting_new_date=meeting_date_from_amo)

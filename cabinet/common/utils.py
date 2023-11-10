@@ -1,7 +1,7 @@
 import base64
 import phonenumbers
 from urllib import parse
-from typing import TypeVar, Iterable, Optional
+from typing import TypeVar, Iterable, Optional, Any
 from math import ceil
 from re import sub
 from functools import reduce
@@ -12,6 +12,7 @@ from base64 import b64decode, b64encode
 
 import sentry_sdk
 
+from common.schemas import UrlEncodeDTO
 from config import site_config, application_config
 from string import ascii_letters, digits, punctuation
 from mimetypes import guess_type
@@ -160,3 +161,17 @@ def convert_str_to_int(value: str | None) -> int | None:
             return round(float(value))
         except ValueError as exception:
             sentry_sdk.capture_exception(exception)
+
+
+def generate_notify_url(url_dto: UrlEncodeDTO) -> str:
+    """
+    Генерация url для уведомлений с учетом query параметров
+    """
+    separator: str = "%26"
+    
+    query_params: dict[str, Any] = url_dto.query_params or dict()
+    query_params: list[str] = [f"{key}={value}" for key, value in query_params.items()]
+    query_params: str = separator.join(query_params)
+    base_url: str = url_dto.url_template.format(host=url_dto.host)
+    url: str = f"{base_url}?{query_params}"
+    return url

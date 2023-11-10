@@ -37,7 +37,7 @@ class TicketListCase(BaseAdditionalServiceCase):
         if category_id:
             filters.update(service__category_id=category_id)
         qs_options: dict = dict(filters=filters)
-        tickets_count_qs: QuerySet = self.ticket_repo.list(**qs_options)
+        count: int = await self.ticket_repo.count(**qs_options)
         qs_options.update(
             related_fields=["group_status", "service__category"],
             start=pagination.start,
@@ -45,7 +45,6 @@ class TicketListCase(BaseAdditionalServiceCase):
             ordering="-id",
         )
         tickets_result_qs: QuerySet = self.ticket_repo.list(**qs_options)
-        count: int = await tickets_count_qs.count()
         tickets: list[Ticket] = await tickets_result_qs
         template: Template = await self.template_repo.retrieve(
             filters=dict(slug=self.TEMPLATE_SLUG)

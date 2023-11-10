@@ -10,3 +10,4 @@ from .additional_agreement_template import AdditionalAgreementTemplate
 from .additional_agency_agreement_data import (
     AgencyAdditionalAgreementCreatingData, AdditionalAgencyThrough, AdditionalProjectThrough
 )
+from .document_interaction import DocumentInteraction

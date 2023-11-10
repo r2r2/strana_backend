@@ -157,6 +157,7 @@ class ButtonAction(BaseBookingCamelCaseModel):
 class Button(BaseBookingCamelCaseModel):
     label: str
     type: str
+    slug_step: str | None
     action: ButtonAction
 
     class Config:
@@ -170,9 +171,11 @@ class TaskInstanceResponseSchema(BaseBookingCamelCaseModel):
     hint: str | None
     text: str
     is_main: bool
+    task_status: str | None
     current_step: str | None
     buttons: list[Button] | None
     buttons_detail_view: list[Button] | None
+    systems: list[str] | None
 
     class Config:
         orm_mode = True
@@ -253,6 +256,7 @@ class ResponseBookingRetrieveModel(BaseBookingModel):
     escrow_uploaded: bool
     amocrm_signing_date_set: bool
     amocrm_signed: bool
+    has_subsidy_price: bool = False
     amocrm_status: _BookingStatusListModel | None
 
     origin: str | None

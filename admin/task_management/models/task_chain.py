@@ -44,6 +44,21 @@ class TaskChain(BaseTaskManagementModel):
         through_fields=('task_chain', 'booking_source'),
         blank=True,
     )
+    interchangeable_chains: models.ManyToManyField = models.ManyToManyField(
+        to='task_management.TaskChain',
+        verbose_name='Взаимозаменяемые цепочки',
+        related_name='taskchain_interchangeable_chains',
+        through='TaskChainInterchangeableThrough',
+        through_fields=('task_chain', 'interchangeable_chain'),
+        blank=True,
+    )
+    systems: models.ManyToManyField = models.ManyToManyField(
+        to='settings.SystemList',
+        verbose_name='Где выводить',
+        related_name='taskchains',
+        through='TaskChainSystemsThrough',
+        through_fields=('task_chain', 'system'),
+    )
 
     def __str__(self) -> str:
         return self.name
@@ -164,3 +179,57 @@ class TaskChainBookingSourceThrough(models.Model):
         db_table = 'taskchain_booking_source_through'
         verbose_name = 'Связь между цепочкой заданий и источниками бронирования'
         verbose_name_plural = 'Связи между цепочками заданий и источниками бронирования'
+
+
+class TaskChainInterchangeableThrough(models.Model):
+    """
+    Связь между цепочкой заданий и взаимозаменяемыми цепочками
+    """
+    task_chain: models.ForeignKey = models.ForeignKey(
+        to='task_management.TaskChain',
+        on_delete=models.CASCADE,
+        related_name='task_chain_interchangeable_through',
+        verbose_name='Цепочка заданий',
+    )
+    interchangeable_chain: models.ForeignKey = models.ForeignKey(
+        to='task_management.TaskChain',
+        on_delete=models.CASCADE,
+        related_name='interchangeable_chain',
+        verbose_name='Взаимозаменяемая цепочка',
+    )
+
+    def __str__(self) -> str:
+        return f'{self.task_chain.name} - {self.interchangeable_chain.name}'
+
+    class Meta:
+        managed = False
+        db_table = 'taskchain_interchangeable_through'
+        verbose_name = 'Связь между цепочкой заданий и взаимозаменяемыми цепочками'
+        verbose_name_plural = 'Связи между цепочками заданий и взаимозаменяемыми цепочками'
+
+
+class TaskChainSystemsThrough(models.Model):
+    """
+    Связь между цепочкой заданий и системами
+    """
+    task_chain: models.ForeignKey = models.ForeignKey(
+        to='task_management.TaskChain',
+        on_delete=models.CASCADE,
+        related_name='task_chain_systems_through',
+        verbose_name='Цепочка заданий',
+    )
+    system: models.ForeignKey = models.ForeignKey(
+        to='settings.SystemList',
+        on_delete=models.CASCADE,
+        related_name='system',
+        verbose_name='Система',
+    )
+
+    def __str__(self) -> str:
+        return f'{self.task_chain.name} - {self.system.name}'
+
+    class Meta:
+        managed = False
+        db_table = 'taskchain_systems_through'
+        verbose_name = 'Связь между цепочкой заданий и системами'
+        verbose_name_plural = 'Связи между цепочками заданий и системами'

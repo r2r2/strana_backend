@@ -31,13 +31,6 @@ class Property(Model):
     type: Optional[str] = cfields.CharChoiceField(
         description="Тип", max_length=50, null=True, choice_class=PropertyTypes
     )
-    property_price = fields.ForeignKeyField(
-        model_name="models.PropertyPrice",
-        on_delete=fields.SET_NULL,
-        null=True,
-        related_name="property_price",
-        description="Цена",
-    )
     property_type: Optional[str] = fields.ForeignKeyField(
         description="Тип (модель)",
         model_name="models.PropertyType",
@@ -101,6 +94,50 @@ class Property(Model):
     project_id: Optional[int]
 
     property_features: fields.ManyToManyRelation["Feature"]
+    profitbase_plan: str = fields.CharField(description="План из Profitbase", max_length=512, null=True)
+
+    is_angular: bool = fields.BooleanField(description="Квартира угловая?", default=False)
+    balconies_count: Optional[int] = fields.IntField(description="Количество балконов", null=True)
+    is_bathroom_window: bool = fields.BooleanField(description="Окно в ванной", default=False)
+    master_bedroom: bool = fields.BooleanField(description="Мастер-спальня", default=False)
+    window_view_profitbase: Optional[str] = fields.CharField(
+        description="Вид из окна Profitbase",
+        max_length=100,
+        null=True)
+    ceil_height: Optional[str] = fields.CharField(description="Высота потолка из Profitbase", max_length=16, null=True)
+    is_cityhouse: bool = fields.BooleanField(description="Ситихаусы", default=False)
+    corner_windows: bool = fields.BooleanField(description="Угловые окна", default=False)
+    open_plan: bool = fields.BooleanField(description="Свободная планировка", default=False)
+    frontage: bool = fields.BooleanField(description="Палисадник", default=False)
+    has_high_ceiling: bool = fields.BooleanField(description="Высокие потолки", default=False)
+    is_euro_layout: bool = fields.BooleanField(description="Европланировка", default=False)
+    is_studio: bool = fields.BooleanField(description="Студия?", default=False)
+    loggias_count: Optional[int] = fields.IntField(description="Количество лоджей", null=True)
+    has_panoramic_windows: bool = fields.BooleanField(description="Панорамные окна", default=False)
+    has_parking: bool = fields.BooleanField(description="Парковка", default=False)
+    is_penthouse: bool = fields.BooleanField(description="Пентхаус", default=False)
+    furnish_price_per_meter: Optional[Decimal] = fields.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        null=True,
+        description="Цена с отделкой за метр"
+    )
+    is_discount_enable: bool = fields.BooleanField(description="Скидка?", default=False)
+    profitbase_property_status: Optional[str] = fields.CharField(
+        description="Статус из Profitbase",
+        max_length=64,
+        null=True)
+    smart_house: bool = fields.BooleanField(description="Умный дом", default=False)
+    has_terrace: bool = fields.BooleanField(description="Терраса", default=False)
+    has_two_sides_windows: bool = fields.BooleanField(description="Окна на 2 стороны", default=False)
+    view_park: bool = fields.BooleanField(description="Вид на парк", default=False)
+    view_river: bool = fields.BooleanField(description="Вид на реку", default=False)
+    view_square: bool = fields.BooleanField(description="Вид на сквер", default=False)
+    wardrobes_count: Optional[int] = fields.IntField(description="Количество гардеробных", null=True)
+    profitbase_booked_until_date: Optional[str] = fields.CharField(
+        description="Дата окончания брони из Profitbase",
+        max_length=64,
+        null=True)
 
     def __str__(self) -> str:
         return self.global_id

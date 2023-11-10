@@ -1,4 +1,3 @@
-import asyncio
 from asyncio import Task
 from datetime import datetime, timedelta
 from typing import Any, Callable, Optional, Type, Union
@@ -8,6 +7,9 @@ from common.amocrm import AmoCRM
 from common.amocrm.constants import AmoLeadQueryWith
 from common.amocrm.types import AmoContact, AmoLead
 from pytz import UTC
+
+from common.schemas import UrlEncodeDTO
+from common.utils import generate_notify_url
 from src.buildings import repos as buildings_repos
 from src.buildings.repos.building import Building, BuildingBookingType
 from src.properties.constants import PremiseType, PropertyTypes
@@ -17,9 +19,11 @@ from src.users.repos.user import User, UserRepo
 from src.booking.loggers.wrappers import booking_changes_logger
 from src.amocrm.repos import AmocrmStatus, AmocrmStatusRepo
 from src.booking.utils import get_booking_reserv_time, get_booking_source
+from src.task_management.services import CreateTaskInstanceService
+from src.task_management.dto import CreateTaskDTO
 
 from ...users.services import CreateContactService
-from ..constants import BookingCreatedSources, BookingStagesMapping
+from src.booking.constants import BookingCreatedSources, BookingStagesMapping, PaymentStatuses
 from ..entities import BaseBookingCase
 from ..exceptions import BookingRequestValidationError
 from ..maintenance.amocrm_leed_note import amocrm_note
@@ -39,7 +43,7 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
     sms_event_slug = "booking_amo_webhook"
     mail_event_slug: str = "booking_amo_webhook"
     client_role_slug = UserType.CLIENT
-    fast_booking_link_template: str = "https://{}/fast-booking/{}?token={}"
+    fast_booking_link_template: str = " https://{host}/fast-booking"
 
     def __init__(
         self,
@@ -54,10 +58,11 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
         building_booking_type_repo: buildings_repos.BuildingBookingTypeRepo,
         amocrm_class: Type[BookingAmoCRM],
         sql_request_class: Type[BookingSqlUpdateRequest],
-        token_creator: Callable[[int], dict[str, Any]],
+        token_creator: Callable[[str, int], dict[str, Any]],
         import_property_service: Any,
         site_config: dict[str, Any],
         create_amocrm_contact_service: CreateContactService,
+        create_task_instance_service: CreateTaskInstanceService,
         global_id_encoder: Callable[[str, str], str],
         global_id_decoder: Callable[[str], tuple[str, Union[str, int]]],
         get_sms_template_service: GetSmsTemplateService,
@@ -78,9 +83,10 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
         self.amocrm_class: Type[BookingAmoCRM] = amocrm_class
         self.import_property_service: Any = import_property_service
         self.create_booking_log_task: Any = create_booking_log_task
-        self.token_creator: Callable[[int], dict[str, Any]] = token_creator
+        self.token_creator: Callable[[str, int], dict[str, Any]] = token_creator
         self.sql_request_class: Type[BookingSqlUpdateRequest] = sql_request_class
         self.create_amocrm_contact_service: CreateContactService = create_amocrm_contact_service
+        self.create_task_instance_service: CreateTaskInstanceService = create_task_instance_service
 
         self.global_id_encoder: Callable[[str, str], str] = global_id_encoder
         self.global_id_decoder: Callable[[str], tuple[str, Union[str, int]]] = global_id_decoder
@@ -109,6 +115,8 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
             self.booking_repo.create, self, content="Создание быстрой брони"
         )
 
+        self.tags: set[str] = set()
+
     @amocrm_note(AmoCRM)
     async def __call__(
         self,
@@ -126,8 +134,7 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
                 query_with=[AmoLeadQueryWith.contacts],
             )
 
-        if self.booking:
-            await self.booking_update(booking=booking, data=dict(tags=[tag.name for tag in lead.embedded.tags]))
+        self.tags: set[str] = {tag.name for tag in lead.embedded.tags}
 
         self.logger.info(
             'Parsed data',
@@ -176,10 +183,8 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
 
     async def _send_fast_booking_notify(self, user: User, booking: Booking) -> None:
         token: str = self.token_creator(subject_type=self.client_role_slug, subject=user.id)["token"]
-        await asyncio.gather(
-            self._send_sms(booking, user, token),
-            self._send_email(booking, user, token),
-        )
+        await self._send_sms(booking, user, token),
+        await self._send_email(booking, user, token),
 
     def _validate_lead(self, lead_custom_fields: dict):
         """
@@ -235,7 +240,7 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
         )
         amo_user_data.update(partial_user_data)
 
-        user: User = await self.update_user(amo_user_data, main_contact_id)
+        user: User | None = await self.update_user(amo_user_data, main_contact_id)
 
         if not user:
             user: User = await self.create_user(amo_user_data, main_contact_id)
@@ -249,7 +254,7 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
             contact: AmoContact | None = await amocrm.fetch_contact(user_id=main_contact_id)
             return await self.create_amocrm_contact_service.fetch_amocrm_data(contact)
 
-    async def update_user(self, amo_user_data: dict, main_contact_id: int) -> User:
+    async def update_user(self, amo_user_data: dict, main_contact_id: int) -> User | None:
         user_filters = dict(amocrm_id=main_contact_id, role__slug=UserType.CLIENT)
         user: User = await self.user_repo.retrieve(filters=user_filters)
         if user:
@@ -269,7 +274,7 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
         if user:
             self.logger.info('AMOCRM User', amocrm_id=main_contact_id, user_id=user.id, phone=user.phone)
 
-    def validate_contact(self, contact: dict):
+    def validate_contact(self, contact: dict) -> None:
         """validate contact"""
         errors = []
         if not all((contact.get('passport_series'), contact.get('passport_series'))):
@@ -337,6 +342,7 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
             created_source=created_source,  # todo: deprecated
             booking_source=booking_source,
             active=True,
+            payment_status=PaymentStatuses.CREATED,
         )
 
         property_final_price: Optional[int] = lead_custom_fields.get(
@@ -352,12 +358,16 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
             )
 
         if self.booking:
+            tags: list[str | None] = self.booking.tags or []
+            booking_data.update({"tags": self.tags.update(tags)})
             booking: Booking = await self.booking_update(booking=self.booking, data=booking_data)
             self.logger.info('Booking updated', lead_id=lead.id, booking_id=booking.id, tags=booking.tags)
         else:
+            booking_data.update({"tags": self.tags})
             booking = await self.booking_create(data=booking_data)
             self.logger.info('New Booking created', lead_id=lead.id, booking_id=booking.id, tags=booking.tags)
 
+        await self.create_task_instance(booking=booking)
         await self._property_backend_booking(booking=booking)
 
         if property_final_price or price_with_sale:
@@ -372,9 +382,6 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
             f"Should be executed in {int(executed.seconds / 60)} minutes."
         )
         self.check_booking_task.apply_async((booking.id,), eta=expires)
-        # task_delay: int = (booking.expires - datetime.now(tz=UTC)).seconds
-        # self.check_booking_task.apply_async((booking.id,), countdown=task_delay)
-        # self.check_booking_task.delay(booking.id)
 
         return booking
 
@@ -402,7 +409,17 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
             sms_event_slug=self.sms_event_slug,
         )
         if sms_notification_template and sms_notification_template.is_active:
-            fast_booking_link: str = self.fast_booking_link_template.format(self.site_host, booking.id, token)
+            query_params: dict[str, Any] = dict(
+                bookingId=booking.id,
+                token=token,
+            )
+            data: dict[str, Any] = dict(
+                url_template=self.fast_booking_link_template,
+                host=self.site_host,
+                query_params=query_params,
+            )
+            url_dto: UrlEncodeDTO = UrlEncodeDTO(**data)
+            fast_booking_link: str = generate_notify_url(url_dto=url_dto)
             sms_options: dict[str, Any] = dict(
                 phone=user.phone,
                 message=sms_notification_template.template_text.format(fast_booking_link=fast_booking_link),
@@ -410,13 +427,25 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
                 sms_event_slug=sms_notification_template.sms_event_slug,
             )
             sms_service: BookingSms = self.sms_class(**sms_options)
+            self.logger.info('FastBooking SMS sent', phone=user.phone, message=sms_options["message"])
             return sms_service.as_task()
 
     async def _send_email(self, booking: Booking, user: User, token: str) -> Task:
         """
         Send email
         """
-        fast_booking_link: str = self.fast_booking_link_template.format(self.site_host, booking.id, token)
+        query_params: dict[str, Any] = dict(
+            bookingId=booking.id,
+            token=token,
+        )
+        data: dict[str, Any] = dict(
+            url_template=self.fast_booking_link_template,
+            host=self.site_host,
+            query_params=query_params,
+        )
+        url_dto: UrlEncodeDTO = UrlEncodeDTO(**data)
+        fast_booking_link: str = generate_notify_url(url_dto=url_dto)
+
         email_notification_template = await self.get_email_template_service(
             mail_event_slug=self.mail_event_slug,
             context=dict(fast_booking_link=fast_booking_link),
@@ -432,3 +461,8 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
             )
             email_service: BookingEmail = self.email_class(**email_options)
             return email_service.as_task()
+
+    async def create_task_instance(self, booking: Booking) -> None:
+        task_context: CreateTaskDTO = CreateTaskDTO()
+        task_context.is_main = True
+        await self.create_task_instance_service(booking_ids=booking.id, task_context=task_context)

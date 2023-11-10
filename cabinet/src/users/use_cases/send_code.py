@@ -21,6 +21,7 @@ notification_condition_service = NotificationConditionService(
     )
 fake_send_code_service = FakeSendCodeService(
         fake_user_phone_repo=FakeUserPhoneRepo,
+        user_role_repo=UserRoleRepo,
     )
 
 

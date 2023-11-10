@@ -1,57 +1,91 @@
 version: '3.7'
 
 services:
-  backend:
-    restart: unless-stopped
-    volumes:
-      - ./backend/:/app/:cached
-      - static:/app/static/:delegated
-    entrypoint: sh wait-for db:5432 -- ./entrypoint.sh
-    command: python manage.py runserver 0.0.0.0:8000
-    ports:
-    - 8000:8000
+#  backend:
+#    restart: unless-stopped
+#    volumes:
+#      - ./backend/:/app/:cached
+#      - static:/app/static/:delegated
+#    entrypoint: sh wait-for db:5432 -- ./entrypoint.sh
+#    command: python manage.py runserver 0.0.0.0:8000
+#    ports:
+#    - 8000:8000
 
   realty:
+    image: itpro72.ru:5050/strana-artw/strana-backend/cabinet:development-latest
     command: celery -A app worker -l debug -B -c 2 -n realty1@strana.com -E -Q realty
     volumes:
       - ./backend:/app:cached
 
   celery:
+    image: itpro72.ru:5050/strana-artw/strana-backend/cabinet:development-latest
     command: celery -A app worker -l debug -c 1 -E -Q celery
     volumes:
       - ./backend:/app:cached
 
   tasks:
+    image: itpro72.ru:5050/strana-artw/strana-backend/cabinet:development-latest
     restart: always
     command: celery -A config worker -l debug -B -c 1 -n tasks@strana.com -E -Q tasks
     volumes:
       - ./backend:/app:cached
 
   beat:
+    image: itpro72.ru:5050/strana-artw/strana-backend/cabinet:development-latest
     command: celery -A app worker -l debug -B -c 1 -n beat1@strana.com -E -Q beat
     volumes:
       - ./backend:/app:cached
 
   amo_tasks:
+    image: itpro72.ru:5050/strana-artw/strana-backend/cabinet:development-latest
     command: celery -A app worker -l debug -c 1 -n amo_tasks1@strana.com -E -Q amo
     volumes:
       - ./backend:/app:cached
 
   cabinet:
     restart: unless-stopped
+    image: itpro72.ru:5050/strana-artw/strana-backend/cabinet:development-latest
+    build:
+      context: ./cabinet
+      cache_from:
+        - itpro72.ru:5050/strana-artw/strana-backend/cabinet_packages:development-latest
+      args:
+        - PYTHON_CABINET=itpro72.ru:5050/strana-artw/strana-backend/cabinet_packages:development-latest
     volumes:
       - ./cabinet/:/app/:cached
-    command: python manage.py runserver
+#    command: python manage.py runserver
+    command: gunicorn config.asgi:application --preload -w ${GUNICORN_WORKERS:-15} -k uvicorn.workers.UvicornWorker --keep-alive 120 -b 0.0.0.0:1800 --access-logfile - --error-logfile -
     ports:
     - 1800:1800
 
+  db_cabinet:
+    image: postgres:12.3-alpine
+    restart: always
+    ports:
+      - 127.0.0.1:15164:5432
+    volumes:
+      - lk_postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD
+    command: postgres -c 'shared_buffers=256MB' -c 'work_mem=8MB'
+    networks:
+      - strana
+
   admin:
     restart: unless-stopped
+    image: itpro72.ru:5050/strana-artw/strana-backend/admin:development-latest
+    build:
+      context: ./admin
+      cache_from:
+        - itpro72.ru:5050/strana-artw/strana-backend/admin_packages:development-latest
+      args:
+        - PYTHON_ADMIN=itpro72.ru:5050/strana-artw/strana-backend/admin_packages:development-latest
     volumes:
       - ./admin/:/app/:cached
       - adminstatic:/app/static/:delegated
     entrypoint: sh wait-for db_cabinet:5432 -- ./entrypoint.sh
     command: python manage.py runserver 0.0.0.0:2100
+#    command: gunicorn config.wsgi:application -w 1 --keep-alive 120 -b 0.0.0.0:2100 --access-logfile - --error-logfile -
     ports:
     - 2100:2100
 
@@ -59,7 +93,12 @@ services:
     ports:
     - 6379:6379
 
-  flower:
-    restart: unless-stopped
-    ports:
-      - 5555:5555
+volumes:
+  lk_postgres_data:
+    name: lk_postgres_data
+
+
+#  flower:
+#    restart: unless-stopped
+#    ports:
+#      - 5555:5555

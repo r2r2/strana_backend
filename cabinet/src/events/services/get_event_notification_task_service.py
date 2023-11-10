@@ -55,23 +55,16 @@ class GetEventNotificationTaskService(BaseEventCase):
                     event_sms_notification_result = event_sms_notification
                     break
 
-        if (
-            event_sms_notification_result
-            and event_sms_notification_result.sms_template
-            and event_sms_notification_result.days
-        ):
+        if event_sms_notification_result and event_sms_notification_result.sms_template:
             task_data = (event.id, user.id, event_sms_notification_result.sms_template.sms_event_slug)
 
             if sms_event_type == EventsSmsNotificationType.BEFORE:
-                task_delay_date = event.meeting_date_start - datetime.timedelta(
-                    days=event_sms_notification_result.days
-                )
+                task_delay_date = event.time_to_send_sms_before
             else:
-                task_delay_date = event.meeting_date_start + datetime.timedelta(
-                    days=event_sms_notification_result.days
-                )
+                task_delay_date = event.time_to_send_sms_after
 
-            self.sending_sms_to_broker_on_event_task.apply_async(
-                task_data,
-                eta=task_delay_date,
-            )
+            if task_delay_date:
+                self.sending_sms_to_broker_on_event_task.apply_async(
+                    task_data,
+                    eta=task_delay_date,
+                )

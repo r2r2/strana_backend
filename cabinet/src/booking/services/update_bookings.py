@@ -12,10 +12,14 @@ from common.amocrm.types import AmoCustomField, AmoLead
 from common.backend.models import AmocrmStatus
 from common.handlers.exceptions import get_exc_info
 from common.utils import partition_list
+from common.unleash.client import UnleashClient
+from config.feature_flags import FeatureFlags
 from src.buildings.repos import Building, BuildingRepo
 from src.floors.repos import Floor, FloorRepo
 from src.projects.repos import Project, ProjectRepo
 from src.properties.repos import Property, PropertyRepo
+from src.payments.repos import PurchaseAmoMatrix, PurchaseAmoMatrixRepo
+
 from ..constants import BookingStagesMapping, BookingSubstages
 from ..repos import Booking, BookingRepo
 from ..types import BookingAmoCRM, BookingGraphQLRequest, BookingORM
@@ -92,6 +96,7 @@ class UpdateBookingsService:
         self.cities_repo: CityRepo = cities_repo()
         self.building_repo: BuildingRepo = building_repo()
         self.statuses_repo: AmoStatusesRepo = statuses_repo()
+        self.purchase_amo_matrix_repo: PurchaseAmoMatrixRepo = PurchaseAmoMatrixRepo()
         self.partition_limit: int = amocrm_config["partition_limit"]
 
         self.orm_class: Union[Type[BookingORM], None] = orm_class
@@ -175,6 +180,7 @@ class UpdateBookingsService:
         property_type: Optional[str] = None
         property_id: Optional[int] = None
         price_payed: bool = False
+        booking_purchase_data: Optional[dict] = None
         lead_custom_fields: list[AmoCustomField] = lead.custom_fields_values
         for custom_field in lead_custom_fields:
             if custom_field.field_id == amocrm.property_field_id:
@@ -194,6 +200,20 @@ class UpdateBookingsService:
             elif custom_field.field_id == amocrm.booking_payment_status_field_id:
                 if custom_field.values[0].value in ("Да", "да", True, "true"):
                     price_payed = True
+            elif custom_field.field_id == amocrm.booking_payment_type_field_id and self.__is_strana_lk_2494_enable:
+                purchase_type_enum: Optional[int] = custom_field.values[0].enum_id
+                if purchase_type_enum:
+                    purchase_amo: Optional[PurchaseAmoMatrix] = await self.purchase_amo_matrix_repo.retrieve(
+                        filters=dict(amo_payment_type=purchase_type_enum),
+                    )
+                    if not purchase_amo:
+                        purchase_amo: PurchaseAmoMatrix = await self.purchase_amo_matrix_repo.retrieve(
+                            filters=dict(default=True),
+                        )
+                    booking_purchase_data = dict(
+                        amo_payment_method=purchase_amo.payment_method,
+                        mortgage_type=purchase_amo.mortgage_type,
+                    )
 
         query_type: Optional[str] = self.types_map.get(property_type, None)
         query_name: Optional[str] = self.queries_map.get(property_type, None)
@@ -221,6 +241,9 @@ class UpdateBookingsService:
         if booking and booking.is_agent_assigned():
             data.pop("commission")
             data.pop("commission_value")
+
+        if booking_purchase_data:
+            data.update(booking_purchase_data)
 
         if final_payment_amount := final_payment_amount or price_with_sale:
             data["final_payment_amount"] = final_payment_amount
@@ -423,3 +446,7 @@ class UpdateBookingsService:
             extracted_digits = int(digits_match.group(0))
             if 0 <= extracted_digits <= 2:
                 return extracted_digits
+
+    @property
+    def __is_strana_lk_2494_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_2494)
