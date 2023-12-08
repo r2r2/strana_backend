@@ -2,7 +2,7 @@ from datetime import date
 from typing import Any, Optional
 
 from common import cfields, mixins, orm
-from common.orm.mixins import CRUDMixin
+from common.orm.mixins import CRUDMixin, CountMixin
 from src.meetings.repos import Meeting
 from tortoise import Model, fields
 from tortoise.fields import ForeignKeyNullableRelation
@@ -87,7 +87,7 @@ class CalendarEvent(Model):
         table = "event_calendar_event"
 
 
-class CalendarEventRepo(BaseEventRepo, CRUDMixin):
+class CalendarEventRepo(BaseEventRepo, CRUDMixin, CountMixin):
     """
     Репозиторий мероприятия.
     """

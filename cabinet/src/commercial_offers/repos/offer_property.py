@@ -1,6 +1,6 @@
 from tortoise import Model, fields
 from common.orm.mixins import CRUDMixin
-from ..entities import BaseTemplateRepo
+from ..entities import BaseOfferPropertyRepo
 
 
 class OfferProperty(Model):
@@ -23,7 +23,7 @@ class OfferProperty(Model):
         table = "offers_offer_property"
 
 
-class OfferPropertyRepo(BaseTemplateRepo, CRUDMixin):
+class OfferPropertyRepo(BaseOfferPropertyRepo, CRUDMixin):
     """
     Репозиторий коммерческого предложения
     """

@@ -111,6 +111,10 @@ class DisputeAdmin(AdminChartMixin, admin.ModelAdmin):
         "dispute_status",
     )
 
+    def get_queryset(self, request):
+        qs = super(DisputeAdmin, self).get_queryset(request)
+        return qs.select_related('unique_status', 'user', 'agent', 'dispute_agent', 'agency', 'admin', 'dispute_status')
+
     def save_model(self, request, obj, form, change):
         obj.django_admin_email = request.user.email
         super().save_model(request, obj, form, change)

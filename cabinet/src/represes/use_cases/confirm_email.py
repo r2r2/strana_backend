@@ -2,6 +2,8 @@ from typing import Type, Callable, Union, Any
 
 from ..repos import RepresRepo, User
 from ..entities import BaseRepresCase
+from common.schemas import UrlEncodeDTO
+from common.utils import generate_notify_url
 from src.users.loggers.wrappers import user_changes_logger
 
 
@@ -12,6 +14,8 @@ class ConfirmEmailCase(BaseRepresCase):
 
     fail_link: str = "https://{}/account/represes/email-confirmed"
     success_link: str = "https://{}/account/represes/email-confirmed"
+
+    common_link_route_template: str = "/account/represes/email-confirmed"
 
     def __init__(
         self,
@@ -36,9 +40,13 @@ class ConfirmEmailCase(BaseRepresCase):
             id=repres_id, email_token=email_token, type=self.user_type, is_active=False
         )
         repres: User = await self.repres_repo.retrieve(filters=filters)
-        link: str = self.fail_link.format(self.site_host)
+        common_data: dict[str, Any] = dict(
+            host=self.site_host,
+            route_template = self.common_link_route_template,
+        )
+        url_dto: UrlEncodeDTO = UrlEncodeDTO(**common_data)
+        link: str = generate_notify_url(url_dto=url_dto)
         if repres:
-            link: str = self.success_link.format(self.site_host)
             data: dict[str, Any] = dict(email_token=None)
             if not repres.phone_token:
                 data["is_active"]: bool = True

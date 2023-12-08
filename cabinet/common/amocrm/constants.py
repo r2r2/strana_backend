@@ -1,8 +1,8 @@
-from enum import Enum
+from enum import StrEnum
 from typing import Union
 
 
-class AmoContactQueryWith(str, Enum):
+class AmoContactQueryWith(StrEnum):
     """
     Варианты значений для query поля with AmoCRM v4 contacts
     """
@@ -11,7 +11,7 @@ class AmoContactQueryWith(str, Enum):
     customers = "customers"
 
 
-class AmoCompanyEntityType(str, Enum):
+class AmoCompanyEntityType(StrEnum):
     leads = "leads"
     contacts = "contacts"
     companies = "companies"
@@ -19,7 +19,7 @@ class AmoCompanyEntityType(str, Enum):
     catalog_elements = "catalog_elements"
 
 
-class AmoLeadQueryWith(str, Enum):
+class AmoLeadQueryWith(StrEnum):
     """
     Варианты значений для query поля with AmoCRM v4 leads
     """
@@ -31,7 +31,7 @@ class AmoLeadQueryWith(str, Enum):
     source_id = "source_id"
 
 
-class AmoCompanyQueryWith(str, Enum):
+class AmoCompanyQueryWith(StrEnum):
     """
     Варианты значений для query поля with AmoCRM v4 companies
     """

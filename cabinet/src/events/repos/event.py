@@ -93,6 +93,15 @@ class Event(Model):
         description='Дата и время отправки смс после окончания мероприятия',
         null=True,
     )
+    sms_template: fields.ForeignKeyNullableRelation["SmsTemplate"] = fields.ForeignKeyField(
+        description="Шаблон смс сообщения",
+        model_name="models.SmsTemplate",
+        related_name="events",
+        on_delete=fields.SET_NULL,
+        null=True,
+    )
+
+    participants: fields.ReverseRelation["EventParticipant"]
 
     def __repr__(self):
         return self.name

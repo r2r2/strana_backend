@@ -2,14 +2,14 @@
 import re
 import traceback
 from functools import wraps
-from typing import Any, Optional, Tuple, Type
+from typing import Any, Tuple, Type
 
 from tortoise.exceptions import IntegrityError, TransactionManagementError
 
 from common.amocrm import AmoCRM
 from common.amocrm.exceptions import BaseAmocrmException
 from src.booking.exceptions import BaseBookingException
-from src.booking.use_cases.amocrm_webhook import WebhookLead
+from src.booking.types import WebhookLead
 
 
 def amocrm_note(amocrm_class: Type[AmoCRM]):
@@ -38,7 +38,7 @@ def amocrm_note(amocrm_class: Type[AmoCRM]):
     return initialized_func
 
 
-def _get_lead_id(webhook_lead: Optional[WebhookLead]) -> int:
+def _get_lead_id(webhook_lead: WebhookLead | None) -> int:
     """Получение lead_id по параметру передаваемому от вебхука"""
     if not webhook_lead:
         raise KeyError("Lead id parameter was not presented")
@@ -79,8 +79,10 @@ def _format_exception_message(exception) -> str:
         constraint_match = re.search(r'constraint "(.*?)"', traceback_str)
         if constraint_match:
             constraint_name = constraint_match.group(1)
-
-            if constraint_name == "users_user_unique_together_email_type":
-                return "Найден пользователь с такой же почтой."
+            match constraint_name:
+                case "users_user_unique_together_phone_type":
+                    return "Найден пользователь с таким же номером телефона."
+                case "users_user_unique_together_email_type":
+                    return "Найден пользователь с такой же почтой."
 
     return traceback.format_exc().splitlines()[-1]

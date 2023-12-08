@@ -9,6 +9,8 @@ from ..types import (AgencyEmail, AgencyFileDestroyer, AgencyFileProcessor,
                      AgencyRepresRepo, AgencySms, AgencyUser)
 from ..loggers.wrappers import agency_changes_logger
 from src.notifications.services import GetEmailTemplateService, GetSmsTemplateService
+from common.schemas import UrlEncodeDTO
+from common.utils import generate_notify_url
 
 
 class AdminsAgenciesUpdateCase(BaseAgencyCase):
@@ -18,9 +20,9 @@ class AdminsAgenciesUpdateCase(BaseAgencyCase):
 
     mail_event_slug = "agency_update"
     sms_event_slug = "agency_update"
-    email_link: str = "https://{}/change/represes/change_email?q={}&p={}"
+    email_link_route_template: str = "/change/represes/change_email"
     phone_link: str = "https://{}/change/represes/change_phone?q={}&p={}"
-
+    phone_link_route_template: str = "/change/represes/change_phone"
     def __init__(
         self,
         sms_class: Type[AgencySms],
@@ -72,9 +74,17 @@ class AdminsAgenciesUpdateCase(BaseAgencyCase):
         )
 
         if sms_notification_template and sms_notification_template.is_active:
-            update_link: str = self.email_link.format(
-                self.site_host, token, maintainer.change_phone_token
+            url_data: dict[str, Any] = dict(
+                host=self.site_host,
+                route_template=self.email_link_route_template,
+                query_params=dict(
+                    q=token,
+                    p=maintainer.change_phone_token,
+                ),
+                use_ampersand_ascii=True,
             )
+            url_dto: UrlEncodeDTO = UrlEncodeDTO(**url_data)
+            update_link: str = generate_notify_url(url_dto=url_dto)
             message: str = sms_notification_template.template_text.format(
                 new_phone=maintainer.change_phone, old_phone=maintainer.phone, update_link=update_link
             )
@@ -91,9 +101,17 @@ class AdminsAgenciesUpdateCase(BaseAgencyCase):
         """
         Отправка почты
         """
-        update_link: str = self.email_link.format(
-            self.site_host, token, maintainer.change_email_token
+
+        url_data: dict[str, Any] = dict(
+            host=self.site_host,
+            route_template = self.email_link_route_template,
+            query_params = dict(
+                q = token,
+                p = maintainer.change_phone_token,
+            )
         )
+        url_dto: UrlEncodeDTO = UrlEncodeDTO(**url_data)
+        update_link: str = generate_notify_url(url_dto=url_dto)
         email_notification_template = await self.get_email_template_service(
             mail_event_slug=self.mail_event_slug,
             context=dict(

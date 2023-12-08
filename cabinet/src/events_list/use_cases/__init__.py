@@ -1,1 +1,2 @@
-from .event_participant_list_case import EventParticipantListCase
+from .update_event_participant_list_case import UpdateEventParticipantListCase
+from .delete_event_participant_list_case import DeleteEventParticipantListCase

@@ -20,7 +20,7 @@ class RequestPaymentMethodSelectModel(BaseBookingModel):
     Модель запроса выбора способа покупки
     """
 
-    payment_method: PaymentMethods.validator
+    payment_method: PaymentMethods.validator  # todo: payment_method
 
     maternal_capital: bool
     housing_certificate: bool

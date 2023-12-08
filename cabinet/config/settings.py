@@ -1,5 +1,5 @@
 #pylint: disable=missing-function-docstring
-from enum import Enum
+from enum import StrEnum
 from typing import Any, Optional, Union
 
 from pydantic import BaseSettings, Field, root_validator
@@ -106,6 +106,8 @@ class DataBaseSettings(BaseSettings):
         ("additional_services", "repos"),
         ("events_list", "repos"),
         ("commercial_offers", "repos"),
+        ("news", "repos"),
+        ("mortgage_calculator", "repos"),
     ]
 
     class Config:
@@ -199,6 +201,9 @@ class CelerySettings(BaseSettings):
     accept_content: list[str] = Field(["json"])
     broker_url: str = Field("redis://redis-lk-broker:6379/0", env='LK_BROKER_URL')
     result_backend: str = Field("redis://redis-lk-broker:6379/0", env='LK_RESULT_BACKEND')
+    visibility_timeout: int = Field(86400, env="VISIBILITY_TIMEOUT")
+    periodic_eta_timeout_hours: float = Field(24, env="PERIODIC_ETA_TIMEOUT_HOURS")
+    periodic_timeout_hours: float = Field(24, env="PERIODIC_TIMEOUT_HOURS")
 
     class Config:
         env_file = ".env"
@@ -373,6 +378,7 @@ class BookingSettings(BaseSettings):
 
     @root_validator
     def set_dev_time(cls, values: dict):
+        print("ENVIRONMENT", MaintenanceSettings().environment)
         if MaintenanceSettings().environment in [EnvTypes.DEV, EnvTypes.STAGE]:
             values["time_minutes"] = BookingDevSettings().time_minutes
             values["time_seconds"] = BookingDevSettings().time_seconds
@@ -563,14 +569,14 @@ class EmailRecipientsSettings(BaseSettings):
         env_file_encoding = "utf-8"
 
 
-class EnvTypes(str, Enum):
-    DEV = "dev"
-    PROD = "prod"
-    STAGE = "stage"
+class EnvTypes(StrEnum):
+    DEV = "development-backend"
+    STAGE = "pre-production-backend"
+    PROD = "production-backend"
 
 
 class MaintenanceSettings(BaseSettings):
-    environment: EnvTypes = Field('prod', env='LK_STRANA_ENVIRONMENT')
+    environment: EnvTypes = Field('production-backend', env='LK_STRANA_ENVIRONMENT')
 
     class Config:
         env_file = ".env"
@@ -630,7 +636,6 @@ class DepregSettings(BaseSettings):
 
 class TildaSettings(BaseSettings):
     base_url: str = Field("localhost", env="TILDA_BASE_URL")
-    template_url: str = Field("localhost", env="TILDA_TEMPLATE_URL")
     client_id: str = Field("localhost", env="TILDA_CLIENT_ID")
     auth_token: str = Field("token", env="TILDA_AUTH_TOKEN")
 

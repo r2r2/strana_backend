@@ -1,11 +1,10 @@
-import re
-from typing import Optional
+from typing import Optional, Literal
 
 from common.utils import parse_phone
-from pydantic import Field, validator
+from pydantic import Field, validator, EmailStr
 
 from ..entities import BaseUserModel
-from ..exceptions import UserIncorrectPhoneFormat, UserIncorrectEmailFormat
+from src.users.exceptions import UserIncorrectPhoneFormat
 
 
 class ResponseUserCheckUnique(BaseUserModel):
@@ -25,7 +24,8 @@ class RequestUserCheckUnique(BaseUserModel):
     """
 
     phone: str
-    email: str
+    email: EmailStr
+    role: Literal['agents', 'represes']
 
     @validator('phone')
     def validate_phone(cls, phone: str) -> str:
@@ -33,10 +33,3 @@ class RequestUserCheckUnique(BaseUserModel):
         if phone is None:
             raise UserIncorrectPhoneFormat
         return phone
-
-    @validator('email')
-    def validate_email(cls, email: str) -> str:
-        email_regex = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b'
-        if not re.fullmatch(email_regex, email):
-            raise UserIncorrectEmailFormat
-        return email

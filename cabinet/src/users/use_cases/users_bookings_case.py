@@ -3,7 +3,9 @@ from typing import Any, Optional, Type, Union
 
 from tortoise.expressions import Q
 
-from common.settings.repos import BookingSettingsRepo
+from common.settings.constants import SystemListSlug
+from common.settings.repos import BookingSettingsRepo, SystemList
+from common.settings.utils import get_system_by_slug
 from src.users.repos import UserRepo
 from src.users.types import UserBookingRepo, UserPagination
 from src.task_management.repos import TaskInstance
@@ -63,6 +65,7 @@ class UsersBookingsCase(BaseUserCase, CurrentUserDataMixin):
             "amocrm_status__group_status",
             "task_instances__status__buttons",
             "task_instances__status__tasks_chain__task_visibility",
+            "task_instances__status__tasks_chain__systems",
         ]
         q_filters = self.get_booking_q_filters(search)
         q_filters += self.get_work_period_q_filters(init_filters)
@@ -178,16 +181,15 @@ class UsersBookingsCase(BaseUserCase, CurrentUserDataMixin):
 
         return [self.booking_repo.q_builder(or_filters=or_filters)]
 
-    async def _get_booking_tasks(
-        self, booking: Booking
-    ) -> list[Optional[dict[str, Any]]]:
+    async def _get_booking_tasks(self, booking: Booking) -> list[Optional[dict[str, Any]]]:
         """Get booking tasks"""
+        broker_system: SystemList = await get_system_by_slug(SystemListSlug.LK_BROKER.value)
         tasks = []
         # берем все таски, которые видны в текущем статусе букинга
         task_instances: list[TaskInstance] = [
-            task
-            for task in booking.task_instances
+            task for task in booking.task_instances
             if booking.amocrm_status in task.status.tasks_chain.task_visibility
+            and broker_system in task.status.tasks_chain.systems
         ]
         if not task_instances:
             return tasks

@@ -7,7 +7,13 @@ from .booking_fixing_conditions_matrix import (
 )
 from .booking_log import BookingLog
 from .booking_reservation_matrix import BookingReservationMatrix, BookingReservationMatrixProjects
-from .booking_tag import BookingTag, GroupStatusTagThrough, ClientGroupStatusTagThrough
+from .booking_tag import (
+    BookingTag,
+    GroupStatusTagThrough,
+    ClientGroupStatusTagThrough,
+    BookingTagsSystemThrough,
+    BookingTagsBookingSourceThrough,
+)
 from .broker_group_statuses import AmocrmGroupStatus, GroupStatusActionThrough
 from .client_group_statuses import ClientAmocrmGroupStatus
 from .pipelines import AmocrmPipeline

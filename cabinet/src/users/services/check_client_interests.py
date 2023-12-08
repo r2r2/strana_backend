@@ -78,6 +78,7 @@ class CheckClientInterestService(BaseUserService):
                 if not user_interest.property.type or (user_interest.property.type == PropertyTypes.FLAT):
                     # флаг для фиксации наличия изменений в объекте избранного
                     property_changed = False
+                    price_difference = None
 
                     # обновляем объекты собственности клиента данными из БД портала
                     if user_interest.property.global_id not in updated_properies:
@@ -97,8 +98,9 @@ class CheckClientInterestService(BaseUserService):
                                     updated_property,
                                     properties_data_with_offer_and_discount_info,
                                     discount=self._get_price_info(price_difference),
-                                    special_offers=None,
+                                    special_offer=None,
                                     only_free_flat=True,
+                                    old_final_price=user_interest.interest_final_price,
                                 )
 
                     # проверяем изменение акций и сохраняем данные для отправки по почте клиенту
@@ -119,14 +121,15 @@ class CheckClientInterestService(BaseUserService):
                             if property_data := properties_data_with_offer_and_discount_info.get(
                                     updated_property.global_id
                             ):
-                                property_data.update(special_offers=list(added_special_offers))
+                                property_data.update(special_offer=list(added_special_offers)[:1])
                             else:
                                 await self._add_property_in_properties_data(
                                     updated_property,
                                     properties_data_with_offer_and_discount_info,
                                     discount=None,
-                                    special_offers=list(added_special_offers),
+                                    special_offer=list(added_special_offers)[:1],
                                     only_free_flat=True,
+                                    old_final_price=None,
                                 )
 
                     # проверяем изменение статусов и сохраняем данные для отправки по почте клиенту
@@ -141,7 +144,11 @@ class CheckClientInterestService(BaseUserService):
                                 updated_property.project.slug,
                                 updated_property.similar_property_global_id
                             ),
-                            special_offers=user_interest.property.special_offers.split(", ")
+                            discount=self._get_price_info(price_difference)
+                            if (price_difference and price_difference > 0) else None,
+                            old_final_price=user_interest.interest_final_price
+                            if (price_difference and price_difference > 0) else None,
+                            special_offer=user_interest.property.special_offers.split(", ")[:1]
                             if user_interest.property.special_offers else None,
                         )
 
@@ -211,6 +218,7 @@ class CheckClientInterestService(BaseUserService):
             building=updated_property.building.name,
             floor=updated_property.floor.number,
             total_floor=updated_property.total_floors,
+            price=self._get_price_info(updated_property.price),
             final_price=self._get_price_info(updated_property.final_price),
             property_link=self.property_link.format(
                 site_config["main_site_host"],

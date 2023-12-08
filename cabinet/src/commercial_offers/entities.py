@@ -25,15 +25,15 @@ class BaseOfferRepo(BaseRepo):
     """
 
 
+class BaseOfferPropertyRepo(BaseRepo):
+    """
+    Базовый репозиторий объекта коммерческого предложения
+    """
+
+
 class BaseOfferSourceRepo(BaseRepo):
     """
     Базовый репозиторий источника коммерческого предложения
-    """
-
-
-class BaseTemplateRepo(BaseRepo):
-    """
-    Базовый репозиторий коммерческого предложения
     """
 
 

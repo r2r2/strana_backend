@@ -44,31 +44,6 @@ class Offer(models.Model):
         ordering = ['-id']
 
 
-class OfferTemplate(models.Model):
-
-    building = models.ForeignKey(
-        "properties.Building",
-        on_delete=models.CASCADE,
-        related_name="offer_templates",
-        verbose_name="Корпус",
-    )
-    name = models.CharField(max_length=250, null=True, verbose_name="Название шаблона")
-    is_default = models.BooleanField(verbose_name="Шаблон по умолчанию?", default=False)
-    link = models.CharField(max_length=512, null=True, blank=True, verbose_name="Ссылка на шаблон в Тильда")
-    site_id = models.IntegerField(null=True, blank=True, verbose_name="ID сайта")
-    page_id = models.IntegerField(null=True, blank=True, verbose_name="ID страницы")
-
-    def __repr__(self):
-        return self.name
-
-    class Meta:
-        managed = False
-        db_table = "offers_template"
-        verbose_name = "Шаблон коммерческого предложения"
-        verbose_name_plural = " 19.3. Шаблоны коммерческих предложений"
-        ordering = ['id']
-
-
 class OfferProperty(models.Model):
 
     offer = models.ForeignKey(
@@ -86,5 +61,5 @@ class OfferProperty(models.Model):
         managed = False
         db_table = "offers_offer_property"
         verbose_name = "Объект собственности для КП"
-        verbose_name_plural = " 19.4. Объекты собственности для КП"
+        verbose_name_plural = " 19.3. Объекты собственности для КП"
         ordering = ['id']

@@ -30,7 +30,17 @@ async def user(user_repo, active_agency_1, project):
 
 
 @fixture(scope="function")
-async def agent(user_repo, active_agency, project):
+async def agent_role(user_role_repo):
+    data = {
+        "name": "Агент",
+        "slug": "agent",
+    }
+    agent_role = await user_role_repo.create(data)
+    return agent_role
+
+
+@fixture(scope="function")
+async def agent(user_repo, active_agency, project, agent_role):
     data = {
         "email": "test_agent@email.com",
         "name": "test",
@@ -44,6 +54,7 @@ async def agent(user_repo, active_agency, project):
         "code": "1234",
         "is_active": False,
         "type": "agent",
+        "role_id": agent_role.id,
         "agency_id": active_agency.id,
         "interested_project_id": project.id,
         "maintained_id": active_agency.id,

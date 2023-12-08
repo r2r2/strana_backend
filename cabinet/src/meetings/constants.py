@@ -56,3 +56,6 @@ class MeetingTopicType(Choices):
     """
     BUY: tuple[str, str] = "buy", "Покупка квартиры"
     MORTGAGE: tuple[str, str] = "mortgage", "Ипотека"
+
+
+DEFAULT_RESPONSIBLE_USER_ID = 7073163  # Администратор КЦ 2

@@ -3,6 +3,8 @@ from secrets import token_urlsafe
 from typing import Any, Callable, Type, Union
 
 from src.notifications.services import GetSmsTemplateService
+from common.schemas import UrlEncodeDTO
+from common.utils import generate_notify_url
 
 from ..entities import BaseRepresCase
 from ..repos import RepresRepo, User
@@ -16,6 +18,8 @@ class ChangePhoneCase(BaseRepresCase):
 
     sms_event_slug = "repres_change_phone_old"
     link: str = "https://{}/confirm/represes/confirm_phone?q={}&p={}"
+    link_route_template: str = "/confirm/represes/confirm_phone"
+    
 
     fail_link: str = "https://{}/account/represes"
     success_link: str = "https://{}/account/represes"
@@ -75,7 +79,17 @@ class ChangePhoneCase(BaseRepresCase):
         )
 
         if sms_notification_template and sms_notification_template.is_active:
-            confirm_link: str = self.link.format(self.lk_site_host, token, repres.change_phone_token)
+            url_data: dict[str, Any] = dict(
+                host=self.lk_site_host,
+                route_template=self.link_route_template,
+                query_params=dict(
+                    q=token,
+                    p=repres.change_phone_token,
+                ),
+                use_ampersand_ascii=True,
+            )
+            url_dto: UrlEncodeDTO = UrlEncodeDTO(**url_data)
+            confirm_link: str = generate_notify_url(url_dto=url_dto)
             message: str = sms_notification_template.template_text.format(
                 confirm_link=confirm_link,
             )

@@ -3,12 +3,14 @@ AMOCRM components
 """
 from abc import ABC
 from datetime import datetime, timedelta
-from enum import Enum
+from enum import IntEnum
 from typing import Any, Optional, Union
 
 import jmespath
+import sentry_sdk
 import structlog
 from common.amocrm.components.interface import AmoCRMInterface
+from config import EnvTypes, maintenance_settings
 from pydantic import ValidationError, parse_obj_as
 from pytz import UTC
 from starlette import status as http_status
@@ -33,7 +35,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
                  logger: Optional[Any] = structlog.getLogger(__name__)):
         self.logger = logger
 
-    class PipelineIds(int, Enum):
+    class PipelineIds(IntEnum):
         CALL_CENTER: int = 3934218
         TYUMEN: int = 1305043
         MOSCOW: int = 1941865
@@ -127,7 +129,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
     meeting_type_field_id = 815568
     meeting_date_next_contact_field_id = 694314
     meeting_date_sensei_field_id = 689581
-    meeting_link_field_id = 831180
+    meeting_link_field_id = 833402
     meeting_date_zoom_field_id = 688593
     meeting_address_field_id = 831168
     meeting_property_type_field_id = 366965
@@ -149,6 +151,10 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         "1331542": "pantry",
         "1324118": "apartment",
     }
+
+    # Env теги
+    dev_test_lead_tag: list[str] = ['Тестовая бронь']
+    stage_test_lead_tag: list[str] = ['Тестовая бронь Stage']
 
     # ID Тегов
     fast_booking_tag_id: int = 748608
@@ -261,7 +267,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
     property_final_price_field_id: int = 679313
     property_price_with_sale_field_id: int = 575401
 
-    class CallCenterStatuses(int, BaseLeadSalesStatuses, Enum):
+    class CallCenterStatuses(BaseLeadSalesStatuses, IntEnum):
         """
         Call Center statuses
         """
@@ -293,7 +299,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         REALIZED: int = 142  # Успешно реализовано
         UNREALIZED: int = 143  # Закрыто и не реализовано
 
-    class TMNStatuses(int, BaseLeadSalesStatuses, Enum):
+    class TMNStatuses(BaseLeadSalesStatuses, IntEnum):
         """
         TMN statuses
         """
@@ -317,7 +323,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         TERMINATION: int = 34654647  # расторжение
         UNREALIZED: int = 143  # Закрыто и не реализовано
 
-    class MSKStatuses(int, BaseLeadSalesStatuses, Enum):
+    class MSKStatuses(BaseLeadSalesStatuses, IntEnum):
         """
         MSK statuses
         """
@@ -339,7 +345,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         REALIZED: int = 142  # Успешно реализовано
         UNREALIZED: int = 143  # Закрыто и не реализовано
 
-    class SPBStatuses(int, BaseLeadSalesStatuses, Enum):
+    class SPBStatuses(BaseLeadSalesStatuses, IntEnum):
         """
         SPB statuses
         """
@@ -364,7 +370,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         REALIZED: int = 142  # Успешно реализовано
         UNREALIZED: int = 143  # Закрыто и не реализовано
 
-    class EKBStatuses(int, BaseLeadSalesStatuses, Enum):
+    class EKBStatuses(BaseLeadSalesStatuses, IntEnum):
         """
         EKB statuses
         """
@@ -388,7 +394,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         REALIZED: int = 142  # Успешно реализовано
         UNREALIZED: int = 143  # Закрыто и не реализовано
 
-    class TestStatuses(int, BaseLeadSalesStatuses, Enum):
+    class TestStatuses(BaseLeadSalesStatuses, IntEnum):
         """
         Test statuses
         """
@@ -524,10 +530,12 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
             return None
 
     async def fetch_leads(
-            self,
-            *,
-            lead_ids: list[Union[int, str]],
-            query_with: Optional[list[AmoLeadQueryWith]] = None
+        self,
+        *,
+        lead_ids: list[int | str],
+        query_with: list[AmoLeadQueryWith] | None = None,
+        created_at_range: dict[str, int] | None = None,
+        pipeline_statuses: list | None = None,
     ) -> list[AmoLead]:
         """
         Lead lookup by id
@@ -539,9 +547,20 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         query: dict[str, Any] = {
             f"filter[id][{index}]": lead_id for index, lead_id in enumerate(lead_ids)
         }
+        if created_at_range is not None:
+            query["filter[created_at][from]"] = created_at_range["from"]
+            query["filter[created_at][to]"] = created_at_range["to"]
+
+        if pipeline_statuses is not None:
+            for index, (pipeline, status) in enumerate(pipeline_statuses):
+                if status is not None and pipeline is not None:
+                    query[f"filter[statuses][{index}][pipeline_id]"] = pipeline.value
+                    query[f"filter[statuses][{index}][status_id]"] = status.value
+
         if query_with:
             query.update({"with": ",".join(query_with)})
         response: CommonResponse = await self._request_get_v4(route=route, query=query)
+
         if response.status == http_status.HTTP_204_NO_CONTENT:
             return []
         return self._parse_leads_data(response=response, method_name='cabinet/amocrm/fetch_leads')
@@ -594,7 +613,13 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
             status_id = getattr(self, f"{self.lead_city_mapping[city_slug]}_status_ids")[status]
         if not lead_name:
             lead_name = self.default_lead_name
-        tags: list[AmoTag] = [AmoTag(name=tag) for tag in (tags + self._lead_tags)]
+
+        if maintenance_settings["environment"] == EnvTypes.DEV:
+            self._lead_tags.extend(self.dev_test_lead_tag)
+        elif maintenance_settings["environment"] == EnvTypes.STAGE:
+            self._lead_tags.extend(self.stage_test_lead_tag)
+
+        tags: list[AmoTag] = [AmoTag(name=tag) for tag in (tags + self._lead_tags)] 
         if companies:
             companies: list[AmoLeadCompany] = [AmoLeadCompany(id=company) for company in companies]
         if not contact_ids:
@@ -1141,7 +1166,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
 
         return custom_fields
 
-    async def update_showtime(self, lead_id: int) -> list[Any]:
+    async def update_showtime(self, lead_id: int) -> list[Any]: # это вообще не используется
         """
         Showtime mutation
         """
@@ -1159,6 +1184,28 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         response: CommonResponse = await self._request_post(route=route, payload=payload)
         if response.data:
             data: list[Any] = response.data["_embedded"]["items"]
+        else:
+            data: list[Any] = []
+        return data
+    
+    async def update_showtime_v4(self, lead_id: int) -> list[Any]:
+        """
+        Showtime mutation v_4
+        """
+
+        route: str = "/leads"
+        payload: dict[str, Any] = dict(
+            update=[
+                dict(
+                    id=lead_id,
+                    status_id=self.showtime_process_status_id,
+                    updated_at=int(datetime.now(tz=UTC).timestamp()),
+                )
+            ]
+        )
+        response: CommonResponse = await self._request_post_v4(route=route, payload=payload)
+        if response.data:
+            data: list[Any] = response.data["_embedded"]["leads"]
         else:
             data: list[Any] = []
         return data
@@ -1190,6 +1237,33 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
             data: list[Any] = []
         return data
 
+
+    async def register_lead_v4(self, user_amocrm_id: int) -> list[Any]:
+        """
+        Register lead creation v_4
+        """
+
+        route: str = "/leads"
+        payload: dict[str, Any] = dict(
+            add=[
+                dict(
+                    name=self.default_lead_name,
+                    created_at=int(datetime.now(tz=UTC).timestamp()),
+                    updated_at=int(datetime.now(tz=UTC).timestamp()),
+                    status_id=self.start_status_id,
+                    pipeline_id=self.start_pipeline_id,
+                    tags=self.start_tags,
+                    contacts_id=[user_amocrm_id],
+                    responsible_user_id=self.start_responsible_user,
+                )
+            ]
+        )
+        response: CommonResponse = await self._request_post_v4(route=route, payload=payload)
+        if response.data:
+            data: list[Any] = response.data["_embedded"]["leads"]
+        else:
+            data: list[Any] = []
+        return data
     async def get_leads_pipelines(self) -> list[Any]:
         route: str = '/leads/pipelines'
         response: CommonResponse = await self._request_get_v4(route=route, query={})
@@ -1320,6 +1394,9 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
             items: list[Any] = getattr(response, "data", {}).get("_embedded", {}).get("leads")
             return parse_obj_as(list[AmoLead], items)
         except (ValidationError, AttributeError) as err:
+            response_status = response.status
+            response_data = response.data
+            sentry_sdk.capture_exception(err)
             message = (f"{method_name}: Status {response.status}: "
                        f"Пришли неверные данные: {response.data}"
                        f"Exception: {err}")
@@ -1330,7 +1407,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         self,
         lead_id: int,
         entities: list[Entity],
-    ) -> list[Any]:
+    ) -> None:
         """
         Привязка сущностей к сделке
         """
@@ -1350,7 +1427,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         self,
         lead_ids: list[int],
         entities: list[Entity],
-    ) -> list[Any]:
+    ) -> None:
         """
         Привязка сущностей к нескольким сделкам
         """

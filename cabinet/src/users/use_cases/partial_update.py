@@ -9,6 +9,8 @@ from ..repos import User, UserRepo
 from ..types import UserAmoCRM, UserEmail
 from ..loggers.wrappers import user_changes_logger
 from src.notifications.services import GetEmailTemplateService
+from common.schemas import UrlEncodeDTO
+from common.utils import generate_notify_url
 
 
 class PartialUpdateCase(BaseUserCase):
@@ -16,7 +18,7 @@ class PartialUpdateCase(BaseUserCase):
     Частичное обновление данных
     """
     mail_event_slug = "user_partial_update"
-    link: str = "https://{}/confirm/users/confirm_email?q={}&p={}"
+    common_link_route_template: str = "/confirm/users/confirm_email"
 
     def __init__(
         self,
@@ -83,7 +85,16 @@ class PartialUpdateCase(BaseUserCase):
         """
         Отправка письма
         """
-        confirm_link: str = self.link.format(self.site_host, token, user.email_token)
+        url_data: dict[str, Any] = dict(
+            host = self.site_host,
+            route_template = self.common_link_route_template,
+            query_params = dict(
+                q = token,
+                p = user.email_token,
+            )
+        )
+        url_dto: UrlEncodeDTO = UrlEncodeDTO(**url_data)
+        confirm_link: str = generate_notify_url(url_dto=url_dto)
         email_notification_template = await self.get_email_template_service(
             mail_event_slug=self.mail_event_slug,
             context=dict(confirm_link=confirm_link),

@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import StrEnum
 from typing import Any, Optional
 
 from common.pydantic import CamelCaseBaseModel
@@ -16,7 +16,7 @@ class ResponseInterestsList(CamelCaseBaseModel):
         orm_mode = True
 
 
-class SlugTypeChoice(str, Enum):
+class SlugTypeChoice(StrEnum):
     MINE: str = "mine"
     MANAGER: str = "manager"
 

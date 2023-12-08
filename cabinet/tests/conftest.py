@@ -40,6 +40,7 @@ from .amocrm.repos_fixtures import *
 from .additional_services.repos_fixtures import *
 from .api_integrations.test_depreg import *
 from .events_list.repos_fixtures import *
+from .news.repos_fixtures import *
 
 
 @pytest.fixture

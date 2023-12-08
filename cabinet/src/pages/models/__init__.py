@@ -2,5 +2,4 @@ from .broker_registration import RequestBrokerRegistrationModel, ResponseBrokerR
 from .check_unique import RequestCheckUniqueModel, ResponseCheckUniqueModel
 from .showtime_registration import (
     RequestShowtimeRegistrationModel,
-    ResponseShowtimeRegistrationModel,
 )

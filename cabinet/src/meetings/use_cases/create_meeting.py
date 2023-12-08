@@ -1,17 +1,16 @@
 from asyncio import Task
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, timezone
 from typing import Any, Optional
 
-from common.amocrm import AmoCRM
-from common.amocrm.types import AmoLead
-from common.email import EmailService
-from common.unleash.client import UnleashClient
-from config.feature_flags import FeatureFlags
 from fastapi import status, HTTPException
 
-from config import EnvTypes, maintenance_settings
+from common.amocrm import AmoCRM
+from common.amocrm.types import AmoLead, AmoTag
+from common.email import EmailService
 from common.unleash.client import UnleashClient
+from config import EnvTypes, maintenance_settings
 from config.feature_flags import FeatureFlags
+from src.users.repos import StranaOfficeAdminRepo
 from src.amocrm.repos import (
     AmocrmStatus,
     AmocrmStatusRepo,
@@ -35,7 +34,8 @@ from ..constants import (
     MeetingStatusChoice,
     MeetingTopicType,
     MeetingType,
-    MeetingCreationSourceChoice,
+    MeetingPropertyType,
+    MeetingCreationSourceChoice, DEFAULT_RESPONSIBLE_USER_ID,
 )
 from ..entities import BaseMeetingCase
 from ..exceptions import BookingStatusError, IncorrectBookingCreateMeetingError
@@ -50,10 +50,15 @@ class CreateMeetingCase(BaseMeetingCase):
 
     meeting_created_to_client_mail = "meeting_created_to_client_mail"
     meeting_created_to_broker_mail = "meeting_created_to_broker_mail"
+    meeting_created_to_admin_mail = "meeting_created_to_admin_mail"
+    amocrm_link = "https://eurobereg72.amocrm.ru/leads/detail/{id}"
     lk_client_tag: list[str] = [
         "ЛК Клиента",
         "Встреча с клиентом",
         "Встреча ЛК клиента",
+    ]
+    broker_tag: list[str] = [
+        "Встреча ЛК Брокер",
     ]
     dev_test_booking_tag: list[str] = ['Тестовая бронь']
     stage_test_booking_tag: list[str] = ['Тестовая бронь Stage']
@@ -63,7 +68,6 @@ class CreateMeetingCase(BaseMeetingCase):
     amocrm_default_offline_group_status_name = "Встреча назначена"
     amocrm_non_project_online_group_status_name = "Назначить встречу Zoom"
     amocrm_default_online_group_status_name = "Назначить встречу Zoom"
-    default_responsible_user_id = 7073163
     amocrm_appointed_zoom_status_id = 40127292
     amocrm_push_meeting_status_id = 39394842
 
@@ -80,6 +84,7 @@ class CreateMeetingCase(BaseMeetingCase):
         amocrm_status_repo: type[AmocrmStatusRepo],
         amocrm_pipeline_repo: type[AmocrmPipelineRepo],
         amocrm_group_status_repo: type[AmocrmGroupStatusRepo],
+        strana_office_admin_repo: type[StranaOfficeAdminRepo],
         email_class: type[EmailService],
         get_email_template_service: GetEmailTemplateService,
         update_task_instance_status_service: UpdateTaskInstanceStatusService,
@@ -96,6 +101,7 @@ class CreateMeetingCase(BaseMeetingCase):
         self.amocrm_group_status_repo: AmocrmGroupStatusRepo = (
             amocrm_group_status_repo()
         )
+        self.strana_office_admin_repo: StranaOfficeAdminRepo = strana_office_admin_repo()
         self.amocrm_class: type[AmoCRM] = amocrm_class
         self.email_class: type[EmailService] = email_class
         self.get_email_template_service: GetEmailTemplateService = (
@@ -141,6 +147,9 @@ class CreateMeetingCase(BaseMeetingCase):
         lk_client_creating_meeting_source = await self.meeting_creation_source_repo.retrieve(
             filters=dict(slug=MeetingCreationSourceChoice.LK_CLIENT)
         )
+
+        city = await self.city_repo.retrieve(filters=dict(id=payload.city_id))
+
         meeting_data: dict = dict(
             city_id=payload.city_id,
             type=payload.type,
@@ -157,7 +166,6 @@ class CreateMeetingCase(BaseMeetingCase):
         await created_meeting.fetch_related(*prefetch_fields)
 
         project: Project | None = created_meeting.project
-        city = await self.city_repo.retrieve(filters=dict(id=payload.city_id))
 
         amo_pipeline_filter = dict(name__icontains=self.amocrm_default_pipeline_name)
         amocrm_group_status_filter = None
@@ -242,7 +250,7 @@ class CreateMeetingCase(BaseMeetingCase):
                 user_id=user.id,
             )
         else:
-            amo_data["project_amocrm_responsible_user_id"] = self.default_responsible_user_id
+            amo_data["project_amocrm_responsible_user_id"] = DEFAULT_RESPONSIBLE_USER_ID
             booking_data = dict(
                 active=True,
                 amocrm_status_id=amocrm_status.id,
@@ -274,6 +282,7 @@ class CreateMeetingCase(BaseMeetingCase):
             )
 
         booking_data["amocrm_id"] = lead_id
+        booking_data["tags"] = tags
 
         booking: Booking = await self.booking_repo.create(data=booking_data)
         created_meeting = await self.meeting_repo.update(
@@ -287,9 +296,10 @@ class CreateMeetingCase(BaseMeetingCase):
         ]
         await created_meeting.fetch_related(*prefetch_fields)
 
-        await self.send_email_to_client(
-            meeting=created_meeting,
-            user=user,
+        await self.send_email(
+            recipients=[user],
+            context=dict(meeting=created_meeting, user=user),
+            mail_event_slug=self.meeting_created_to_client_mail
         )
 
         return created_meeting
@@ -348,6 +358,7 @@ class CreateMeetingCase(BaseMeetingCase):
         lk_broker_creating_meeting_source = await self.meeting_creation_source_repo.retrieve(
             filters=dict(slug=MeetingCreationSourceChoice.LK_BROKER)
         )
+
         meeting_data: dict = dict(
             city_id=payload.city_id,
             project_id=booking.project_id,
@@ -408,17 +419,30 @@ class CreateMeetingCase(BaseMeetingCase):
             amocrm_status_id=amocrm_status.id,
             amocrm_substage=amocrm_substage,
         )
+        new_responsible_user_id = None
         if self.__is_strana_lk_2515_enable:
             if format_type == "online":
                 amocrm_status: AmocrmStatus = await self.amocrm_status_repo.retrieve(
                     filters=dict(id=self.amocrm_appointed_zoom_status_id)
                 )
+                new_responsible_user_id = DEFAULT_RESPONSIBLE_USER_ID
             booking_data.update(
                 amocrm_status_id=amocrm_status.id if amocrm_status else None,
                 amocrm_substage=BookingSubstages.MEETING,
             )
 
         await self.booking_repo.update(model=created_meeting.booking, data=booking_data)
+
+        if self.__is_strana_lk_2898_enable(user_id=user.id):
+            tags = booking.tags or []
+            tags += self.broker_tag
+            if maintenance_settings["environment"] == EnvTypes.DEV:
+                tags = tags + self.dev_test_booking_tag
+            elif maintenance_settings["environment"] == EnvTypes.STAGE:
+                tags = tags + self.stage_test_booking_tag
+            await self.booking_repo.update(booking, data=dict(tags=tags))
+        else:
+            tags = booking.tags
 
         async with await self.amocrm_class() as amocrm:
             amo_date: float = self.amo_date_formatter(created_meeting.date)
@@ -428,7 +452,10 @@ class CreateMeetingCase(BaseMeetingCase):
                 meeting_date_sensei=amo_date,
                 meeting_date_zoom=amo_date,
                 meeting_date_next_contact=amo_date,
+                tags=[AmoTag(name=tag) for tag in tags],
             )
+            if new_responsible_user_id:
+                lead_options["project_amocrm_responsible_user_id"] = new_responsible_user_id
             await amocrm.update_lead_v4(**lead_options)
 
             amo_notes: str = (
@@ -445,66 +472,61 @@ class CreateMeetingCase(BaseMeetingCase):
             status_slug=MeetingsSlug.AWAITING_CONFIRMATION.value,
         )
 
-        await self.send_email_to_broker(
-            meeting=created_meeting,
-            user=user,
+        await self.send_email(
+            recipients=[user],
+            context=dict(meeting=created_meeting, user=user),
+            mail_event_slug=self.meeting_created_to_broker_mail,
         )
-        await self.send_email_to_client(
-            meeting=created_meeting,
-            user=client,
+        await self.send_email(
+            recipients=[client],
+            context=dict(meeting=created_meeting, user=user),
+            mail_event_slug=self.meeting_created_to_client_mail,
         )
+
+        if self.__is_strana_lk_2897_enable(user_id=user.id):
+            filters = dict(project_id=created_meeting.project.id)
+            admins = await self.strana_office_admin_repo.list(filters=filters)
+
+            await self.send_email(
+                recipients=admins,
+                context=dict(
+                    agent_fio=user.full_name,
+                    meeting_date=created_meeting.date.strftime("%Y-%m-%d %H:%M:%S"),
+                    agent_phone=user.phone,
+                    client_phone=client.phone,
+                    booking_link=self.amocrm_link.format(id=booking.amocrm_id),
+                    city=created_meeting.city.name,
+                    project=created_meeting.project.name,
+                    property_type=MeetingPropertyType().to_label(created_meeting.property_type),
+                ),
+                mail_event_slug=self.meeting_created_to_admin_mail,
+            )
 
         return created_meeting
 
-    async def send_email_to_broker(
+    async def send_email(
         self,
-        meeting: Meeting,
-        user: User,
-    ) -> Task:
-        """
-        Уведомляем брокера о том, что встреча создана.
-        @param meeting: Meeting
-        @param user: User
-        @return: Task
-        """
-        email_notification_template = await self.get_email_template_service(
-            mail_event_slug=self.meeting_created_to_broker_mail,
-            context=dict(meeting=meeting, user=user),
-        )
-
-        if email_notification_template and email_notification_template.is_active:
-            email_options: dict[str, Any] = dict(
-                topic=email_notification_template.template_topic,
-                content=email_notification_template.content,
-                recipients=[user.email],
-                lk_type=email_notification_template.lk_type.value,
-                mail_event_slug=email_notification_template.mail_event_slug,
-            )
-            email_service: EmailService = self.email_class(**email_options)
-
-            return email_service.as_task()
-
-    async def send_email_to_client(
-        self,
-        meeting: Meeting,
-        user: User,
+        recipients: list[User],
+        context: dict,
+        mail_event_slug: str,
     ) -> Task:
         """
         Уведомляем клиента о том, что встреча создана.
-        @param meeting: Meeting
-        @param user: User
+        @param recipients: User
+        @param context: dict который вставляем в темплейт тела письма
+        @param mail_event_slug: slug темплейта письма
         @return: Task
         """
         email_notification_template = await self.get_email_template_service(
-            mail_event_slug=self.meeting_created_to_client_mail,
-            context=dict(meeting=meeting, user=user),
+            mail_event_slug=mail_event_slug,
+            context=context,
         )
 
         if email_notification_template and email_notification_template.is_active:
             email_options: dict[str, Any] = dict(
                 topic=email_notification_template.template_topic,
                 content=email_notification_template.content,
-                recipients=[user.email],
+                recipients=[recipient.email for recipient in recipients],
                 lk_type=email_notification_template.lk_type.value,
                 mail_event_slug=email_notification_template.mail_event_slug,
             )
@@ -524,3 +546,11 @@ class CreateMeetingCase(BaseMeetingCase):
     @property
     def __is_strana_lk_2515_enable(self) -> bool:
         return UnleashClient().is_enabled(FeatureFlags.strana_lk_2515)
+
+    def __is_strana_lk_2898_enable(self, user_id: int) -> bool:
+        context = dict(userId=user_id)
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_2898, context=context)
+
+    def __is_strana_lk_2897_enable(self, user_id: int) -> bool:
+        context = dict(userId=user_id)
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_2897, context=context)

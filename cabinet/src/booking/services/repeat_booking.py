@@ -85,10 +85,11 @@ class RepeatBookingService(BaseBookingService):
 
         activated_booking: Booking = await self.booking_update(booking, data=activate_booking_data)
         task_delay: int = (activated_booking.expires - datetime.now(tz=UTC)).seconds
-        self.check_booking_task.apply_async((activated_booking.id,), countdown=task_delay)
+        self.check_booking_task.apply_async((activated_booking.id,), countdown=task_delay, queue="scheduled")
         self.update_task_instance_status_task.delay(
             booking_id=booking.id,
             status_slug=PaidBookingSlug.WAIT_PAYMENT.value,
+            caller_info=self.__class__.__name__,
         )
 
         return activated_booking

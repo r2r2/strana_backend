@@ -26,7 +26,7 @@ x-app_environment: &app_environment
     - LK_UNLEASH_INSTANCE_ID
 services:
   cabinet-pytest:
-    image: ${CI_REGISTRY_IMAGE}/cabinet:${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHA}
+    image: ${CI_REGISTRY_IMAGE}/cabinet:${CI_COMMIT_SHA}
     <<: *app_environment
     entrypoint: "pytest"
     restart: "no"

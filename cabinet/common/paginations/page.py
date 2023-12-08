@@ -1,12 +1,12 @@
 from copy import copy
-from enum import Enum
+from enum import StrEnum
 from typing import Any, Optional
 from collections import OrderedDict
 
 from config import site_config
 
 
-class AllowedPageParams(str, Enum):
+class AllowedPageParams(StrEnum):
     ALL = 'all'
 
 
@@ -85,3 +85,4 @@ class PagePagination(object):
         @return: str
         """
         return self.url_template.format(site_config["site_host"], self.path, page_number) + extra
+

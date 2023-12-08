@@ -232,3 +232,9 @@ class UniqueStatusButtonNotFoundError(BaseUserException):
     message: str = "Кнопка статуса не найдена. Заполни админку"
     status: int = HTTPStatus.NOT_FOUND
     reason: str = "unique_status_button_not_found"
+
+
+class UserHasNoRoleError(BaseUserException):
+    message: str = "У пользователя нет роли"
+    status: int = HTTPStatus.BAD_REQUEST
+    reason: str = "user_has_no_role"

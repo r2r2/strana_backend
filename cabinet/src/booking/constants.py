@@ -1,4 +1,4 @@
-from enum import IntEnum, Enum
+from enum import IntEnum, StrEnum
 from typing import Any, NamedTuple, Optional
 
 from common import mixins
@@ -138,7 +138,7 @@ class PaymentStatuses(mixins.Choices):
     DECLINED: int = 6, "Отклонено"
 
 
-class BookingPayKind(str, Enum):
+class BookingPayKind(StrEnum):
     """
     Состояние процесса оплаты.
     """
@@ -191,6 +191,7 @@ class BookingStagesMapping(object):
 class PaymentMethods(mixins.Choices):
     """
     Способы покупки
+    todo: payment_method
     """
 
     CASH: str = "cash", "Наличные"

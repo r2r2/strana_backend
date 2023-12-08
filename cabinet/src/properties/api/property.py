@@ -15,7 +15,7 @@ from src.properties import repos as properties_repos
 from src.properties import services, use_cases
 from src.amocrm import repos as amocrm_repos
 from src.properties.factories.services import CheckProfitbasePropertyServiceFactory
-from src.task_management.factories import UpdateTaskInstanceStatusServiceFactory
+from src.task_management.factories import UpdateTaskInstanceStatusServiceFactory, CreateTaskInstanceServiceFactory
 from src.users import repos as users_repos
 from src.users import services as user_services
 from src.notifications import services as notification_services
@@ -91,6 +91,7 @@ async def bind_booking_property(
     activate_bookings_service: ActivateBookingService = ActivateBookingServiceFactory.create()
     check_profitbase_property_service = CheckProfitbasePropertyServiceFactory.create()
     update_status_service = UpdateTaskInstanceStatusServiceFactory.create()
+    create_task_service = CreateTaskInstanceServiceFactory.create()
 
     resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
@@ -133,6 +134,7 @@ async def bind_booking_property(
         get_sms_template_service=get_sms_template_service,
         send_sms_to_msk_client_service=send_sms_to_msk_client,
         check_pinning=check_pinning,
+        create_task_service=create_task_service,
     )
     bind_property: use_cases.BindBookingPropertyCase = use_cases.BindBookingPropertyCase(**resources)
     return await bind_property(payload=payload)
@@ -183,9 +185,11 @@ async def property_detail(
     """
     Получение информации по количеству комнат в квартире по profitbase_id.
     """
-
+    import_property_service: services.ImportPropertyService = \
+        services.ImportPropertyServiceFactory.create()
     resources: dict[str, Any] = dict(
         property_repo=properties_repos.PropertyRepo,
+        import_property_service=import_property_service,
     )
     property_detail_case: use_cases.PropertyDetailCase = use_cases.PropertyDetailCase(**resources)
     return await property_detail_case(profitbase_id=profitbase_id)

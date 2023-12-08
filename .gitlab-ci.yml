@@ -1,4 +1,4 @@
 include:
   - project: 'strana-artw/strana-infra'
-    ref: master
+    ref: backend-client-ff
     file: '/deploy/strana-backend-cabinet/.gitlab-ci.yml'

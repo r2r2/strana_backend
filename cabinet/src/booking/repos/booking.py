@@ -38,7 +38,6 @@ from ..constants import (
     BookingSubstages,
     OnlinePurchaseStatuses,
     OnlinePurchaseSteps,
-    PaymentMethods,
     PaymentStatuses,
     PaymentView,
 )
@@ -198,12 +197,6 @@ class Booking(Model):
         default=PaymentView.DESKTOP,
         choice_class=PaymentView,
     )
-    # payment_method: str = cfields.CharChoiceField(
-    #     description="Способ покупки",
-    #     max_length=20,
-    #     choice_class=PaymentMethods,
-    #     null=True,
-    # )
     maternal_capital: bool = fields.BooleanField(
         description="Материнский капитал (способ покупки)", default=False
     )
@@ -372,6 +365,17 @@ class Booking(Model):
         description="Количество баллов лояльности", null=True
     )
 
+    clients: fields.ManyToManyRelation["User"] = fields.ManyToManyField(
+        model_name="models.User",
+        related_name="booking_all_clients",
+        through="booking_booking_client_user_through",
+        description="Клиенты",
+        null=True,
+        on_delete=fields.CASCADE,
+        backward_key="booking_id",
+        forward_key="client_id",
+    )
+
     task_instances: fields.ReverseRelation["TaskInstance"]
     mortgage_type_id: int | None
     property_id: Optional[int]
@@ -458,16 +462,6 @@ class Booking(Model):
 
         if self.ddu_created:
             return OnlinePurchaseSteps.AMOCRM_DDU_UPLOADING_BY_LAWYER
-
-        if (
-            self.amocrm_agent_data_validated
-            or self.payment_method_selected
-            and (
-                self.payment_method
-                in (PaymentMethods.CASH, PaymentMethods.INSTALLMENT_PLAN)
-            )
-        ):
-            return OnlinePurchaseSteps.DDU_CREATE
 
         if self.payment_method_selected:
             return OnlinePurchaseSteps.AMOCRM_AGENT_DATA_VALIDATION
@@ -613,6 +607,30 @@ class Booking(Model):
             "created_source",
             "amocrm_status",
         )
+
+
+class BookingClientsUserThrough(Model):
+    """
+    Все пользователи которые участвуют в сделке
+    """
+
+    booking: fields.ForeignKeyRelation[Booking] = fields.ForeignKeyField(
+        model_name="models.Booking",
+        related_name="user_through",
+        description="Сделка",
+        on_delete=fields.CASCADE,
+    )
+    user: fields.ForeignKeyRelation["User"] = fields.ForeignKeyField(
+        model_name="models.User",
+        related_name="booking_through",
+        description="Клиент",
+        on_delete=fields.CASCADE,
+    )
+
+    is_main: bool = fields.BooleanField(description="Главный клиент сделки", default=False)
+
+    class Meta:
+        table = "booking_booking_client_user_through"
 
 
 class BookingRepo(BaseBookingRepo, CRUDMixin, SCountMixin, FacetsMixin, SpecsMixin, CountMixin):

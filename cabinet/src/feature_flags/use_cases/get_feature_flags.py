@@ -18,7 +18,7 @@ class GetFeatureFlagsCase(BaseFeatureFlagCase):
         for feature_flag in feature_flags:
             try:
                 feature_flags_enabled[feature_flag] = self.unleash.is_enabled(
-                    FeatureFlags(feature_flag), context=dict(userId=user_id),
+                    feature_flag, context=dict(userId=user_id),
                 )
             except Exception:
                 feature_flags_enabled[feature_flag] = False

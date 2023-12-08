@@ -41,6 +41,7 @@ class AmocrmStatus(Model):
     taskchain_booking_substages: fields.ManyToManyRelation["TaskChain"]
     taskchain_task_visibilities: fields.ManyToManyRelation["TaskChain"]
     pinning_status_statuses: fields.ManyToManyRelation["PinningStatus"]
+    mortgagematrix_amocrm_statuses: fields.ManyToManyRelation["MortgageConditionMatrix"]
 
     def __repr__(self):
         return self.name

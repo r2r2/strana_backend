@@ -133,10 +133,10 @@ class UsersInterestGlobalIdCase(UsersInterestCase):
         interested = []
         for interested_global_id in interested_global_ids:
             interested.append(await self._create_or_update_property(interested_global_id))
-        user_interested_ids: set[int] = set(map(lambda x: x.id, list(user.interested)))
+        user_interested_ids: set[int] = set(map(lambda x: x.global_id, list(user.interested)))
 
         for interest in interested:
-            if interest.id not in user_interested_ids:
+            if interest.global_id not in user_interested_ids:
                 asyncio.create_task(
                     self.interests_repo.add(
                         user=user, interest=interest, created_by=current_user, slug_type=SlugType.MINE

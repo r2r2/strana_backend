@@ -8,6 +8,7 @@ class PaymentPageNotification(models.Model):
     title: str = models.CharField(max_length=50, verbose_name="Заголовок")
     notify_text: str = models.TextField(verbose_name="Текст уведомления")
     button_text: str = models.CharField(max_length=50, verbose_name="Текст кнопки")
+    slug: str = models.CharField(max_length=100, verbose_name="Slug источника", null=True, blank=True)
 
     def __str__(self):
         return self.title

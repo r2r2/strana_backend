@@ -157,6 +157,19 @@ class _BookingSourceSchema(BaseBookingCamelCaseModel):
         orm_mode = True
 
 
+class _ClientAmocrmGroupStatusSchema(BaseBookingCamelCaseModel):
+    id: int
+    name: str
+    is_final: bool
+    is_current: bool
+    show_reservation_date: bool
+    show_booking_date: bool
+    tags: list[BookingTagListModel | None]
+
+    class Config:
+        orm_mode = True
+
+
 class _BookingListModel(BaseBookingModel):
     """
     Модель бронирования
@@ -180,6 +193,7 @@ class _BookingListModel(BaseBookingModel):
     amocrm_signed: bool
     has_subsidy_price: bool
     amocrm_status: Optional[_BookingStatusListModel]
+    client_group_statuses: list[_ClientAmocrmGroupStatusSchema | None]
     booking_tags: Optional[list[BookingTagListModel]]
 
     origin: Optional[str]
@@ -194,8 +208,7 @@ class _BookingListModel(BaseBookingModel):
     amocrm_substage: Optional[BookingSubstages.serializer]
     final_payment_amount: Optional[Decimal]
     payment_amount: Optional[Decimal]
-    created_source: Optional[BookingCreatedSources.serializer]
-    booking_source: Optional[Any]
+    created_source: Optional[Any]
 
     agent: Optional[AgentRetrieveModel]
     agency: Optional[AgencyRetrieveModel]
@@ -246,6 +259,16 @@ class _BookingListModel(BaseBookingModel):
     @validator("online_purchase_step", pre=True, always=True)
     def get_online_purchase_step(cls, online_purchase_step) -> str:
         return online_purchase_step()
+
+
+class MortgageBookingListModel(_BookingListModel):
+    """
+    Модель бронирования для ипотеки
+    """
+
+    is_eligible_for_mortgage: bool
+    has_subsidy_price: bool | None
+    client_group_statuses: list | None
 
 
 class RequestBookingListModel(BaseBookingModel):

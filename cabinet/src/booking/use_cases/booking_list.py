@@ -1,14 +1,23 @@
-from src.task_management.constants import OnlineBookingSlug
-from src.amocrm.repos import AmocrmGroupStatus, AmocrmGroupStatusRepo
-from src.task_management.repos import TaskInstance
+from typing import Any
+
+from common.settings.repos import SystemList
+from src.task_management.constants import OnlineBookingSlug, FastBookingSlug, FreeBookingSlug
+from src.amocrm.repos import (
+    AmocrmGroupStatus,
+    AmocrmGroupStatusRepo,
+    ClientAmocrmGroupStatusRepo,
+    ClientAmocrmGroupStatus,
+)
 from src.task_management.utils import (
-    is_task_in_compare_task_chain,
-    TaskDataBuilder,
+    get_booking_tasks,
+    get_interesting_task_chain,
 )
 from src.payments import repos as payment_repos
+from src.booking.constants import BookingCreatedSources
 from ..entities import BaseBookingCase
 from ..models import BookingListFilters
 from ..repos import Booking, BookingRepo, BookingTag, BookingTagRepo
+from src.task_management.repos import TaskChain
 
 
 class BookingListCase(BaseBookingCase):
@@ -21,13 +30,15 @@ class BookingListCase(BaseBookingCase):
         booking_repo: type[BookingRepo],
         booking_tag_repo: type[BookingTagRepo],
         amocrm_group_status_repo: type[AmocrmGroupStatusRepo],
-        price_offer_matrix_repo: type[payment_repos.PriceOfferMatrixRepo]
+        price_offer_matrix_repo: type[payment_repos.PriceOfferMatrixRepo],
+        client_amocrm_group_status_repo: type[ClientAmocrmGroupStatusRepo],
     ) -> None:
         self.booking_repo: BookingRepo = booking_repo()
         self.booking_tag_repo: BookingTagRepo = booking_tag_repo()
         self.amocrm_group_status_repo: AmocrmGroupStatusRepo = (
             amocrm_group_status_repo()
         )
+        self.client_amocrm_group_status_repo: ClientAmocrmGroupStatusRepo = client_amocrm_group_status_repo()
         self.price_offer_matrix_repo: payment_repos.PriceOfferMatrixRepo = price_offer_matrix_repo()
 
     async def __call__(
@@ -67,12 +78,12 @@ class BookingListCase(BaseBookingCase):
             related_fields=related_fields,
             prefetch_fields=[
                 "amocrm_status__group_status",
-                "task_instances__status__buttons",
-                "task_instances__status__tasks_chain__task_visibility",
+                "amocrm_status__client_group_status",
             ],
         )
         for booking in bookings:
             booking.tasks = await self._get_booking_tasks(booking=booking)
+            booking.client_group_statuses = await self._get_client_group_statuses(booking=booking)
 
             if booking.amocrm_status:
                 await self._set_group_statuses(booking=booking)
@@ -94,11 +105,10 @@ class BookingListCase(BaseBookingCase):
         return data
 
     async def _get_booking_tags(self, booking: Booking) -> list[BookingTag] | None:
+        group_statuses = booking.amocrm_status.group_status if booking.amocrm_status else None
         tag_filters: dict = dict(
             is_active=True,
-            group_statuses=booking.amocrm_status.group_status
-            if booking.amocrm_status
-            else None,
+            group_statuses=group_statuses,
         )
         return (
             await self.booking_tag_repo.list(filters=tag_filters, ordering="-priority")
@@ -121,23 +131,26 @@ class BookingListCase(BaseBookingCase):
             additional_filters.update(init_filters.dict(exclude_none=True))
         return additional_filters
 
-    async def _get_booking_tasks(self, booking: Booking) -> list[TaskInstance | None]:
+    async def _get_booking_tasks(self, booking: Booking) -> list[dict[str, Any] | None]:
         """Get booking tasks"""
-        tasks = []
-        # берем все таски, которые видны в текущем статусе букинга
-        task_instances: list[TaskInstance] = [
-            task for task in booking.task_instances
-            if booking.amocrm_status in task.status.tasks_chain.task_visibility
-        ]
-        for task in task_instances:
-            if await is_task_in_compare_task_chain(
-                status=task.status, compare_status=OnlineBookingSlug.ACCEPT_OFFER.value
-            ):
-                tasks = await TaskDataBuilder(
-                    task_instances=task, booking=booking
-                ).build()
-                break
+        task_chain_slug: str = await self._get_task_chain_slug(booking=booking)
+        tasks: list[dict[str, Any] | None] = await get_booking_tasks(
+            booking_id=booking.id,
+            task_chain_slug=task_chain_slug,
+        )
+        tasks: list[dict[str, Any]] = await self._clear_tasks(tasks=tasks)
         return tasks
+
+    async def _get_task_chain_slug(self, booking: Booking) -> str:
+        """Get task chain slug"""
+        match booking.booking_source.slug:
+            case BookingCreatedSources.FAST_BOOKING | BookingCreatedSources.LK_ASSIGN:
+                task_chain_slug: str = FastBookingSlug.ACCEPT_OFFER.value
+            case BookingCreatedSources.AMOCRM:
+                task_chain_slug: str = FreeBookingSlug.ACCEPT_OFFER.value
+            case _:
+                task_chain_slug: str = OnlineBookingSlug.ACCEPT_OFFER.value
+        return task_chain_slug
 
     async def _set_group_statuses(self, booking: Booking) -> None:
         group_statuses: list[
@@ -185,3 +198,58 @@ class BookingListCase(BaseBookingCase):
         booking.amocrm_status.steps_numbers = len(group_statuses) + 1
         booking.amocrm_status.current_step = booking_group_status_current_step
         booking.amocrm_status.actions = booking_group_status_actions
+
+    async def _get_client_group_statuses(self, booking: Booking) -> list[ClientAmocrmGroupStatus | None]:
+        group_statuses: list[ClientAmocrmGroupStatus] = await self.client_amocrm_group_status_repo.list(
+            filters=dict(is_hide=False),
+            ordering="sort",
+            prefetch_fields=[
+                'booking_tags__booking_sources',
+                'booking_tags__systems',
+            ],
+        )
+        for status in group_statuses:
+            status.tags = await self._get_client_group_status_tags(
+                booking=booking,
+                status=status,
+            )
+            match status:
+                case booking.amocrm_status.client_group_status:
+                    status.is_current = True
+                case _:
+                    status.is_current = False
+        return group_statuses
+
+    async def _get_client_group_status_tags(
+        self,
+        booking: Booking,
+        status: ClientAmocrmGroupStatus,
+    ) -> list[BookingTag]:
+        """
+        Ищем теги, которые подходят под источник бронирования и под системы.
+        Систему ищем костыльно, через систему в цепочке задач,
+        которая должна выводиться для этой брони.
+        Так как брони с системой больше никак не связаны
+        """
+        task_chain_slug: str = await self._get_task_chain_slug(booking=booking)
+        task_chain: TaskChain = await get_interesting_task_chain(status=task_chain_slug)
+        await task_chain.fetch_related('systems')
+
+        tags: list[BookingTag] = []
+        for tag in status.booking_tags:
+            common_booking_source: bool = booking.booking_source in tag.booking_sources
+            common_systems: set[SystemList | None] = set(tag.systems).intersection(set(task_chain.systems))
+            if common_booking_source and common_systems:
+                tags.append(tag)
+        return tags
+
+    async def _clear_tasks(self, tasks: list[dict[str, Any] | None]) -> list[dict[str, Any]]:
+        banned_statuses: list[str] = [
+            OnlineBookingSlug.PAYMENT_SUCCESS.value,
+            FastBookingSlug.PAYMENT_SUCCESS.value,
+            FreeBookingSlug.PAYMENT_SUCCESS.value,
+        ]
+        return [
+            task for task in tasks
+            if task["task_status"] not in banned_statuses
+        ]

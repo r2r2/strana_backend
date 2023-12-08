@@ -28,6 +28,7 @@ class CeleryTaskQueue:
     _worker_tasks: list[str] = [  # Имена воркеров (hostname@domain)
         "tasks@strana.com",
     ]
+    _day_hours = 24
     # _worker_periodic_tasks: list[str] = [  # Имена воркеров периодических задач (hostname@domain)
     #     "periodic_tasks@strana.com",
     # ]
@@ -94,6 +95,8 @@ class CeleryTaskQueue:
         self._app.conf.worker_prefetch_multiplier = 1
         self._app.conf.broker_connection_retry = True
         self._app.conf.worker_cancel_long_running_tasks_on_connection_loss = True
+        self._app.conf.result_backend_transport_options = dict(visibility_timeout=self._config["visibility_timeout"])
+        self._app.conf.visibility_timeout = self._config["visibility_timeout"]
 
     def _add_workers(self) -> None:
         """
@@ -138,6 +141,7 @@ class CeleryTaskQueue:
             'priority_steps': self._priority.steps,
             'sep': ':',
             'queue_order_strategy': 'priority',
+            'visibility_timeout': self._config["visibility_timeout"],
         }
 
     @property
@@ -236,7 +240,9 @@ class CeleryTaskQueue:
                 }
             },
             "check_user_interests": {
-                "schedule": crontab(minute="0", hour="5", day_of_month='*/1'),
+                "schedule": crontab(minute="0", hour="5", day_of_month='*/1')
+                if self._config["periodic_timeout_hours"] == self._day_hours
+                else crontab(minute=f'*/{self._config["periodic_timeout_hours"] * 60}'),
                 "task": "src.users.tasks.check_user_interests",
                 "options": {
                     "priority": self._priority.middle,
@@ -287,8 +293,7 @@ class CeleryTaskQueue:
                 }
             },
             "periodic_send_qrcode_sms_task": {
-                # "schedule": crontab(hour='3', minute='0'),
-                "schedule": crontab(minute='*/5'),
+                "schedule": crontab(hour='3', minute='0'),
                 "task": "src.notifications.tasks.periodic_send_qrcode_sms_task",
                 "options": {
                     "priority": self._priority.low,
@@ -297,7 +302,55 @@ class CeleryTaskQueue:
                     # "routing_key": self._q_periodic_tasks,
                 }
             },
-        }
+            "periodic_update_deal_to_need_extension_status_task": {
+                "schedule": crontab(minute="0", hour="2", day_of_month='*/1')
+                if self._config["periodic_eta_timeout_hours"] == self._day_hours
+                else crontab(minute=f'*/{self._config["periodic_eta_timeout_hours"] * 60}'),
+                "task": "src.task_management.tasks.periodic_update_deal_to_need_extension_status_task",
+                "options": {
+                    "priority": self._priority.high,
+                    # "queue": self._q_periodic_tasks,
+                    # "exchange": self._q_periodic_tasks,
+                    # "routing_key": self._q_periodic_tasks,
+                }
+            },
+            "periodic_update_deal_to_cant_extend_deal_by_date_task": {
+                "schedule": crontab(minute="0", hour="2", day_of_month='*/1')
+                if self._config["periodic_eta_timeout_hours"] == self._day_hours
+                else crontab(minute=f'*/{self._config["periodic_eta_timeout_hours"] * 60}'),
+                "task": "src.task_management.tasks.periodic_update_deal_to_cant_extend_deal_by_date_task",
+                "options": {
+                    "priority": self._priority.high,
+                    # "queue": self._q_periodic_tasks,
+                    # "exchange": self._q_periodic_tasks,
+                    # "routing_key": self._q_periodic_tasks,
+                }
+            },
+            "periodic_booking_fixation_notification_email_task": {
+                    "schedule": crontab(minute="0", hour="2", day_of_month='*/1')
+                    if self._config["periodic_eta_timeout_hours"] == self._day_hours
+                    else crontab(minute=f'*/{self._config["periodic_eta_timeout_hours"] * 60}'),
+                    "task": "src.notifications.tasks.periodic_booking_fixation_notification_email_task",
+                    "options": {
+                        "priority": self._priority.high,
+                        # "queue": self._q_periodic_tasks,
+                        # "exchange": self._q_periodic_tasks,
+                        # "routing_key": self._q_periodic_tasks,
+                    }
+                },
+            "periodic_event_notification_task": {
+                "schedule": crontab(minute="0", hour="2", day_of_month='*/1')
+                if self._config["periodic_eta_timeout_hours"] == self._day_hours
+                else crontab(minute=f'*/{self._config["periodic_eta_timeout_hours"] * 60}'),
+                "task": "src.events.tasks.periodic_event_notification_task",
+                "options": {
+                    "priority": self._priority.high,
+                    # "queue": self._q_periodic_tasks,
+                    # "exchange": self._q_periodic_tasks,
+                    # "routing_key": self._q_periodic_tasks,
+                }
+            },
+            }
 
 
 task_queue: CeleryTaskQueue = CeleryTaskQueue(config=celery_config)

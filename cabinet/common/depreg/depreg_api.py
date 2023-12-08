@@ -1,3 +1,4 @@
+import asyncio
 from http import HTTPStatus
 from typing import Any, Coroutine, Callable
 
@@ -30,7 +31,7 @@ class DepregAPI:
         event_id: int,
         token: str,
         fields: str | None = None,
-        page: int | None = None
+        page: int = 1,
     ) -> DepregParticipantsDTO:
         """
         Позволяет получить постраничный доступ к списку участников мероприятия.
@@ -60,11 +61,10 @@ class DepregAPI:
         """
         query_params: dict[str, Any] = {
             "filter[eventId]": event_id,
+            "page": page,
         }
         if fields:
             query_params["fields"] = fields
-        if page:
-            query_params["page"] = page
 
         request_data: dict[str, Any] = dict(
             url=self._base_url + "/participants",
@@ -76,7 +76,48 @@ class DepregAPI:
             token=token,
         )
         response: CommonResponse = await self._make_request(request_data)
-        return DepregParticipantsDTO(**{"data": response.data})
+        response_data: list[dict[str, Any]] = []
+        response_data.extend(response.data)
+
+        page_count: int = int(response.raw.headers['X-Pagination-Page-Count'])
+        current_page: int = int(response.raw.headers['X-Pagination-Current-Page'])
+
+        await self._process_pagination(
+            page_count=page_count,
+            current_page=current_page,
+            response_data=response_data,
+            event_id=event_id,
+            token=token,
+        )
+
+        return DepregParticipantsDTO(**{"data": response_data})
+
+    async def _process_pagination(
+        self,
+        page_count: int,
+        current_page: int,
+        response_data: list[dict[str, Any]],
+        event_id: int,
+        token: str,
+    ) -> None:
+        async_tasks: list[Coroutine | None] = []
+        for page in range(current_page + 1, page_count + 1):
+            query_params: dict[str, Any] = {
+                "filter[eventId]": event_id,
+                "page": page,
+            }
+            request_data: dict[str, Any] = dict(
+                url=self._base_url + "/participants",
+                method="GET",
+                query=query_params,
+                session=self._session,
+                headers=self._headers,
+                auth_type=self._auth_type,
+                token=token,
+            )
+            async_tasks.append(self._make_request(request_data))
+
+        [response_data.extend(result.data) for result in await asyncio.gather(*async_tasks)]
 
     async def get_group_by_id(self, group_id: int, token: str) -> DepregGroupDTO:
         """

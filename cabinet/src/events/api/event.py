@@ -3,18 +3,34 @@ from typing import Any, Optional
 
 from common import dependencies, email
 from fastapi import APIRouter, Body, Depends, Query, status, Path
+
+from common.messages import SmsService
 from src.agents import repos as agents_repos
 from src.notifications import repos as notification_repos
 from src.notifications import services as notification_services
 
 from ..models import (RequestEventAdminModel, ResponseEventModel,
                       ResponseListEventModel)
-from ..repos import EventParticipantRepo, EventRepo
+from src.events.repos import (
+    EventParticipantRepo,
+    EventRepo,
+)
 from ..tasks import sending_sms_to_broker_on_event_task
-from ..services import GetEventNotificationTaskService
-from ..use_cases import (EventAgentRecordCase, EventAgentRefuseCase,
-                         EventDetailCase, EventListCase,
-                         EventSendEmailFromAdminCase)
+from src.events.services import (
+    EventNotificationTaskService,
+    SendingSmsToBrokerOnEventService,
+    GetEventNotificationTaskService,
+)
+from src.events.use_cases import (
+    EventAgentRecordCase,
+    EventAgentRefuseCase,
+    EventDetailCase,
+    EventListCase,
+    EventSendEmailFromAdminCase,
+    SendSMSFromAdminCase,
+)
+from src.users import repos as users_repos
+
 
 router = APIRouter(prefix="/events", tags=["Events"])
 
@@ -92,21 +108,24 @@ async def agent_record_on_event(
     """
     Апи записи на мероприятие.
     """
+    get_event_sms_notification_service: GetEventNotificationTaskService = GetEventNotificationTaskService(
+        event_sms_notification_repo=notification_repos.EventsSmsNotificationRepo,
+    )
+    event_notification_task_service: EventNotificationTaskService = EventNotificationTaskService(
+        get_event_sms_notification_service=get_event_sms_notification_service,
+        sending_sms_to_broker_on_event_task=sending_sms_to_broker_on_event_task,
+    )
     get_email_template_service: notification_services.GetEmailTemplateService = \
         notification_services.GetEmailTemplateService(
             email_template_repo=notification_repos.EmailTemplateRepo,
         )
-    get_event_notification_task_service: GetEventNotificationTaskService = GetEventNotificationTaskService(
-        event_sms_notification_repo=notification_repos.EventsSmsNotificationRepo,
-        sending_sms_to_broker_on_event_task=sending_sms_to_broker_on_event_task,
-    )
     resources: dict[str, Any] = dict(
         event_repo=EventRepo,
         event_participant_repo=EventParticipantRepo,
         agent_repo=agents_repos.AgentRepo,
         email_class=email.EmailService,
         get_email_template_service=get_email_template_service,
-        get_event_notification_task_service=get_event_notification_task_service,
+        event_notification_task_service=event_notification_task_service,
     )
     event_agent_record_case: EventAgentRecordCase = EventAgentRecordCase(**resources)
     return await event_agent_record_case(event_id=event_id, user_id=user_id)
@@ -156,7 +175,7 @@ async def send_email_to_agent(
         )
     get_event_notification_task_service: GetEventNotificationTaskService = GetEventNotificationTaskService(
         event_sms_notification_repo=notification_repos.EventsSmsNotificationRepo,
-        sending_sms_to_broker_on_event_task=sending_sms_to_broker_on_event_task,
+        # sending_sms_to_broker_on_event_task=sending_sms_to_broker_on_event_task,
     )
     resources: dict[str, Any] = dict(
         event_repo=EventRepo,
@@ -167,3 +186,35 @@ async def send_email_to_agent(
     )
     send_email_to_agent_case: EventSendEmailFromAdminCase = EventSendEmailFromAdminCase(**resources)
     return await send_email_to_agent_case(payload=payload, data=data)
+
+
+@router.post(
+    "/{event_id}/send_sms_from_admin",
+    status_code=status.HTTP_200_OK,
+)
+async def send_sms_from_admin(
+    event_id: int = Path(...),
+):
+    """
+    Апи для отправки смс из админки.
+    """
+    get_sms_template_service: notification_services.GetSmsTemplateService = notification_services.GetSmsTemplateService(
+        sms_template_repo=notification_repos.SmsTemplateRepo,
+    )
+    resources: dict[str, Any] = dict(
+        event_repo=EventRepo,
+        event_participant_repo=EventParticipantRepo,
+        user_repo=users_repos.UserRepo,
+        sms_class=SmsService,
+        get_sms_template_service=get_sms_template_service,
+    )
+    sending_sms_to_broker_on_event_service: SendingSmsToBrokerOnEventService = SendingSmsToBrokerOnEventService(
+        **resources
+    )
+    resources: dict[str, Any] = dict(
+        event_repo=EventRepo,
+        event_sms_notification_repo=notification_repos.EventsSmsNotificationRepo,
+        sending_sms_to_broker=sending_sms_to_broker_on_event_service,
+    )
+    send_sms: SendSMSFromAdminCase = SendSMSFromAdminCase(**resources)
+    await send_sms(event_id=event_id)

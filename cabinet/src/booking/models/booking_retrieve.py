@@ -16,7 +16,7 @@ from ..constants import (
     BookingSubstages,
     BookingStages,
     MaritalStatus,
-    PaymentMethods,
+    # PaymentMethods,
     RelationStatus,
 )
 
@@ -276,7 +276,6 @@ class ResponseBookingRetrieveModel(BaseBookingModel):
     amocrm_substage: Optional[BookingSubstages.serializer]
     booking_tags: Optional[list[BookingTagRetrieveModel]]
 
-    payment_method: Optional[PaymentMethods.serializer]
     maternal_capital: bool
     housing_certificate: bool
     government_loan: bool

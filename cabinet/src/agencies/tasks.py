@@ -107,22 +107,6 @@ async def create_agency_log_task(log_data: dict[str, Any]) -> None:
 
 
 @celery.app.task
-def export_agency_in_amo(agency_id: int) -> None:
-    """
-    Экспорт агентства в амо.
-    """
-    resources: dict[str, Any] = dict(
-        orm_class=Tortoise,
-        orm_config=tortoise_config,
-        amocrm_class=amocrm.AmoCRM,
-        agency_repo=agencies_repos.AgencyRepo,
-    )
-    export_agency_in_amo: services.UpdateOrganizationService = services.UpdateOrganizationService(**resources)
-    loop: Any = get_event_loop()
-    loop.run_until_complete(celery.sentry_catch(celery.init_orm(export_agency_in_amo))(agency_id=agency_id))
-
-
-@celery.app.task
 def fire_agent_task(
     agent_amocrm_id: int,
     repres_amocrm_id: int,

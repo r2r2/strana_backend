@@ -5,7 +5,7 @@ from asyncio import Task
 from base64 import b64encode
 from datetime import datetime
 from urllib.parse import unquote
-from enum import Enum
+from enum import IntEnum
 from typing import Any, Callable, Optional, Tuple, Type, Union, Awaitable
 
 import structlog
@@ -59,7 +59,7 @@ from src.users.loggers.wrappers import user_changes_logger
 from src.users.utils import get_unique_status
 
 
-class LeadStatuses(int, Enum):
+class LeadStatuses(IntEnum):
     """
      Статусы закрытых сделок в амо.
     """
@@ -361,7 +361,7 @@ class AssignClientCase(BaseUserCase):
             if contacts:
                 amocrm_id: int = contacts[0].id
             else:
-                created_contact: list[dict] = await amocrm.create_contact(
+                created_contact: list[dict] = await amocrm.create_contact_v4(
                     user_phone=payload.phone,
                     user_email=payload.email,
                     user_name=payload.full_name,
@@ -502,6 +502,7 @@ class AssignClientCase(BaseUserCase):
             booking = await self.booking_repo.retrieve(filters=dict(amocrm_id=lead.id))
             if booking:
                 booking = await self.booking_update(booking=booking, data=data)
+                booking_created: bool = False
             else:
                 booking_source: BookingSource = await get_booking_source(slug=BookingCreatedSources.AMOCRM)
                 data.update(
@@ -510,8 +511,10 @@ class AssignClientCase(BaseUserCase):
                     booking_source=booking_source,
                 )
                 booking = await self.booking_create(data=data)
+                booking_created: bool = True
 
-            await self._create_task_instance([booking.id])
+            self.logger.info(f"Booking taste case 1: {booking.id}, {booking.active}, {booking.amocrm_status}")
+            await self._create_task_instance([booking.id], booking_created=booking_created)
 
     async def _find_not_created_projects(
         self,
@@ -626,11 +629,14 @@ class AssignClientCase(BaseUserCase):
             )
             if booking:
                 booking = await self.booking_update(booking=booking, data=data)
+                booking_created: bool = False
             else:
                 booking = await self.booking_create(data=data)
+                booking_created: bool = True
 
             await booking.refresh_from_db(fields=["id"])
-            await self._create_task_instance([booking.id], booking_created=True)
+            self.logger.info(f"Booking taste case 2: {booking.id}, {booking.active}, {booking.amocrm_status}")
+            await self._create_task_instance([booking.id], booking_created=booking_created)
             created_booking_id = booking.id
 
         return created_booking_id
@@ -721,6 +727,9 @@ class AssignClientCase(BaseUserCase):
             amocrm_status_id=LeadStatuses.UNREALIZED
         )
         if bookings:
+            self.logger.info(f"Booking taste case 3: {[booking.id for booking in bookings]}, "
+                             f"{[booking.active for booking in bookings]},"
+                             f" {[booking.amocrm_status for booking in bookings]}")
             await self._create_task_instance([booking.id for booking in bookings])
 
     async def _update_amocrm_leads(self, amocrm: AmoCRM, leads: list[AmoLead], agent: User, user: User):
@@ -870,6 +879,7 @@ class AssignClientCase(BaseUserCase):
         """
         task_context: CreateTaskDTO = CreateTaskDTO()
         task_context.booking_created = booking_created
+        task_context.is_main = True
         await self.create_task_instance_service(booking_ids=booking_ids, task_context=task_context)
 
     def generate_tokens(self, agent_id: int, client_id: int) -> Tuple[str, str]:

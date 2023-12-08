@@ -13,6 +13,7 @@ class SystemList(Model):
     slug: str = fields.CharField(description="Слаг", max_length=255, null=True)
 
     taskchains: fields.ManyToManyRelation["TaskChain"]
+    booking_tags: fields.ManyToManyRelation["BookingTag"]
 
     class Meta:
         table = "settings_system_list"

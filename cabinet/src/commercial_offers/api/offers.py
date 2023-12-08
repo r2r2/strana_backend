@@ -43,7 +43,6 @@ async def create_offer_view(
         offer_repo=offer_repo.offer.OfferRepo,
         offer_source_repo=offer_repo.offer_source.OfferSourceRepo,
         offer_properties_repo=offer_repo.offer_property.OfferPropertyRepo,
-        offer_template_repo=offer_repo.offer_template.OfferTemplateRepo
     )
 
     create_offer: use_cases.CreateOfferCaseSaving = use_cases.CreateOfferCaseSaving(

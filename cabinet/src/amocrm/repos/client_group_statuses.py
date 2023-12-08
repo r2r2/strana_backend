@@ -14,8 +14,8 @@ class ClientAmocrmGroupStatus(Model):
     sort: int = fields.IntField(description='Приоритет', default=0)
     color: str = fields.CharField(max_length=40, description='Цвет', null=True)
     is_final: bool = fields.BooleanField(description="Завершающий статус", default=False)
+    is_hide: bool = fields.BooleanField(description="Скрыть статус", default=False)
 
-    # Deprecated
     show_reservation_date: bool = fields.BooleanField(description="Выводить дату резерва", default=False)
     show_booking_date: bool = fields.BooleanField(description="Выводить дату брони", default=False)
 

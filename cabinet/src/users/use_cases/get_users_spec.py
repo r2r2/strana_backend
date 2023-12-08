@@ -41,7 +41,10 @@ class GetUsersSpecs(BaseUserCase):
                                                               Q(amocrm_signed=True) | Q(price_payed=True)])
 
         interests_filter = dict(user_id=user_id)
-        interest = await self.users_interested_repos.count(filters=interests_filter)
+        interest_global_ids = await self.users_interested_repos.list(
+            filters=interests_filter,
+        ).distinct().values_list("property__global_id", flat=True)
+        interest = len(interest_global_ids)
 
         city = await self.city_repos.retrieve(filters=dict(slug=city_slug))
 

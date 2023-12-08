@@ -5,9 +5,12 @@ from datetime import datetime
 from functools import wraps
 from typing import Any, Union
 from urllib.parse import parse_qs, unquote
+
+import sentry_sdk
 import structlog
 
 from common.amocrm import AmoCRM
+from common.sentry.utils import send_sentry_log
 from config import EnvTypes, maintenance_settings
 
 logger = structlog.get_logger("amocrm_webhook_maintenance")
@@ -44,19 +47,42 @@ def amocrm_webhook_maintenance(amocrm_webhook):
         data: dict[str, Any] = parse_qs(unquote((await request.body()).decode("utf-8")))
         amocrm_id, tags = _fetch_tags(data)
         logger.info(f"[{datetime.now(tz=pytz.UTC)}] AMOCRM webhook maintenance: id={amocrm_id} tags={tags}")
+        sentry_ctx: dict[str, Any] = dict(
+            tags=tags,
+            data=data,
+        )
         if maintenance_settings["environment"] == EnvTypes.DEV:
             if AmoCRM.dev_booking_tag_id not in tags:
+                sentry_ctx["tag_id"] = AmoCRM.dev_booking_tag_id
+                await send_sentry_log(
+                    tag="webhook wrapper",
+                    message="miss accepted tag in dev environment",
+                    context=sentry_ctx,
+                )
                 return None
         elif maintenance_settings["environment"] == EnvTypes.STAGE:
             if AmoCRM.stage_booking_tag_id not in tags:
+                sentry_ctx["tag_id"] = AmoCRM.stage_booking_tag_id
+                await send_sentry_log(
+                    tag="webhook wrapper",
+                    message="miss accepted tag in stage environment",
+                    context=sentry_ctx,
+                )
                 return None
         elif maintenance_settings["environment"] == EnvTypes.PROD:
             if AmoCRM.dev_booking_tag_id in tags or AmoCRM.stage_booking_tag_id in tags:
+                sentry_ctx["tag_ids"] = [AmoCRM.dev_booking_tag_id, AmoCRM.stage_booking_tag_id]
+                await send_sentry_log(
+                    tag="webhook wrapper",
+                    message="miss accepted tag in prod environment",
+                    context=sentry_ctx,
+                )
                 return None
         try:
             return await amocrm_webhook(request, *args, **kwargs)
-        except Exception:
+        except Exception as exc:
             traceback.print_exc()
+            sentry_sdk.capture_exception(exc)
             return
 
     return wrapper

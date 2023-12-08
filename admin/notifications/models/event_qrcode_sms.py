@@ -32,7 +32,21 @@ class QRcodeSMSNotify(models.Model):
         verbose_name='Дата и время отправки смс',
         null=True,
         blank=True,
-        help_text="СМС-уведомление отправляется по местному времени первого города, указанного для отправки уведомления"
+        help_text="СМС-уведомление отправляется по московскому времени"
+    )
+    groups: models.ManyToManyField = models.ManyToManyField(
+        to='events_list.EventGroup',
+        related_name='qrcode_sms',
+        through='QRCodeSMSGroupThrough',
+        verbose_name='Группы',
+        blank=True,
+    )
+    groups: models.ManyToManyField = models.ManyToManyField(
+        to='events_list.EventGroup',
+        related_name='qrcode_sms',
+        through='QRCodeSMSGroupThrough',
+        verbose_name='Группы',
+        blank=True,
     )
     groups: models.ManyToManyField = models.ManyToManyField(
         to='events_list.EventGroup',

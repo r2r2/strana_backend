@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from types import TracebackType
 from typing import Any, Callable, Coroutine, Optional, Type, Union
-from enum import Enum
+from enum import StrEnum
 
 import structlog
 from aiohttp import ClientSession
@@ -12,7 +12,7 @@ from ..wrappers import mark_async
 from .decorators import refresh_on_status
 
 
-class ProfitbaseStatuses(str, Enum):
+class ProfitbaseStatuses(StrEnum):
     AVAILABLE = "AVAILABLE"
     BOOKED = "BOOKED"
 

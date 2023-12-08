@@ -106,6 +106,8 @@ class OnlineBookingSlug(Slugs):
     PAYMENT: str = "online_booking_payment"  # 4. Оплатите бронирование
     PAYMENT_SUCCESS: str = "online_booking_payment_success"  # 5. Бронирование успешно оплачено
     TIME_IS_UP: str = "online_booking_time_is_up"  # 6. Время истекло
+    CAN_EXTEND: str = "online_booking_can_extend"  # 7. Можно продлить бронирование
+    CAN_NOT_EXTEND: str = "online_booking_can_not_extend"  # 8. Нельзя продлить бронирование
 
 
 class FastBookingSlug(Slugs):
@@ -118,6 +120,8 @@ class FastBookingSlug(Slugs):
     PAYMENT: str = "fast_booking_payment"  # 4. Оплатите бронирование
     PAYMENT_SUCCESS: str = "fast_booking_payment_success"  # 5. Бронирование успешно оплачено
     TIME_IS_UP: str = "fast_booking_time_is_up"  # 6. Время истекло
+    CAN_EXTEND: str = "fast_booking_can_extend"  # 7. Можно продлить бронирование
+    CAN_NOT_EXTEND: str = "fast_booking_can_not_extend"  # 8. Нельзя продлить бронирование
 
 
 class FreeBookingSlug(Slugs):
@@ -131,3 +135,5 @@ class FreeBookingSlug(Slugs):
     PAYMENT: str = "free_booking_payment"  # 5. Оплатите бронирование
     PAYMENT_SUCCESS: str = "free_booking_payment_success"  # 6. Бронирование успешно оплачено
     TIME_IS_UP: str = "free_booking_time_is_up"  # 7. Время истекло
+    CAN_EXTEND: str = "free_booking_can_extend"  # 8. Можно продлить бронирование
+    CAN_NOT_EXTEND: str = "free_booking_can_not_extend"  # 9. Нельзя продлить бронирование

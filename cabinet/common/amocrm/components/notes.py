@@ -31,10 +31,10 @@ class AmoCRMNotes(AmoCRMInterface, ABC):
         "task_result": 13,
         "contact_created": 2,
     }
-
-    async def create_note(self, lead_id: int, text: str, element: str, note: str) -> list[Any]:
+    
+    async def create_note_v4(self, lead_id: int, text: str, element: str, note: str) -> list[Any]:
         """
-        Note creation
+        Note creation v_4
         """
         route: str = "/notes"
         payload: dict[str, Any] = dict(
@@ -48,9 +48,9 @@ class AmoCRMNotes(AmoCRMInterface, ABC):
                 )
             ]
         )
-        response: CommonResponse = await self._request_post(route=route, payload=payload)
+        response: CommonResponse = await self._request_post_v4(route=route, payload=payload)
         if response.data:
-            data: list[Any] = response.data["_embedded"]["items"]
+            data: list[Any] = response.data["_embedded"]["notes"]
         else:
             data: list[Any] = []
         return data

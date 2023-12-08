@@ -33,7 +33,6 @@ class RCache(BaseCache):
         response = requests.get(
             initial_config_url, headers=headers, timeout=self.REQUEST_TIMEOUT
         )
-        print(response.json())
         self.set(self.FEATURES_URL, response.json())
         self.bootstrapped = True
 

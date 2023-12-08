@@ -1,8 +1,10 @@
 from json import dumps
 from typing import Any, Union
 
+from common.sentry.utils import send_sentry_log
 
-class SberbankPay(object):
+
+class SberbankPay:
     """
     Sberbank payment integration
     """
@@ -17,6 +19,11 @@ class SberbankPay(object):
                 headers=self._headers,
                 query=self._form_pay_query(),
             )
+            await send_sentry_log(
+                tag="acquiring",
+                message=f"SberbankPay request: {self._booking_order_id}",
+                context={"request_options": request_options},
+            )
             print("Request options: ", request_options)
             async with self._request_class(**request_options) as response:
                 if not response.ok:
@@ -25,6 +32,12 @@ class SberbankPay(object):
                 else:
                     pay_data: Union[list[Any], dict[str, Any], str] = response.data
                     self._pay_data: Union[list[Any], dict[str, Any], str] = pay_data
+
+                await send_sentry_log(
+                    tag="acquiring",
+                    message=f"SberbankPay response: {self._booking_order_id}",
+                    context={"response": response.data, "status": response.status},
+                )
                 print("Response data: ", response.data)
                 print("Response status: ", response.status)
                 print("Pay data: ", pay_data)
@@ -81,7 +94,7 @@ class SberbankPay(object):
         return dumps(pay_bundle)
 
 
-class SberbankStatus(object):
+class SberbankStatus:
     """
     Sberbank status integration
     """
@@ -96,9 +109,19 @@ class SberbankStatus(object):
                 headers=self._headers,
                 query=self._form_status_query(),
             )
+            await send_sentry_log(
+                tag="acquiring",
+                message=f"SberbankStatus request: {self._booking_order_id}",
+                context={"request_options": request_options},
+            )
             async with self._request_class(**request_options) as response:
                 status_data: Union[list[Any], dict[str, Any], str] = response.data
                 self._status_data: Union[list[Any], dict[str, Any], str] = status_data
+                await send_sentry_log(
+                    tag="acquiring",
+                    message=f"SberbankStatus response: {self._booking_order_id}",
+                    context={"response": response.data, "status": response.status},
+                )
         return status_data
 
     def _form_status_query(self) -> dict[str, Any]:

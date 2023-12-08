@@ -55,7 +55,7 @@ class BookingCreationFromAmoService(BaseBookingService):
     ) -> Booking:
         booking_purchase_data: Optional[dict] = None
         custom_fields: dict = webhook_lead.custom_fields
-        project_enum: str = custom_fields.get(self.amocrm_class.project_field_id, CustomFieldValue()).value
+        project_enum: int = custom_fields.get(self.amocrm_class.project_field_id, CustomFieldValue()).enum
         project: Optional[Project] = await self.project_repo.retrieve(filters=dict(amocrm_enum=project_enum,
                                                                                    status=ProjectStatus.CURRENT))
         property_id: str = custom_fields.get(self.amocrm_class.property_field_id, CustomFieldValue()).value

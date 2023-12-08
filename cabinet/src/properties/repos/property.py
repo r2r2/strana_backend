@@ -138,6 +138,9 @@ class Property(Model):
         description="Дата окончания брони из Profitbase",
         max_length=64,
         null=True)
+    cash_price: Optional[Decimal] = fields.DecimalField(
+        description="Цена за наличные", max_digits=14, decimal_places=2, null=True
+    )
 
     def __str__(self) -> str:
         return self.global_id

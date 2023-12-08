@@ -3,9 +3,9 @@ from typing import Any
 
 from tortoise import Tortoise
 
+from common.settings.repos import BookingSettingsRepo
 from config import celery, tortoise_config
 from src.task_management import repos as task_management_repos
-from src.task_management import loggers
 from src.task_management import services
 from src.task_management.dto import UpdateTaskDTO, CreateTaskDTO
 from src.task_management.factories import CreateTaskInstanceServiceFactory, UpdateTaskInstanceStatusServiceFactory
@@ -47,17 +47,44 @@ def update_task_instance_status_task(
 
 
 @celery.app.task
-def create_task_instance_log_task(log_data: dict[str, Any]) -> None:
+def periodic_update_deal_to_need_extension_status_task() -> None:
     """
-    Создание лога изменений инстанса задачи
+    Обновление задач фиксаций, в статус, когда сделка нуждается в продлении (через отложенные eta задачи).
     """
+
     resources: dict[str, Any] = dict(
-        task_instance_log_repo=task_management_repos.TaskInstanceLogRepo,
+        task_instance_repo=task_management_repos.TaskInstanceRepo,
+        booking_settings_repo=BookingSettingsRepo,
+        update_status_service=UpdateTaskInstanceStatusServiceFactory.create(),
+        update_task_instance_status_task=update_task_instance_status_task,
         orm_class=Tortoise,
         orm_config=tortoise_config,
     )
-    create_log: loggers.CreateTaskInstanceLogLogger = loggers.CreateTaskInstanceLogLogger(
-        **resources
-    )
+    update_deal_to_need_extension_service: services.UpdateDealToNeedExtensionStatusService = \
+        services.UpdateDealToNeedExtensionStatusService(
+            **resources
+        )
     loop: Any = get_event_loop()
-    loop.run_until_complete(celery.sentry_catch(celery.init_orm(create_log))(log_data=log_data))
+    loop.run_until_complete(celery.sentry_catch(celery.init_orm(update_deal_to_need_extension_service))())
+
+
+@celery.app.task
+def periodic_update_deal_to_cant_extend_deal_by_date_task() -> None:
+    """
+    Обновление задач фиксаций, в статус, когда сделку нельзя продлить из-за даты окончания фиксации
+    (через отложенные eta задачи).
+    """
+
+    resources: dict[str, Any] = dict(
+        task_instance_repo=task_management_repos.TaskInstanceRepo,
+        update_status_service=UpdateTaskInstanceStatusServiceFactory.create(),
+        update_task_instance_status_task=update_task_instance_status_task,
+        orm_class=Tortoise,
+        orm_config=tortoise_config,
+    )
+    update_deal_to_cant_extend_deal_by_date_service: services.UpdateDealToCantExtendDealByDateStatusService = \
+        services.UpdateDealToCantExtendDealByDateStatusService(
+            **resources
+        )
+    loop: Any = get_event_loop()
+    loop.run_until_complete(celery.sentry_catch(celery.init_orm(update_deal_to_cant_extend_deal_by_date_service))())

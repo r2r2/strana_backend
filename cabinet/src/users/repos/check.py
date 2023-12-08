@@ -6,6 +6,7 @@ from tortoise.fields import ForeignKeyNullableRelation
 from common import orm
 from common.orm.mixins import CRUDMixin
 from src.agencies.repos import Agency
+from src.projects.repos import Project
 from src.users.entities import BaseUserRepo
 from src.users.repos.user import User
 
@@ -86,6 +87,9 @@ class Check(Model):
     )
     amocrm_id: int | None = fields.IntField(
         description="ID сделки в amoCRM, по которой была проверка", null=True
+    )
+    project: fields.ForeignKeyRelation[Project] = fields.ForeignKeyField(
+        model_name="models.Project", description='Проект', on_delete=fields.CASCADE, null=True,
     )
     term_uid: str | None = fields.CharField(
         description="UID условия проверки на уникальность",

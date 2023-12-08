@@ -11,6 +11,7 @@ class BookingSource(Model):
 
     taskchains: fields.ManyToManyRelation["TaskChain"]
     bookings: fields.ReverseRelation["Booking"]
+    booking_tags: fields.ManyToManyRelation["BookingTag"]
 
     def __str__(self):
         return self.name

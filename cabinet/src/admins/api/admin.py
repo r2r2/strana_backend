@@ -20,6 +20,7 @@ from src.booking import repos as booking_repos
 from src.represes import repos as represes_repos
 from src.agencies import models as agencies_models
 
+
 router = APIRouter(prefix="/admins", tags=["Admins"])
 
 
@@ -166,18 +167,6 @@ async def get_me_view(
     resources: dict[str, Any] = dict(admin_repo=admins_repos.AdminRepo)
     get_me: use_cases.GetMeCase = use_cases.GetMeCase(**resources)
     return await get_me(admin_id=admin_id)
-
-
-@router.get(
-    "/session_token", status_code=HTTPStatus.OK, response_model=models.ResponseSessionTokenModel
-)
-async def session_token_view(request: Request):
-    """
-    Получение токена через сессию
-    """
-    resources: dict[str, Any] = dict(session=request.session, session_config=session_config)
-    session_token: use_cases.SessionTokenCase = use_cases.SessionTokenCase(**resources)
-    return await session_token()
 
 
 @router.post("/logout", status_code=HTTPStatus.NO_CONTENT)

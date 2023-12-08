@@ -21,6 +21,7 @@ from src.notifications.services import (
     CheckQRCodeSMSSend,
     SendQRCodeSMS,
 )
+from src.task_management.repos import TaskInstanceRepo
 from src.users import repos as users_repos
 
 
@@ -86,13 +87,15 @@ def send_booking_notify_sms_task(data: dict[str, Any]) -> bool:
 
 
 @celery.app.task
-def booking_fixation_notification_email_task(booking_id: int) -> None:
+def periodic_booking_fixation_notification_email_task() -> None:
     """
-    Запускаем отложенные таски по отправке писем за N часов до окончания фиксации и при окончании фиксации.
+    Запуск отложенных задач по отправке писем за N часов до окончания фиксации и при окончании фиксации
+    (через eta задачи).
     """
     resources: dict[str, Any] = dict(
-        booking_repo=booking_repos.BookingRepo,
+        task_instance_repo=TaskInstanceRepo,
         booking_fixation_notification_repo=notification_repos.BookingFixationNotificationRepo,
+        booking_settings_repo=BookingSettingsRepo,
         send_booking_fixation_notify_email_task=send_booking_fixation_notify_email_task,
         orm_class=Tortoise,
         orm_config=tortoise_config,
@@ -101,7 +104,7 @@ def booking_fixation_notification_email_task(booking_id: int) -> None:
         BookingFixationNotificationService(**resources)
     loop: Any = get_event_loop()
     loop.run_until_complete(
-        celery.sentry_catch(celery.init_orm(booking_email_fixation_notification_service))(booking_id=booking_id)
+        celery.sentry_catch(celery.init_orm(booking_email_fixation_notification_service))()
     )
 
 

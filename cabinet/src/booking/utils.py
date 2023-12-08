@@ -1,7 +1,12 @@
 from common.settings.repos import BookingSettings, BookingSettingsRepo
 from src.booking.exceptions import BookingSourceNotFoundError
 from src.properties.repos import Property
-from src.booking.repos import BookingReservationMatrix, BookingReservationMatrixRepo, BookingSource, BookingSourceRepo
+from src.booking.repos import (
+    BookingReservationMatrix,
+    BookingReservationMatrixRepo,
+    BookingSource,
+    BookingSourceRepo,
+)
 from src.users.repos import User
 
 
@@ -12,11 +17,14 @@ async def get_booking_reserv_time(created_source: str, booking_property: Propert
     """
     await booking_property.fetch_related("project")
     booking_reserv: BookingReservationMatrix = await BookingReservationMatrixRepo().retrieve(
-        filters=dict(created_source=created_source),
+        filters=dict(
+            created_source=created_source,
+            project__in=[booking_property.project],
+        ),
         prefetch_fields=["project"],
     )
 
-    if booking_property.project in booking_reserv.project:
+    if booking_reserv:
         booking_reserv_time: float = booking_reserv.reservation_time
     else:
         booking_settings: BookingSettings = await BookingSettingsRepo().list().first()

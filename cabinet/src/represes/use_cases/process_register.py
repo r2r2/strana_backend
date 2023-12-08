@@ -25,6 +25,9 @@ from src.notifications.services import GetEmailTemplateService
 from src.users.services import UserCheckUniqueService
 from src.users.repos import UserRoleRepo
 from src.cities.repos import City, CityRepo
+from src.users.models import RequestUserCheckUnique
+from common.schemas import UrlEncodeDTO
+from common.utils import generate_notify_url
 
 
 class ProcessRegisterCase(BaseRepresCase):
@@ -34,7 +37,8 @@ class ProcessRegisterCase(BaseRepresCase):
 
     repres_mail_event_slug = "repres_confirm_email"
     admin_mail_event_slug = "admin_confirm_agency"
-    link: str = "https://{}/confirm/represes/confirm_email?q={}&p={}"
+    common_link_template: str = "/confirm/represes/confirm_email"
+
     default_general_type_slug = "agency"
     user_type = UserType.REPRES
 
@@ -163,7 +167,16 @@ class ProcessRegisterCase(BaseRepresCase):
         """
         Отправка письма представителю с просьбой подтверждения почты
         """
-        confirm_link: str = self.link.format(self.site_host, token, repres.email_token)
+        url_data: dict[str, Any] = dict(
+            host=self.site_host,
+            route_template = self.link_route_template,
+            query_params = dict(
+                q = token,
+                p = repres.email_token,
+            )
+        )
+        url_dto: UrlEncodeDTO = UrlEncodeDTO(**url_data)
+        confirm_link: str = generate_notify_url(url_dto=url_dto)
         email_notification_template = await self.get_email_template_service(
             mail_event_slug=self.repres_mail_event_slug,
             context=dict(confirm_link=confirm_link),
@@ -213,7 +226,12 @@ class ProcessRegisterCase(BaseRepresCase):
             raise AgencyDataTakenError
 
         # Проверка на то, что репреза с таким email или phone нет в БД
-        await self.check_user_unique_service(payload.repres)
+        payload: RequestUserCheckUnique = RequestUserCheckUnique(
+            phone=payload.repres.phone,
+            email=payload.repres.email,
+            role=UserType.REPRES + 'es',
+        )
+        await self.check_user_unique_service(payload=payload)
 
     async def amocrm_hook(self, agency: Agency, repres: User):
         """Create amocrm company and contact webhook."""

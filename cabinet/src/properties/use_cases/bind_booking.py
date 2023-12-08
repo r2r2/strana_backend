@@ -6,6 +6,8 @@ from typing import Type, Any, Callable, Union, Optional, Awaitable
 from datetime import datetime, timedelta
 
 from common.amocrm.types import AmoTag
+from common.schemas import UrlEncodeDTO
+from common.utils import generate_notify_url
 from config import booking_config, site_config, MaintenanceSettings, EnvTypes
 from common.security import create_access_token
 from src.booking.repos import BookingRepo, Booking
@@ -22,7 +24,8 @@ from src.booking.loggers import booking_changes_logger
 from src.booking.types import BookingAmoCRM, BookingEmail, BookingSms
 from src.buildings.repos import BuildingBookingTypeRepo, BuildingBookingType
 from src.task_management.constants import PaidBookingSlug
-from src.task_management.services import UpdateTaskInstanceStatusService
+from src.task_management.dto import CreateTaskDTO
+from src.task_management.services import UpdateTaskInstanceStatusService, CreateTaskInstanceService
 from src.users.services import CheckPinningStatusService
 from src.amocrm.repos import AmocrmStatus, AmocrmStatusRepo
 from src.notifications.services import GetSmsTemplateService
@@ -41,7 +44,7 @@ class BindBookingPropertyCase(BasePropertyCase):
     STRANA_OZERNAYA_GLOBALID_DEV: str = "R2xvYmFsUHJvamVjdFR5cGU6c2VyZHRjaGUtc2liaXJp"
     STRANA_OZERNAYA_GLOBALID_PROD: str = "R2xvYmFsUHJvamVjdFR5cGU6c3RyYW5hb3plcm5heWE="
     sms_event_slug = "properties_bind"
-    lk_client_auth_link_template: str = "https://{site_host}/booking/{booking_id}/{booking_step}?token={token}"
+    lk_client_auth_link_template: str = "https://{host}/fast-booking"
     aggregator_slug = "aggregator"
     TAG: str = "Платная бронь от агента"
     AGGREGATOR_TAG: str = "Платная бронь агрегатор"
@@ -59,6 +62,7 @@ class BindBookingPropertyCase(BasePropertyCase):
         email_class: Type[BookingEmail],
         change_booking_status_task: Any,
         update_task_instance_status_service: UpdateTaskInstanceStatusService,
+        create_task_service: CreateTaskInstanceService,
         check_pinning: CheckPinningStatusService,
         send_sms_to_msk_client_service: SendSmsToMskClientService,
         global_id_decoder: Callable[[str], tuple[str, Union[str, int]]],
@@ -74,6 +78,7 @@ class BindBookingPropertyCase(BasePropertyCase):
         self.building_booking_type_repo: BuildingBookingTypeRepo = building_booking_type_repo()
         self.amocrm_status_repo: AmocrmStatusRepo = amocrm_status_repo()
         self.purchase_amo_matrix_repo: PurchaseAmoMatrixRepo = PurchaseAmoMatrixRepo()
+        self.create_task_service: CreateTaskInstanceService = create_task_service
 
         self.amocrm_class: Type[BookingAmoCRM] = amocrm_class
         self.activate_bookings_service: ActivateBookingService = activate_bookings_service
@@ -253,6 +258,7 @@ class BindBookingPropertyCase(BasePropertyCase):
         # task_delay: int = (booking.expires - datetime.now(tz=UTC)).seconds
         # self.change_booking_status_task.apply_async((booking.id, amocrm_substage), countdown=task_delay)
         self.check_pinning.as_task(user_id=booking.user.id)
+        await self._create_task_instance(booking=booking)
         return booking
 
     async def _send_sms(self, booking: Booking) -> Task:
@@ -265,18 +271,23 @@ class BindBookingPropertyCase(BasePropertyCase):
 
         if sms_notification_template and sms_notification_template.is_active:
             token: str = self.token_creator(subject_type=booking.user.type.value, subject=booking.user.id).get("token")
-            auth_link_data: dict = dict(
-                site_host=self.site_host,
-                booking_id=booking.id,
-                booking_step=booking.current_step(),
+            query_params: dict[str, Any] = dict(
+                bookingId=booking.id,
                 token=token,
             )
-            lk_client_auth_link: str = self.lk_client_auth_link_template.format(**auth_link_data)
+            data: dict[str, Any] = dict(
+                url_template=self.lk_client_auth_link_template,
+                host=self.site_host,
+                query_params=query_params,
+            )
+            url_dto: UrlEncodeDTO = UrlEncodeDTO(**data)
+            fast_booking_link: str = generate_notify_url(url_dto=url_dto)
+
             time_difference: timedelta = booking.expires - datetime.now(tz=UTC)
             message_data: dict = dict(
                 agent_full_name=booking.agent.full_name,
                 time_left=(datetime.min + time_difference).strftime('%H:%M'),
-                link=lk_client_auth_link
+                link=fast_booking_link,
             )
             message = sms_notification_template.template_text.format(**message_data)
 
@@ -296,3 +307,11 @@ class BindBookingPropertyCase(BasePropertyCase):
         Обновление статуса задачи
         """
         await self.update_task_instance_status_service(booking_id=booking_id, status_slug=status_slug)
+
+    async def _create_task_instance(self, booking: Booking) -> None:
+        """
+        Создание задачи
+        """
+        task_context: CreateTaskDTO = CreateTaskDTO()
+        task_context.is_main = True
+        await self.create_task_service(booking_ids=booking.id, task_context=task_context)

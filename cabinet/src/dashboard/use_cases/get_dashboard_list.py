@@ -12,7 +12,7 @@ from src.booking import repos as booking_repos
 from src.cities import repos as cities_repos
 from src.dashboard import repos as dashboard_repos
 from src.dashboard.entities import BaseDashboardCase
-from src.dashboard.models.block import BlockListResponse, _ElementRetrieveModel
+from src.dashboard.models.block import BlockListResponse, ElementRetrieveModel
 from src.users import repos as user_repos
 
 
@@ -21,17 +21,17 @@ class GetDashboardListCase(BaseDashboardCase):
     PORTAL_ENDPOINT = "/promo/"
 
     def __init__(
-            self,
-            dashboard_block: Type[dashboard_repos.BlockRepo],
-            elements_repo: Type[dashboard_repos.ElementRepo],
-            city_repo: Type[cities_repos.CityRepo],
-            user_repo: Type[user_repos.UserRepo],
-            booking_repo: Type[booking_repos.BookingRepo],
-            link_repo: Type[dashboard_repos.LinkRepo],
-            portal_class: PortalAPI,
-            calculator_class: CalculatorAPI,
-            mc_config: dict[str, Any],
-            portal_config: backend_config
+        self,
+        dashboard_block: Type[dashboard_repos.BlockRepo],
+        elements_repo: Type[dashboard_repos.ElementRepo],
+        city_repo: Type[cities_repos.CityRepo],
+        user_repo: Type[user_repos.UserRepo],
+        booking_repo: Type[booking_repos.BookingRepo],
+        link_repo: Type[dashboard_repos.LinkRepo],
+        portal_class: PortalAPI,
+        calculator_class: CalculatorAPI,
+        mc_config: dict[str, Any],
+        portal_config: backend_config
     ):
         self.block_repo = dashboard_block()
         self.elements_repo = elements_repo()
@@ -47,9 +47,13 @@ class GetDashboardListCase(BaseDashboardCase):
     async def __call__(self, city_slug: str, user_id: Optional[int] = None) -> list[BlockListResponse]:
         slug_filter = dict(city__slug=city_slug)
         link_qs = self.link_repo.list(filters=slug_filter)
-        element_qs = self.elements_repo.list(filters=slug_filter,
-                                             prefetch_fields=[dict(relation="links", queryset=link_qs,
-                                                                   to_attr="link_list")])
+        element_qs = self.elements_repo.list(
+            filters=slug_filter,
+            ordering="priority",
+            prefetch_fields=[
+                dict(relation="links", queryset=link_qs, to_attr="link_list"),
+            ]
+        )
         blocks: list[dashboard_repos.Block] = await self.block_repo.list(
             filters=slug_filter, prefetch_fields=[dict(relation="elements", queryset=element_qs,
                                                        to_attr="elements_list")])
@@ -108,7 +112,7 @@ class GetDashboardListCase(BaseDashboardCase):
 
     @staticmethod
     def build_element(element: dashboard_repos.Element, template_dict: dict[str, str]):
-        proxy_element = parse_obj_as(_ElementRetrieveModel, element)
+        proxy_element = parse_obj_as(ElementRetrieveModel, element)
         proxy_element.title = Template(proxy_element.title).safe_substitute(template_dict)
         proxy_element.description = Template(proxy_element.description).safe_substitute(template_dict)
         if element.links:

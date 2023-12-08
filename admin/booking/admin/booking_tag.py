@@ -13,10 +13,10 @@ class BookingTagAdmin(admin.ModelAdmin):
         "priority",
         "is_active",
     )
-    filter_horizontal = ("group_status", )
+    filter_horizontal = ("group_status", "booking_sources", "systems")
 
     def formfield_for_manytomany(self, db_field, request, **kwargs):
-        if db_field.name == "group_status":
+        if db_field.name in ("group_status", "booking_sources", "systems"):
             kwargs['widget'] = FilteredSelectMultiple(
                 db_field.verbose_name, is_stacked=False
             )

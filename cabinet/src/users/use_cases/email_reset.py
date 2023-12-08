@@ -1,7 +1,7 @@
 from asyncio import Task
 from secrets import token_urlsafe
 from typing import Type, Any, Callable
-from enum import Enum
+from enum import StrEnum
 
 from ..exceptions import UserNotFoundError
 from ..models import RequestEmailResetModel
@@ -13,7 +13,7 @@ from ..constants import UserType
 from src.notifications.services import GetEmailTemplateService
 
 
-class UserUrlType(str, Enum):
+class UserUrlType(StrEnum):
     ADMIN = 'admins'
     REPRES = 'represes'
     AGENT = 'agents'

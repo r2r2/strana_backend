@@ -34,6 +34,8 @@ def get_routers() -> list[APIRouter]:
     from src.events_list.api import events_list_router
     from src.feature_flags.api import feature_flags_router
     from src.commercial_offers.api import offers_router
+    from src.news.api import news_router
+    from src.mortgage_calculator.api import mortgage_router
 
     routers: list[APIRouter] = list()
 
@@ -76,6 +78,8 @@ def get_routers() -> list[APIRouter]:
     routers.append(events_list_router)
     routers.append(feature_flags_router)
     routers.append(offers_router)
+    routers.append(news_router)
+    routers.append(mortgage_router)
 
     return routers
 

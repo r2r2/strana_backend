@@ -1,7 +1,7 @@
 import asyncio
 from copy import copy
 from datetime import datetime, timedelta
-from typing import Any, Optional, Union, Callable
+from typing import Any, Optional, Union, Callable, Coroutine
 
 import structlog
 from pytz import UTC
@@ -51,7 +51,6 @@ class CreateTaskInstanceService(BaseTaskService):
         task_status_repo: type[TaskStatusRepo],
         task_chain_repo: type[TaskChainRepo],
         booking_settings_repo: type[BookingSettingsRepo],
-        update_task_instance_status_task: Any,
         orm_class: Optional[BookingORM] = None,
         orm_config: Optional[dict[str, Any]] = None,
     ):
@@ -62,11 +61,10 @@ class CreateTaskInstanceService(BaseTaskService):
         self.orm_class: Optional[type[BookingORM]] = orm_class
         self.orm_config: Optional[dict[str, Any]] = copy(orm_config)
         self.booking_settings_repo: BookingSettingsRepo = booking_settings_repo()
-        self.update_task_instance_status_task = update_task_instance_status_task
         if self.orm_config:
             self.orm_config.pop("generate_schemas", None)
 
-        self.logger = structlog.get_logger(__name__)
+        self.logger = structlog.get_logger(self.__class__.__name__)
         self.create_task = task_instance_logger(self.task_instance_repo.create, self, content="Создание задачи")
         self.booking_update: Callable = booking_changes_logger(
             self.booking_repo.update, self, content="Обновление бронирования при создании задачи фиксации",
@@ -96,6 +94,8 @@ class CreateTaskInstanceService(BaseTaskService):
         booking_ids: Union[list[int], int],
         task_context: CreateTaskDTO | None = None,
     ) -> None:
+        if task_context and not isinstance(task_context, CreateTaskDTO):
+            raise ValueError(f"task_context must be CreateTaskDTO. Got {task_context=}")
         self._task_context: CreateTaskDTO = task_context if task_context else CreateTaskDTO()
         if isinstance(booking_ids, int):
             booking_ids: list[int] = [booking_ids]
@@ -113,6 +113,7 @@ class CreateTaskInstanceService(BaseTaskService):
                 "booking_substage",
                 "task_statuses",
                 "booking_source",
+                "interchangeable_chains",
             ],
         )
         if not task_chains:
@@ -122,19 +123,54 @@ class CreateTaskInstanceService(BaseTaskService):
             f"Бронирования: {bookings}\n"
             f"Цепочки задач: {[t.name for t in task_chains]}\n"
         )
-        tasks = [
-            self._process_booking_with_task_chains(bookings, task_chain)
+        [
+            await self._process_booking_with_task_chains(bookings, task_chain)
             for task_chain in task_chains
         ]
-        await asyncio.gather(*tasks)
 
     async def _process_booking_with_task_chains(self, bookings: list[Booking], task_chain: TaskChain) -> None:
         for booking in bookings:
+            await self._handle_interchangeable_chains(booking=booking, task_chain=task_chain)
             # Тут определяем, что нужно создать задачу
             if await self._check_if_need_to_create_task(booking=booking, task_chain=task_chain):
                 self.logger.info(f"Бронирование #{booking} подходит для цепочки задач [{task_chain}]")
-
                 await self.process_use_case(booking=booking, task_chain=task_chain)
+
+    async def _handle_interchangeable_chains(self, booking: Booking, task_chain: TaskChain) -> None:
+        """
+        Обработка взаимозаменяемых цепочек задач
+        """
+        interchangeable_chains: list[TaskChain] = await task_chain.interchangeable_chains
+        if not interchangeable_chains:
+            # Если нет взаимозаменяемых цепочек задач, то ничего не делаем
+            return
+        self.logger.info(
+            f"\nОбработка взаимозаменяемых цепочек задач для бронирования #{booking}, цепочка [{task_chain}]"
+            f"\nВзаимозаменяемые цепочки задач: {[t.name for t in interchangeable_chains]}"
+        )
+        async_tasks: list[Coroutine] = [
+            self._delete_task_from_interchangeable_chain(
+                booking=booking,
+                interchangeable_chain=chain,
+            )
+            for chain in interchangeable_chains
+        ]
+        await asyncio.gather(*async_tasks)
+
+    async def _delete_task_from_interchangeable_chain(
+        self,
+        booking: Booking,
+        interchangeable_chain: TaskChain,
+    ) -> None:
+        """
+        Удаление задачи из взаимозаменяемой цепочки задач
+        """
+        task_instance: TaskInstance | None = await self.task_instance_repo.retrieve(
+            filters=dict(booking=booking, status__tasks_chain=interchangeable_chain),
+        )
+        if task_instance:
+            self.logger.info(f"Удаляем задачу [{task_instance}] из цепочки [{interchangeable_chain}]")
+            await self.task_instance_repo.delete(model=task_instance)
 
     async def _check_if_need_to_create_task(self, booking: Booking, task_chain: TaskChain) -> bool:
         """
@@ -181,8 +217,6 @@ class CreateTaskInstanceService(BaseTaskService):
         booking_settings: BookingSettings = await self.booking_settings_repo.list().first()
         if self._task_context.booking_created:
             fixation_expires = datetime.now(tz=UTC) + timedelta(days=booking_settings.lifetime)
-        elif booking.fixation_expires:
-            fixation_expires = booking.fixation_expires
         else:
             fixation_expires = None
 
@@ -197,19 +231,11 @@ class CreateTaskInstanceService(BaseTaskService):
         await self.booking_update(booking=booking, data=booking_data)
 
         if booking.extension_number and booking.fixation_expires:
-            task_created: bool = await self.create_task_instance(
+            await self.create_task_instance(
                 booking=booking,
                 task_status=task_status,
                 task_chain=task_chain,
             )
-            if task_created:
-                # создаем отложенную задачу на изменение статуса задачи сделки фиксации,
-                # когда фиксация подходит к концу
-                update_task_date = booking.fixation_expires - timedelta(days=booking_settings.extension_deadline)
-                self.update_task_instance_status_task.apply_async(
-                    (booking.id, self.fixations_statuses.DEAL_NEED_EXTENSION.value, self.__class__.__name__),
-                    eta=update_task_date,
-                )
 
     async def paid_booking_case(self, booking: Booking, task_chain: TaskChain) -> None:
         """

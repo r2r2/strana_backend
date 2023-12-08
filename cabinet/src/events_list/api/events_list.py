@@ -9,12 +9,12 @@ from common.messages import SmsService
 from config import site_config
 from src.events_list.models import EventListQRCodeResponse
 from src.events_list.repos import EventParticipantListRepo, EventListRepo, EventGroupRepo
-from src.events_list.use_cases import EventParticipantListCase
+from src.events_list.use_cases import UpdateEventParticipantListCase, DeleteEventParticipantListCase
 from src.events_list.use_cases.event_list_qr_code_case import EventListQRCodeCase
-from src.notifications.repos import QRcodeSMSNotifyRepo
+from src.notifications.repos import QRcodeSMSNotifyRepo, OnboardingRepo
 from src.notifications.services import SendQRCodeSMS
 from src.users import repos as user_repos
-
+from src.users.repos import UserRepo
 
 router = APIRouter(prefix="/events_list", tags=["Список мероприятий"])
 
@@ -47,15 +47,35 @@ async def update_event_participant_list(
     event_id: int = Path(...),
 ) -> None:
     """
-    Апи обновления списка участников мероприятия.
+    Апи обновления списка участников мероприятия из админки.
     """
     resources: dict[str, Any] = dict(
         event_list_repo=EventListRepo,
         event_participant_list_repo=EventParticipantListRepo,
         event_group_repo=EventGroupRepo,
+        onboarding_repo=OnboardingRepo,
+        user_repo=UserRepo,
         depreg_api=DepregAPI,
     )
-    event_participant_list_case: EventParticipantListCase = EventParticipantListCase(**resources)
+    event_participant_list_case: UpdateEventParticipantListCase = UpdateEventParticipantListCase(**resources)
+    await event_participant_list_case(event_id=event_id)
+
+
+@router.delete(
+    "/{event_id}/delete_event_participant_list/",
+    status_code=HTTPStatus.OK,
+)
+async def delete_event_participant_list(
+    event_id: int = Path(...),
+) -> None:
+    """
+    Апи удаления списка участников мероприятия из админки.
+    """
+    resources: dict[str, Any] = dict(
+        event_participant_list_repo=EventParticipantListRepo,
+        event_group_repo=EventGroupRepo,
+    )
+    event_participant_list_case: DeleteEventParticipantListCase = DeleteEventParticipantListCase(**resources)
     await event_participant_list_case(event_id=event_id)
 
 

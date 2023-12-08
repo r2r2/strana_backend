@@ -3,6 +3,7 @@ from typing import Any
 from fastapi import (APIRouter, Body, Path, Depends, Query)
 
 from common import dependencies
+from src.task_management.factories import UpdateTaskInstanceStatusServiceFactory
 from src.task_management.model import (
     TaskInstanceUpdateSchema,
     TaskChainStatusesResponseSchema,
@@ -10,6 +11,7 @@ from src.task_management.model import (
     GetTaskResponseSchema,
 )
 from src.task_management import repos as task_management_repos
+from src.task_management.services import UpdateTaskInstanceStatusService
 from src.task_management.use_cases import (
     TaskChainStatusesCase,
     UpdateTaskInstanceCase,
@@ -35,9 +37,10 @@ async def update_task_instance(
     """
     Обновление экземпляра задания
     """
+    update_task_service: UpdateTaskInstanceStatusService = UpdateTaskInstanceStatusServiceFactory.create()
     resources: dict[str, Any] = dict(
         task_instance_repo=task_management_repos.TaskInstanceRepo,
-        task_status_repo=task_management_repos.TaskStatusRepo,
+        update_task_service=update_task_service,
     )
 
     update_task: UpdateTaskInstanceCase = UpdateTaskInstanceCase(**resources)
@@ -118,37 +121,11 @@ async def set_previous_status(
     await set_status(task_id=task_id)
 
 #TODO
-@router.post(
-    "/set_pinning",
-    status_code=HTTPStatus.OK,
-)
-async def one_time_set_pinning():
-    from fastapi import HTTPException
-    from src.users.constants import UserType
-    from src.users import repos as users_repos
-
-    users: list[users_repos.User] = await users_repos.UserRepo().list(
-        filters=dict(id=5142),
-    )
-    print(f'{users=}')
-
-    user_priority: dict[str, int] = {
-        UserType.REPRES: 3,
-        UserType.AGENT: 2,
-        UserType.CLIENT: 1
-    }
-
-    highest_priority_user: users_repos.User | None = None
-    highest_priority: int = 0
-    print(f"{user_priority=}")
-
-    for user in users:
-        user_type = str(user.type)
-        print(f"{user_type=}")
-        user_priority_value: int = user_priority.get(user_type, 0)
-        print(f'{user_priority_value=}')
-
-    raise HTTPException(status_code=418)
+# @router.post(
+#     "/set_pinning",
+#     status_code=HTTPStatus.OK,
+# )
+# async def one_time_set_pinning():
 #     """
 #     Одноразовый эндпоинт. Удалить после использования.
 #     Установка Статуса закрепления для всех пользователей
@@ -245,12 +222,13 @@ async def one_time_set_pinning():
 #
 #     create_task_for_old_bookings: CreateTaskInstanceForOldBookingCase = CreateTaskInstanceForOldBookingCase(**resources)
 #     return await create_task_for_old_bookings()
-
-
+#
+#
 # @router.get("/close_old_booking_task", status_code=HTTPStatus.OK)
 # async def close_old_booking_view(
 #     debug: bool = Query(default=False),
-#     days: int = Query(default=50),
+#     days_period: int = Query(default=1000),
+#     days_offset: int = Query(default=50),
 # ):
 #     """
 #     Одноразовый эндпоинт. Удалить после использования.
@@ -266,4 +244,4 @@ async def one_time_set_pinning():
 #     )
 #
 #     close_old_bookings: CloseOldBookingCase = CloseOldBookingCase(**resources)
-#     return await close_old_bookings(days, debug)
+#     return await close_old_bookings(days_period, days_offset, debug)

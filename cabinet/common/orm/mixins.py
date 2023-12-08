@@ -208,7 +208,7 @@ class CountMixin(BaseMixin):
             models: QuerySet[Model] = models.filter(**filters)
         if q_filters:
             models: QuerySet[Model] = models.filter(*q_filters)
-        models: CountQuery = models.annotate(count=Count("id", distinct=True))
+        # models: CountQuery = models.annotate(count=Count("id", distinct=True))
         return models.count()
 
 

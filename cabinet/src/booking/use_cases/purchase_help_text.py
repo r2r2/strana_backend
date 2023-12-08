@@ -39,7 +39,7 @@ class PurchaseHelpTextCase(BaseBookingCase):
 
         filters = dict(
             booking_online_purchase_step=booking.online_purchase_step(),
-            payment_method=booking.payment_method,
+            payment_method=booking.payment_method,  # todo: payment_method
             maternal_capital=booking.maternal_capital,
             certificate=booking.housing_certificate,
             loan=booking.government_loan,

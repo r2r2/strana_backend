@@ -244,7 +244,7 @@ class AcceptContractCase(BaseBookingCase, BookingLogMixin):
         property_data: dict[str, Any] = dict(status=booking_property.statuses.BOOKED)
         await self._backend_booking(booking=booking)
         await self.property_repo.update(booking_property, data=property_data)
-        self.check_booking_task.apply_async((booking.id,), eta=expires)
+        self.check_booking_task.apply_async((booking.id,), eta=expires, queue="scheduled")
         self.booking_notification_sms_task.delay(booking.id)
         await self._update_task_status(booking=booking)
 

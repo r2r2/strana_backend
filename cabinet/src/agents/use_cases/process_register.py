@@ -18,6 +18,9 @@ from ..models import RequestProcessRegisterModel
 from ..exceptions import AgentNoAgencyError
 from ..types import AgentEmail, AgentHasher, AgentAgencyRepo
 from ..services import CreateContactService, EnsureBrokerTagService
+from src.users.models import RequestUserCheckUnique
+from common.schemas import UrlEncodeDTO
+from common.utils import generate_notify_url
 
 
 class ProcessRegisterCase(BaseAgentCase):
@@ -27,7 +30,7 @@ class ProcessRegisterCase(BaseAgentCase):
 
     confirm_mail_event_slug: str = "agent_confirm_email"
     notify_mail_event_slug: str = "repres_notify_email"
-    confirm_link: str = "https://{}/confirm/agents/confirm_email?q={}&p={}"
+    confirm_link_route_template: str = "/confirm/agents/confirm_email"
     broker_link: str = "https://{}"
 
     def __init__(
@@ -110,6 +113,11 @@ class ProcessRegisterCase(BaseAgentCase):
         )
         if deleted_agent is not None:
             await self.agent_delete(deleted_agent)
+        payload: RequestUserCheckUnique = RequestUserCheckUnique(
+            phone=payload.phone,
+            email=payload.email,
+            role=UserType.AGENT + 's',
+        )
         await self.check_user_unique_service(payload)
 
         extra_data: dict[str, Any] = dict(
@@ -132,9 +140,16 @@ class ProcessRegisterCase(BaseAgentCase):
         return agent
 
     async def _send_confirm_email(self, agent: User, token: str) -> Task:
-        confirm_link: str = self.confirm_link.format(
-            self.site_host, token, agent.email_token
+        url_data: dict[str, Any] = dict(
+            host = self.site_host,
+            route_template = self.confirm_link_route_template,
+            query_params = dict(
+                q = token,
+                p = agent.email_token,
+            )
         )
+        url_dto: UrlEncodeDTO = UrlEncodeDTO(**url_data)
+        confirm_link: str = generate_notify_url(url_dto=url_dto)
         email_notification_template = await self.get_email_template_service(
             mail_event_slug=self.confirm_mail_event_slug,
             context=dict(confirm_link=confirm_link),

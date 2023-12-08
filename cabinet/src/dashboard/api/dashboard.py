@@ -12,7 +12,10 @@ from src.users import repos as users_repos
 from src.booking import repos as booking_repos
 from src.dashboard import repos as dashboard_repos
 from src.dashboard.models.block import BlockListResponse
+from src.dashboard.models.slide import ResponseGetSlider
 from src.dashboard.use_cases.get_dashboard_list import GetDashboardListCase
+from src.dashboard.use_cases.get_slider_list import GetSliderListCase
+
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -36,3 +39,15 @@ async def get_block_list(
     )
     get_list: GetDashboardListCase = GetDashboardListCase(**resources)
     return await get_list(city_slug=city, user_id=user_id)
+
+
+@router.get(
+    "/slides", 
+    response_model=list[ResponseGetSlider]
+    )
+async def get_slider_list():
+    resources = dict(
+        slider_repo=dashboard_repos.SliderRepo,
+    )
+    get_list: GetSliderListCase = GetSliderListCase(**resources)
+    return await get_list()

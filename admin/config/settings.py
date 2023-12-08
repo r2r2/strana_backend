@@ -60,7 +60,9 @@ INSTALLED_APPS = [
     "amocrm.apps.AmocrmAppConfig",
     "additional_services.apps.AdditionalServiceConfig",
     'events_list.apps.EventsListConfig',
-    "commercial_offers.apps.CommercialOffersConfig"
+    "commercial_offers.apps.CommercialOffersConfig",
+    "news.apps.NewsAppConfig",
+    "mortgage.apps.MortageConfig"
 ]
 
 MIDDLEWARE = [
@@ -289,3 +291,10 @@ TEMPLATE_LOADERS = (
         'django.template.loaders.app_directories.Loader',
     )),
 )
+
+# todo: think about this
+# Добавил, чтобы в модели admin/events_list/admin/event_list.py не было ошибки
+# The number of GET/POST parameters exceeded settings.DATA_UPLOAD_MAX_NUMBER_FIELDS.
+# в инлайне приходит много пользователей
+# стандартное значение DATA_UPLOAD_MAX_NUMBER_FIELDS = 1000
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000

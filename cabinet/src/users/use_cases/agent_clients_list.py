@@ -47,6 +47,12 @@ class AgentListClientsCase(BaseUserCase):
         init_filters.update(additional_filters)
 
         q_filters = self._get_work_period_q_filters(init_filters)
+        
+        if booking_active_status:
+            q_filters.append(~Q(active_bookings_count=0))
+        elif booking_active_status is False:
+            q_filters.append(Q(active_bookings_count=0))
+
         if search:
             search_q_filters: list[Any] = [
                 self.user_repo.q_builder(or_filters=search[0])
@@ -55,6 +61,7 @@ class AgentListClientsCase(BaseUserCase):
         bookings_count_annotations: dict[str, Any] = self._get_booking_count_annotation(
             agent_id
         )
+
         users: List[User] = await self.user_repo.list(
             filters=init_filters,
             q_filters=q_filters,
@@ -82,36 +89,19 @@ class AgentListClientsCase(BaseUserCase):
                 ),
             ],
         )
-        count: int = await self.user_repo.count(
-            filters=init_filters, q_filters=q_filters
-        )
+
+        count: int = len(await self.user_repo.list(
+            filters=init_filters,
+            q_filters=q_filters,
+            annotations=bookings_count_annotations,
+        ))
 
         for user in users:
             user.status = next(iter(user.statuses), None)
             user.pinning_status = next(iter(user.pinning_statuses), None)
-        
-        list_to_remove_users = list()
-        if booking_active_status is None: 
-            for user in users:
-                if user.active_bookings_count == 0:
-                    user.pinning_status = None
-        elif booking_active_status is False: 
-            for user in users:
-                if user.active_bookings_count > 0:
-                    count-=1
-                    list_to_remove_users.append(user)
-                else:
-                    user.pinning_status = None
-        else: 
-            for user in users:
-                if user.active_bookings_count == 0:
-                    count-=1
-                    list_to_remove_users.append(user)
-        
-        result_users = [user for user in users if user not in list_to_remove_users]
 
         data: dict[str, Any] = dict(
-            count=count, result=result_users, page_info=pagination(count=count)
+            count=count, result=users, page_info=pagination(count=count)
         )
 
         return data

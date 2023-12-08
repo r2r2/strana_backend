@@ -1,7 +1,7 @@
 from tortoise import fields
 
 from common import orm
-from common.orm.mixins import ReadWriteMixin
+from common.orm.mixins import CRUDMixin
 from src.task_management.entities import BaseTaskModel, BaseTaskRepo
 
 
@@ -38,7 +38,7 @@ class TaskInstance(BaseTaskModel):
         table = "task_management_taskinstance"
 
 
-class TaskInstanceRepo(BaseTaskRepo, ReadWriteMixin):
+class TaskInstanceRepo(BaseTaskRepo, CRUDMixin):
     """
     Репозиторий задачи
     """

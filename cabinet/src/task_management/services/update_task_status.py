@@ -34,8 +34,6 @@ class UpdateTaskInstanceStatusService(BaseTaskService):
         task_status_repo: type[TaskStatusRepo],
         booking_repo: type[BookingRepo],
         booking_settings_repo: type[BookingSettingsRepo],
-        update_task_instance_status_task: Any,
-        booking_fixation_notification_email_task: Any,
         orm_class: Optional[BookingORM] = None,
         orm_config: Optional[dict[str, Any]] = None,
     ):
@@ -45,13 +43,11 @@ class UpdateTaskInstanceStatusService(BaseTaskService):
         self.orm_class: Optional[type[BookingORM]] = orm_class
         self.orm_config: Optional[dict[str, Any]] = copy(orm_config)
         self.booking_settings_repo: BookingSettingsRepo = booking_settings_repo()
-        self.update_task_instance_status_task = update_task_instance_status_task
-        self.booking_fixation_notification_email_task = booking_fixation_notification_email_task
         if self.orm_config:
             self.orm_config.pop("generate_schemas", None)
 
         self.sensei: type[SenseiAPI] = SenseiAPI
-        self.logger = structlog.get_logger()
+        self.logger = structlog.get_logger(self.__class__.__name__)
         self.update_task = task_instance_logger(self.task_instance_repo.update, self, content="Обновление задачи")
         self.booking_update: Callable = booking_changes_logger(
             self.booking_repo.update, self, content="Обновление бронирования при изменении статуса задачи фиксации",
@@ -70,6 +66,8 @@ class UpdateTaskInstanceStatusService(BaseTaskService):
     ) -> None:
         self.logger.info("Обновление статуса задачи:")
         await self._set_booking(booking_id)
+        if task_context and not isinstance(task_context, UpdateTaskDTO):
+            raise ValueError(f"task_context must be UpdateTaskDTO. Got {task_context=}")
         self._task_context: UpdateTaskDTO = task_context if task_context else UpdateTaskDTO()
         _status_slugs: list[str] | str = status_slug if isinstance(status_slug, list) else [status_slug]
         task_instances: list[TaskInstance] = self.booking.task_instances  # type: ignore
@@ -171,16 +169,6 @@ class UpdateTaskInstanceStatusService(BaseTaskService):
             self.booking.fixation_expires - timedelta(days=booking_settings.extension_deadline)
         ) >= datetime.now(tz=UTC):
             self.task_status = None
-        else:
-            # оставляем task_status, полученный по переданному status_slug
-            # создаем отложенную задачу на изменение статуса по истечению дедлайна фиксации
-            self.update_task_instance_status_task.apply_async(
-                (self.booking.id, FixationExtensionSlug.CANT_EXTEND_DEAL_BY_DATE.value, self.__class__.__name__),
-                eta=self.booking.fixation_expires,
-            )
-            # запускаем отложенные таски по отправке писем за N часов до окончания фиксации
-            # и при окончании фиксации
-            self.booking_fixation_notification_email_task.delay(booking_id=self.booking.id)
 
     async def handle_no_extension_needed_status(self) -> None:
         """
@@ -200,16 +188,6 @@ class UpdateTaskInstanceStatusService(BaseTaskService):
                     ),
                 )
                 await self.booking_update(booking=self.booking, data=booking_data)
-
-                # создаем отложенную задачу на изменение статуса задачи сделки фиксации,
-                # когда продленная фиксация подходит к концу
-                update_task_date: datetime = self.booking.fixation_expires - timedelta(
-                    days=booking_settings.extension_deadline
-                )
-                self.update_task_instance_status_task.apply_async(
-                    (self.booking.id, FixationExtensionSlug.DEAL_NEED_EXTENSION.value),
-                    eta=update_task_date,
-                )
 
                 # продлеваем фиксацию в АМО
                 await self._send_sensei_request()

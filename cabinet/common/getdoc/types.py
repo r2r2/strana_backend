@@ -1,24 +1,24 @@
-from enum import Enum
+from enum import StrEnum
 from typing import Optional
 
 from pydantic import BaseModel
 
 
-class EntityTypes(str, Enum):
+class EntityTypes(StrEnum):
     leads = 'leads'
 
 
-class DoctypeTypes(str, Enum):
+class DoctypeTypes(StrEnum):
     ooo = "OOO"
     ip = "IP"
 
 
-class ExtensionTypes(str, Enum):
+class ExtensionTypes(StrEnum):
     pdf = "pdf"
     docx = "docx"
 
 
-class FilenameLeadsTypes(str, Enum):
+class FilenameLeadsTypes(StrEnum):
     stroitrans_ip = "АГЕНТСКИЙ ДОГОВОР Стройтранс №1 ИП .docx"
     stroitrans_ooo = "АГЕНТСКИЙ ДОГОВОР Стройтранс №1 ООО .docx"
 

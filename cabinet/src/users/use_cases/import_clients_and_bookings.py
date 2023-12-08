@@ -32,7 +32,7 @@ class ImportClientsAndBookingsModelCase(BaseUserCase):
 
         broker: User = await self.user_repo.retrieve(filters=dict(id=payload.broker_id))
 
-        if not broker.is_deleted:
+        if broker.is_deleted:
             self.logger.warning(
                 f"Брокер {broker} удален из кабинета"
             )

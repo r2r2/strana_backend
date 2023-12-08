@@ -18,12 +18,11 @@ class UnleashClient:
             cache = RCache()
             cls.client = UnleashAdapter(
                 url=unleash_config["url"],
-                app_name="strana",
+                app_name=maintenance_settings["environment"],
                 instance_id=unleash_config["instance_id"],
                 verbose_log_level=0,
                 disable_metrics=True,
                 disable_registration=True,
-                # refresh_interval=60,
                 cache=cache,
             )
             cls.client.initialize_client()
@@ -35,7 +34,8 @@ class UnleashClient:
         context: dict | None = None,
         fallback_function: Callable = None,
     ) -> bool:
-        feature_name = f'{feature_name.value}_{maintenance_settings["environment"].lower()}'
+        if context and "userId" in context:
+            context["userId"] = str(context["userId"])
         is_enabled = self.client.is_enabled(
             feature_name=feature_name,
             context=context,

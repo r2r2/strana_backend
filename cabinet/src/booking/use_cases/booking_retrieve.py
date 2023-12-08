@@ -1,13 +1,19 @@
+from typing import Any
+
 from src.amocrm.repos import AmocrmGroupStatus, AmocrmGroupStatusRepo
-from src.task_management.constants import OnlineBookingSlug, FastBookingSlug, FreeBookingSlug
-from src.task_management.repos import TaskStatus, TaskInstance
-from src.task_management.utils import (
-    is_task_in_compare_task_chain,
-    get_interesting_task_chain,
-    TaskDataBuilder,
-)
 from src.buildings.repos import BuildingBookingType, BuildingBookingTypeRepo
 from src.payments import repos as payment_repos
+from src.task_management.constants import (
+    FastBookingSlug,
+    FreeBookingSlug,
+    OnlineBookingSlug,
+)
+from src.task_management.repos import TaskStatus
+from src.task_management.utils import (
+    get_interesting_task_chain,
+    get_booking_tasks,
+)
+
 from ..constants import BookingCreatedSources
 from ..entities import BaseBookingCase
 from ..exceptions import (
@@ -102,10 +108,11 @@ class BookingRetrieveCase(BaseBookingCase):
 
         if not booking.time_valid():
             if booking.booking_source and booking.booking_source.slug in [
-                BookingCreatedSources.LK
+                BookingCreatedSources.LK,
+                BookingCreatedSources.FAST_BOOKING,
             ]:
                 raise BookingTimeOutRepeatError
-            raise BookingTimeOutError
+            # raise BookingTimeOutError
 
         if booking.amocrm_status:
             await self._set_group_statuses(booking=booking)
@@ -119,7 +126,6 @@ class BookingRetrieveCase(BaseBookingCase):
     def _deactivated_booking_response(self, booking: Booking) -> Booking:
         if not booking.active:
             booking.property = booking.building = booking.expires = booking.property = booking.tags = None
-            return booking
         return booking
 
     async def _get_booking_tags(self, booking: Booking) -> list[BookingTag] | None:
@@ -134,12 +140,14 @@ class BookingRetrieveCase(BaseBookingCase):
         ) or None
 
     async def _get_max_booking_type(self, booking: Booking) -> Booking:
-        booking_types: list[
-            BuildingBookingType
-        ] = booking.building.booking_types_by_building
-        booking.max_booking_period = max(
-            [booking_type.period for booking_type in booking_types]
-        )
+        if booking.building is not None:
+            booking_types: list[BuildingBookingType] = booking.building.booking_types_by_building
+            if booking_types:
+                booking.max_booking_period = max(
+                    [booking_type.period for booking_type in booking_types]
+                )
+            else:
+                booking.max_booking_period = None
         return booking
 
     async def _session_insert_document_info(self, document_info: dict) -> None:
@@ -148,30 +156,30 @@ class BookingRetrieveCase(BaseBookingCase):
 
     async def _get_booking_tasks(self, booking: Booking) -> list[dict | None]:
         """Get booking tasks"""
-        # todo: refactor this
-        _booking_tasks: list[TaskInstance | None] = []
-        for task in booking.task_instances:
-            if await is_task_in_compare_task_chain(
-                status=task.status, compare_status=OnlineBookingSlug.ACCEPT_OFFER.value
-            ):
-                _booking_tasks.append(task)
-            if await is_task_in_compare_task_chain(
-                status=task.status, compare_status=FastBookingSlug.ACCEPT_OFFER.value
-            ):
-                _booking_tasks.append(task)
-            if await is_task_in_compare_task_chain(
-                status=task.status, compare_status=FreeBookingSlug.EXTEND.value
-            ):
-                _booking_tasks.append(task)
+        match booking.booking_source.slug:
+            case BookingCreatedSources.FAST_BOOKING | BookingCreatedSources.LK_ASSIGN:
+                task_chain_slug: str = FastBookingSlug.ACCEPT_OFFER.value
+            case BookingCreatedSources.AMOCRM:
+                task_chain_slug: str = FreeBookingSlug.ACCEPT_OFFER.value
+            case _:
+                task_chain_slug: str = OnlineBookingSlug.ACCEPT_OFFER.value
 
-        if not _booking_tasks:
-            return []
-
-        tasks = await TaskDataBuilder(
-            task_instances=_booking_tasks, booking=booking
-        ).build()
-
+        tasks: list[dict[str, Any] | None] = await get_booking_tasks(
+            booking_id=booking.id,
+            task_chain_slug=task_chain_slug,
+        )
         return tasks
+
+    async def _clear_tasks(self, tasks: list[dict[str, Any] | None]) -> list[dict[str, Any]]:
+        banned_statuses: list[str] = [
+            OnlineBookingSlug.PAYMENT_SUCCESS.value,
+            FastBookingSlug.PAYMENT_SUCCESS.value,
+            FreeBookingSlug.PAYMENT_SUCCESS.value,
+        ]
+        return [
+            task for task in tasks
+            if task["task_status"] not in banned_statuses
+        ]
 
     async def _get_task_chain_statuses(self, status: str) -> list[TaskStatus] | None:
         task_chain = await get_interesting_task_chain(status=status)
@@ -179,7 +187,6 @@ class BookingRetrieveCase(BaseBookingCase):
             task_chain.task_statuses, key=lambda x: x.priority
         )
         return statuses
-
 
     async def _set_group_statuses(self, booking: Booking) -> None:
         group_statuses: list[

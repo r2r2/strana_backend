@@ -40,9 +40,9 @@ def handle_amocrm_webhook_errors(func: Callable[..., Coroutine]) -> Callable[...
         logger = structlog.get_logger(func.__name__)
         try:
             return await func(*args, **kwargs)
-        except Exception as e:
-            sentry_sdk.capture_exception(e)
-            exception_message = str(e)
+        except Exception as exception:
+            sentry_sdk.capture_exception(exception)
+            exception_message = str(exception)
             traceback_str = traceback.format_exc()
             logger.error(f"AmoCRM webhook error: {exception_message}\n{traceback_str}")
     return wrapper

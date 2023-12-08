@@ -80,6 +80,10 @@ class AdminCheckHistory(AdminChartMixin, admin.ModelAdmin):
     list_per_page = 15
     date_hierarchy = 'created_at'
 
+    def get_queryset(self, request):
+        qs = super(AdminCheckHistory, self).get_queryset(request)
+        return qs.select_related('client', 'agent', 'agency', 'unique_status')
+
     def agency_city(self, obj: CheckHistory) -> str:
         return obj.agency.city if obj.agency else "–"
 

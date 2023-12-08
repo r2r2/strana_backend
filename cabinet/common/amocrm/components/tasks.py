@@ -1,5 +1,7 @@
 from abc import ABC
+from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any, Union
+from pytz import UTC
 
 from common.amocrm.components.interface import AmoCRMInterface
 from ..constants import AmoEntityTypes, AmoTaskTypes, AmoElementTypes
@@ -23,7 +25,7 @@ class AmoCRMTasks(AmoCRMInterface, ABC):
             return response.data["_embedded"]["tasks"]
         return []
 
-    async def create_task(
+    async def create_task_v4(
         self,
         *,
         text: str,
@@ -34,6 +36,9 @@ class AmoCRMTasks(AmoCRMInterface, ABC):
         entity_type: Optional[Union[AmoEntityTypes, str]] = None,
         responsible_user_id: Optional[int] = None,
         task_type: Optional[Union[AmoTaskTypes, int]] = None,
+        duration: Optional[int] = None,
+        result: Optional[Any] = None,
+        request_id: Optional[str] = None,
     ):
         """
         Создание задачи.
@@ -54,10 +59,12 @@ class AmoCRMTasks(AmoCRMInterface, ABC):
                     text=text,
                     responsible_user_id=responsible_user_id,
                     is_completed=False,
+                    created_at=int(datetime.now(tz=UTC).timestamp()),
+                    updated_at=int(datetime.now(tz=UTC).timestamp()),
                 )
             ]
         )
-        await self._request_post(route=route, payload=payload)
+        await self._request_post_v4(route=route, payload=payload)
 
     async def complete_task(self, *, task_id: int, result: str) -> None:
         """

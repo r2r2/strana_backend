@@ -7,8 +7,8 @@ class Template(BaseModel):
     area: Optional[int]
     price: Optional[int]
     client: Optional[str]
-    akcia: Optional[str]
-    akciaDiscountEnabled: Optional[str]
+    akcia: Optional[tuple[str]]
+    akciaDiscountEnabled: Optional[tuple[str]]
     angular: Optional[str]
     apartment: Optional[str]
     balcony: Optional[str]
@@ -25,7 +25,7 @@ class Template(BaseModel):
     corner_windows: Optional[str]
     creationDate: Optional[str]
     design_by_project: Optional[str]
-    discountPrice: Optional[str]
+    discountPrice: Optional[tuple[str]]
     floor: Optional[str]
     free_layout: Optional[str]
     french_balcony: Optional[str]
@@ -72,6 +72,7 @@ class Template(BaseModel):
     yard_window: Optional[str]
     zenith_window: Optional[str]
     house_id: Optional[str]
+    entresol: Optional[str]
 
 
 class Data(BaseModel):
@@ -122,3 +123,4 @@ class TildaAmoOfferPropertyModel(BaseModel):
 
 class TildaAmoOfferModel(BaseModel):
     properties: Optional[list[TildaAmoOfferPropertyModel]]
+    coLink: str

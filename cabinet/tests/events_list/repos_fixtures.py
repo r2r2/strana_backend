@@ -4,7 +4,7 @@ from importlib import import_module
 import pytest
 from pytz import UTC
 
-from src.events_list.repos import EventListRepo, EventParticipantListRepo
+from src.events_list.repos import EventListRepo, EventParticipantListRepo, EventGroupRepo
 
 
 @pytest.fixture(scope="function")
@@ -21,6 +21,14 @@ def event_participant_list_repo() -> EventParticipantListRepo:
         import_module("src.events_list.repos"), "EventParticipantListRepo"
     )()
     return event_participant_list_repo
+
+
+@pytest.fixture(scope="function")
+def event_group_repo() -> EventGroupRepo:
+    event_group_repo: EventGroupRepo = getattr(
+        import_module("src.events_list.repos"), "EventGroupRepo"
+    )()
+    return event_group_repo
 
 
 @pytest.fixture(scope="function")
@@ -53,3 +61,15 @@ async def event_participant_list(event_participant_list_repo, event_list, user):
         )
     )
     return event_participant_list
+
+
+@pytest.fixture(scope="function")
+async def event_group(event_group_repo, event_list):
+    event_group = await event_group_repo.create(
+        data=dict(
+            event=event_list,
+            group_id=1,
+            timeslot="14:00",
+        )
+    )
+    return event_group

@@ -5,6 +5,7 @@ from typing import Any, Callable
 def get_exceptions() -> OrderedDict[type[Exception], Callable[..., Any]]:
     from common import handlers as common_handlers
     from common.depreg import exceptions as depreg_exceptions
+    from common.settings import exceptions as settings_exceptions
     from src.users import exceptions as users_exceptions
     from src.booking import exceptions as booking_exceptions
     from src.properties import exceptions as properties_exceptions
@@ -25,6 +26,7 @@ def get_exceptions() -> OrderedDict[type[Exception], Callable[..., Any]]:
     from src.additional_services import exceptions as additional_service_exceptions
     from src.events_list import exceptions as events_list_exceptions
     from src.commercial_offers import exceptions as commercial_offers_exceptions
+    from src.news import exceptions as news_exceptions
     from common.tilda import exceptions as tilda_exceptions
 
     modules: list[Any] = [
@@ -50,6 +52,8 @@ def get_exceptions() -> OrderedDict[type[Exception], Callable[..., Any]]:
         depreg_exceptions,
         commercial_offers_exceptions,
         tilda_exceptions,
+        settings_exceptions,
+        news_exceptions,
     ]
 
     exceptions: OrderedDict[type[Exception], Callable[..., Any]] = OrderedDict()

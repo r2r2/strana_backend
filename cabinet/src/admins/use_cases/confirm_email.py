@@ -3,15 +3,19 @@ from typing import Type, Callable, Union, Any
 from ..repos import AdminRepo, User
 from ..entities import BaseAdminCase
 from src.users.loggers.wrappers import user_changes_logger
+from common.schemas import UrlEncodeDTO
+from common.utils import generate_notify_url
 
 
 class ConfirmEmailCase(BaseAdminCase):
     """
     Подтверждение email
     """
-
-    fail_link: str = "https://{}/account/admins/email-confirmed"
+    # а в чем разница? они одинаковые
+    fail_link: str = "https://{}/account/admins/email-confirmed" 
     success_link: str = "https://{}/account/admins/email-confirmed"
+
+    common_link_route_template: str = "/account/admins/email-confirmed"
 
     def __init__(
         self,
@@ -36,9 +40,14 @@ class ConfirmEmailCase(BaseAdminCase):
             id=admin_id, email_token=email_token, type=self.user_type, is_active=False
         )
         admin: User = await self.admin_repo.retrieve(filters=filters)
-        link: str = self.fail_link.format(self.site_host)
+
+        common_data: dict[str, Any] = dict(
+            host=self.site_host,
+            route_template = self.common_link_route_template,
+        )
+        url_dto: UrlEncodeDTO = UrlEncodeDTO(**common_data)
+        link: str = generate_notify_url(url_dto=url_dto)
         if admin:
-            link: str = self.success_link.format(self.site_host)
             data: dict[str, Any] = dict(is_active=True, email_token=None)
             await self.admin_update(admin, data=data)
         return link

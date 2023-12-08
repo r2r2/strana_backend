@@ -1,9 +1,11 @@
+import asyncio
 from datetime import datetime
 from typing import Any, Coroutine
 
 from common.loggers.utils import get_difference_between_two_dicts
 from src.task_management.entities import BaseTaskService, BaseTaskCase
-from src.task_management.repos import TaskInstanceRepo, TaskInstance
+from src.task_management.repos import TaskInstanceRepo, TaskInstance, TaskInstanceLogRepo
+from src.task_management import loggers
 
 
 def task_instance_logger(task_change: TaskInstanceRepo(), service: BaseTaskService | BaseTaskCase, content: str):
@@ -32,7 +34,7 @@ def task_instance_logger(task_change: TaskInstanceRepo(), service: BaseTaskServi
         if task_instance:
             await task_instance.fetch_related("booking", "status__tasks_chain")
 
-        log_task_instance_change(
+        await log_task_instance_change(
             task_instance,
             task_instance_before,
             task_instance_after,
@@ -53,16 +55,14 @@ async def update_task_instance(task_instance: Coroutine) -> TaskInstance | str:
         return str(error)
 
 
-def log_task_instance_change(
+async def log_task_instance_change(
     task_instance: TaskInstance | None,
     task_instance_before: dict[str, Any],
     task_instance_after: dict[str, Any],
     content: str,
     service: BaseTaskService | BaseTaskCase,
     error_data: str | None,
-):
-    from src.task_management.tasks import create_task_instance_log_task
-
+) -> None:
     task_instance_id = task_instance.id if task_instance else None
     booking_id = task_instance.booking.id if task_instance else None
     task_chain_id = task_instance.status.tasks_chain.id if task_instance else None
@@ -80,8 +80,9 @@ def log_task_instance_change(
         booking_id=booking_id,
         task_chain_id=task_chain_id,
     )
-
-    create_task_instance_log_task.delay(log_data=log_data)
+    asyncio.create_task(
+        create_task_instance_log(log_data=log_data),
+    )
 
 
 def serialize_datetime(
@@ -109,3 +110,14 @@ def serialize_datetime_fields(
             data[field] = value.strftime(datetime_format)
         elif isinstance(value, tuple) and all(isinstance(item, datetime) for item in value):
             data[field] = tuple(map(lambda x: x.strftime(datetime_format), value))
+
+
+async def create_task_instance_log(log_data: dict[str, Any]) -> None:
+    """
+    Создание лога изменений инстанса задачи
+    """
+    resources: dict[str, Any] = dict(
+        task_instance_log_repo=TaskInstanceLogRepo,
+    )
+    create_log: loggers.CreateTaskInstanceLogLogger = loggers.CreateTaskInstanceLogLogger(**resources)
+    await create_log(log_data=log_data)

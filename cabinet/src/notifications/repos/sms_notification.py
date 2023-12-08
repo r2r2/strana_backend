@@ -39,6 +39,7 @@ class SmsTemplate(Model, TimeBasedMixin):
     booking_notifications: fields.ReverseRelation["BookingNotification"]
     assign_clients: fields.ReverseRelation["AssignClientTemplate"]
     qrcode_sms: fields.ReverseRelation["QRcodeSMSNotify"]
+    events: fields.ReverseRelation["Event"]
 
     def __str__(self):
         return f"{self.sms_event_slug}"

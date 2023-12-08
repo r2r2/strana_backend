@@ -4,7 +4,7 @@ from typing import Optional, Any, Union
 from src.dashboard.entities import BaseDashboardModel
 
 
-class _ElementRetrieveModel(BaseDashboardModel):
+class ElementRetrieveModel(BaseDashboardModel):
     id: Union[int, str]
     type: str
     width: Optional[int]
@@ -25,7 +25,7 @@ class BlockListResponse(BaseDashboardModel):
     title: Optional[str]
     description: Optional[str]
     image: Optional[dict[str, Any]]
-    elements_list: list[_ElementRetrieveModel]
+    elements_list: list[ElementRetrieveModel]
 
     class Config:
         orm_mode = True

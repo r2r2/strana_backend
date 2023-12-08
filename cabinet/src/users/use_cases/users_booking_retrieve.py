@@ -1,6 +1,8 @@
 from typing import Any
 
-from common.settings.repos import BookingSettingsRepo
+from common.settings.constants import SystemListSlug
+from common.settings.repos import BookingSettingsRepo, SystemList, BookingSettings
+from common.settings.utils import get_system_by_slug
 from src.booking.entities import BaseBookingCase
 from src.booking.exceptions import BookingNotFoundError
 from src.booking.repos import Booking, BookingTagRepo, BookingTag
@@ -13,6 +15,7 @@ from src.task_management.constants import BOOKING_UPDATE_FIXATION_STATUSES
 
 from ..types import UserAgentRepo
 from ...amocrm.repos import AmocrmGroupStatusRepo, AmocrmGroupStatus
+from src.task_management.repos import TaskInstance
 
 
 class UserBookingRetrieveCase(BaseBookingCase):
@@ -68,6 +71,7 @@ class UserBookingRetrieveCase(BaseBookingCase):
             "amocrm_status__group_status",
             "task_instances__status__buttons",
             "task_instances__status__tasks_chain__task_visibility",
+            "task_instances__status__tasks_chain__systems",
         ]
 
         booking: Booking = await self.booking_repo.retrieve(
@@ -99,17 +103,10 @@ class UserBookingRetrieveCase(BaseBookingCase):
         booking.user.status = status
         booking.user.pinning_status = pinning_status
 
-        task_instances = sorted(booking.task_instances, key=lambda x: x.status.priority)
-        booking_settings = await self.booking_settings_repo.list().first()
-
         if booking.project and booking.project.status == ProjectStatus.FUTURE:
             booking.tasks = None
         else:
-            booking.tasks = await TaskDataBuilder(
-                task_instances=task_instances,
-                booking=booking,
-                booking_settings=booking_settings,
-            ).build()
+            booking.tasks = await self._get_booking_tasks(booking=booking)
 
         booking: Booking = await self._deactivated_booking_response(booking=booking)
 
@@ -172,3 +169,19 @@ class UserBookingRetrieveCase(BaseBookingCase):
         booking.amocrm_status.steps_numbers = len(group_statuses) + 1
         booking.amocrm_status.current_step = booking_group_status_current_step
         booking.amocrm_status.actions = booking_group_status_actions
+
+    async def _get_booking_tasks(self, booking: Booking) -> list[dict[str, Any] | None]:
+        booking_settings: BookingSettings = await self.booking_settings_repo.list().first()
+        broker_system: SystemList = await get_system_by_slug(SystemListSlug.LK_BROKER.value)
+        task_instances: list[TaskInstance] = sorted(booking.task_instances, key=lambda x: x.status.priority)
+        task_instances: list[TaskInstance] = list(filter(
+            lambda task: broker_system in task.status.tasks_chain.systems,
+            task_instances,
+        ))
+
+        tasks: list[dict[str, Any] | None] = await TaskDataBuilder(
+            task_instances=task_instances,
+            booking=booking,
+            booking_settings=booking_settings,
+        ).build()
+        return tasks

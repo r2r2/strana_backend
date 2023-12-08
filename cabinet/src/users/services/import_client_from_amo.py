@@ -34,6 +34,8 @@ class ImportContactFromAmoService(CreateContactService):
         50814843,
         50814939,
         57272765,
+        142,  # realized
+        143,  # unrealized
     ]
     ORIGIN: str = OriginType.AMOCRM
     user_type: str = UserType.CLIENT
@@ -55,49 +57,59 @@ class ImportContactFromAmoService(CreateContactService):
             webhook_lead.new_status_id,
         )
         if (
-            import_pipeline_id in self.import_pipelines_ids
-            and import_status_id in self.import_statuses_ids
+            import_pipeline_id not in self.import_pipelines_ids
+            or import_status_id not in self.import_statuses_ids
         ):
-            lead_id: int = webhook_lead.lead_id
-            async with await self.amocrm_class() as amocrm:
-                amo_lead: AmoLead | None = await amocrm.fetch_lead(
-                    lead_id=lead_id, query_with=[AmoLeadQueryWith.contacts]
+            return
+
+        lead_id: int = webhook_lead.lead_id
+        async with await self.amocrm_class() as amocrm:
+            amo_lead: AmoLead | None = await amocrm.fetch_lead(
+                lead_id=lead_id, query_with=[AmoLeadQueryWith.contacts]
+            )
+            if not amo_lead:
+                self.logger.warning("Lead has not found at amo")
+                return
+
+            user_amocrm_id: int | None = self._get_contact_id(amo_lead=amo_lead)
+            contact: AmoContact | None = await amocrm.fetch_contact(
+                user_id=user_amocrm_id
+            )
+            if not contact:
+                self.logger.warning("User has not found at amo contact")
+                return
+
+            data: dict = await self.fetch_amocrm_data(contact)
+            user_role: UserRole = await self.user_role_repo.retrieve(
+                filters=dict(slug=self.user_type)
+            )
+            phone: str = data.get("phone")
+            user_by_phone: User | None = await self.user_repo.retrieve(
+                filters=dict(phone=phone, role=user_role)
+            )
+            user_by_amocrm_id: User | None = await self.user_repo.retrieve(
+                filters=dict(amocrm_id=user_amocrm_id, role=user_role)
+            )
+            found_user = user_by_phone or user_by_amocrm_id
+            if found_user:
+                updated_user: User = await self.user_repo.update(
+                    model=found_user, data=data
                 )
-                if not amo_lead:
-                    self.logger.warning("Lead has not found at amo")
-                    return
-                user_amocrm_id: int | None = self._get_contact_id(amo_lead=amo_lead)
-                contact: AmoContact | None = await amocrm.fetch_contact(
-                    user_id=user_amocrm_id
+            else:
+                data.update(
+                    amocrm_id=user_amocrm_id,
+                    type=self.user_type,
+                    origin=self.ORIGIN,
+                    role=user_role,
                 )
-                if not contact:
-                    self.logger.warning("User has not found at amo contact")
-                    return
-                data: dict = await self.fetch_amocrm_data(contact)
-                user_role: UserRole = await self.user_role_repo.retrieve(
-                    filters=dict(slug=self.user_type)
-                )
-                phone: str = data.get("phone")
-                created_user_by_phone: User | None = await self.user_repo.retrieve(
-                    filters=dict(phone=phone, role=user_role)
-                )
-                created_user_by_amocrm_id: User | None = await self.user_repo.retrieve(
-                    filters=dict(amocrm_id=user_amocrm_id, role=user_role)
-                )
-                created_user = created_user_by_phone or created_user_by_amocrm_id
-                if created_user:
-                    updated_user: User = await self.user_repo.update(
-                        model=created_user, data=data
-                    )
-                else:
-                    data.update(
-                        amocrm_id=user_amocrm_id,
-                        type=self.user_type,
-                        origin=self.ORIGIN,
-                        role=user_role,
-                    )
-                    updated_user: User = await self.user_repo.create(data=data)
-                return updated_user
+                updated_user: User = await self.user_repo.create(data=data)
+
+            return updated_user
+
+
+
+        updated_user: User = await self.user_repo.create(data=data)
+        return updated_user
 
     def _get_contact_id(self, amo_lead: AmoLead) -> int | None:
         if contacts := amo_lead.embedded.contacts:
@@ -105,4 +117,3 @@ class ImportContactFromAmoService(CreateContactService):
             if contact.is_main:
                 return contact.id
         self.logger.warning("User has not found at amo contact")
-        return

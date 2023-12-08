@@ -114,6 +114,14 @@ class Event(models.Model):
         help_text="Локальное время в браузере конвертируется в UTC - нужно учитывать, "
                   "в каком часовом поясе заполняется админка",
     )
+    sms_template: models.ForeignKey = models.ForeignKey(
+        to='notifications.SmsTemplate',
+        related_name='events',
+        on_delete=models.SET_NULL,
+        verbose_name='Шаблон смс сообщения',
+        blank=True,
+        null=True,
+    )
 
     def __str__(self):
         return self.name

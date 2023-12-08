@@ -1,5 +1,5 @@
 # pylint: disable=missing-param-doc,missing-raises-doc,redundant-returns-doc
-from enum import Enum
+from enum import IntEnum
 from typing import Any, Callable, Optional, Type, Union
 
 import structlog
@@ -29,7 +29,7 @@ from src.users.services import CheckPinningStatusService
 from src.projects.constants import ProjectStatus
 
 
-class LeadStatuses(int, Enum):
+class LeadStatuses(IntEnum):
     """
      Статусы закрытых сделок в амо.
     """
@@ -158,7 +158,7 @@ class BookingCurrentClientCase(BaseUserCase):
             if contacts:
                 amocrm_id: int = contacts[0].id
             else:
-                created_contact: list[dict] = await amocrm.create_contact(
+                created_contact: list[dict] = await amocrm.create_contact_v4(
                     user_phone=payload.phone,
                     user_email=payload.email,
                     user_name=payload.full_name,

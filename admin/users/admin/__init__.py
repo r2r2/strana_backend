@@ -6,3 +6,4 @@ from .notification_mute import UserNotificationMuteAdmin
 from .user import (CabinetAdminAdmin, CabinetAgentAdmin, CabinetClientAdmin,
                    CabinetUserAdmin)
 from .agency_type import AgencyGeneralTypeAdmin
+from .strana_office_admin import StranaOfficeAdminAdmin

@@ -7,6 +7,8 @@ from ..repos import AgentRepo, User
 from ..types import AgentSms
 from src.users.loggers.wrappers import user_changes_logger
 from src.notifications.services import GetSmsTemplateService
+from common.schemas import UrlEncodeDTO
+from common.utils import generate_notify_url
 
 
 class ChangePhoneCase(BaseAgentCase):
@@ -15,10 +17,11 @@ class ChangePhoneCase(BaseAgentCase):
     """
 
     sms_event_slug = "agent_confirm_change_phone"
-    link: str = "https://{}/confirm/agents/confirm_phone?q={}&p={}"
+    link_route_template: str = "/confirm/agents/confirm_phone"
 
     fail_link: str = "https://{}/account/agents"
     success_link: str = "https://{}/account/agents"
+    common_link_route_template: str = "/account/agents"
 
     def __init__(
         self,
@@ -78,7 +81,17 @@ class ChangePhoneCase(BaseAgentCase):
             sms_event_slug=self.sms_event_slug,
         )
         if sms_notification_template and sms_notification_template.is_active:
-            confirm_link: str = self.link.format(self.lk_site_host, token, agent.change_phone_token)
+            url_data: dict[str, Any] = dict(
+                host=self.lk_site_host,
+                route_template=self.link_route_template,
+                query_params=dict(
+                    q=token,
+                    p=agent.change_phone_token,
+                ),
+                use_ampersand_ascii=True,
+            )
+            url_dto: UrlEncodeDTO = UrlEncodeDTO(**url_data)
+            confirm_link: str = generate_notify_url(url_dto=url_dto)
             sms_options: dict[str, Any] = dict(
                 phone=agent.phone,
                 message=sms_notification_template.template_text.format(confirm_link=confirm_link),

@@ -5,6 +5,8 @@ from config import site_config
 
 from common.email import EmailService
 from src.agents.types import AgentEmail
+from common.schemas import UrlEncodeDTO
+from common.utils import generate_notify_url
 
 from ..entities import BaseAgencyCase
 from ..models.superuser_additional_notify_agency_email import RequestAdditionalNotifyAgencyEmailModel
@@ -18,7 +20,7 @@ class SuperuserAdditionalNotifyAgencyEmailCase(BaseAgencyCase):
     Отправка писем представителям агентов при создании ДС в админке.
     """
     mail_event_slug = "create_additional_agreement"
-    link = "https://{}/documents"
+    link_route_template: str = "/documents"
 
     def __init__(
         self,
@@ -52,10 +54,16 @@ class SuperuserAdditionalNotifyAgencyEmailCase(BaseAgencyCase):
             project_names = agency_data.project_names
 
             if agency.maintainer and agency.maintainer.email and project_names:
+                url_data: dict[str, Any] = dict(
+                    host=site_config["broker_site_host"],
+                    route_template = self.link_route_template,
+                )
+                url_dto: UrlEncodeDTO = UrlEncodeDTO(**url_data)
+                update_link: str = generate_notify_url(url_dto=url_dto)
                 await self._send_repres_email(
                     recipients=[agency.maintainer.email],
                     project_names=project_names,
-                    link=self.link.format(site_config["broker_site_host"]),
+                    link=update_link,
                 )
 
     async def _send_repres_email(

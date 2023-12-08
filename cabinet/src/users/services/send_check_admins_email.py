@@ -4,8 +4,6 @@ from typing import Any, Type
 from common.amocrm import AmoCRM
 from common.amocrm.types import AmoLead
 from common.email import EmailService
-from common.unleash.client import UnleashClient
-from config.feature_flags import FeatureFlags
 from src.admins.repos import AdminRepo
 from src.agents.types import AgentEmail
 from src.booking.repos import Booking, BookingRepo
@@ -41,14 +39,20 @@ class SendCheckAdminsEmailService(BaseUserService):
         self.user_role_repo = user_role_repo()
         self.city_repo = city_repo()
 
+        self.booking = None
+
     async def __call__(
         self,
         *,
         check: Check,
         mail_event_slug: str,
         data: dict[str, Any],
+        additional_recipients_emails: list[str] | None = None,
     ):
         recipients: list[str] = await self._get_recipients(check)
+
+        if additional_recipients_emails:
+            recipients.extend(additional_recipients_emails)
 
         email_notification_template = await self.get_email_template_service(
             mail_event_slug=mail_event_slug,
@@ -81,6 +85,8 @@ class SendCheckAdminsEmailService(BaseUserService):
             filters=dict(amocrm_id=check.amocrm_id, active=True),
             prefetch_fields=["project__city"],
         )
+        self.booking = booking
+
         client_city: City = booking.project.city if booking and booking.project else None
         if not client_city:
             client_city = await self._get_client_city_from_amocrm(check.amocrm_id)

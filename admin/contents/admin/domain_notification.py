@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.admin.widgets import FilteredSelectMultiple
 
-from contents.models import Onboarding
+from contents.models import Onboarding, OnboardingUserThrough
 
 
 @admin.register(Onboarding)
@@ -10,7 +10,12 @@ class OnboardingAdmin(admin.ModelAdmin):
         "message",
         "slug",
         "button_text",
+        "get_user_count",
     )
+
+    def get_user_count(self, obj):
+        count = OnboardingUserThrough.objects.filter(onboarding_id=obj.id).count()
+        return count
 
     def formfield_for_manytomany(self, db_field, request, **kwargs):
         if db_field.name in ("user",):

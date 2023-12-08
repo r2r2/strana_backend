@@ -1,19 +1,20 @@
-from typing import Type, Any
+from typing import Any
 
-from src.task_management.exceptions import TaskInstanceNotFoundError, TaskStatusNotFoundError
+from src.task_management.exceptions import TaskInstanceNotFoundError
 from src.task_management.model import TaskInstanceUpdateSchema
-from src.task_management.repos import TaskInstanceRepo, TaskInstance, TaskStatusRepo, TaskStatus
+from src.task_management.repos import TaskInstanceRepo, TaskInstance
+from src.task_management.services import UpdateTaskInstanceStatusService
 from src.task_management.utils import TaskDataBuilder
 
 
 class UpdateTaskInstanceCase:
     def __init__(
         self,
-        task_instance_repo: Type[TaskInstanceRepo],
-        task_status_repo: Type[TaskStatusRepo],
+        task_instance_repo: type[TaskInstanceRepo],
+        update_task_service: UpdateTaskInstanceStatusService,
     ):
         self.task_instance_repo: TaskInstanceRepo = task_instance_repo()
-        self.task_status_repo: TaskStatusRepo = task_status_repo()
+        self.update_task_service: UpdateTaskInstanceStatusService = update_task_service
 
     async def __call__(self, task_instance_id: int, payload: TaskInstanceUpdateSchema) -> dict[str, Any]:
         task_instance: TaskInstance = await self.task_instance_repo.retrieve(
@@ -23,12 +24,7 @@ class UpdateTaskInstanceCase:
         if not task_instance:
             raise TaskInstanceNotFoundError
 
-        task_status: TaskStatus = await self.task_status_repo.retrieve(filters=dict(slug=payload.slug))
-        if not task_status:
-            raise TaskStatusNotFoundError
-        task_instance: TaskInstance = await self.task_instance_repo.update(
-            model=task_instance, data=dict(status=task_status)
-        )
+        await self.update_task_service(booking_id=task_instance.booking.id, status_slug=payload.slug)
 
         task: list[dict] = await TaskDataBuilder(
             task_instances=task_instance,

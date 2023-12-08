@@ -208,6 +208,7 @@ class User(Model):
     users_cities: fields.ManyToManyRelation["City"]
     users_checks: fields.ReverseRelation["Check"]
     bookings: fields.ReverseRelation["Booking"]
+    all_bookings: fields.ManyToManyRelation["Booking"]
     users_pinning_status: fields.ReverseRelation["UserPinningStatus"]
     agent_confirm_client_assign: fields.ReverseRelation["ConfirmClientAssign"]
     client_confirm_client_assign: fields.ReverseRelation["ConfirmClientAssign"]
@@ -323,7 +324,11 @@ class UserRepo(BaseUserRepo, UserRepoSpecsMixin, UserRepoFacetsMixin, GenericMix
             setattr(model, field, value)
         try:
             await model.save()
-        except IntegrityError:
+        except IntegrityError as ex:
+            exception_message = str(ex)
+            traceback_str = traceback.format_exc()
+            error_msg = f"User update fail: id={model.id}, data={data}, error={exception_message}\n{traceback_str}"
+            self.logger.info(error_msg)
             model = None
         return model
 

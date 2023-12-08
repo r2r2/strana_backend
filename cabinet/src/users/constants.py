@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import StrEnum
 
 from common import mixins
 
@@ -53,7 +53,7 @@ class UserStatusCheck(mixins.Choices):
     ERROR: str = 'error', "Ошибка"
 
 
-class ResolveDisputeStatuses(str, Enum):
+class ResolveDisputeStatuses(StrEnum):
     UNIQUE: str = UserStatus.UNIQUE
     NOT_UNIQUE: str = UserStatus.NOT_UNIQUE
 
@@ -93,7 +93,7 @@ class UserPinningStatusType(mixins.Choices):
     UNKNOWN: str = "unknown", "Неизвестно"
 
 
-class UserAssignSlug(str, Enum):
+class UserAssignSlug(StrEnum):
     """
     Тип Slug для страниц закрепления пользователя
     """
@@ -111,7 +111,7 @@ class OriginType(mixins.Choices):
     AGENT_ASSIGN: str = "agent_assign", "Закрепление агентом"
 
 
-class UniqueStatusButtonSlug(str, Enum):
+class UniqueStatusButtonSlug(StrEnum):
     """
     Слаг кнопки статуса уникальности
     """

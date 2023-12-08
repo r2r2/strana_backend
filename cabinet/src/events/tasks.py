@@ -9,7 +9,11 @@ from src.notifications import repos as notifications_repos
 from src.notifications import services as notification_services
 from src.users import repos as users_repos
 from src.events import repos as events_repos
-from src.events.services import SendingSmsToBrokerOnEventService
+from src.events.services import (
+    SendingSmsToBrokerOnEventService,
+    PeriodicEventNotificationTaskService,
+    GetEventNotificationTaskService,
+)
 
 
 @celery.app.task
@@ -39,3 +43,30 @@ def sending_sms_to_broker_on_event_task(event_id: int, broker_id: int, sms_event
         broker_id=broker_id,
         sms_event_slug=sms_event_slug,
     ))
+
+
+@celery.app.task
+def periodic_event_notification_task() -> None:
+    """
+    Периодическая задача на создание отложенных eta задач на уведомление агентов о начале и окончании мероприятий.
+    """
+
+    resources: dict[str, Any] = dict(
+        event_sms_notification_repo=notifications_repos.EventsSmsNotificationRepo,
+    )
+    get_event_sms_notification_service: GetEventNotificationTaskService = GetEventNotificationTaskService(
+        **resources
+    )
+    resources: dict[str, Any] = dict(
+        event_repo=events_repos.EventRepo,
+        get_event_sms_notification_service=get_event_sms_notification_service,
+        sending_sms_to_broker_on_event_task=sending_sms_to_broker_on_event_task,
+        orm_class=Tortoise,
+        orm_config=tortoise_config,
+    )
+    periodic_event_notification_task_service: PeriodicEventNotificationTaskService = \
+        PeriodicEventNotificationTaskService(
+            **resources
+        )
+    loop: Any = get_event_loop()
+    loop.run_until_complete(celery.sentry_catch(celery.init_orm(periodic_event_notification_task_service))())

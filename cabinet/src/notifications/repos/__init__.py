@@ -33,3 +33,4 @@ from .domain_notification import (
     OnboardingRepo,
     OnboardingUserThrough,
     OnboardingUserThroughRepo)
+from .rop import RopEmailsDispute, RopEmailsDisputeRepo

@@ -17,6 +17,7 @@ from ..repos import BankContactInfo, BankContactInfoRepo, Booking, BookingRepo
 from ..services import HistoryService, NotificationService
 from ..types import BookingEmail, BookingSms
 from src.notifications.services import GetSmsTemplateService, GetEmailTemplateService
+from src.payments.repos import PaymentMethodRepo, PaymentMethod
 
 
 class PaymentMethodSelectCase(BaseBookingCase, BookingLogMixin):
@@ -56,6 +57,7 @@ class PaymentMethodSelectCase(BaseBookingCase, BookingLogMixin):
     ) -> None:
         self.booking_repo: BookingRepo = booking_repo()
         self.bank_contact_info_repo: BankContactInfoRepo = bank_contact_info_repo()
+        self.payment_method_repo: PaymentMethodRepo = PaymentMethodRepo()
         self.amocrm_class: Type[AmoCRM] = amocrm_class
         self.sms_class: Type[BookingSms] = sms_class
         self.email_class: Type[BookingEmail] = email_class
@@ -88,8 +90,12 @@ class PaymentMethodSelectCase(BaseBookingCase, BookingLogMixin):
         self._check_step_requirements(booking)
         self._validate_data(payload)
 
+        amo_payment_method: PaymentMethod = await self.payment_method_repo.retrieve(
+            filters=dict(name=PaymentMethods().to_label(payload.payment_method)),
+        )
+
         data = dict(
-            payment_method=payload.payment_method,
+            amo_payment_method=amo_payment_method,
             payment_method_selected=True,
             maternal_capital=payload.maternal_capital,
             housing_certificate=payload.housing_certificate,
@@ -274,6 +280,7 @@ class PaymentMethodSelectCase(BaseBookingCase, BookingLogMixin):
         amocrm: AmoCRM
         async with await self.amocrm_class() as amocrm:
             data_for_update = {}
+            # todo: payment_method
             if booking.payment_method == PaymentMethods.MORTGAGE:
                 data_for_update["is_mortgage_approved"] = booking.client_has_an_approved_mortgage
             data_for_update["payment_method"] = AmoCRMPaymentMethod(
@@ -291,13 +298,13 @@ class PaymentMethodSelectCase(BaseBookingCase, BookingLogMixin):
             # данные для подачи заявки на ипотеку
             if bank_contact_info is not None:
                 note_text = self._get_bank_contact_info_note_text(bank_contact_info)
-                await amocrm.create_note(
+                await amocrm.create_note_v4(
                     lead_id=booking.amocrm_id, text=note_text, element="lead", note="common"
                 )
 
             if mortgage_request_created:
                 note_text = "Клиент намерен подать заявку на ипотеку через Страну"
-                await amocrm.create_note(
+                await amocrm.create_note_v4(
                     lead_id=booking.amocrm_id, text=note_text, element="lead", note="common"
                 )
 

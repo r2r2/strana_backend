@@ -1,5 +1,6 @@
 from typing import Any
 
+from common.numbers import number_to_text
 from common.sentry.utils import send_sentry_log
 from src.documents.repos import DocumentRepo, Document
 from src.documents.exceptions import DocumentNotFoundError
@@ -12,6 +13,8 @@ class GetBookingDocumentCase(BaseBookingCase):
     """
     Получение документа для сделки
     """
+    price_units = (("рубль", "рубля", "рублей"), "m")
+    period_units = (("календарный день", "календарных дня", "календарных дней"), "m")
 
     def __init__(
         self,
@@ -58,10 +61,11 @@ class GetBookingDocumentCase(BaseBookingCase):
             )
             raise DocumentNotFoundError
 
+        price: int = booking.payment_amount if booking.payment_amount else booking.building.booking_price
         document_info_data: dict = dict(
             address=booking.building.address,
-            price=booking.payment_amount if booking.payment_amount else booking.building.booking_period,
-            period=booking.building.booking_period,
+            price=self._get_price_text(price),
+            period=self._get_period_text(booking.building.booking_period),
             premise=booking.property.premise.label,
         )
         document.text = document.text.format(**document_info_data)
@@ -76,3 +80,29 @@ class GetBookingDocumentCase(BaseBookingCase):
 
         if not booking.property:
             raise BookingPropertyMissingError
+
+    @classmethod
+    def _get_price_text(cls, price: int) -> str:
+        price_as_text = number_to_text(price, cls.price_units).capitalize()
+        price_unit = price_as_text.rsplit(" ", 1)[-1]
+
+        # 5000.00 рублей (Пять тысяч рублей ноль копеек)
+        return "{price} {price_unit} ({price_as_text} ноль копеек)".format(
+            price=price, price_unit=price_unit, price_as_text=price_as_text
+        )
+
+    @classmethod
+    def _get_period_text(cls, period: int) -> str:
+        period_as_text_with_units = number_to_text(period, cls.period_units).capitalize()
+        period_as_text_without_units = number_to_text(period).capitalize()
+
+        period_unit: str | None = None
+        for _period_unit in cls.period_units[0]:
+            if _period_unit in period_as_text_with_units:
+                period_unit = _period_unit
+                break
+
+        # 20 (Двадцать) календарных дней
+        return "{period} ({period_as_text}) {period_unit}".format(
+            period=period, period_as_text=period_as_text_without_units, period_unit=period_unit
+        )

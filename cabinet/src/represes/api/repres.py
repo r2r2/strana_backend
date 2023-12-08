@@ -161,28 +161,6 @@ async def resend_confirm_letter_view(
     return await resend_letter(repres_id)
 
 
-@router.get("/reset_password",
-            status_code=HTTPStatus.PERMANENT_REDIRECT,
-            summary="Сброс пароля")
-async def reset_password_view(
-    request: Request, token: str = Query(..., alias="q"), discard_token: str = Query(..., alias="p")
-):
-    """
-    Служебный эндпоинт для сброса пароля
-    """
-    resources: dict[str, Any] = dict(
-        site_config=site_config,
-        auth_config=auth_config,
-        session=request.session,
-        session_config=session_config,
-        repres_repo=represes_repos.RepresRepo,
-        user_type=users_constants.UserType.REPRES,
-        token_decoder=security.decode_email_token,
-    )
-    reset_password: use_cases.ResetPasswordCase = use_cases.ResetPasswordCase(**resources)
-    return RedirectResponse(url=await reset_password(token=token, discard_token=discard_token))
-
-
 @router.get("/reset_available",
             status_code=HTTPStatus.OK,
             response_model=models.ResponseResetAvailableModel,
@@ -378,19 +356,6 @@ async def update_me_view(
     return await update_me(repres_id=repres_id, payload=payload)
 
 
-@router.get("/session_token",
-            status_code=HTTPStatus.OK,
-            response_model=models.ResponseSessionTokenModel,
-            summary="Получение токена через сессию")
-async def session_token_view(request: Request):
-    """
-    Получение токена через сессию
-    """
-    resources: dict[str, Any] = dict(session=request.session, session_config=session_config)
-    session_token: use_cases.SessionTokenCase = use_cases.SessionTokenCase(**resources)
-    return await session_token()
-
-
 @router.post("/logout",
              status_code=HTTPStatus.NO_CONTENT,
              summary="Выход с удалением токена из сессии")
@@ -401,21 +366,6 @@ async def process_logout_view(request: Request):
     resources: dict[str, Any] = dict(session=request.session, session_config=session_config)
     process_logout: use_cases.ProcessLogoutCase = use_cases.ProcessLogoutCase(**resources)
     return await process_logout()
-
-
-@router.patch("/accept",
-              status_code=HTTPStatus.NO_CONTENT,
-              summary="Принятие договора")
-async def accept_contract_view(
-    payload: models.RequestAcceptContractModel = Body(...),
-    repres_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.REPRES)),
-):
-    """
-    Принятие договора
-    """
-    resources: dict[str, Any] = dict(repres_repo=represes_repos.RepresRepo)
-    accept_contract: use_cases.AcceptContractCase = use_cases.AcceptContractCase(**resources)
-    return await accept_contract(repres_id=repres_id, payload=payload)
 
 
 @router.patch(

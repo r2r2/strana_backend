@@ -7,7 +7,6 @@ from task_management.models.task_group_status import TaskGroupStatus
 @admin.register(TaskGroupStatus)
 class TaskGroupStatusAdmin(admin.ModelAdmin):
     list_display = (
-        "id",
         "name",
         "priority",
         "task_chain",
@@ -16,6 +15,7 @@ class TaskGroupStatusAdmin(admin.ModelAdmin):
     readonly_fields = ("updated_at", "created_at",)
     ordering = ("name",)
     search_fields = ("name", "id")
+    list_filter = ("name", "id")
     filter_horizontal = (
         "statuses",
     )

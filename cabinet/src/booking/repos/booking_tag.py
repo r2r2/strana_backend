@@ -47,6 +47,24 @@ class BookingTag(Model):
         backward_key="tag_id",
         forward_key="client_group_status_id",
     )
+    booking_sources: fields.ManyToManyRelation["BookingSource"] = fields.ManyToManyField(
+        description="Источники бронирования",
+        model_name="models.BookingSource",
+        related_name="booking_tags",
+        on_delete=fields.SET_NULL,
+        through="booking_tags_booking_source_through",
+        backward_key="tag_id",
+        forward_key="booking_source_id",
+    )
+    systems: fields.ManyToManyRelation["System"] = fields.ManyToManyField(
+        description="Системы",
+        model_name="models.SystemList",
+        related_name="booking_tags",
+        on_delete=fields.SET_NULL,
+        through="booking_tags_system_through",
+        backward_key="tag_id",
+        forward_key="system_id",
+    )
 
     def __str__(self):
         return self.label
@@ -99,3 +117,41 @@ class BookingTagsClientGroupStatusThrough(Model):
 
     class Meta:
         table = "booking_tags_client_group_status_through"
+
+
+class BookingTagsBookingSourceThrough(Model):
+    id: int = fields.IntField(description="ID", pk=True)
+    booking_source: fields.ForeignKeyRelation["BookingSource"] = fields.ForeignKeyField(
+        model_name="models.BookingSource",
+        related_name="booking_tag_through",
+        description="Источник бронирования",
+        on_delete=fields.CASCADE,
+    )
+    tag: fields.ForeignKeyRelation[BookingTag] = fields.ForeignKeyField(
+        model_name="models.BookingTag",
+        related_name="booking_source_through",
+        description="Тег",
+        on_delete=fields.CASCADE,
+    )
+
+    class Meta:
+        table = "booking_tags_booking_source_through"
+
+
+class BookingTagsSystemThrough(Model):
+    id: int = fields.IntField(description="ID", pk=True)
+    system: fields.ForeignKeyRelation["SystemList"] = fields.ForeignKeyField(
+        model_name="models.SystemList",
+        related_name="booking_tag_through",
+        description="Система",
+        on_delete=fields.CASCADE,
+    )
+    tag: fields.ForeignKeyRelation[BookingTag] = fields.ForeignKeyField(
+        model_name="models.BookingTag",
+        related_name="system_through",
+        description="Тег",
+        on_delete=fields.CASCADE,
+    )
+
+    class Meta:
+        table = "booking_tags_system_through"

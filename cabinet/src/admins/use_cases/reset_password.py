@@ -7,7 +7,8 @@ from ..entities import BaseAdminCase
 from ..repos import AdminRepo, User
 from ..types import AdminSession
 from src.users.loggers.wrappers import user_changes_logger
-
+from common.schemas import UrlEncodeDTO
+from common.utils import generate_notify_url
 
 class ResetPasswordCase(BaseAdminCase):
     """
@@ -16,6 +17,8 @@ class ResetPasswordCase(BaseAdminCase):
 
     fail_link: str = "https://{}/account/admins/set-password"
     success_link: str = "https://{}/account/admins/set-password"
+
+    common_link_route_template: str = "/account/admins/set-password"
 
     def __init__(
         self,
@@ -48,9 +51,14 @@ class ResetPasswordCase(BaseAdminCase):
             discard_token=discard_token,
         )
         admin: User = await self.admin_repo.retrieve(filters=filters)
-        link: str = self.fail_link.format(self.site_host)
+
+        common_data: dict[str, Any] = dict(
+            host=self.site_host,
+            route_template = self.common_link_route_template,
+        )
+        url_dto: UrlEncodeDTO = UrlEncodeDTO(**common_data)
+        link: str = generate_notify_url(url_dto=url_dto)
         if admin:
-            link: str = self.success_link.format(self.site_host)
             self.session[self.password_reset_key]: int = admin_id
             await self.session.insert()
             data: dict[str, Any] = dict(

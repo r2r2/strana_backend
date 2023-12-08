@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import StrEnum
 from datetime import datetime, date
 from typing import Optional, Any
 
@@ -9,13 +9,13 @@ from ..constants import UserStatusCheck
 from ..entities import BaseUserModel
 
 
-class HistoryCheckStatusType(str, Enum):
+class HistoryCheckStatusType(StrEnum):
     UNIQUE: str = "unique"
     NOT_UNIQUE: str = "not_unique"
     CAN_DISPUTE: str = "can_dispute"
 
 
-class HistoryCheckDate(str, Enum):
+class HistoryCheckDate(StrEnum):
     DATE_UP: str = "created_at"
     DATE_DOWN: str = "-created_at"
     STATUS_TYPE: str = "status"

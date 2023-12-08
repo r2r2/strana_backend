@@ -7,7 +7,7 @@ from config import lk_admin_config
 from src.agents.repos import AgentRepo, User
 from src.notifications.repos import EventsSmsNotificationType
 
-from ..services import GetEventNotificationTaskService
+from ..services import EventNotificationTaskService
 from ..entities import BaseEventCase
 from ..models import RequestEventAdminModel
 from ..repos import (Event, EventParticipantStatus, EventRepo)
@@ -27,13 +27,13 @@ class EventSendEmailFromAdminCase(BaseEventCase):
         agent_repo: Type[AgentRepo],
         email_class: Type[EmailService],
         get_email_template_service: GetEmailTemplateService,
-        get_event_notification_task_service: GetEventNotificationTaskService,
+        event_notification_task_service: EventNotificationTaskService,
     ) -> None:
         self.event_repo: EventRepo = event_repo()
         self.agent_repo: AgentRepo = agent_repo()
         self.email_class: Type[EmailService] = email_class
         self.get_email_template_service: GetEmailTemplateService = get_email_template_service
-        self.get_event_notification_task_service: GetEventNotificationTaskService = get_event_notification_task_service
+        self.event_notification_task_service: EventNotificationTaskService = event_notification_task_service
 
     async def __call__(
         self,
@@ -60,12 +60,12 @@ class EventSendEmailFromAdminCase(BaseEventCase):
             event=event,
         )
 
-        await self.get_event_notification_task_service(
+        await self.event_notification_task_service(
             event=event,
             user=agent,
             sms_event_type=EventsSmsNotificationType.BEFORE,
         )
-        await self.get_event_notification_task_service(
+        await self.event_notification_task_service(
             event=event,
             user=agent,
             sms_event_type=EventsSmsNotificationType.AFTER,

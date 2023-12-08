@@ -56,6 +56,22 @@ class BookingTag(models.Model):
         through_fields=("tag", "client_group_status"),
         related_name="booking_tags",
     )
+    booking_sources = models.ManyToManyField(
+        blank=True,
+        verbose_name="Источники бронирования",
+        to="booking.BookingSource",
+        through="BookingTagsBookingSourceThrough",
+        through_fields=("tag", "booking_source"),
+        related_name="booking_tags",
+    )
+    systems = models.ManyToManyField(
+        blank=True,
+        verbose_name="Системы",
+        to="settings.SystemList",
+        through="BookingTagsSystemThrough",
+        through_fields=("tag", "system"),
+        related_name="booking_tags",
+    )
 
     def __str__(self):
         return self.label
@@ -119,3 +135,55 @@ class ClientGroupStatusTagThrough(models.Model):
 
     def __str__(self):
         return f"{self.client_group_status} {self.tag}"
+
+
+class BookingTagsBookingSourceThrough(models.Model):
+    booking_source = models.OneToOneField(
+        verbose_name="Источник бронирования",
+        to="booking.BookingSource",
+        on_delete=models.CASCADE,
+        related_name="booking_tag_through",
+        primary_key=True,
+    )
+    tag = models.ForeignKey(
+        verbose_name="Тег",
+        to="booking.BookingTag",
+        on_delete=models.CASCADE,
+        unique=False,
+        related_name="booking_source_through",
+    )
+
+    class Meta:
+        managed = False
+        db_table = "booking_tags_booking_source_through"
+        verbose_name = "Источник бронирования-Тег"
+        verbose_name_plural = "Источники бронирования-Теги"
+
+    def __str__(self):
+        return f"{self.booking_source} {self.tag}"
+
+
+class BookingTagsSystemThrough(models.Model):
+    system = models.OneToOneField(
+        verbose_name="Система",
+        to="settings.SystemList",
+        on_delete=models.CASCADE,
+        related_name="booking_tag_through",
+        primary_key=True,
+    )
+    tag = models.ForeignKey(
+        verbose_name="Тег",
+        to="booking.BookingTag",
+        on_delete=models.CASCADE,
+        unique=False,
+        related_name="system_through",
+    )
+
+    class Meta:
+        managed = False
+        db_table = "booking_tags_system_through"
+        verbose_name = "Система-Тег"
+        verbose_name_plural = "Системы-Теги"
+
+    def __str__(self):
+        return f"{self.system} {self.tag}"

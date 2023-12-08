@@ -97,7 +97,7 @@ class RebookingCase(BaseBookingCase):
                 booking=booking,
                 portal_property_id=self.global_id_decoder(booking_property.global_id)[1],
             )
-        self.check_booking_task.apply_async((booking.id,), eta=expires)
+        self.check_booking_task.apply_async((booking.id,), eta=expires, queue="scheduled")
         interested_task_chains: list[str] = [
             OnlineBookingSlug.ACCEPT_OFFER.value,
             FastBookingSlug.ACCEPT_OFFER.value,

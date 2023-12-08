@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import StrEnum
 
 from src.users.constants import UserType
 from ..repos import UserRepo, User
@@ -11,7 +11,7 @@ from ..entities import BaseUserService
 from ..models import RequestUserCheckUnique
 
 
-class UserMatchType(str, Enum):
+class UserMatchType(StrEnum):
     """
     Тип пользователя со склонением
     """
@@ -48,13 +48,19 @@ class UserCheckUniqueService(BaseUserService):
         """
         Возвращает ошибку, если пользователь с указанным телефоном или почтой уже есть в базе.
         """
+        role_mapping: dict[str, str] = {
+            "agents": UserType.AGENT,
+            "represes": UserType.REPRES,
+        }
 
         filters = [
             {
                 "phone": payload.phone,
+                # "type": role_mapping[payload.role],
             },
             {
                 "email": payload.email,
+                # "type": role_mapping[payload.role],
             },
         ]
         exceptions = (

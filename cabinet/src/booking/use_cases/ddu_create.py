@@ -12,7 +12,8 @@ from pytz import UTC
 from common.amocrm import AmoCRM
 from common.amocrm.types import AmoContact, AmoLead, DDUData
 from common.files.files import FileContainer
-from common.utils import size_to_byte
+from common.schemas import UrlEncodeDTO
+from common.utils import size_to_byte, generate_notify_url
 from src.booking.loggers.wrappers import booking_changes_logger
 from src.booking.repos import (DDU, Booking, BookingRepo, DDUParticipant,
                                DDUParticipantRepo, DDURepo, BookingSource)
@@ -85,7 +86,7 @@ class DDUCreateCase(BaseBookingCase):
     """
 
     sms_event_slug = "booking_ddu"
-    ddu_upload_url_template = "https://{}/online-purchase?{}"
+    route_template: str = "/online-purchase"
     _notification_template = "src/booking/templates/notifications/ddu_create.json"
     _history_template = "src/booking/templates/history/ddu_create.txt"
 
@@ -139,7 +140,13 @@ class DDUCreateCase(BaseBookingCase):
     ) -> Booking:
         filters: dict[str, Any] = dict(active=True, id=booking_id, user_id=user_id)
         booking: Booking = await self.booking_repo.retrieve(
-            filters=filters, related_fields=["user", "project", "project__city"]
+            filters=filters,
+            related_fields=[
+                "user",
+                "project",
+                "project__city",
+                "amo_payment_method",
+            ],
         )
         if not booking:
             raise BookingNotFoundError
@@ -166,9 +173,8 @@ class DDUCreateCase(BaseBookingCase):
             grouped_by_participant_images=grouped_by_participant_images,
             amocrm_contact=amocrm_contact,
         )
-        ddu_upload_url_secret = await self._generate_ddu_upload_url_secret()
+        ddu_upload_url_secret = self._generate_ddu_upload_url_secret() 
         booking_source: BookingSource = await get_booking_source(slug=BookingCreatedSources.LK)
-
         booking_data = dict(
             ddu=ddu,
             ddu_created=True,
@@ -183,14 +189,25 @@ class DDUCreateCase(BaseBookingCase):
             booking_data["online_purchase_id"] = await self.generate_online_purchase_id()
 
         # При условии если выбран тип оплаты ипотека - поменять статус сделки на "подать на ипотеку"
-        if booking.payment_method == PaymentMethods.MORTGAGE:
+        if booking.amo_payment_method.name == PaymentMethods.MORTGAGE_LABEL:
             booking_data["amocrm_substage"] = BookingSubstages.APPLY_FOR_A_MORTGAGE
         booking = await self.booking_update(booking=booking, data=booking_data)
 
         await self._notify_client(
             booking, previous_online_purchase_step=previous_online_purchase_step
         )
-        ddu_upload_url = self._get_ddu_upload_url(booking.id, ddu_upload_url_secret)
+
+        ddu_upload_data:  dict[str, Any] = dict(
+            host = self.main_site_host,
+            route_template = self.route_template,
+            query_params = dict(
+                secret=ddu_upload_url_secret, 
+                booking_id=booking.id
+            )
+        )
+        url_dto_ddu_upload: UrlEncodeDTO = UrlEncodeDTO(**ddu_upload_data)
+        ddu_upload_url: str = generate_notify_url(url_dto=url_dto_ddu_upload)
+
         await self._amocrm_hook(booking, ddu, ddu_participants, ddu_upload_url)
 
         await self._history_service.execute(
@@ -228,13 +245,6 @@ class DDUCreateCase(BaseBookingCase):
             )
             sms_service: Any = self.sms_class(**sms_options)
             return sms_service.as_task()
-
-    def _get_ddu_upload_url(self, booking_id: int, secret: str) -> str:
-        """Получение ссылки для загрузки ДДУ юристом."""
-        # https://strana.idacloud.ru/online-purchase?booking_id=1&secret=asd
-        query = dict(secret=secret, booking_id=booking_id)
-        query_str = "&".join(f"{k}={v}" for k, v in query.items())
-        return self.ddu_upload_url_template.format(self.main_site_host, query_str)
 
     @classmethod
     def not_young_child_image_strategy(cls, participant_data: DDUParticipantCreateModel) -> bool:
@@ -462,7 +472,7 @@ class DDUCreateCase(BaseBookingCase):
 
         amocrm_booking_status: str = amocrm.get_lead_substage(lead.status_id)
 
-        if booking.payment_method == PaymentMethods.MORTGAGE:
+        if booking.amo_payment_method.name == PaymentMethods.MORTGAGE_LABEL:
             if amocrm_booking_status in (BookingSubstages.BOOKING,
                                          BookingSubstages.PAID_BOOKING,
                                          BookingSubstages.MORTGAGE_LEAD):
@@ -482,7 +492,7 @@ class DDUCreateCase(BaseBookingCase):
                 user_name=user_name,
                 ddu_data=ddu_data,
             )
-            await amocrm.create_note(
+            await amocrm.create_note_v4(
                 lead_id=booking.amocrm_id, text=note_text, element="lead", note="common"
             )
             await self._update_genders(booking, ddu_participants, amocrm)
@@ -654,7 +664,7 @@ class DDUCreateCase(BaseBookingCase):
 
         return template
 
-    async def _generate_ddu_upload_url_secret(self) -> str:
+    def _generate_ddu_upload_url_secret(self) -> str:
         """Генерация ссылки для загрузки ДДУ юристом."""
         characters = string.ascii_uppercase + string.ascii_lowercase + string.digits
         return "".join(random.SystemRandom().choice(characters) for _ in range(60))

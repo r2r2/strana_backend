@@ -1,4 +1,5 @@
 from http import HTTPStatus
+from asyncio import create_task
 from typing import Any, Callable, Coroutine, Optional
 
 from common import amocrm, dependencies, email, messages, paginations, requests, security, utils
@@ -166,18 +167,6 @@ async def update_personal_view(
     )
     update_personal: use_cases.UpdatePersonalCase = use_cases.UpdatePersonalCase(**resources)
     return await update_personal(payload=payload, user_id=user_id)
-
-
-@router.get(
-    "/session_token", status_code=HTTPStatus.OK, response_model=models.ResponseSessionTokenModel
-)
-async def session_token_view(request: Request):
-    """
-    Получение токена через сессию
-    """
-    resources: dict[str, Any] = dict(session=request.session, session_config=session_config)
-    session_token: use_cases.SessionTokenCase = use_cases.SessionTokenCase(**resources)
-    return await session_token()
 
 
 @router.get("/me", status_code=HTTPStatus.OK, response_model=models.ResponseGetMeModel)
@@ -361,98 +350,6 @@ async def clients_users_uninterest_view(
         **resources
     )
     return await agents_users_interest(user_id=user_id, uninterested_global_ids=uninterested_global_ids)
-
-
-@router.get(
-    "/clients/fullname",
-    status_code=HTTPStatus.OK,
-    response_model=models.UserFullnameModel,
-)
-async def clients_users_fullname_view(
-    client_id: int = Depends(dependencies.CurrentUserId(users_constants.UserType.CLIENT)),
-):
-    """
-    Полное имя клиентов
-    """
-    resources: dict = dict(
-        user_repo=users_repos.UserRepo,
-        user_type=users_constants.UserType.CLIENT
-    )
-    users_fullname_case: use_cases.UsersFullnameCase = use_cases.UsersFullnameCase(**resources)
-    return await users_fullname_case(user_id=client_id)
-
-
-@router.get(
-    "/clients/fullname_agent",
-    status_code=HTTPStatus.OK,
-    response_model=models.UserFullnameModel,
-)
-async def clients_agents_fullname_view(
-    client_id: int = Depends(dependencies.CurrentUserId(users_constants.UserType.CLIENT)),
-):
-    """
-    Полное имя клиентов
-    """
-    resources: dict = dict(
-        user_repo=users_repos.UserRepo,
-        user_type=users_constants.UserType.AGENT
-    )
-    agents_fullname_case: use_cases.AgentsFullnameByClientCase = use_cases.AgentsFullnameByClientCase(**resources)
-    return await agents_fullname_case(user_id=client_id)
-
-
-@router.patch(
-    "/managers/interest",
-    status_code=HTTPStatus.OK,
-    response_model=models.ResponseUsersInterestModel,
-    dependencies=[Depends(dependencies.DeletedUserCheck())],
-)
-async def manager_interest_view(
-    interested: list[int] = Depends(
-        dependencies.PropertiesFromGlobalId(properties_repos.PropertyRepo)
-    ),
-    user_id: int = Depends(dependencies.CurrentUserFromAmocrm(users_repos.UserRepo)),
-):
-    """
-    Добавление предпочтений пользователем
-    """
-    resources: dict[str, Any] = dict(
-        user_repo=users_repos.UserRepo,
-        project_repo=projects_repos.ProjectRepo,
-        property_repo=properties_repos.PropertyRepo,
-        interests_repo=users_repos.InterestsRepo,
-        agency_repo=agencies_repos.AgencyRepo,
-    )
-    users_interest_case: use_cases.UsersInterestCase = use_cases.UsersInterestCase(
-        **resources
-    )
-    payload = models.RequestUsersInterestModel(interested=interested)
-    return await users_interest_case(user_id=user_id, payload=payload)
-
-
-@router.patch(
-    "/managers/uninterests",
-    status_code=HTTPStatus.OK,
-    response_model=models.ResponseUsersUninterestModel,
-    dependencies=[Depends(dependencies.DeletedUserCheck())],
-)
-async def managers_users_uninterest_view(
-    uninterested: list[int] = Depends(
-        dependencies.PropertiesFromGlobalId(properties_repos.PropertyRepo)
-    ),
-    user_id: int = Depends(dependencies.CurrentUserFromAmocrm(users_repos.UserRepo)),
-):
-    """
-    Удаление предпочтений пользователю
-    """
-    resources: dict[str, Any] = dict(
-        user_repo=users_repos.UserRepo, property_repo=properties_repos.PropertyRepo
-    )
-    agents_users_interest: use_cases.UsersUninterestCase = use_cases.UsersUninterestCase(
-        **resources
-    )
-    payload = models.RequestUsersUninterestModel(uninterested=uninterested)
-    return await agents_users_interest(user_id=user_id, payload=payload)
 
 
 @router.get(
@@ -671,6 +568,7 @@ async def represes_users_check_view_v2(
         amocrm_history_check_log_repo=users_repos.AmoCrmCheckLogRepo,
         agent_repo=agents_repos.AgentRepo,
         check_term_repo=users_repos.CheckTermRepo,
+        project_repo=projects_repos.ProjectRepo,
         amocrm_config=amocrm_config,
     )
     check_unique_service: user_services.CheckUniqueServiceV2 = user_services.CheckUniqueServiceV2(**resources)
@@ -944,6 +842,7 @@ async def agents_users_check_view_v2(
         amocrm_history_check_log_repo=users_repos.AmoCrmCheckLogRepo,
         agent_repo=agents_repos.AgentRepo,
         check_term_repo=users_repos.CheckTermRepo,
+        project_repo=projects_repos.ProjectRepo,
         amocrm_config=amocrm_config,
     )
     check_unique_service: user_services.CheckUniqueServiceV2 = user_services.CheckUniqueServiceV2(**resources)
@@ -1012,6 +911,8 @@ async def agents_users_check_dispute_view(
         email_recipients=email_recipients_config,
         historical_dispute_repo=users_repos.HistoricalDisputeDataRepo,
         send_check_admins_email=send_check_admins_email,
+        rop_email_dispute_repo=notifications_repos.RopEmailsDisputeRepo,
+        booking_repo=booking_repos.BookingRepo,
     )
 
     agents_users_check_dispute: use_cases.CheckDisputeCase = use_cases.CheckDisputeCase(**resources)
@@ -1057,56 +958,6 @@ async def repres_users_check_dispute_view(
 
     agents_users_check_dispute: use_cases.RepresCheckDisputeCase = use_cases.RepresCheckDisputeCase(**resources)
     return await agents_users_check_dispute(dispute_repres_id=repres_id, payload=payload)
-
-
-@router.patch(
-    "/agent/interest/{user_id}",
-    status_code=HTTPStatus.OK,
-    response_model=models.ResponseUsersInterestModel,
-    dependencies=[Depends(dependencies.DeletedUserCheck())],
-)
-async def agents_users_interest_view(
-    user_id: int = Path(...),
-    payload: models.RequestUsersInterestModel = Body(...),
-    agent_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT)),
-):
-    """
-    Добавление предпочтений пользователю
-    """
-    resources: dict[str, Any] = dict(
-        user_repo=users_repos.UserRepo,
-        project_repo=projects_repos.ProjectRepo,
-        property_repo=properties_repos.PropertyRepo,
-        interests_repo=users_repos.InterestsRepo,
-        agency_repo=agencies_repos.AgencyRepo,
-    )
-    users_interest_case: use_cases.UsersInterestCase = use_cases.UsersInterestCase(
-        **resources
-    )
-    return await users_interest_case(user_id=user_id, agent_id=agent_id, payload=payload)
-
-
-@router.patch(
-    "/agent/uninterest/{user_id}",
-    status_code=HTTPStatus.OK,
-    response_model=models.ResponseUsersUninterestModel,
-    dependencies=[Depends(dependencies.DeletedUserCheck())],
-)
-async def agents_users_uninterest_view(
-    user_id: int = Path(...),
-    payload: models.RequestUsersUninterestModel = Body(...),
-    agent_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT)),
-):
-    """
-    Удаление предпочтений пользователю
-    """
-    resources: dict[str, Any] = dict(
-        user_repo=users_repos.UserRepo, property_repo=properties_repos.PropertyRepo
-    )
-    agents_users_interest: use_cases.UsersUninterestCase = use_cases.UsersUninterestCase(
-        **resources
-    )
-    return await agents_users_interest(user_id=user_id, agent_id=agent_id, payload=payload)
 
 
 @router.patch(
@@ -1332,92 +1183,6 @@ async def confirm_assign_client(
     await use_case(token=token, data=data)
 
 
-@router.get(
-    "/repres",
-    status_code=HTTPStatus.OK,
-    response_model=models.ResponseRepresesUsersListModel,
-    dependencies=[
-        Depends(dependencies.DeletedUserCheck()),
-        Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.REPRES)),
-    ],
-    deprecated=True
-)
-async def represes_users_list_view(
-    init_filters: dict[str, Any] = Depends(filters.UserFilter.filterize),
-    agency_id: int = Depends(dependencies.CurrentUserExtra(key="agency_id")),
-    pagination: paginations.PagePagination = Depends(dependencies.Pagination()),
-):
-    """
-    Пользователи представителя агентства
-    """
-    resources: dict[str, Any] = dict(
-        user_repo=users_repos.UserRepo,
-        check_repo=users_repos.CheckRepo,
-        booking_repo=booking_repos.BookingRepo,
-        user_type=users_constants.UserType.REPRES
-    )
-    represes_users_list: use_cases.UsersListCase = use_cases.UsersListCase(
-        **resources
-    )
-    return await represes_users_list(agency_id=agency_id, init_filters=init_filters, pagination=pagination)
-
-
-@router.patch(
-    "/repres/interest/{user_id}",
-    status_code=HTTPStatus.OK,
-    response_model=models.ResponseUsersInterestModel,
-    dependencies=[
-        Depends(dependencies.DeletedUserCheck()),
-        Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.REPRES)),
-    ],
-)
-async def represes_users_interest_view(
-    user_id: int = Path(...),
-    payload: models.RequestUsersInterestModel = Body(...),
-    agency_id: int = Depends(dependencies.CurrentUserExtra(key="agency_id")),
-):
-    """
-    Добавление предпочтений пользователю представителем агентства
-    """
-    resources: dict[str, Any] = dict(
-        user_repo=users_repos.UserRepo,
-        project_repo=projects_repos.ProjectRepo,
-        property_repo=properties_repos.PropertyRepo,
-        interests_repo=users_repos.InterestsRepo,
-        agency_repo=agencies_repos.AgencyRepo,
-    )
-    users_interest_case: use_cases.UsersInterestCase = (
-        use_cases.UsersInterestCase(**resources)
-    )
-    return await users_interest_case(user_id=user_id, agency_id=agency_id, payload=payload)
-
-
-@router.patch(
-    "/repres/uninterest/{user_id}",
-    status_code=HTTPStatus.OK,
-    response_model=models.ResponseUsersUninterestModel,
-    dependencies=[
-        Depends(dependencies.DeletedUserCheck()),
-        Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.REPRES)),
-    ],
-)
-async def represes_users_uninterest_view(
-    user_id: int = Path(...),
-    payload: models.RequestUsersUninterestModel = Body(...),
-    agency_id: int = Depends(dependencies.CurrentUserExtra(key="agency_id")),
-):
-    """
-    Удаление предпочтений пользователю
-    """
-    resources: dict[str, Any] = dict(
-        user_repo=users_repos.UserRepo, property_repo=properties_repos.PropertyRepo
-    )
-    represes_users_interest: use_cases.UsersUninterestCase = (
-        use_cases.UsersUninterestCase(**resources)
-    )
-    return await represes_users_interest(user_id=user_id, agency_id=agency_id, payload=payload)
-
-
 @router.patch(
     "/repres/bound/{user_id}",
     status_code=HTTPStatus.NO_CONTENT,
@@ -1518,31 +1283,6 @@ async def represes_users_rebound_view(
     await represes_users_rebound_case(user_id=user_id, payload=payload, agency_id=agency_id)
 
 
-
-@router.get(
-    "/admin",
-    status_code=HTTPStatus.OK,
-    response_model=models.ResponseAdminsUsersListModel,
-    dependencies=[Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.ADMIN))],
-    deprecated=True
-)
-async def admins_users_list_view(
-    init_filters: dict[str, Any] = Depends(filters.UserFilter.filterize),
-    pagination: paginations.PagePagination = Depends(dependencies.Pagination()),
-):
-    """
-    Сделки администратором
-    """
-    resources: dict[str, Any] = dict(
-        user_repo=users_repos.UserRepo,
-        check_repo=users_repos.CheckRepo,
-        booking_repo=booking_repos.BookingRepo,
-        user_type=users_constants.UserType.ADMIN
-    )
-    admins_users_list: use_cases.UsersListCase = use_cases.UsersListCase(**resources)
-    return await admins_users_list(pagination=pagination, init_filters=init_filters)
-
-
 @router.post(
     "/admin/dispute/{user_id}",
     status_code=HTTPStatus.OK,
@@ -1595,17 +1335,24 @@ async def check_user_contacts(
     "/superuser/fill/{user_id}",
     status_code=HTTPStatus.OK,
 )
-def superuser_users_fill_data_view(
+async def superuser_users_fill_data_view(
     user_id: int = Path(...),
     data: str = Query(...),
 ):
     """
     Обновление данные пользователя в АмоСРМ после изменения в админке брокера.
     """
-    superuser_user_fill_data_case: use_cases.SuperuserUserFillDataCase = use_cases.SuperuserUserFillDataCase(
-        export_user_in_amo_task=users_tasks.export_user_in_amo,
+    resources: dict[str, Any] = dict(
+        orm_class=Tortoise,
+        orm_config=tortoise_config,
+        amocrm_class=amocrm.AmoCRM,
+        user_repo=users_repos.UserRepo,
     )
-    return superuser_user_fill_data_case(user_id=user_id, data=data)
+    export_user_in_amo_service: user_services.UpdateContactService = user_services.UpdateContactService(**resources)
+    superuser_user_fill_data_case: use_cases.SuperuserUserFillDataCase = use_cases.SuperuserUserFillDataCase(
+        export_user_in_amo_service=export_user_in_amo_service,
+    )
+    create_task(superuser_user_fill_data_case(user_id=user_id, data=data))
 
 
 @router.post(
@@ -1652,6 +1399,7 @@ async def create_ticket(
     )
     create_ticket_case: dashboard_use_cases.CreateTicketCase = dashboard_use_cases.CreateTicketCase(**resources)
     return await create_ticket_case(payload=payload)
+
 
 @router.get(
     "/consultation_type",

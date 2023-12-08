@@ -22,6 +22,7 @@ class Element(models.Model):
     image: str = models.ImageField(verbose_name="Изображение", max_length=500, null=True, blank=True)
     expires: datetime = models.DateTimeField(verbose_name="Истекает", null=True, blank=True)
     has_completed_booking: bool = models.BooleanField(verbose_name="Бронирование завершено", default=False)
+    priority: int = models.IntegerField(verbose_name="Приоритет", default=0)
 
     block: models.ForeignKey = models.ForeignKey(
         to='dashboard.Block',

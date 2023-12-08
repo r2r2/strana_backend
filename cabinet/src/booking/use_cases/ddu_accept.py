@@ -153,7 +153,7 @@ class DDUAcceptCase(BaseBookingCase):
                 # "клиент согласовал договор - связаться с клиентом" ответственному по сделке
                 complete_till_datetime = booking.ddu_acceptance_datetime + timedelta(days=1)
 
-                await amocrm.create_task(
+                await amocrm.create_task_v4(
                     entity_id=booking.amocrm_id,
                     responsible_user_id=amocrm_lead.responsible_user_id,
                     entity_type=AmoElementTypes.LEAD,

@@ -4,7 +4,7 @@ import structlog
 from copy import copy
 from datetime import datetime
 from typing import Any, Callable, Optional, Type, Union
-from enum import Enum
+from enum import IntEnum
 from pytz import UTC
 
 from tortoise.queryset import QuerySet
@@ -41,7 +41,7 @@ from ..types import BookingGraphQLRequest, BookingORM
 from src.booking.utils import get_booking_source
 
 
-class LeadStatuses(int, Enum):
+class LeadStatuses(IntEnum):
     """
      Статусы закрытых сделок в амо.
     """
@@ -154,6 +154,7 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
             ]
         )]
         agents: list[User] = await self.agent_repo.list(q_filters=q_filters)
+        self.logger.info(f"Найдено агентов в базе по условиям, в количестве - {len(agents)} шт.")
 
         async with await self.amocrm_class() as amocrm:
             import_contact: Optional[AmoContact] = await amocrm.fetch_contact(
@@ -171,6 +172,7 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
                             lead_ids=lead_ids,
                             query_with=[AmoLeadQueryWith.contacts],
                         )
+                        self.logger.info(f"Для клиента {user.id=} найдено сделок, в количестве - {len(leads)} шт.")
                         for lead in leads:
                             await self._update_lead(
                                 lead=lead,
@@ -200,15 +202,18 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
         booking: Optional[Booking] = None
         booking_purchase_data: Optional[dict] = None
         if lead.id in booking_ids:
+            self.logger.info(f"Сделка с {lead.id=} существует в базе")
             booking = await self.booking_repo.retrieve(filters=dict(amocrm_id=lead.id))
 
         # Не импортируем сделки из воронок, кроме городов
         if lead.pipeline_id not in amocrm.sales_pipeline_ids:
+            self.logger.info(f"Сделка с {lead.id=} не в воронке городов")
             if booking and booking.active:
                 await self.booking_update(booking=booking, data=dict(active=False))
             return
 
         if lead.is_deleted:
+            self.logger.info(f"Сделка с {lead.id=} отмечена как удаленная в АМО")
             if booking and not booking.deleted_in_amo:
                 await self.booking_update(booking=booking, data=dict(deleted_in_amo=True))
             return
@@ -370,6 +375,14 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
             data.pop("commission_value")
 
         lead_contacts: set[int] = {contact.id for contact in lead.embedded.contacts}
+        self.logger.info(f"Контакты сделки с {lead.id=}: {lead_contacts=}")
+        self.logger.info(f"Статус сделки с {lead.id=}: {lead.status_id=}")
+        self.logger.info(f"Пересечение контактов сделки с {lead.id=} с контактами брокеров по условиям в базе:"
+                         f" {lead_contacts.intersection(set(agent.amocrm_id for agent in agents))}")
+        self.logger.info(f"Агент клиента {user.id=}: {user.agent_id=}")
+        self.logger.info(f"Агент клиента {user.id=} есть в базе (с условиями):"
+                         f" {user.agent_id in [agent.id for agent in agents]}")
+
         # Не перепривязываем закрытые сделки других агентов у клиента
         if lead.status_id not in (LeadStatuses.REALIZED, LeadStatuses.UNREALIZED) and (
             lead_contacts.intersection(set(agent.amocrm_id for agent in agents)) and user.agent_id
@@ -387,7 +400,7 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
                 booking_source=booking_source,
             )
             booking: Booking = await self.booking_repo.create(data=data)
-            self.check_booking_task.apply_async((booking.id,), eta=booking.expires)
+            self.check_booking_task.apply_async((booking.id,), eta=booking.expires, queue="scheduled") 
 
     @staticmethod
     def _is_stage_valid(amocrm_substage: str) -> bool:
@@ -423,9 +436,9 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
         )
 
         filters: dict[str, Any] = dict(global_id=property_global_id)
-        data: dict[str, Any] = dict(premise=PremiseType.RESIDENTIAL, type=property_type.lower())
+        data: dict[str, Any] = dict(premise=PremiseType.RESIDENTIAL, type=property_type)
         if property_type != PropertyTypes.FLAT:
-            data: dict[str, Any] = dict(premise=PremiseType.NONRESIDENTIAL, type=property_type.lower())
+            data: dict[str, Any] = dict(premise=PremiseType.NONRESIDENTIAL, type=property_type)
         booking_property: Property = await self.property_repo.update_or_create(
             filters=filters, data=data)
         await self.import_property_service(property=booking_property)

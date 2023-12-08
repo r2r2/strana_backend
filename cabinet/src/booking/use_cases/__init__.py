@@ -2,6 +2,8 @@ from .accept_contract import AcceptContractCase
 from .booking_repeat import BookingRepeat, BookingRepeatV2
 from .admins_booking_charge import AdminsBookingChargeCase
 from .amocrm_webhook import AmoCRMWebhookCase
+from .amocrm_webhook_status import AmoCRMWebhookStatusCase
+from .amocrm_webhook_update import AmoCRMWebhookUpdateCase
 from .amocrm_webhook_access_deal import AmoCRMWebhookAccessDealCase
 from .amocrm_webhook_date_deal import AmoCRMWebhookDateDealCase
 from .amocrm_webhook_deal_success import AmoCRMWebhookDealSuccessCase

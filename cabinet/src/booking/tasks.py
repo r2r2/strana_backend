@@ -265,20 +265,3 @@ def send_sms_to_msk_client_task(booking_id: int, sms_slug: str) -> None:
     loop.run_until_complete(
         celery.sentry_catch(celery.init_orm(send_sms_to_msk_client))(booking_id=booking_id, sms_slug=sms_slug)
     )
-
-
-@celery.app.task
-def export_booking_in_amo(booking_id: int) -> None:
-    """
-    Экспорт бронирования в амо.
-    """
-    resources: dict[str, Any] = dict(
-        orm_class=Tortoise,
-        orm_config=tortoise_config,
-        amocrm_class=amocrm.AmoCRM,
-        booking_repo=booking_repos.BookingRepo,
-        create_amocrm_log_task=create_amocrm_log_task,
-    )
-    export_booking_in_amo: services.UpdateAmoBookingService = services.UpdateAmoBookingService(**resources)
-    loop: Any = get_event_loop()
-    loop.run_until_complete(celery.sentry_catch(celery.init_orm(export_booking_in_amo))(booking_id=booking_id))

@@ -40,23 +40,6 @@ async def get_slug_document_view(document_slug: str = Path(...)):
 
 
 @router.get(
-    "/slug/{document_slug}/city/{city_slug}",
-    status_code=HTTPStatus.OK,
-    response_model=models.ResponseGetSlugDocumentModel,
-)
-async def get_slug_document_by_city_view(
-    document_slug: str = Path(...), city_slug: str = Path(...)
-):
-    """
-    Получение документа по слагу и слагу города
-    """
-    get_slug_document_by_city_case = use_cases.GetSlugDocumentByCityCase(
-        document_repo=documents_repos.DocumentRepo
-    )
-    return await get_slug_document_by_city_case(document_slug=document_slug, city_slug=city_slug)
-
-
-@router.get(
     "/instructions/{slug}",
     status_code=HTTPStatus.OK,
     response_model=models.ResponseGetSlugInstructionModel,

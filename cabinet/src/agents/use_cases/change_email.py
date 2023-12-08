@@ -7,6 +7,8 @@ from ..repos import AgentRepo, User
 from ..types import AgentEmail
 from src.users.loggers.wrappers import user_changes_logger
 from src.notifications.services import GetEmailTemplateService
+from common.schemas import UrlEncodeDTO
+from common.utils import generate_notify_url
 
 
 class ChangeEmailCase(BaseAgentCase):
@@ -15,7 +17,7 @@ class ChangeEmailCase(BaseAgentCase):
     """
 
     mail_event_slug: str = "agent_confirm_email"
-    link: str = "https://{}/confirm/agents/confirm_email?q={}&p={}"
+    link_route_template: str = "/confirm/agents/confirm_email"
 
     fail_link: str = "https://{}/account/agents"
     success_link: str = "https://{}/account/agents"
@@ -73,7 +75,16 @@ class ChangeEmailCase(BaseAgentCase):
         return link
 
     async def _send_email(self, agent: User, token: str) -> Task:
-        confirm_link: str = self.link.format(self.lk_site_host, token, agent.email_token)
+        url_data: dict[str, Any] = dict(
+            host=self.lk_site_host,
+            route_template = self.link_route_template,
+            query_params = dict(
+                q = token,
+                p = agent.email_token,
+            )
+        )
+        url_dto: UrlEncodeDTO = UrlEncodeDTO(**url_data)
+        confirm_link: str = generate_notify_url(url_dto=url_dto)
         email_notification_template = await self.get_email_template_service(
             mail_event_slug=self.mail_event_slug,
             context=dict(confirm_link=confirm_link),

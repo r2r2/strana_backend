@@ -120,7 +120,7 @@ class ActivateBookingService(BaseBookingService, BookingLogMixin):
                 await self.__profitbase_booking(booking=booking)
 
         task_delay: int = (booking.expires - datetime.now(tz=UTC)).seconds
-        self.check_booking_task.apply_async((booking.id, amocrm_substage), countdown=task_delay)
+        self.check_booking_task.apply_async((booking.id, amocrm_substage), countdown=task_delay, queue="scheduled")
         self.booking_notification_sms_task.delay(booking.id)
         self.logger.debug(f"Launch check booking task[celery]: id={booking.id}")
 

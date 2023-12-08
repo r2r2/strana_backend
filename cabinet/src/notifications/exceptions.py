@@ -37,3 +37,9 @@ class SendQRCodeSMSNotEnoughDataError(BaseNotificationException):
     message: str = "Не хватает данных для отправки смс с QR кодом."
     status: int = HTTPStatus.BAD_REQUEST
     reason: str = "send_qr_code_sms_not_enough_data"
+
+
+class SMSTemplateNotActiveError(BaseNotificationException):
+    message: str = "Шаблон смс не активен."
+    status: int = HTTPStatus.BAD_REQUEST
+    reason: str = "sms_template_not_active"

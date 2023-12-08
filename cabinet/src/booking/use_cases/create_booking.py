@@ -177,7 +177,7 @@ class CreateBookingCase(BaseBookingCase):
             booking.tasks = await get_booking_tasks(
                 booking_id=booking.id, task_chain_slug=OnlineBookingSlug.ACCEPT_OFFER.value
             )
-            self.check_booking_task.apply_async((booking.id,), eta=expires)
+            self.check_booking_task.apply_async((booking.id,), eta=expires, queue="scheduled")
             return booking
 
     async def _create_amo_lead(

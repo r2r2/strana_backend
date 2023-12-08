@@ -175,7 +175,7 @@ class AmoCRM(
         payload: Union[dict[str, Any], list[dict[str, Any]]],
     ) -> CommonResponse:
         """
-        Post request execution
+        Post request execution v_4
         """
         request_options: dict[str, Any] = self.__get_post_options_v4(route=route, payload=payload)
         request_post: Callable[..., Coroutine] = self._request_class(**request_options)
@@ -266,10 +266,10 @@ class AmoCRM(
     def __get_post_options_v4(
         self,
         route: str,
-        payload: Union[dict[str, Any], list[dict[str, Any]]],
-    ) -> dict[str, Any]:
+        payload: Union[dict[str, Any], list[dict[str, Any]]], 
+    ) -> dict[str, Any]: # а в чем разница то с прошлым?
         """
-        Params for post request
+        Params for post request 
         """
         options: dict[str, Any] = dict(
             method="POST",

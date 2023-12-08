@@ -35,3 +35,25 @@ class BaseDashboardException(Exception):
     status: int
     reason: str
 
+
+class BaseSliderRepo(BaseRepo):
+    """
+    Базовый репозиторий слайдера на странице авторизации
+    """
+    pass
+
+class BaseSliderException(Exception):
+    """
+    Базовая ошибка слайдера
+    """
+
+    message: str
+    status: int
+    reason: str
+
+class BaseSliderModel(CamelCaseBaseModel):
+    """
+    Базовая модель слайда при авторизации
+    """
+    pass
+

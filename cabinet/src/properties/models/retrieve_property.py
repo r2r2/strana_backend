@@ -66,7 +66,7 @@ class PropertyRetrieveModel(BasePropertyModel):
     plan: Optional[dict[str, Any]]
     plan_png: Optional[dict[str, Any]]
     floor: Optional[PropertyFloorModel]
-    type: Optional[PropertyTypes.serializer]
+    type: PropertyTypes.serializer | None
     property_type: Optional[PropertyTypeModel] = Field(None, alias="propertyType")
     section: Optional[PropertySectionModel]
 

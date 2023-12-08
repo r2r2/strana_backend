@@ -4,15 +4,19 @@ Sberbank status UseCase
 import asyncio
 from asyncio import Task
 from datetime import datetime, timedelta
+from functools import wraps
 from secrets import compare_digest
 from typing import Any, Awaitable, Callable, Literal, Type
 from urllib.parse import urlencode
 from uuid import UUID
 
+import structlog
 from pytz import UTC
 
 from common.sentry.utils import send_sentry_log
 from common.settings.repos import BookingSettingsRepo
+from common.schemas import UrlEncodeDTO
+from common.utils import generate_notify_url
 from src.booking.constants import BookingPayKind, BookingCreatedSources
 from common.unleash.client import UnleashClient
 from config import sberbank_config
@@ -27,11 +31,34 @@ from ..mixins import BookingLogMixin
 from ..repos import Booking, BookingRepo, AcquiringRepo
 from ..services import HistoryService, ImportBookingsService
 from ..types import BookingAmoCRM, BookingEmail, BookingSberbank, BookingSms
-from src.task_management.constants import PaidBookingSlug, OnlineBookingSlug, FastBookingSlug
+from src.task_management.constants import PaidBookingSlug, OnlineBookingSlug, FastBookingSlug, FreeBookingSlug
 from src.task_management.services import UpdateTaskInstanceStatusService
 from src.notifications.services import GetSmsTemplateService, GetEmailTemplateService
 from src.task_management.repos import TaskInstance
 from src.task_management.utils import get_booking_task
+
+
+def sentry_log(func):
+    """
+    Sentry log decorator
+    """
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        try:
+            return await func(*args, **kwargs)
+        except Exception as ex:
+            sentry_extra: dict[str, Any] = dict(
+                args=args,
+                kwargs=kwargs,
+                ex=ex,
+            )
+            await send_sentry_log(
+                tag="acquiring",
+                message="SberbankStatusCase catch any exception.",
+                context=sentry_extra,
+            )
+            raise
+    return wrapper
 
 
 class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
@@ -41,6 +68,7 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
 
     sms_event_slug = "booking_sberbank_status"
     mail_event_slug: str = "success_booking"
+    sber_booking_url_route_template: str = "{}/payment-status"
     agent_mail_event_slug: str = "success_booking_agent_notification"
     _history_template = "src/booking/templates/history/sberbank_status_succeeded.txt"
 
@@ -84,16 +112,18 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
         self.booking_settings_repo: BookingSettingsRepo = booking_settings_repo()
 
         self._history_service = history_service
-        self.import_bookings_service = import_bookings_service
+        self.import_bookings_service: ImportBookingsService = import_bookings_service
         self.booking_success_logger = booking_changes_logger(self.booking_repo.update, self, content="Успешная ОПЛАТА "
                                                                                                      "| SBERBANK")
         self.booking_fail_logger = booking_changes_logger(self.booking_repo.update, self, content="Неуспешная | "
                                                                                                   "SBERBANK")
+        self.logger: structlog.BoundLogger = structlog.get_logger(self.__class__.__name__)
         self.get_sms_template_service: GetSmsTemplateService = get_sms_template_service
         self.get_email_template_service: GetEmailTemplateService = get_email_template_service
 
         self.booking_until_datetime: datetime | None = None
 
+    @sentry_log
     async def __call__(
         self,
         kind: Literal[BookingPayKind.SUCCESS, BookingPayKind.FAIL],
@@ -108,7 +138,6 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
             related_fields=[
                 "user",
                 "agent",
-                "project",
                 "project__city",
                 "property",
                 "building",
@@ -116,6 +145,7 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
                 "booking_source",
             ]
         )
+        self.logger.info(f"Sberbank status. {booking=}; {kind=}; {payment_id=};")
 
         if not booking:
             raise BookingNotFoundError
@@ -131,32 +161,46 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
         action_code_description: str = status.get("actionCodeDescription", "")
         payment_data: dict[str, Any] = dict(payment_status=payment_status)
 
+        sentry_extra: dict[str, Any] = {
+            "booking": booking,
+            "booking.is_can_pay": booking.is_can_pay(),
+            "booking.pay_extension_number": booking.pay_extension_number,
+            "status": status,
+            "kind": kind,
+            "payment_id": payment_id,
+        }
+
         if payment_status == PaymentStatuses.SUCCEEDED:
             payment_data = await self._payment_succeed(payment_data, booking)
-        else:
-            payment_data = await self._payment_not_succeed(payment_data, booking)
-
-            sentry_extra: dict[str, Any] = {
-                "booking": booking,
-                "booking.is_can_pay": booking.is_can_pay,
-                "booking.pay_extension_number": booking.pay_extension_number,
-                "status": status,
-                "payment_data": payment_data,
-                "kind": kind,
-            }
+            sentry_extra.update(payment_data=payment_data)
             await send_sentry_log(
                 tag="acquiring",
-                message="Sberbank pay fail.",
+                message=f"SberbankStatusCase success. {payment_id=}",
+                context=sentry_extra,
+            )
+        else:
+            payment_data = await self._payment_not_succeed(payment_data, booking)
+            sentry_extra.update(payment_data=payment_data)
+            await send_sentry_log(
+                tag="acquiring",
+                message=f"SberbankStatusCase fail. {payment_id=}",
                 context=sentry_extra,
             )
 
         task: TaskInstance = await self._get_booking_task(booking=booking)
-        url: str = self._get_url(
-            kind=kind.value,
-            description=action_code_description,
-            task=task,
-            booking=booking,
+        url_data: dict[str, Any] = dict(
+            host=booking.origin.split('//')[-1], # так коряво вытягиваем хоста
+            route_template = self.sber_booking_url_route_template,
+            route_params = [self.frontend_return_url],
+            query_params = dict(
+                status = kind.value,
+                description = action_code_description,
+                taskId = task.id,
+                bookingId = booking.id,
+            )
         )
+        url_dto: UrlEncodeDTO = UrlEncodeDTO(**url_data)
+        url: str = generate_notify_url(url_dto=url_dto)
 
         return url
 
@@ -186,7 +230,7 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
         if booking.is_agent_assigned():
             async_tasks.append(self._send_agent_email(booking=booking))
 
-        await self.update_task_instance_status(booking_id=booking.id)
+        await self.update_task_instance_status(booking=booking, paid_success=True)
         await self._amocrm_processing(booking=booking)
 
         await self._history_service.execute(
@@ -202,7 +246,7 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
         booking_settings = await self.booking_settings_repo.list().first()
         data.update(params_checked=False)
 
-        if booking.is_can_pay:
+        if booking.is_can_pay():
             if booking.pay_extension_number is None:
                 pay_extension_number = booking_settings.pay_extension_number
             else:
@@ -228,6 +272,7 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
             )
             self.create_amocrm_log_task.delay(note_data=note_data)
         await self.booking_fail_logger(booking=booking, data=data)
+        await self.update_task_instance_status(booking=booking, paid_success=False)
 
         return data
 
@@ -255,7 +300,7 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
             }
             await send_sentry_log(
                 tag="acquiring",
-                message="Sberbank username not found. Use 'tmn'.",
+                message="SberbankStatusCase username not found. Use 'tmn'.",
                 context=sentry_extra,
             )
             _username: str | None = sberbank_config.get("tmn_username")
@@ -343,7 +388,7 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
                 )
                 await send_sentry_log(
                     tag="email",
-                    message="Email send fail.",
+                    message="SberbankStatusCase. Email send fail.",
                     context=sentry_extra,
                 )
 
@@ -375,7 +420,7 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
                 )
                 await send_sentry_log(
                     tag="email",
-                    message="Email send to agent fail.",
+                    message="SberbankStatusCase. Email send to agent fail.",
                     context=sentry_extra,
                 )
 
@@ -397,42 +442,43 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
             sms_service: Any = self.sms_class(**sms_options)
             return sms_service.as_task()
 
-    async def update_task_instance_status(self, booking_id: int) -> None:
+    async def update_task_instance_status(self, booking: Booking, paid_success: bool) -> None:
         """
         Обновление статуса задачи
         """
-        statuses_to_update: list[str] = [
-            PaidBookingSlug.SUCCESS.value,
-            OnlineBookingSlug.PAYMENT_SUCCESS.value,
-            FastBookingSlug.PAYMENT_SUCCESS.value,
-        ]
-        await self.update_task_instance_status_service(booking_id=booking_id, status_slug=statuses_to_update)
+        if paid_success:
+            statuses_to_update: list[str] = [
+                PaidBookingSlug.SUCCESS.value,
+                OnlineBookingSlug.PAYMENT_SUCCESS.value,
+                FastBookingSlug.PAYMENT_SUCCESS.value,
+                FreeBookingSlug.PAYMENT_SUCCESS.value,
+            ]
+        elif booking.is_can_pay():
+            statuses_to_update: list[str] = [
+                OnlineBookingSlug.CAN_EXTEND.value,
+                FastBookingSlug.CAN_EXTEND.value,
+                FreeBookingSlug.CAN_EXTEND.value,
+            ]
+        else:
+            statuses_to_update: list[str] = [
+                OnlineBookingSlug.CAN_NOT_EXTEND.value,
+                FastBookingSlug.CAN_NOT_EXTEND.value,
+                FreeBookingSlug.CAN_NOT_EXTEND.value,
+            ]
+        await self.update_task_instance_status_service(booking_id=booking.id, status_slug=statuses_to_update)
 
     async def _get_booking_task(self, booking: Booking) -> TaskInstance:
-        if booking.booking_source.slug == BookingCreatedSources.FAST_BOOKING:
-            task_chain_slug: str = FastBookingSlug.PAYMENT.value
-        else:
-            task_chain_slug: str = OnlineBookingSlug.PAYMENT.value
+
+        match booking.booking_source.slug:
+            case BookingCreatedSources.FAST_BOOKING | BookingCreatedSources.LK_ASSIGN:
+                task_chain_slug: str = FastBookingSlug.PAYMENT.value
+            case BookingCreatedSources.AMOCRM:
+                task_chain_slug: str = FreeBookingSlug.PAYMENT.value
+            case _:
+                task_chain_slug: str = OnlineBookingSlug.PAYMENT.value
 
         task: TaskInstance = await get_booking_task(
             booking_id=booking.id,
             task_chain_slug=task_chain_slug,
         )
         return task
-
-    def _get_url(
-        self,
-        kind: str,
-        description: str,
-        task: TaskInstance,
-        booking: Booking,
-    ) -> str:
-        query_params = {
-            "status": kind,
-            "description": description,
-            "taskId": task.id,
-            "bookingId": booking.id,
-        }
-        base_url = f"{booking.origin}{self.frontend_return_url}/payment-status?"
-        url = f"{base_url}{urlencode(query_params)}"
-        return url

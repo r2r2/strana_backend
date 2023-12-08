@@ -101,16 +101,3 @@ class _UserListModel(BaseUserModel):
         @staticmethod
         def schema_extra(schema: dict[str, Any]) -> None:
             schema["properties"].pop("checks")
-
-
-class ResponseRepresesUsersListModel(BaseUserModel):
-    """
-    Модель ответа списка пользователей представителя агенства
-    """
-
-    count: int
-    page_info: dict[str, Any]
-    result: list[_UserListModel]
-
-    class Config:
-        orm_mode = True

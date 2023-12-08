@@ -194,6 +194,8 @@ class ImportPropertyService(BasePropertyService):
     async def __call__(
         self, property_id: int | None = None, property: Property | None = None
     ) -> tuple[bool, Property]:
+        print("ImportPropertyService")
+        print(f'{property=}')
         _property = property
         if not _property:
             filters: dict = dict(id=property_id)
@@ -204,8 +206,11 @@ class ImportPropertyService(BasePropertyService):
             return status, _property
 
         backend_property_id = self.global_id_decoder(_property.global_id)[1]
+        print(f'{backend_property_id=}')
         backend_property = await self._load_property_from_backend(backend_property_id)
+        print(f'{backend_property=}')
         if backend_property is None:
+            print(f'{backend_property is None=}')
             return False, _property
         backend_project: BackendProject = backend_property.project
         await backend_project.fetch_related("metro__line", "transport")
@@ -420,6 +425,9 @@ class ImportPropertyService(BasePropertyService):
         property_global_id = self.global_id_encoder(
             property_global_id_type, property_global_id_value
         )
+        is_property_with_global_id_exists: bool = await self.property_repo.exists(
+            filters=dict(global_id=property_global_id)
+        )
 
         # Получаем данные по похожему объекту недвижимости
         if self.backend_special_offers_repo:
@@ -471,7 +479,7 @@ class ImportPropertyService(BasePropertyService):
                 await self.price_repo.create(data=price_data)
 
         property_data = dict(
-            # global_id=property_global_id,
+            global_id=property_global_id if not is_property_with_global_id_exists else _property.global_id,
             article=backend_property.article,
             plan=backend_property.plan,
             plan_png=backend_property.plan_png,
@@ -520,15 +528,14 @@ class ImportPropertyService(BasePropertyService):
             view_river=backend_property.view_river,
             view_square=backend_property.view_square,
             wardrobes_count=backend_property.wardrobes_count,
+            cash_price=backend_property.cash_price
         )
         _property = await self.property_repo.update(_property, data=property_data)
         _property = await self.update_features(backend_property, _property)
 
         return status, _property
 
-    async def _load_property_from_backend(
-        self, backend_property_id: str
-    ) -> BackendProperty | None:
+    async def _load_property_from_backend(self, backend_property_id: str) -> BackendProperty | None:
         """
         Запрос получение объектов недвижимости из бэкенда
         """

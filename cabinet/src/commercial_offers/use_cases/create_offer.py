@@ -2,7 +2,6 @@ from typing import Callable, List, Optional, Any, Set
 from datetime import date
 from fastapi.encoders import jsonable_encoder
 from tortoise.fields import ForeignKeyNullableRelation, ManyToManyRelation
-from tortoise.queryset import ValuesListQuery, QuerySet
 from src.properties.services import ImportPropertyService
 from src.properties.repos import PropertyRepo, PropertyTypeRepo, Property, Feature
 from src.projects.repos import ProjectRepo
@@ -28,7 +27,6 @@ from ..entities import BaseOfferCase
 from ..repos.offer import OfferRepo, Offer
 from ..repos.offer_source import OfferSource, OfferSourceRepo
 from ..repos.offer_property import OfferPropertyRepo, OfferProperty
-from ..repos.offer_template import OfferTemplateRepo, OfferTemplate
 from ..exceptions import LeadNotFoundError, ClientNotFoundError
 from ..constans import OfferConstants
 
@@ -48,7 +46,6 @@ class CreateOfferCaseSaving(BaseOfferCase):
             offer_repo: type[OfferRepo],
             offer_source_repo: type[OfferSourceRepo],
             offer_properties_repo: type[OfferPropertyRepo],
-            offer_template_repo: type[OfferTemplateRepo]
     ) -> None:
         self.property_repo: PropertyRepo = property_repo()
         self.property_type_repo: PropertyTypeRepo = property_type_repo()
@@ -61,7 +58,6 @@ class CreateOfferCaseSaving(BaseOfferCase):
         self.offer_repo: OfferRepo = offer_repo()
         self.offer_source_repo: OfferSourceRepo = offer_source_repo()
         self.offer_properties_repo: OfferPropertyRepo = offer_properties_repo()
-        self.offer_template_repo: OfferTemplateRepo = offer_template_repo()
 
     async def __call__(self, payload: RequestCreateOfferModel, *args, **kwargs):
 
@@ -92,7 +88,7 @@ class CreateOfferCaseSaving(BaseOfferCase):
 
         if payload.is_save_lk:
             # Создание КП в БД
-            offer_source_filters: dict[str: str] = dict(slug=OfferConstants.OFFER_SOURCE.value)
+            offer_source_filters: dict[str: str] = dict(slug=str(OfferConstants.OFFER_SOURCE))
             offer_source: OfferSource = await self.offer_source_repo.retrieve(filters=offer_source_filters)
             offer_filters: dict = dict(
                 booking_amo_id=payload.meeting_amo_id,
@@ -111,7 +107,9 @@ class CreateOfferCaseSaving(BaseOfferCase):
                 offer_property: OfferProperty = await self.offer_properties_repo.create(data=property_data)
 
             # Подготовка структуры данных для отправки КП в АМО
-            tilda_amo_offer = TildaAmoOfferModel()
+            tilda_amo_offer = TildaAmoOfferModel(
+                coLink=offer_link
+            )
             tilda_amo_offers: Optional[list[TildaAmoOfferPropertyModel]] = []
             for property_ in properties:
                 template: TildaAmoOfferPropertyModel = TildaAmoOfferFields()(
@@ -155,14 +153,9 @@ class CreateOfferCaseSaving(BaseOfferCase):
 
         buildings: Set[ForeignKeyNullableRelation[Building]] = set(
             [property_.building_id for property_ in properties])
-        offer_template_filters: dict[str: int] = dict(building_id__in=buildings)
-        offer_template: OfferTemplate = await self.offer_template_repo.retrieve(filters=offer_template_filters)
-        if not offer_template:
-            offer_template_filters: dict[str: int] = dict(is_default=True)
-            offer_template: OfferTemplate = await self.offer_template_repo.retrieve(filters=offer_template_filters)
-        tilda_payload.site_id = offer_template.site_id
-        tilda_payload.page_id = offer_template.page_id
-        tilda_payload.url = offer_template.link
+        tilda_payload.site_id = OfferConstants.TILDA_TEMPLATE_SITE_ID
+        tilda_payload.page_id = OfferConstants.TILDA_TEMPLATE_PAGE_ID
+        tilda_payload.url = OfferConstants.TILDA_TEMPLATE_URL
 
         data = Data(
             pageHeader="",
@@ -216,8 +209,8 @@ class TildaTemplateFields:
         template.area = property_.area
         template.price = property_.price
         template.client = f"{client.name} {client.surname} {client.patronymic}"
-        template.akcia = property_.special_offers if property_.special_offers else ""
-        template.akciaDiscountEnabled = "Да" if property_.special_offers else ""
+        template.akcia = (property_.special_offers, ) if property_.special_offers else ""
+        template.akciaDiscountEnabled = ("Да", ) if property_.special_offers else ""
         template.angular = "Да" if property_.is_angular else ""
         template.apartment = property_.number
         template.balcony = "Да" if (property_.balconies_count and property_.balconies_count > 0) else ""
@@ -241,7 +234,7 @@ class TildaTemplateFields:
         template.design_by_project = "Да" if self._is_related_feature(
             profitbase_id="pbcf_63db466c2894c",
             features=features) else ""
-        template.discountPrice = str(property_.final_price) if property_.final_price else ""
+        template.discountPrice = (str(property_.final_price),) if property_.final_price else ""
         template.floor = property_.floor.number
         template.free_layout = "Да" if property_.open_plan else ""
         template.french_balcony = "Да" if self._is_related_feature(
@@ -271,7 +264,7 @@ class TildaTemplateFields:
             features=features) else ""
         template.penthouse = "Да" if property_.is_penthouse else ""
         template.pochta = payload.manager_login
-        template.priceWithCash = str(property_.final_price) if property_.final_price else ""
+        template.priceWithCash = str(property_.cash_price) if property_.cash_price else ""
         template.price_with_furnishing = property_.furnish_price_per_meter if property_.furnish_price_per_meter else ""
         template.price_with_kitchen = payload.price_with_kitchen if payload.price_with_kitchen else ""
         template.price_with_renovation = payload.price_with_renovation if payload.price_with_renovation else ""
@@ -313,6 +306,9 @@ class TildaTemplateFields:
             profitbase_id="pbcf_62a82476e2d13",
             features=features) else ""
         template.house_id = str(from_global_id(property_.building.global_id)[1])
+        template.entresol = "Да" if self._is_related_feature(
+            profitbase_id="pbcf_628e10900de32",
+            features=features) else ""
 
         return template
 

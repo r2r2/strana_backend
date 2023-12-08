@@ -24,6 +24,7 @@ class ClientAmocrmGroupStatusAdminForm(forms.ModelForm):
             "color",
             "tags",
             "is_final",
+            "is_hide",
             "show_reservation_date",
             "show_booking_date",
         ]

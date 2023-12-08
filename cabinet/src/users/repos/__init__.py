@@ -36,3 +36,4 @@ from .unique_status_button import UniqueStatusButton, UniqueStatusButtonRepo
 from .amocrm_request_check_log import AmoCrmCheckLogRepo, AmoCrmCheckLog
 from .dispute_status import DisputeStatus, DisputeStatusRepo
 from .consultation_type import ConsultationType, ConsultationTypeRepo
+from .strana_office_admin import StranaOfficeAdmin, StranaOfficeAdminRepo

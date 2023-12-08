@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Offer, OfferSource, OfferTemplate
+from .models import Offer, OfferSource
 
 
 @admin.register(Offer)
@@ -15,11 +15,4 @@ class OfferAdmin(admin.ModelAdmin):
 class OfferSourceAdmin(admin.ModelAdmin):
     list_display = ("name", "slug")
     search_fields = ("name", "slug")
-    ordering = ("id", )
-
-
-@admin.register(OfferTemplate)
-class OfferTemplateAdmin(admin.ModelAdmin):
-    list_display = ("name", "building", "is_default", "link", "site_id", "page_id")
-    search_fields = ("name",)
     ordering = ("id", )

@@ -236,7 +236,7 @@ class CheckUniqueService(BaseUserService):
     @staticmethod
     def __check_sales_substage_status(
             status: int,
-            amo_statuses: Union[Type[BaseLeadSalesStatuses], Enum]
+            amo_statuses: Union[Type[BaseLeadSalesStatuses], Enum] # а вот тут после замены на IntEnum и StrEnum могу твозникнуть проблемы
     ) -> bool:
         """
         check_sales_substage_status

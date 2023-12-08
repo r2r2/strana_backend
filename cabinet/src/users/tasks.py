@@ -255,19 +255,3 @@ def periodic_logs_clean() -> None:
     clean_logs: services.CleanLogsService = services.CleanLogsService(**resources)
     loop: Any = get_event_loop()
     loop.run_until_complete(celery.sentry_catch(celery.init_orm(clean_logs))(days))
-
-
-@celery.app.task
-def export_user_in_amo(user_id: int) -> None:
-    """
-    Экспорт пользователя в амо.
-    """
-    resources: dict[str, Any] = dict(
-        orm_class=Tortoise,
-        orm_config=tortoise_config,
-        amocrm_class=amocrm.AmoCRM,
-        user_repo=users_repos.UserRepo,
-    )
-    export_user_in_amo: services.UpdateContactService = services.UpdateContactService(**resources)
-    loop: Any = get_event_loop()
-    loop.run_until_complete(celery.sentry_catch(celery.init_orm(export_user_in_amo))(user_id=user_id))

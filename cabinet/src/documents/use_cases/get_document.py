@@ -29,12 +29,23 @@ class GetDocumentCase(BaseDocumentCase):
 
     async def __call__(self) -> Document:
         document_info: dict[str, Any] = await self.session.get(self.document_key)
-        if document_info:
+        if (
+            document_info
+            and document_info["city"] is not None
+            and document_info["address"] is not None
+            and document_info["premise"] is not None
+            and document_info["premise"] is not None
+            and document_info["period"] is not None
+
+        ):
             city: str = document_info["city"]
             address: str = document_info["address"]
             premise: str = document_info["premise"]
             price: int = document_info["price"]
-            period: int = int(document_info["period"])
+            try:
+                period: int = int(document_info["period"])
+            except ValueError:
+                raise DocumentNotFoundError
         else:
             raise DocumentNotFoundError
         filters: dict[str, Any] = dict(slug=city)

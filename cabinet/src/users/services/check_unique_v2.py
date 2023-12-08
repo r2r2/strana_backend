@@ -1,7 +1,7 @@
 # pylint: disable=unnecessary-comprehension,superfluous-parens
 from copy import copy
 from datetime import datetime, timedelta
-from typing import Any, Optional, Type, Union
+from typing import Any, Optional, Union
 
 import structlog
 from common.amocrm import AmoCRM
@@ -10,6 +10,7 @@ from common.amocrm.types import AmoContact, AmoLead
 from common.utils import partition_list
 from pytz import UTC
 
+from src.projects.repos import ProjectRepo
 from src.users.constants import UserStatus, UserType, UniqueStatusButtonSlug
 from src.users.entities import BaseUserService
 from src.users.repos import (Check, CheckRepo, CheckTermRepo, IsConType,
@@ -28,16 +29,17 @@ class CheckUniqueServiceV2(BaseUserService):
 
     def __init__(
         self,
-        user_repo: Type[UserRepo],
-        check_repo: Type[CheckRepo],
-        history_check_repo: Type[CheckHistoryRepo],
-        amocrm_history_check_log_repo: Type[AmoCrmCheckLogRepo],
-        check_term_repo: Type[CheckTermRepo],
-        amocrm_class: Type[AmoCRM],
-        agent_repo: Type[UserAgentRepo],
+        user_repo: type[UserRepo],
+        check_repo: type[CheckRepo],
+        history_check_repo: type[CheckHistoryRepo],
+        amocrm_history_check_log_repo: type[AmoCrmCheckLogRepo],
+        check_term_repo: type[CheckTermRepo],
+        amocrm_class: type[AmoCRM],
+        agent_repo: type[UserAgentRepo],
+        project_repo: type[ProjectRepo],
         amocrm_config: dict[Any, Any],
-        orm_class: Optional[Type[UserORM]] = None,
-        orm_config: Optional[dict[str, Any]] = None,
+        orm_class: type[UserORM] | None = None,
+        orm_config: dict[str, Any] | None = None,
     ) -> None:
         self.user_repo: UserRepo = user_repo()
         self.check_repo: CheckRepo = check_repo()
@@ -45,21 +47,23 @@ class CheckUniqueServiceV2(BaseUserService):
         self.amocrm_history_check_log_repo: AmoCrmCheckLogRepo = amocrm_history_check_log_repo()
         self.agent_repo: UserAgentRepo = agent_repo()
         self.check_term_repo: CheckTermRepo = check_term_repo()
+        self.project_repo: ProjectRepo = project_repo()
         self.partition_limit: int = amocrm_config["partition_limit"]
 
-        self.amocrm_class: Type[AmoCRM] = amocrm_class
+        self.amocrm_class: type[AmoCRM] = amocrm_class
 
-        self.orm_class: Union[Type[UserORM], None] = orm_class
+        self.orm_class: Union[type[UserORM], None] = orm_class
         self.orm_config: Union[dict[str, Any], None] = copy(orm_config)
         if self.orm_config:
             self.orm_config.pop("generate_schemas", None)
         self.logger = structlog.get_logger(__name__)
 
-        self.amocrm_id: Optional[int] = None
-        self.term_uid: Optional[str] = None
-        self.term_comment: Optional[str] = None
-        self._button_slug: Optional[str] = None
-        self.assign_agency_status: Optional[bool] = None  # Сделка находилась в статусе 'Фиксация за АН'
+        self.amocrm_id: int | None = None
+        self.project_id: int | None = None
+        self.term_uid: str | None = None
+        self.term_comment: str | None = None
+        self._button_slug: str | None = None
+        self.assign_agency_status: bool | None = None  # Сделка находилась в статусе 'Фиксация за АН'
 
         self.same_pinned: bool = False
         self.agent_repres_pinned: bool = False
@@ -107,6 +111,7 @@ class CheckUniqueServiceV2(BaseUserService):
             send_admin_email=self.send_admin_email,
             send_rop_email=self.send_rop_email,
             amocrm_id=self.amocrm_id,
+            project_id=self.project_id,
             term_uid=self.term_uid,
             term_comment=self.term_comment,
             button_slug=self._button_slug,
@@ -195,6 +200,10 @@ class CheckUniqueServiceV2(BaseUserService):
         lead_custom_fields: dict = {}
         if lead.custom_fields_values:
             lead_custom_fields = {field.field_id: field.values[0].value for field in lead.custom_fields_values}
+            filters = dict(
+                amocrm_name=lead_custom_fields.get(self.amocrm_class.project_field_id)
+            )
+            self.project_id = (await self.project_repo.retrieve(filters=filters)).id
 
         self.amocrm_id: int = lead.id
 

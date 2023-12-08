@@ -167,11 +167,27 @@ def generate_notify_url(url_dto: UrlEncodeDTO) -> str:
     """
     Генерация url для уведомлений с учетом query параметров
     """
-    separator: str = "%26"
-    
-    query_params: dict[str, Any] = url_dto.query_params or dict()
-    query_params: list[str] = [f"{key}={value}" for key, value in query_params.items()]
-    query_params: str = separator.join(query_params)
-    base_url: str = url_dto.url_template.format(host=url_dto.host)
-    url: str = f"{base_url}?{query_params}"
+    query_separator_ascii: str = "%26"
+    query_separator: str = "&"
+
+    base_url: str = "https://{host}".format(host=url_dto.host)
+
+    route_params: list[str] = url_dto.route_params
+    if not route_params: # список пустой
+        route_url: str = url_dto.route_template
+    else: # список не пустой, надо изменить route по параметрам
+        route_url: str = url_dto.route_template.format(*route_params) 
+
+    query_params_dict: dict[str, Any] = url_dto.query_params or dict()
+    query_params_list: list[str] = [f"{key}={value}" for key, value in query_params_dict.items()]
+    if url_dto.use_ampersand_ascii:
+        query_params: str = query_separator_ascii.join(query_params_list)
+    else:
+        query_params: str = query_separator.join(query_params_list)
+
+    if len(query_params_dict) != 0:
+        url: str = f"{base_url}{route_url}?{query_params}"
+    else:
+        url: str = f"{base_url}{route_url}"
+
     return url

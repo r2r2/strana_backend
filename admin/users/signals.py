@@ -1,7 +1,7 @@
 from django.dispatch import receiver
 from django.db.models.signals import post_save
 
-from .models import CabinetUser, UserRole, Agency
+from .models import CabinetUser, UserRole, Agency, CabinetAgent, CabinetClient, CabinetAdmin
 from .utils import export_in_amo
 
 
@@ -18,7 +18,37 @@ def parse_client_type(
 
 
 @receiver(post_save, sender=CabinetUser)
-def export_user_in_amo(
+def export_cabinet_user_in_amo(
+    sender, instance, created, raw, using, update_fields, *args, **kwargs
+):
+    try:
+        export_in_amo(instanse_type="users", pk=instance.id)
+    except Exception:
+        pass
+
+
+@receiver(post_save, sender=CabinetAgent)
+def export_cabinet_agent_in_amo(
+    sender, instance, created, raw, using, update_fields, *args, **kwargs
+):
+    try:
+        export_in_amo(instanse_type="users", pk=instance.id)
+    except Exception:
+        pass
+
+
+@receiver(post_save, sender=CabinetClient)
+def export_cabinet_client_in_amo(
+    sender, instance, created, raw, using, update_fields, *args, **kwargs
+):
+    try:
+        export_in_amo(instanse_type="users", pk=instance.id)
+    except Exception:
+        pass
+
+
+@receiver(post_save, sender=CabinetAdmin)
+def export_cabinet_admin_in_amo(
     sender, instance, created, raw, using, update_fields, *args, **kwargs
 ):
     try:

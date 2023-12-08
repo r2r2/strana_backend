@@ -4,6 +4,7 @@ from typing import Any, Literal, Optional, cast
 from urllib.parse import parse_qs, unquote
 from uuid import UUID
 import structlog
+from asyncio import create_task
 
 from fastapi import (
     APIRouter,
@@ -87,6 +88,7 @@ from src.booking.factories import ActivateBookingServiceFactory
 from ..maintenance import amocrm_webhook_maintenance
 from src.booking.tasks import create_booking_log_task
 from src.booking.utils import get_booking_reserv_time
+from src.booking.services import UpdateAmoBookingService
 from src.task_management.factories import UpdateTaskInstanceStatusServiceFactory, CreateTaskInstanceServiceFactory
 from src.properties.factories import CheckProfitbasePropertyServiceFactory
 
@@ -928,7 +930,7 @@ async def amocrm_webhook_notify_view(request: Request):
 @handle_amocrm_webhook_errors
 async def amocrm_webhook_view(
     request: Request, background_tasks: BackgroundTasks, secret: str = Path(...)
-):
+) -> None:
     """
     Вебхук АМО
     """
@@ -941,6 +943,17 @@ async def amocrm_webhook_view(
     if amo_webhook_request_enabled:
         logger = structlog.getLogger("amo_webhook_request")
         logger.info("AMOcrm webhook payload", payload=payload)
+    await _amocrm_webhook_view(payload, background_tasks, secret)
+
+
+async def _amocrm_webhook_view(
+        payload: bytes,
+        background_tasks: BackgroundTasks,
+        secret: str,
+):
+    """
+    Вебхук АМО
+    """
     create_task_instance_service = CreateTaskInstanceServiceFactory.create()
 
     update_task_instance_service = UpdateTaskInstanceStatusServiceFactory.create()
@@ -1032,6 +1045,216 @@ async def amocrm_webhook_view(
     await amocrm_webhook(secret=secret, payload=payload)
 
 
+@router.post("/amocrm/status/{secret}", status_code=HTTPStatus.OK)
+@amocrm_webhook_maintenance
+@handle_amocrm_webhook_errors
+async def amocrm_webhook_status_view(
+    request: Request, background_tasks: BackgroundTasks, secret: str = Path(...)
+) -> None:
+    """
+    Вебхук АМО status
+    """
+    try:
+        payload: bytes = await request.body()
+    except ClientDisconnect:
+        payload: bytes = bytes()
+        secret: str = "wrong_secret"
+    create_task_instance_service = CreateTaskInstanceServiceFactory.create()
+
+    update_task_instance_service = UpdateTaskInstanceStatusServiceFactory.create()
+
+    kounter_talk_api = KonturTalkAPI(meeting_repo=MeetingRepo)
+    resources: dict[str, Any] = dict(
+        kounter_talk_api=kounter_talk_api,
+        meeting_repo=MeetingRepo,
+        amocrm_class=amocrm.AmoCRM,
+    )
+    create_meeting_room_service: CreateRoomService = CreateRoomService(**resources)
+
+    resources: dict[str, Any] = dict(
+        amocrm_class=amocrm.AmoCRM,
+        user_repo=users_repos.UserRepo,
+        check_pinning_repo=users_repos.PinningStatusRepo,
+        user_pinning_repo=users_repos.UserPinningStatusRepo,
+        amocrm_config=amocrm_config,
+    )
+    check_pinning: users_services.CheckPinningStatusService = (
+        users_services.CheckPinningStatusService(**resources)
+    )
+
+    get_email_template_service: notification_services.GetEmailTemplateService = (
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notifications_repos.EmailTemplateRepo,
+        )
+    )
+    import_contact_service: users_services.ImportContactFromAmoService = (
+        users_services.ImportContactFromAmoService(
+            amocrm_class=amocrm.AmoCRM,
+            user_repo=users_repos.UserRepo,
+            user_role_repo=users_repos.UserRoleRepo,
+        )
+    )
+    import_meeting_service: ImportMeetingFromAmoService = ImportMeetingFromAmoService(
+        meeting_repo=MeetingRepo,
+        meeting_status_repo=meeting_repos.MeetingStatusRepo,
+        meeting_creation_source_repo=meeting_repos.MeetingCreationSourceRepo,
+        calendar_event_repo=event_repo.CalendarEventRepo,
+        booking_repo=booking_repos.BookingRepo,
+        amocrm_class=amocrm.AmoCRM,
+        amocrm_status_repo=src_amocrm_repos.AmocrmStatusRepo,
+        project_repo=projects_repos.ProjectRepo,
+    )
+    import_property_service: property_services.ImportPropertyService = (
+        ImportPropertyServiceFactory.create()
+    )
+    booking_creation_service: booking_services.BookingCreationFromAmoService = (
+        booking_services.BookingCreationFromAmoService(
+            amocrm_class=amocrm.AmoCRM,
+            booking_repo=booking_repos.BookingRepo,
+            project_repo=projects_repos.ProjectRepo,
+            property_repo=properties_repos.PropertyRepo,
+            global_id_encoder=utils.to_global_id,
+            import_property_service=import_property_service,
+        )
+    )
+    resources: dict[str, Any] = dict(
+        amocrm_class=amocrm.AmoCRM,
+        amocrm_config=amocrm_config,
+        backend_config=backend_config,
+        request_class=requests.GraphQLRequest,
+        booking_repo=booking_repos.BookingRepo,
+        meeting_repo=meeting_repos.MeetingRepo,
+        meeting_status_repo=meeting_repos.MeetingStatusRepo,
+        user_repo=users_repos.UserRepo,
+        project_repo=projects_repos.ProjectRepo,
+        amocrm_status_repo=src_amocrm_repos.AmocrmStatusRepo,
+        calendar_event_repo=event_repo.CalendarEventRepo,
+        statuses_repo=amocrm_repos.AmoStatusesRepo,
+        property_repo=properties_repos.PropertyRepo,
+        create_booking_log_task=create_booking_log_task,
+        webhook_request_repo=booking_repos.WebhookRequestRepo,
+        background_tasks=background_tasks,
+        create_task_instance_service=create_task_instance_service,
+        update_task_instance_service=update_task_instance_service,
+        create_meeting_room_service=create_meeting_room_service,
+        check_pinning=check_pinning,
+        email_class=email.EmailService,
+        get_email_template_service=get_email_template_service,
+        import_contact_service=import_contact_service,
+        import_meeting_service=import_meeting_service,
+        booking_creation_service=booking_creation_service,
+    )
+    amocrm_webhook_status: use_cases.AmoCRMWebhookStatusCase = use_cases.AmoCRMWebhookStatusCase(
+        **resources
+    )
+    await amocrm_webhook_status(secret=secret, payload=payload)
+
+
+@router.post("/amocrm/update/{secret}", status_code=HTTPStatus.OK)
+@amocrm_webhook_maintenance
+@handle_amocrm_webhook_errors
+async def amocrm_webhook_update_view(
+    request: Request, background_tasks: BackgroundTasks, secret: str = Path(...)
+):
+    """
+    Вебхук АМО update
+    """
+    try:
+        payload: bytes = await request.body()
+    except ClientDisconnect:
+        payload: bytes = bytes()
+        secret: str = "wrong_secret"
+    create_task_instance_service = CreateTaskInstanceServiceFactory.create()
+
+    update_task_instance_service = UpdateTaskInstanceStatusServiceFactory.create()
+
+    kounter_talk_api = KonturTalkAPI(meeting_repo=MeetingRepo)
+    resources: dict[str, Any] = dict(
+        kounter_talk_api=kounter_talk_api,
+        meeting_repo=MeetingRepo,
+        amocrm_class=amocrm.AmoCRM,
+    )
+    create_meeting_room_service: CreateRoomService = CreateRoomService(**resources)
+
+    resources: dict[str, Any] = dict(
+        amocrm_class=amocrm.AmoCRM,
+        user_repo=users_repos.UserRepo,
+        check_pinning_repo=users_repos.PinningStatusRepo,
+        user_pinning_repo=users_repos.UserPinningStatusRepo,
+        amocrm_config=amocrm_config,
+    )
+    check_pinning: users_services.CheckPinningStatusService = (
+        users_services.CheckPinningStatusService(**resources)
+    )
+
+    get_email_template_service: notification_services.GetEmailTemplateService = (
+        notification_services.GetEmailTemplateService(
+            email_template_repo=notifications_repos.EmailTemplateRepo,
+        )
+    )
+    import_contact_service: users_services.ImportContactFromAmoService = (
+        users_services.ImportContactFromAmoService(
+            amocrm_class=amocrm.AmoCRM,
+            user_repo=users_repos.UserRepo,
+            user_role_repo=users_repos.UserRoleRepo,
+        )
+    )
+    import_meeting_service: ImportMeetingFromAmoService = ImportMeetingFromAmoService(
+        meeting_repo=MeetingRepo,
+        meeting_status_repo=meeting_repos.MeetingStatusRepo,
+        meeting_creation_source_repo=meeting_repos.MeetingCreationSourceRepo,
+        calendar_event_repo=event_repo.CalendarEventRepo,
+        booking_repo=booking_repos.BookingRepo,
+        amocrm_class=amocrm.AmoCRM,
+        amocrm_status_repo=src_amocrm_repos.AmocrmStatusRepo,
+        project_repo=projects_repos.ProjectRepo,
+    )
+    import_property_service: property_services.ImportPropertyService = (
+        ImportPropertyServiceFactory.create()
+    )
+    booking_creation_service: booking_services.BookingCreationFromAmoService = (
+        booking_services.BookingCreationFromAmoService(
+            amocrm_class=amocrm.AmoCRM,
+            booking_repo=booking_repos.BookingRepo,
+            project_repo=projects_repos.ProjectRepo,
+            property_repo=properties_repos.PropertyRepo,
+            global_id_encoder=utils.to_global_id,
+            import_property_service=import_property_service,
+        )
+    )
+    resources: dict[str, Any] = dict(
+        amocrm_class=amocrm.AmoCRM,
+        amocrm_config=amocrm_config,
+        backend_config=backend_config,
+        request_class=requests.GraphQLRequest,
+        booking_repo=booking_repos.BookingRepo,
+        meeting_repo=meeting_repos.MeetingRepo,
+        meeting_status_repo=meeting_repos.MeetingStatusRepo,
+        user_repo=users_repos.UserRepo,
+        project_repo=projects_repos.ProjectRepo,
+        amocrm_status_repo=src_amocrm_repos.AmocrmStatusRepo,
+        calendar_event_repo=event_repo.CalendarEventRepo,
+        statuses_repo=amocrm_repos.AmoStatusesRepo,
+        property_repo=properties_repos.PropertyRepo,
+        create_booking_log_task=create_booking_log_task,
+        webhook_request_repo=booking_repos.WebhookRequestRepo,
+        background_tasks=background_tasks,
+        create_task_instance_service=create_task_instance_service,
+        update_task_instance_service=update_task_instance_service,
+        create_meeting_room_service=create_meeting_room_service,
+        check_pinning=check_pinning,
+        email_class=email.EmailService,
+        get_email_template_service=get_email_template_service,
+        import_contact_service=import_contact_service,
+        import_meeting_service=import_meeting_service,
+        booking_creation_service=booking_creation_service,
+    )
+    amocrm_webhook_update: use_cases.AmoCRMWebhookUpdateCase = use_cases.AmoCRMWebhookUpdateCase(
+        **resources
+    )
+    await amocrm_webhook_update(secret=secret, payload=payload)
+
+
 @router.get("/single_email/{booking_id}", status_code=HTTPStatus.NO_CONTENT)
 async def single_email_view(
     booking_id: int = Path(...),
@@ -1098,6 +1321,7 @@ async def booking_list_view(
         booking_tag_repo=booking_repos.BookingTagRepo,
         amocrm_group_status_repo=src_amocrm_repos.AmocrmGroupStatusRepo,
         price_offer_matrix_repo=payment_repos.PriceOfferMatrixRepo,
+        client_amocrm_group_status_repo=src_amocrm_repos.ClientAmocrmGroupStatusRepo,
     )
     booking_list: use_cases.BookingListCase = use_cases.BookingListCase(**resources)
     return await booking_list(
@@ -1695,19 +1919,27 @@ async def escrow_upload_view(
     "/superuser/fill/{booking_id}",
     status_code=HTTPStatus.OK,
 )
-def superuser_bookings_fill_data_view(
+async def superuser_bookings_fill_data_view(
     booking_id: int = Path(...),
     data: str = Query(...),
 ):
     """
     Обновление сделок в АмоСРМ после изменения в админке брокера.
     """
+    resources: dict[str, Any] = dict(
+        orm_class=Tortoise,
+        orm_config=tortoise_config,
+        amocrm_class=amocrm.AmoCRM,
+        booking_repo=booking_repos.BookingRepo,
+        create_amocrm_log_task=tasks.create_amocrm_log_task,
+    )
+    export_booking_in_amo_service: UpdateAmoBookingService = UpdateAmoBookingService(**resources)
     superuser_booking_fill_data_case: use_cases.SuperuserBookingFillDataCase = (
         use_cases.SuperuserBookingFillDataCase(
-            export_booking_in_amo_task=tasks.export_booking_in_amo,
+            export_booking_in_amo_service=export_booking_in_amo_service,
         )
     )
-    return superuser_booking_fill_data_case(booking_id=booking_id, data=data)
+    create_task(superuser_booking_fill_data_case(booking_id=booking_id, data=data))
 
 
 @router.patch(

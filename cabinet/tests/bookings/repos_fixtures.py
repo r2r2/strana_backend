@@ -5,7 +5,7 @@ from importlib import import_module
 
 from pytz import UTC
 
-from src.booking.repos import BookingRepo, Booking
+from src.booking.repos import BookingRepo, Booking, BookingSourceRepo
 
 
 @pytest.fixture(scope="function")
@@ -30,3 +30,18 @@ async def booking(booking_repo, property) -> Booking:
     }
     booking = await booking_repo.create(data)
     return booking
+
+
+@pytest.fixture(scope="function")
+def booking_source_repo() -> BookingSourceRepo:
+    return getattr(import_module("src.booking.repos"), "BookingSourceRepo")()
+
+
+@pytest.fixture(scope="function")
+async def booking_source_amocrm(booking_source_repo,) -> Booking:
+    data = {
+        "name": "Импортирован из AMOCRM",
+        "slug": "amocrm",
+    }
+    booking_source = await booking_source_repo.create(data)
+    return booking_source

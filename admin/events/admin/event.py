@@ -1,9 +1,15 @@
+from http import HTTPStatus
+
+import requests
 from common.loggers.models import BaseLogInline
 from django import forms
 from django.contrib import admin
 from django.contrib.admin.widgets import FilteredSelectMultiple
+from django.core.handlers.wsgi import WSGIRequest
 from django.db.models import (BooleanField, Case, Count, Exists, F, OuterRef,
                               Q, Subquery, When)
+from django.http import HttpResponseRedirect
+from requests import Response
 
 from ..models import (CalendarEvent, CalendarEventTagThrough,
                       CalendarEventType, Event, EventParticipant,
@@ -58,6 +64,7 @@ class EventParticipantInline(BaseLogInline):
 
 @admin.register(Event)
 class EventAdmin(admin.ModelAdmin):
+    change_form_template = "events/templates/send_sms.html"
     inlines = (EventParticipantInline, CalendarEventInline)
     actions = ("add_calendar_events",)
     list_filter = ("city", "type", "calendar_event__tags")
@@ -175,3 +182,18 @@ class EventAdmin(admin.ModelAdmin):
             calendar_event.save()
         elif obj.has_calendar_event:
             obj.calendar_event.save()
+
+    def response_change(self, request: WSGIRequest, obj: Event) -> HttpResponseRedirect:
+        if "_send" in request.POST:
+            url: str = f'http://cabinet:1800/api/events/{obj.id}/send_sms_from_admin'
+            response: Response = requests.post(url=url)
+            if response.status_code == HTTPStatus.OK:
+                self.message_user(request, "SMS были отправлены")
+                return HttpResponseRedirect(".")
+            else:
+                error_response: list[bytes] = list(response.iter_lines())
+                error_msg: str = (f"Не получилось отправить SMS: "
+                                  f"{error_response[-3:]}")
+                self.message_user(request, error_msg)
+                return HttpResponseRedirect("../")
+        return super().response_change(request, obj)

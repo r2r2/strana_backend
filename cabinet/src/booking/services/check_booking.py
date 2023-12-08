@@ -8,7 +8,7 @@ from pytz import UTC
 
 from common.email import EmailService
 from src.task_management.constants import PaidBookingSlug, OnlineBookingSlug
-from src.booking.constants import BookingStages, BookingSubstages
+from src.booking.constants import BookingStages, BookingSubstages, BookingCreatedSources
 from src.amocrm.repos import AmocrmStatus, AmocrmStatusRepo
 from src.notifications.services import GetEmailTemplateService
 from src.properties.constants import PropertyStatuses
@@ -124,6 +124,16 @@ class CheckBookingService(BaseBookingService):
                 result: bool = False
             else:
                 print("else")
+                match booking.booking_source.slug:
+                    case BookingCreatedSources.FAST_BOOKING | BookingCreatedSources.LK_ASSIGN:
+                        # быстрое бронирование
+                        need_change_status: bool = False
+                    case BookingCreatedSources.AMOCRM:
+                        # бесплатная бронь
+                        need_change_status: bool = False
+                    case _:
+                        need_change_status: bool = True
+
                 if not status:
                     status: str = BookingStages.START
 
@@ -138,15 +148,16 @@ class CheckBookingService(BaseBookingService):
                 data: dict[str, Any] = dict(
                     active=False,
                     project_id=None,
-                    building_id=None,
                     property_id=None,
                     profitbase_booked=False,
                     params_checked=False,
                     should_be_deactivated_by_timer=False,
-                    amocrm_stage=status,
-                    amocrm_substage=status,
-                    amocrm_status=actual_amocrm_status,
                 )
+                if need_change_status:
+                    data["amocrm_stage"] = status
+                    data["amocrm_substage"] = status
+                    data["amocrm_status"] = actual_amocrm_status
+
                 property_data: dict[str, Any] = dict(status=PropertyStatuses.FREE)
                 if booking.is_agent_assigned():
                     await self._profitbase_unbooking(booking)
@@ -175,6 +186,7 @@ class CheckBookingService(BaseBookingService):
     async def _amocrm_unbooking(self, booking: Booking, status_id: int) -> int:
         """
         Amocrm unbooking
+        В АМО сделку в статусе "Бронь" нельзя перевести в статус "Первичный контакт"
         """
         # находим данные из матрицы для поля в амо "Тип оплаты"
         purchase_amo: Optional[PurchaseAmoMatrix] = await self.purchase_amo_matrix_repo.list(

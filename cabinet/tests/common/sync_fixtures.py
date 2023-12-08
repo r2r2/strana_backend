@@ -2,6 +2,8 @@ from importlib import import_module
 
 from pytest import fixture
 
+from common.amocrm.repos import AmoStatusesRepo
+
 
 @fixture(scope="function")
 def amocrm_class():
@@ -61,3 +63,11 @@ def create_email_token():
 def hasher():
     hasher = getattr(import_module("common.security"), "get_hasher")()
     return hasher
+
+
+@fixture(scope="function")
+def statuses_repo() -> AmoStatusesRepo:
+    status_repo: AmoStatusesRepo = getattr(
+        import_module("common.amocrm.repos"), "AmoStatusesRepo"
+    )()
+    return status_repo

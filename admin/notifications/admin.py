@@ -15,6 +15,7 @@ from .models import (
     EmailHeaderTemplate,
     EmailFooterTemplate,
     QRcodeSMSNotify,
+    RopEmailsDispute,
 )
 from .models.booking_notificaton import BookingNotification
 from .models.booking_fixation_notificaton import BookingFixationNotification
@@ -351,3 +352,12 @@ class TemplateContentAdmin(admin.ModelAdmin):
             return "-"
 
     file_url.short_description = "Ссылка на файл (для копирования)"
+
+
+@admin.register(RopEmailsDispute)
+class RopEmailsDisputeAdmin(admin.ModelAdmin):
+    list_display = (
+        "fio",
+        "email",
+        "project"
+    )

@@ -1,7 +1,7 @@
 from typing import Optional
 
 from common import cfields
-from common.orm.mixins import ReadWriteMixin, CountMixin
+from common.orm.mixins import CRUDMixin, CountMixin
 from src.users.constants import SlugType
 from src.users.entities import BaseUserRepo
 from tortoise import Model, fields
@@ -19,7 +19,8 @@ class UsersInterests(Model):
         'models.Property',
         related_name='favorites',
         on_delete=fields.CASCADE,
-        description='Бронирование избранного'
+        description='Бронирование избранного',
+        null=True,
     )
     interest_final_price: Optional[int] = fields.BigIntField(description="Конечная цена", null=True)
     interest_status: Optional[int] = fields.SmallIntField(description="Статус", null=True)
@@ -43,7 +44,7 @@ class UsersInterests(Model):
         table = 'users_interests'
 
 
-class InterestsRepo(BaseUserRepo, ReadWriteMixin, CountMixin):
+class InterestsRepo(BaseUserRepo, CRUDMixin, CountMixin):
     """
     Репозиторий для избранного
     """

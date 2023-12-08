@@ -1,13 +1,18 @@
 import asyncio
 from datetime import datetime
-from typing import Any, Type
+from typing import Any
+
+from pytz import UTC
 
 from common import email
+from common.unleash.client import UnleashClient
 from config import amocrm_config, site_config
-from pytz import UTC
+from config.feature_flags import FeatureFlags
 from src.admins.repos import AdminRepo
 from src.agents.exceptions import AgentNotFoundError
 from src.agents.repos import AgentRepo
+from src.booking.repos import BookingRepo
+from src.notifications.repos import RopEmailsDisputeRepo
 from src.users.constants import UserStatus
 from src.users.entities import BaseCheckCase
 from src.users.exceptions import CheckNotFoundError, UserNotFoundError
@@ -18,16 +23,21 @@ from src.users.utils import get_unique_status
 
 
 class CheckDisputeCase(BaseCheckCase):
-    mail_event_slug = "check_dispute"
+    mail_event_want_dispute_slug = "check_dispute"
+    mail_event_want_work_slug = "check_dispute_want_work"
+    want_dispute_slug = "want_dispute"
+    want_work_slug = "want_work"
 
     def __init__(
         self,
-        check_repo: Type[CheckRepo],
-        email_class: Type[email.EmailService],
-        agent_repo: Type[AgentRepo],
-        user_repo: Type[UserRepo],
-        admin_repo: Type[AdminRepo],
-        historical_dispute_repo: Type[HistoricalDisputeDataRepo],
+        check_repo: type[CheckRepo],
+        email_class: type[email.EmailService],
+        agent_repo: type[AgentRepo],
+        user_repo: type[UserRepo],
+        admin_repo: type[AdminRepo],
+        historical_dispute_repo: type[HistoricalDisputeDataRepo],
+        rop_email_dispute_repo: type[RopEmailsDisputeRepo],
+        booking_repo: type[BookingRepo],
         email_recipients: dict,
         send_check_admins_email: SendCheckAdminsEmailService,
     ) -> None:
@@ -37,6 +47,8 @@ class CheckDisputeCase(BaseCheckCase):
         self.user_repo = user_repo()
         self.admin_repo = admin_repo()
         self.historical_dispute_repo: HistoricalDisputeDataRepo = historical_dispute_repo()
+        self.rop_email_dispute_repo: RopEmailsDisputeRepo = rop_email_dispute_repo()
+        self.booking_repo: BookingRepo = booking_repo()
         self.strana_manager = email_recipients['strana_manager']
         self.lk_site_host = site_config['site_host']
         self.amocrm_host = amocrm_config["url"]
@@ -65,7 +77,7 @@ class CheckDisputeCase(BaseCheckCase):
         check: Check = await self.check_repo.retrieve(
             filters=filters,
             ordering='-id',
-            related_fields=['unique_status'],
+            related_fields=['unique_status', 'project', 'project__city'],
         )
         if not check:
             raise CheckNotFoundError
@@ -96,18 +108,42 @@ class CheckDisputeCase(BaseCheckCase):
         mail_data: dict[str:Any] = dict(
             agent_name=f"{agent.name} {agent.patronymic} {agent.surname}",
             client_name=f"{user.name} {user.patronymic} {user.surname}",
-            client_email=user.email,
             client_phone=user.phone,
             agent_phone=agent.phone,
-            client_comment=payload.comment,
-            dispute_link=self._generate_dispute_link(dispute_id=check.id),
             amocrm_link=self._generate_amocrm_link(check.amocrm_id),
+            dispute_link=self._generate_dispute_link(dispute_id=check.id),
+            client_comment=payload.comment,
+            client_email=user.email,
         )
-        await self.send_check_admins_email(
-            check=check,
-            mail_event_slug=self.mail_event_slug,
-            data=mail_data,
-        )
+        if self.__is_strana_lk_2949_enable(user_id=dispute_agent_id):
+            if check.button_slug == self.want_dispute_slug:
+                await self.send_check_admins_email(
+                    check=check,
+                    mail_event_slug=self.mail_event_want_dispute_slug,
+                    data=mail_data,
+                )
+            elif check.button_slug == self.want_work_slug:
+                mail_data.update(dict(
+                    city=check.project.city.name,
+                    project=check.project.name,
+                ))
+                filters = dict(
+                    project_id=check.project.id,
+                )
+                rops = await self.rop_email_dispute_repo.list(filters=filters)
+                await self.send_check_admins_email(
+                    check=check,
+                    mail_event_slug=self.mail_event_want_work_slug,
+                    data=mail_data,
+                    additional_recipients_emails=[rop.email for rop in rops],
+                )
+        else:
+            await self.send_check_admins_email(
+                check=check,
+                mail_event_slug=self.mail_event_want_dispute_slug,
+                data=mail_data,
+            )
+
         return check
 
     def _generate_dispute_link(self, dispute_id: int):
@@ -118,3 +154,7 @@ class CheckDisputeCase(BaseCheckCase):
         Example: https://eurobereg72.amocrm.ru/leads/detail/32152190
         """
         return f"{self.amocrm_host}/leads/detail/{leads_id}"
+
+    def __is_strana_lk_2949_enable(self, user_id: int) -> bool:
+        context = dict(userId=user_id)
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_2949, context=context)

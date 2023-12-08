@@ -117,7 +117,7 @@ class CreateTicketCase(BaseDashboardCase):
             amocrm_contact_id: int = contacts[0].id
 
         else:
-            contacts: list[Any] = await amocrm.create_contact(
+            contacts: list[Any] = await amocrm.create_contact_v4(
                 user_name=payload.name, user_phone=payload.phone
             )
             amocrm_contact_id: int = contacts[0]["id"]
@@ -134,7 +134,7 @@ class CreateTicketCase(BaseDashboardCase):
         if active_leads:
             amocrm_lead_id: int = active_leads[0].id
             complete_till_datetime: datetime = datetime.now() + timedelta(days=2)
-            await amocrm.create_task(
+            await amocrm.create_task_v4(
                 element_id=amocrm_lead_id,
                 text=amo_note,
                 complete_till=int(complete_till_datetime.timestamp()),
@@ -157,7 +157,7 @@ class CreateTicketCase(BaseDashboardCase):
             )
             amocrm_lead_id: int = leads[0].id
 
-        await amocrm.create_note(lead_id=amocrm_lead_id, note="common", text=amo_note, element="lead")
+        await amocrm.create_note_v4(lead_id=amocrm_lead_id, note="common", text=amo_note, element="lead")
 
         amo_data: dict = dict(
             user_amocrm_id=amocrm_contact_id,

@@ -9,3 +9,4 @@ from .user import CabinetAdmin, CabinetAgent, CabinetClient, CabinetUser
 from .user_log import UserLog
 from .user import CabinetUserQuerySet
 from .agency_type import AgencyGeneralType
+from .strana_office_admin import StranaOfficeAdmin

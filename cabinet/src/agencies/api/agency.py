@@ -1,9 +1,12 @@
 from http import HTTPStatus
+from asyncio import create_task
 from typing import Any, Callable, Coroutine, Optional
+
+from tortoise import Tortoise
 
 from common import (amocrm, dependencies, email, files, getdoc, messages,
                     paginations, redis, security, utils)
-from config import redis_config, site_config, lk_admin_config
+from config import redis_config, site_config, lk_admin_config, tortoise_config
 from fastapi import APIRouter, Body, Depends, File, Path, Query, UploadFile
 from src.agencies import filters, models
 from src.agencies import repos as agencies_repos
@@ -26,6 +29,7 @@ from src.agreements import repos as agreements_repos
 from src.notifications import services as notification_services
 from src.notifications import repos as notification_repos
 from src.agencies import tasks as agency_tasks
+from src.agencies.services import UpdateOrganizationService
 
 router = APIRouter(prefix="/agencies", tags=["Agencies"])
 
@@ -1108,17 +1112,24 @@ async def get_agreements_view(
     "/superuser/fill/{agency_id}",
     status_code=HTTPStatus.OK,
 )
-def superuser_agencies_fill_data_view(
+async def superuser_agencies_fill_data_view(
     agency_id: int = Path(...),
     data: str = Query(...),
 ):
     """
     Обновление данные агентства в АмоСРМ после изменения в админке брокера.
     """
-    superuser_agency_fill_data_case: use_cases.SuperuserAgenciesFillDataCase = use_cases.SuperuserAgenciesFillDataCase(
-        export_agency_in_amo_task=agency_tasks.export_agency_in_amo,
+    resources: dict[str, Any] = dict(
+        orm_class=Tortoise,
+        orm_config=tortoise_config,
+        amocrm_class=amocrm.AmoCRM,
+        agency_repo=agencies_repos.AgencyRepo,
     )
-    return superuser_agency_fill_data_case(agency_id=agency_id, data=data)
+    export_agency_in_amo_service: UpdateOrganizationService = UpdateOrganizationService(**resources)
+    superuser_agency_fill_data_case: use_cases.SuperuserAgenciesFillDataCase = use_cases.SuperuserAgenciesFillDataCase(
+        export_agency_in_amo_service=export_agency_in_amo_service,
+    )
+    create_task(superuser_agency_fill_data_case(agency_id=agency_id, data=data))
 
 
 @router.post(

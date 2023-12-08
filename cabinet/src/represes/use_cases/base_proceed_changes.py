@@ -5,6 +5,8 @@ from typing import Type, Any
 from ..types import RepresSms, RepresEmail
 from ..repos import User
 from ..entities import BaseRepresCase
+from common.schemas import UrlEncodeDTO
+from common.utils import generate_notify_url
 # todo: reduce copy-paste from agent code..
 
 
@@ -13,7 +15,7 @@ class BaseProceedEmailChanges(BaseRepresCase):
     Базовый класс обновления почты
     """
     mail_event_slug: Type[object] = lambda **kwargs: exec("raise NotImplementedError")
-    email_link: str = "https://{}/change/repres/change_email?q={}&p={}"
+    email_link_route_template: str = "/change/repres/change_email"
     email_class: Type[object] = lambda **kwargs: exec("raise NotImplementedError")
     site_host: str = None
     get_email_template_service: Type[object] = lambda **kwargs: exec("raise NotImplementedError")
@@ -28,7 +30,16 @@ class BaseProceedEmailChanges(BaseRepresCase):
         raise NotImplementedError
 
     async def _send_email(self, repres: User, token: str) -> Task:
-        update_link: str = self.email_link.format(self.site_host, token, repres.change_email_token)
+        url_data: dict[str, Any] = dict(
+            host=self.site_host,
+            route_template = self.email_link_route_template,
+            query_params = dict(
+                q = token,
+                p = repres.change_email_token,
+            )
+        )
+        url_dto: UrlEncodeDTO = UrlEncodeDTO(**url_data)
+        update_link: str = generate_notify_url(url_dto=url_dto)
         email_notification_template = await self.get_email_template_service(
             email_event_slug=self.mail_event_slug,
             context=dict(update_link=update_link, old_email=repres.email, new_email=repres.change_email),
@@ -50,7 +61,7 @@ class BaseProceedPhoneChanges(BaseRepresCase):
     """
     Базовый класс обновления телефона
     """
-    phone_link: str = "https://{}/change/repres/change_phone?q={}&p={}"
+    phone_link_route_template: str = "/change/repres/change_phone"
     sms_event_slug: Type[object] = lambda **kwargs: exec("raise NotImplementedError")
     sms_class: Type[object] = lambda **kwargs: exec("raise NotImplementedError")
     site_host: str = None
@@ -62,7 +73,17 @@ class BaseProceedPhoneChanges(BaseRepresCase):
         )
 
         if sms_notification_template and sms_notification_template.is_active:
-            update_link: str = self.phone_link.format(self.site_host, token, repres.change_phone_token)
+            url_data: dict[str, Any] = dict(
+                host=self.site_host,
+                route_template=self.phone_link_route_template,
+                query_params=dict(
+                    q=token,
+                    p=repres.change_phone_token,
+                ),
+                use_ampersand_ascii=True,
+            )
+            url_dto: UrlEncodeDTO = UrlEncodeDTO(**url_data)
+            update_link: str = generate_notify_url(url_dto=url_dto)
             message: str = sms_notification_template.template_text.format(
                 new_phone=repres.change_phone, old_phone=repres.phone, update_link=update_link
             )

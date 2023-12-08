@@ -9,6 +9,7 @@ from typing import Any, Callable, Coroutine, Union
 def default(
     actions: dict[str, Callable[..., Any]], coroutines: dict[str, Callable[..., Coroutine]]
 ) -> None:
+
     available_actions: str = str()
     available_coroutines: str = str()
     for action, _ in actions.items():
@@ -73,16 +74,21 @@ coroutines_map: dict[str, Callable[..., Coroutine]] = {
     "sendtestmail": manage.SendTestEmail(),
     "generateagentsusers": manage.GenerateAgentsUsers(),
     "updateproperties": manage.UpdatePropertiesManage(),
+    "checkpropertiesunique": manage.CheckPropertiesUniqueManage(),
     "generateagenciesagents": manage.GenerateAgenciesAgents(),
     "checkprofitbase": manage.CheckPropertyProfitbase(),
     "historyprofitbase": manage.HistoryPropertyProfitbase(),
     "dealsprofitbase": manage.PropertyDealsPropertyProfitbase(),
     "unbookingprofitbase": manage.UnbookingPropertyProfitbase(),
+    "closeoldbookings": manage.CloseOldBookings(),
+    "unknown_participants": manage.CheckParticipantsNotInDB(),
+    "remove_slash_in_plan": manage.RemoveSlashInPlan(),
 }
 
 
 if __name__ == "__main__":
     if "-a" in argv:
+        # poetry run python3.11 manage.py remove_slash_in_plan -a
         loop: Any = get_event_loop()
         loop.run_until_complete(async_main(actions_map, coroutines_map))
     else:

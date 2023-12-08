@@ -21,14 +21,16 @@ from src.users.repos import (
 )
 from src.users.services import SendCheckAdminsEmailService
 from src.users.utils import get_unique_status_button
-
+from common.schemas import UrlEncodeDTO
+from common.utils import generate_notify_url
 
 class UsersCheckCase(BaseUserCase):
     """
     Проверка клиента на уникальность
     """
     mail_event_slug: str = "check_admin_email"
-    lead_url: str = "https://eurobereg72.amocrm.ru/leads/detail/{amocrm_id}"
+    lead_host: str = "eurobereg72.amocrm.ru"
+    route_template: str = "/leads/detail/{}"
     ORIGIN: str = OriginType.AGENT_ASSIGN
 
     def __init__(
@@ -95,6 +97,16 @@ class UsersCheckCase(BaseUserCase):
             agency_id: int = agent.get("agency_id")
 
         await check.fetch_related("unique_status", "user")
+
+        lead_url: str | None = None
+        if check.amocrm_id:
+            lead_url_data: dict[str, Any] = dict(
+                host=self.lead_host,
+                route_template=self.route_template,
+                route_params=[check.amocrm_id],
+            )
+            lead_url_dto: UrlEncodeDTO = UrlEncodeDTO(**lead_url_data)
+            lead_url: str = generate_notify_url(url_dto=lead_url_dto)
         history_check_data: dict = dict(
             client_id=user_id,
             agent_id=agent_id,
@@ -103,7 +115,7 @@ class UsersCheckCase(BaseUserCase):
             unique_status=check.unique_status,
             term_uid=check.term_uid,
             term_comment=check.term_comment,
-            lead_link=self.lead_url.format(amocrm_id=check.amocrm_id),
+            lead_link=lead_url,
         )
 
         history_check: CheckHistory = await self.history_check_repo.create(data=history_check_data)

@@ -24,7 +24,7 @@ from ..repos import Booking, BookingRepo
 from ..services import ActivateBookingService
 from ..types import BookingPropertyRepo
 from src.properties.repos import Property
-from src.task_management.constants import OnlineBookingSlug
+from src.task_management.constants import OnlineBookingSlug, FastBookingSlug, FreeBookingSlug
 from src.task_management.utils import get_booking_tasks
 
 
@@ -123,8 +123,13 @@ class BookingRepeat(BaseBookingCase, BookingLogMixin):
             related_fields=["project__city", "property", "floor", "building", "ddu", "agent", "agency"],
             prefetch_fields=["ddu__participants"],
         )
+        taskchain_slugs: list[str] = [
+            OnlineBookingSlug.ACCEPT_OFFER.value,
+            FastBookingSlug.ACCEPT_OFFER.value,
+            FreeBookingSlug.ACCEPT_OFFER.value,
+        ]
         booking.tasks = await get_booking_tasks(
-            booking_id=booking.id, task_chain_slug=OnlineBookingSlug.ACCEPT_OFFER.value
+            booking_id=booking.id, task_chain_slug=taskchain_slugs
         )
         return booking
 
@@ -187,10 +192,12 @@ class BookingRepeat(BaseBookingCase, BookingLogMixin):
                 section__building__name=building_name,
             ),
         )
+        print(f'{property_=}')
+        print(f"{booking.property=}")
+        print(f'{property_.id != booking.property.id=}')
         if property_.id != booking.property.id:
             return False
         return True
-
 
 
 class BookingRepeatV2(BaseBookingCase, BookingLogMixin):

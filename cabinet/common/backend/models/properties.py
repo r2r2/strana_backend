@@ -73,6 +73,7 @@ class BackendProperty(Model):
     view_square: bool = fields.BooleanField(default=False)
     wardrobes_count: Optional[int] = fields.IntField(null=True)
     profitbase_booked_until_date: Optional[str] = fields.CharField(max_length=64, null=True)
+    cash_price: Optional[Decimal] = fields.DecimalField(14, 2)
 
 
     class Meta:

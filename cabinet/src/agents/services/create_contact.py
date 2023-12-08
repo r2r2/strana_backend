@@ -85,7 +85,7 @@ class CreateContactService(BaseAgentService):
         """
         Контакт не существует в AmoCRM
         """
-        contact: list[Any] = await amocrm.create_contact(user_phone=phone, tags=self.lk_broker_tags)
+        contact: list[Any] = await amocrm.create_contact_v4(user_phone=phone, tags=self.lk_broker_tags)
         amocrm_id: int = contact[0]["id"]
         tags: list[AmoTag] = parse_obj_as(list[AmoTag], contact[0].get("tags", [AmoTag(name=self.lk_broker_tag)]))
         return amocrm_id, tags

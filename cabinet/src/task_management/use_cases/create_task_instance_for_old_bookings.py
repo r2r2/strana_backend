@@ -125,6 +125,7 @@ class CreateTaskInstanceForOldBookingCase:
             self.update_task_instance_status_task.apply_async(
                 (booking.id, FixationExtensionSlug.DEAL_NEED_EXTENSION.value, self.__class__.__name__),
                 eta=update_task_date,
+                queue="scheduled",
             )
 
     async def _create_extension_needed_task_instance(
@@ -146,6 +147,7 @@ class CreateTaskInstanceForOldBookingCase:
             self.update_task_instance_status_task.apply_async(
                 (booking.id, FixationExtensionSlug.CANT_EXTEND_DEAL_BY_DATE.value, self.__class__.__name__),
                 eta=booking.fixation_expires,
+                queue="scheduled",
             )
             # запускаем отложенные таски по отправке писем за N часов до окончания фиксации
             # и при окончании фиксации

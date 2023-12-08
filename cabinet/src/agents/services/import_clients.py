@@ -5,7 +5,7 @@ from asyncio import Task, create_task
 from copy import copy
 from datetime import datetime
 from typing import Any, AsyncGenerator, List, Optional, Set, Tuple, Type, Union
-from enum import Enum
+from enum import IntEnum
 
 import structlog
 from common.amocrm.constants import AmoContactQueryWith, AmoLeadQueryWith
@@ -29,7 +29,7 @@ from ..types import (AgentAmoCRM, AgentCheck, AgentCheckRepo, AgentORM,
 from src.users.utils import get_unique_status
 
 
-class LeadStatuses(int, Enum):
+class LeadStatuses(IntEnum):
     """
      Статусы закрытых сделок в амо.
     """

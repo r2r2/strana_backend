@@ -1,4 +1,5 @@
 from common import mixins
+from enum import StrEnum
 
 
 class WidthType(mixins.Choices):
@@ -8,3 +9,8 @@ class WidthType(mixins.Choices):
 
     def __int__(self):
         return self.value
+    
+class DeviceType(StrEnum):
+    desktop_media: str = "desktop_media"
+    tablet_media: str = "tablet_media"
+    mobile_media: str = "mobile_media"

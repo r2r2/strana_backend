@@ -9,31 +9,25 @@ x-ftp_environment: &ftp_environment
 services:
   cabinet:
     restart: always
-      # build:
-      #   context: ./cabinet
-      #   cache_from: [ "${DOCKER_REGISTRY}cabinet:${CACHE_FROM_TAG:-latest}" ]
-      #   args:
-      #     POETRY_PARAMS: "--no-dev"
-    entrypoint: sh wait-for ${LK_POSTGRES_HOST:-db_cabinet}:${LK_POSTGRES_PORT:-5432} -- ./entrypoint.production.sh
+      #entrypoint: sh wait-for ${LK_POSTGRES_HOST:-db_cabinet}:${LK_POSTGRES_PORT:-5432} -- ./entrypoint.production.sh
     command: gunicorn config.asgi:application --preload -w ${GUNICORN_WORKERS:-15} -k uvicorn.workers.UvicornWorker --keep-alive 120 -b 0.0.0.0:1800 --access-logfile - --error-logfile -
     volumes:
       - cabinetlog:/app/logs/
 
+  cabinet_migrations:
+    command: sh -c "aerich upgrade"
+
   admin:
     restart: always
-      # build:
-      #   context: ./admin
-      #   cache_from: [ "${DOCKER_REGISTRY}admin:${CACHE_FROM_TAG:-latest}" ]
-      #   args:
-      #     POETRY_PARAMS: "--no-dev"
-    entrypoint: sh wait-for ${LK_POSTGRES_HOST:-db_cabinet}:${LK_POSTGRES_PORT:-5432} -- ./entrypoint.production.sh
+      #entrypoint: sh wait-for ${LK_POSTGRES_HOST:-db_cabinet}:${LK_POSTGRES_PORT:-5432} -- ./entrypoint.production.sh
     command: gunicorn config.wsgi:application -w 1 --keep-alive 120 -b 0.0.0.0:2100 --access-logfile - --error-logfile -
     volumes:
       - cabinetlog:/app/logs/:ro
       - adminstatic:/app/static/:delegated
+
   redis:
     restart: always
-    
+
   tasks:
     deploy:
       resources:

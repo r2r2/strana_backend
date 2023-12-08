@@ -119,10 +119,12 @@ class TaskDataBuilder:
         )
 
     async def _build_fixation_text(self) -> str:
-        days_before_fixation_expires = self.booking.fixation_expires - datetime.now(tz=UTC)
-        return self.task.status.description.replace(
-            "{EXPIRES_DATE}", str(self.booking.fixation_expires.strftime(self.DATE_FORMAT))
-        ).replace(
+        """
+        Заполнить шаблон
+        https://lk.strana.com/admin/task_management/taskstatus/13/change/
+        """
+
+        description = self.task.status.description.replace(
             "{EXTENSION_NUMBER}", str(self.booking.extension_number)
         ).replace(
             "{DEADLINE_TO_EXPIRE_DAYS}",
@@ -131,10 +133,19 @@ class TaskDataBuilder:
         ).replace(
             "{EXTEND_DAYS}",
             str(round(self.booking_settings.updated_lifetime) if self.booking_settings.updated_lifetime else ''),
-        ).replace(
-            "{DAYS_BEFORE_FIXATION_EXPIRES}",
-            str(days_before_fixation_expires.days),
         )
+        if self.booking.fixation_expires is not None:
+            days_before_fixation_expires = self.booking.fixation_expires - datetime.now(tz=UTC)
+            description = description.replace(
+                "{EXPIRES_DATE}", str(self.booking.fixation_expires.strftime(self.DATE_FORMAT))
+            ).replace(
+                "{DAYS_BEFORE_FIXATION_EXPIRES}",
+                str(days_before_fixation_expires.days),
+            )
+        else:
+            description = description.replace("{EXPIRES_DATE}", "").replace("{DAYS_BEFORE_FIXATION_EXPIRES}", "")
+
+        return description
 
     async def _build_buttons(self, buttons_list: list[Button | ButtonDetailView]) -> list[dict[str, Any] | None]:
         """
@@ -198,15 +209,14 @@ class TaskDataBuilder:
         """
         Сборка данных для отображения полей для сделок фиксаций.
         """
-        days_before_fixation_expires = self.booking.fixation_expires - datetime.now(tz=UTC)
-
-        fixation_data: dict[str, Any] = {
-            "fixation_expires": self.booking.fixation_expires,
-            "days_before_fixation_expires": days_before_fixation_expires.days,
-            "extension_number": self.booking.extension_number,
-        }
-
-        return fixation_data
+        if self.booking.fixation_expires is not None:
+            days_before_fixation_expires = self.booking.fixation_expires - datetime.now(tz=UTC)
+            fixation_data: dict[str, Any] = {
+                "fixation_expires": self.booking.fixation_expires,
+                "days_before_fixation_expires": days_before_fixation_expires.days,
+                "extension_number": self.booking.extension_number,
+            }
+            return fixation_data
 
 
 async def check_task_instance_exists(booking: Booking, task_status: str) -> bool:
@@ -225,14 +235,17 @@ async def check_task_instance_exists(booking: Booking, task_status: str) -> bool
     return task_instance is not None
 
 
-async def is_task_in_compare_task_chain(status: TaskStatus, compare_status: str) -> bool:
+async def is_task_in_compare_task_chain(status: TaskStatus, compare_status: str | list[str]) -> bool:
     """
     Проверка, является ли задача задачей в интересующей цепочке.
     @param status: статус задачи
     @param compare_status: статус, который принадлежит цепочке, с которой мы хотим сравнить
     """
+    if isinstance(compare_status, str):
+        compare_status: list[str] = [compare_status]
+
     slug_values: list[str] = Slugs.get_slug_values(status.slug)
-    return compare_status in slug_values
+    return any(c_status in slug_values for c_status in compare_status)
 
 
 async def get_interesting_task_chain(status: str) -> TaskChain:
@@ -250,7 +263,7 @@ async def get_interesting_task_chain(status: str) -> TaskChain:
 
 async def get_booking_tasks(booking_id: int, task_chain_slug: str | list[str]) -> list[dict[str, Any] | None]:
     """
-    Получение задач по бронированию для интересующей цепочки задач
+    Получение задач по бронированию для интересующих цепочек задач
     """
     if isinstance(task_chain_slug, str):
         task_chain_slug: list[str] = [task_chain_slug]

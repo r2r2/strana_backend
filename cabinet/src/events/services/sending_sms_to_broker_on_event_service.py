@@ -1,4 +1,5 @@
 import datetime
+import structlog
 from asyncio import Task
 from typing import Any, Type
 from copy import copy
@@ -31,8 +32,8 @@ class SendingSmsToBrokerOnEventService(BaseEventCase):
         user_repo: Type[UserRepo],
         sms_class: Type[SmsService],
         get_sms_template_service: GetSmsTemplateService,
-        orm_class: Type[Tortoise],
-        orm_config: dict | None,
+        orm_class: Type[Tortoise] | None = None,
+        orm_config: dict | None = None,
     ) -> None:
         self.event_repo: EventRepo = event_repo()
         self.event_participant_repo: EventParticipantRepo = event_participant_repo()
@@ -45,6 +46,8 @@ class SendingSmsToBrokerOnEventService(BaseEventCase):
         if self.orm_config:
             self.orm_config.pop("generate_schemas", None)
 
+        self.logger: structlog.BoundLogger = structlog.get_logger(self.__class__.__name__)
+
     async def __call__(
         self,
         event_id: int,
@@ -53,6 +56,7 @@ class SendingSmsToBrokerOnEventService(BaseEventCase):
     ) -> None:
         broker: User = await self.user_repo.retrieve(filters=dict(id=broker_id))
         if not broker:
+            self.logger.error(f"Агент [{broker.id=}] не найден")
             return
 
         agent_exist_in_participants_qs = self.event_participant_repo.list(
@@ -70,12 +74,19 @@ class SendingSmsToBrokerOnEventService(BaseEventCase):
             ),
         )
 
-        if event and event.agent_recorded:
-            await self._send_sms_to_broker(
-                user=broker,
-                sms_event_slug=sms_event_slug,
-                event=event,
-            )
+        if not event:
+            self.logger.error(f"Мероприятие [{event.id=}] не найдено")
+            return
+
+        if not event.agent_recorded:
+            self.logger.error(f"Агент [{broker.id=}] не записан на мероприятие [{event.id=}]")
+            return
+
+        await self._send_sms_to_broker(
+            user=broker,
+            sms_event_slug=sms_event_slug,
+            event=event,
+        )
 
     async def _send_sms_to_broker(self, user: User, sms_event_slug: str, event: Event) -> Task:
         """

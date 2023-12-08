@@ -4,6 +4,8 @@ from ..repos import AgentRepo, User
 from ..entities import BaseAgentCase
 from ..types import AgentEmail, AgentAdminRepo
 from src.users.loggers.wrappers import user_changes_logger
+from common.schemas import UrlEncodeDTO
+from common.utils import generate_notify_url
 
 
 class ConfirmEmailCase(BaseAgentCase):
@@ -13,6 +15,7 @@ class ConfirmEmailCase(BaseAgentCase):
 
     fail_link: str = "https://{}/account/agents/email-confirmed"
     success_link: str = "https://{}/account/agents/email-confirmed"
+    common_link_route_template: str = "/account/agents/email-confirmed"
     agents_link = "https://{}/agents"
 
     def __init__(
@@ -46,9 +49,13 @@ class ConfirmEmailCase(BaseAgentCase):
         agent: User = await self.agent_repo.retrieve(
             filters=filters, prefetch_fields=["agency__maintainer"]
         )
-        link: str = self.fail_link.format(self.site_host)
+        url_data: dict[str, Any] = dict(
+            host=self.site_host,
+            route_template = self.common_link_route_template,
+        )
+        url_dto: UrlEncodeDTO = UrlEncodeDTO(**url_data)
+        link: str = generate_notify_url(url_dto=url_dto)
         if agent:
-            link: str = self.success_link.format(self.site_host)
             data: dict[str, Any] = dict(email_token=None)
             if not agent.phone_token:
                 data["is_approved"]: bool = True

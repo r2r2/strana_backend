@@ -1,6 +1,7 @@
-from typing import Any
+from asyncio import sleep
 
 from config import lk_admin_config
+from src.agencies.services import UpdateOrganizationService
 from ..entities import BaseAgencyCase
 
 
@@ -11,15 +12,16 @@ class SuperuserAgenciesFillDataCase(BaseAgencyCase):
 
     def __init__(
         self,
-        export_agency_in_amo_task: Any,
+        export_agency_in_amo_service: UpdateOrganizationService,
     ) -> None:
-        self.export_agency_in_amo_task: Any = export_agency_in_amo_task
+        self.export_agency_in_amo_service: UpdateOrganizationService = export_agency_in_amo_service
 
-    def __call__(
+    async def __call__(
         self,
         agency_id: int,
         data: str,
     ) -> None:
 
         if data == lk_admin_config["admin_export_key"]:
-            self.export_agency_in_amo_task.delay(agency_id=agency_id)
+            await sleep(3)
+            await self.export_agency_in_amo_service(agency_id=agency_id)

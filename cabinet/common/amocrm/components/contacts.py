@@ -364,7 +364,7 @@ class AmoCRMContacts(AmoCRMInterface, ABC):
         return self._parse_contacts_data_v4(response=response, method_name='AmoCRM.fetch_contacts'), amo_request_log
 
     @user_tag_test_wrapper
-    async def create_contact(
+    async def create_contact_v4(
         self,
         user_phone: str,
         user_name: Optional[str] = None,
@@ -399,8 +399,8 @@ class AmoCRMContacts(AmoCRMInterface, ABC):
                 )
             ]
         )
-        response: CommonResponse = await self._request_post(route=route, payload=payload)
-        return self._parse_contacts_data_v2(response=response, method_name='AmoCRM.create_contact')
+        response: CommonResponse = await self._request_post_v4(route=route, payload=payload)
+        return self._parse_contacts_data_v4(response=response, method_name='AmoCRM.create_contact')
 
     async def update_contact(
         self,
