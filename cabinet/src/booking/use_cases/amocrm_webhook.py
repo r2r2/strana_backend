@@ -18,6 +18,7 @@ from common.amocrm import AmoCRM
 from common.amocrm.repos import AmoStatusesRepo
 from common.email import EmailService
 from common.backend.models.amocrm import AmocrmStatus
+from common.sentry.utils import send_sentry_log
 from common.utils import convert_str_to_int
 from src.users.services import ImportContactFromAmoService
 from src.properties.repos import Property
@@ -47,12 +48,28 @@ from ..types import (
 )
 from src.projects.constants import ProjectStatus
 from src.task_management.dto import CreateTaskDTO
+from src.mortgage.services import ChangeMortgageTicketStatusService
 
 
-MEETING_IN_PROGRESS_STATUSES = [
+MEETING_STATUSES = [
+    AmoCRM.TMNStatuses.MAKE_APPOINTMENT,
+    AmoCRM.TMNStatuses.ASSIGN_AGENT,
+    AmoCRM.TMNStatuses.MEETING,
     AmoCRM.TMNStatuses.MEETING_IN_PROGRESS,
+
+    AmoCRM.MSKStatuses.MAKE_APPOINTMENT,
+    AmoCRM.MSKStatuses.ASSIGN_AGENT,
+    AmoCRM.MSKStatuses.MEETING,
     AmoCRM.MSKStatuses.MEETING_IN_PROGRESS,
+
+    AmoCRM.SPBStatuses.MAKE_APPOINTMENT,
+    AmoCRM.SPBStatuses.ASSIGN_AGENT,
+    AmoCRM.SPBStatuses.MEETING,
     AmoCRM.SPBStatuses.MEETING_IN_PROGRESS,
+
+    AmoCRM.EKBStatuses.MAKE_APPOINTMENT,
+    AmoCRM.EKBStatuses.ASSIGN_AGENT,
+    AmoCRM.EKBStatuses.MEETING,
     AmoCRM.EKBStatuses.MEETING_IN_PROGRESS,
 ]
 
@@ -86,34 +103,35 @@ class AmoCRMWebhookCase(BaseBookingCase, BookingLogMixin):
     meeting_change_status_to_broker_mail = "meeting_change_status_to_broker_mail"
 
     def __init__(
-            self,
-            *,
-            amocrm_config: dict[str, Any],
-            backend_config: dict[str, Any],
-            booking_repo: Type[BookingRepo],
-            meeting_repo: Type[MeetingRepo],
-            meeting_status_repo: Type[MeetingStatusRepo],
-            calendar_event_repo: Type[CalendarEventRepo],
-            user_repo: Type[UserRepo],
-            project_repo: Type[ProjectRepo],
-            amocrm_status_repo: Type[AmocrmStatusRepo],
-            amocrm_class: Type[BookingAmoCRM],
-            request_class: Type[BookingRequest],
-            property_repo: Type[BookingPropertyRepo],
-            webhook_request_repo: Type[WebhookRequestRepo],
-            create_meeting_room_service: CreateRoomService,
-            statuses_repo: Type[AmoStatusesRepo],
-            background_tasks: BackgroundTasks,
-            logger: Optional[Any] = structlog.getLogger(__name__),
-            create_booking_log_task: Optional[Any] = None,
-            create_task_instance_service: CreateTaskInstanceService,
-            update_task_instance_service: UpdateTaskInstanceStatusService,
-            check_pinning: CheckPinningStatusService,
-            email_class: Type[EmailService],
-            get_email_template_service: GetEmailTemplateService,
-            import_contact_service: ImportContactFromAmoService,
-            import_meeting_service: ImportMeetingFromAmoService,
-            booking_creation_service: BookingCreationFromAmoService,
+        self,
+        *,
+        amocrm_config: dict[str, Any],
+        backend_config: dict[str, Any],
+        booking_repo: Type[BookingRepo],
+        meeting_repo: Type[MeetingRepo],
+        meeting_status_repo: Type[MeetingStatusRepo],
+        calendar_event_repo: Type[CalendarEventRepo],
+        user_repo: Type[UserRepo],
+        project_repo: Type[ProjectRepo],
+        amocrm_status_repo: Type[AmocrmStatusRepo],
+        amocrm_class: Type[BookingAmoCRM],
+        request_class: Type[BookingRequest],
+        property_repo: Type[BookingPropertyRepo],
+        webhook_request_repo: Type[WebhookRequestRepo],
+        create_meeting_room_service: CreateRoomService,
+        statuses_repo: Type[AmoStatusesRepo],
+        background_tasks: BackgroundTasks,
+        logger: Optional[Any] = structlog.getLogger(__name__),
+        create_booking_log_task: Optional[Any] = None,
+        create_task_instance_service: CreateTaskInstanceService,
+        update_task_instance_service: UpdateTaskInstanceStatusService,
+        check_pinning: CheckPinningStatusService,
+        email_class: Type[EmailService],
+        get_email_template_service: GetEmailTemplateService,
+        import_contact_service: ImportContactFromAmoService,
+        import_meeting_service: ImportMeetingFromAmoService,
+        booking_creation_service: BookingCreationFromAmoService,
+        change_mortgage_ticket_status_service: ChangeMortgageTicketStatusService,
     ) -> None:
         self.logger = logger
         self.booking_repo: BookingRepo = booking_repo()
@@ -138,6 +156,7 @@ class AmoCRMWebhookCase(BaseBookingCase, BookingLogMixin):
         self.import_contact_service: ImportContactFromAmoService = import_contact_service
         self.import_meeting_service: ImportMeetingFromAmoService = import_meeting_service
         self.booking_creation_service: BookingCreationFromAmoService = booking_creation_service
+        self.change_mortgage_ticket_status_service = change_mortgage_ticket_status_service
 
         self.secret: str = amocrm_config["secret"]
         self.login: str = backend_config["internal_login"]
@@ -161,7 +180,6 @@ class AmoCRMWebhookCase(BaseBookingCase, BookingLogMixin):
         )
 
         return booking_creation_status
-
 
     def _need_deactivate_bookings_task(self, has_property, stages_valid, booking) -> bool:
         booking_in_safe_status = booking.amocrm_substage in [BookingSubstages.ASSIGN_AGENT]
@@ -264,6 +282,7 @@ class AmoCRMWebhookCase(BaseBookingCase, BookingLogMixin):
         await self._update_booking_status(booking, webhook_lead.new_status_id)
         await self._update_booking_custom_fields(booking, webhook_lead)
         await self._check_user_pinning_status(booking, webhook_lead, amocrm_substage)
+        await self._update_mortgage_ticket_status(booking=booking)
 
         # Не обновляем сделки из воронок, кроме городов
         if webhook_lead.pipeline_id not in self.amocrm_class.sales_pipeline_ids:
@@ -299,6 +318,15 @@ class AmoCRMWebhookCase(BaseBookingCase, BookingLogMixin):
                 amocrm_substage=amocrm_substage,
             )
             await booking.fetch_related("booking_source")
+            if not booking.booking_source:
+                message: str = f"Booking source not found for booking {booking.id}"
+                ctx: dict[str, Any] = dict(
+                    booking_id=booking.id,
+                    booking_source=booking.booking_source,
+                    lead_id=webhook_lead.lead_id,
+                    webhook_lead=webhook_lead,
+                )
+                await self._send_sentry_log(message=message, ctx=ctx)
             if booking.booking_source.slug != BookingCreatedSources.FAST_BOOKING:
                 self.background_tasks.add_task(activate_bookings_task, booking_data)
 
@@ -325,6 +353,7 @@ class AmoCRMWebhookCase(BaseBookingCase, BookingLogMixin):
                 )
             booking: Booking = await self.booking_update(booking=booking, data=data)
             await self.send_sms_to_msk_client(booking=booking)
+            await self._update_mortgage_ticket_status(booking=booking)
 
             await self._update_meeting_status(
                 booking=booking,
@@ -383,7 +412,7 @@ class AmoCRMWebhookCase(BaseBookingCase, BookingLogMixin):
                 )
 
         elif meeting and meeting.status.slug == MeetingStatusChoice.START \
-                and booking.amocrm_status_id not in MEETING_IN_PROGRESS_STATUSES:
+                and booking.amocrm_status_id not in MEETING_STATUSES:
             finish_meeting_status = await self.meeting_status_repo.retrieve(
                 filters=dict(slug=MeetingStatusChoice.FINISH)
             )
@@ -644,7 +673,7 @@ class AmoCRMWebhookCase(BaseBookingCase, BookingLogMixin):
         """
         Обновление задачи для бронирования
         """
-        status_slug: str | None = task_context.status_slug
+        status_slug: str | None = task_context.status_slug if task_context else None
 
         if status_slug:
             await self.update_task_instance_service(booking_id=booking.id, status_slug=status_slug)
@@ -663,11 +692,11 @@ class AmoCRMWebhookCase(BaseBookingCase, BookingLogMixin):
         await booking.fetch_related('user', 'amocrm_status', 'amocrm_status__pipeline')
 
         if self._is_different_amocrm_substage(amocrm_substage, booking):
-            await self.check_pinning(user_id=booking.user.id)
+            await self.check_pinning(user_id=booking.user.id, lead_id=webhook_lead.lead_id)
             return
 
         if booking.amocrm_status and booking.amocrm_status.pipeline.id != webhook_lead.pipeline_id:
-            await self.check_pinning(user_id=booking.user.id)
+            await self.check_pinning(user_id=booking.user.id, lead_id=webhook_lead.lead_id)
 
     async def send_sms_to_msk_client(self, booking: Booking) -> None:
         """
@@ -752,4 +781,20 @@ class AmoCRMWebhookCase(BaseBookingCase, BookingLogMixin):
                 lead_id=lead_id,
                 message=text
             )
+
+    async def _update_mortgage_ticket_status(self, booking: Booking) -> None:
+        """
+        Обновление статуса заявки на ипотеку
+        """
+        self.change_mortgage_ticket_status_service.as_task(booking_id=booking.id)
+
+    async def _send_sentry_log(self, message: str, ctx: dict[str, Any]) -> None:
+        """
+        Отправка лога в Sentry
+        """
+        await send_sentry_log(
+            tag=self.__class__.__name__,
+            message=message,
+            context=ctx,
+        )
 

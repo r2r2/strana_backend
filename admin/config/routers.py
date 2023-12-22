@@ -19,9 +19,9 @@ from additional_services import models as add_services_models
 from events_list import models as events_list_models
 from commercial_offers import models as commercial_offers_models
 from news import models as news_models
-# from mortgage import models as mortgage_models
-
+from mortgage import models as mortgage_models
 from settings import models as settings_models
+
 
 cabinet_models: list = [
     booking_models.Booking,
@@ -33,6 +33,7 @@ cabinet_models: list = [
     booking_models.AmocrmGroupStatus,
     booking_models.GroupStatusActionThrough,
     booking_models.ClientAmocrmGroupStatus,
+    booking_models.TaskChainClientGroupStatusThrough,
     booking_models.BookingFixingConditionsMatrix,
     booking_models.BookingFixingConditionsMatrixProjects,
     booking_models.BookingFixingConditionsMatrixPipelineThrough,
@@ -130,7 +131,8 @@ cabinet_models: list = [
     contents_models.TextBlock,
     contents_models.BrokerRegistration,
     contents_models.Instruction,
-    # contents_models.MortgageTextBlock,
+    contents_models.MortgageTextBlock,
+    contents_models.MortgageCalculatorTextBlockCityThrough,
     contents_models.Onboarding,
     contents_models.OnboardingUserThrough,
     questionnaire_models.FunctionalBlock,
@@ -180,6 +182,7 @@ cabinet_models: list = [
     notifications_models.TemplateContent,
     notifications_models.QRCodeSMSGroupThrough,
     notifications_models.RopEmailsDispute,
+    notifications_models.SberbankInvoiceLog,
     event_models.Event,
     event_models.CalendarEvent,
     event_models.CalendarEventTypeSettings,
@@ -220,8 +223,19 @@ cabinet_models: list = [
     commercial_offers_models.OfferSource,
     commercial_offers_models.Offer,
     commercial_offers_models.OfferProperty,
-    # mortgage_models.MortgageConditionMatrix,
-    # mortgage_models.MortgageTicket
+    mortgage_models.MortgageConditionMatrix,
+    mortgage_models.MortgageConditionStatusThrough,
+    mortgage_models.MortgageDeveloperTicket,
+    mortgage_models.MortgageApplicationStatus,
+    mortgage_models.MortgageApplicationStatusAmocrmStatusesThrough,
+    mortgage_models.MortgageDeveloperTicketOfferThrough,
+    mortgage_models.MortgageProgram,
+    mortgage_models.MortgageCalculatorCondition,
+    mortgage_models.MortgageConditionBankThrough,
+    mortgage_models.MortgageConditionProgramThrough,
+    mortgage_models.MortgageBank,
+    mortgage_models.MortgageForm,
+    mortgage_models.MortgageOffer,
 ]
 
 

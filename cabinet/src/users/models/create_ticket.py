@@ -1,4 +1,4 @@
-from pydantic import validator
+from pydantic import validator, Field
 
 from src.users.entities import BaseUserModel
 
@@ -11,6 +11,7 @@ class RequestCreateTicket(BaseUserModel):
     phone: str
     type: str
     city: str
+    card_title: str | None = Field(description="Название карточки")
 
     @validator("phone")
     def normalize_phone(cls, phone_number: str) -> str:

@@ -34,3 +34,4 @@ from .domain_notification import (
     OnboardingUserThrough,
     OnboardingUserThroughRepo)
 from .rop import RopEmailsDispute, RopEmailsDisputeRepo
+from .sberbank_invoice_log import SberbankInvoiceLog, SberbankInvoiceLogRepo

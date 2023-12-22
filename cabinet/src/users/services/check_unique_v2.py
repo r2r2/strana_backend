@@ -10,6 +10,7 @@ from common.amocrm.types import AmoContact, AmoLead
 from common.utils import partition_list
 from pytz import UTC
 
+from src.projects.constants import ProjectStatus
 from src.projects.repos import ProjectRepo
 from src.users.constants import UserStatus, UserType, UniqueStatusButtonSlug
 from src.users.entities import BaseUserService
@@ -201,9 +202,12 @@ class CheckUniqueServiceV2(BaseUserService):
         if lead.custom_fields_values:
             lead_custom_fields = {field.field_id: field.values[0].value for field in lead.custom_fields_values}
             filters = dict(
-                amocrm_name=lead_custom_fields.get(self.amocrm_class.project_field_id)
+                amocrm_name=lead_custom_fields.get(self.amocrm_class.project_field_id),
+                status=ProjectStatus.CURRENT,
             )
-            self.project_id = (await self.project_repo.retrieve(filters=filters)).id
+            project = await self.project_repo.retrieve(filters=filters)
+            if project:
+                self.project_id = project.id
 
         self.amocrm_id: int = lead.id
 

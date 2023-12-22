@@ -42,7 +42,7 @@ class ConfirmEmailCase(BaseRepresCase):
         repres: User = await self.repres_repo.retrieve(filters=filters)
         common_data: dict[str, Any] = dict(
             host=self.site_host,
-            route_template = self.common_link_route_template,
+            route_template=self.common_link_route_template,
         )
         url_dto: UrlEncodeDTO = UrlEncodeDTO(**common_data)
         link: str = generate_notify_url(url_dto=url_dto)

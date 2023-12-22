@@ -107,7 +107,7 @@ class DataBaseSettings(BaseSettings):
         ("events_list", "repos"),
         ("commercial_offers", "repos"),
         ("news", "repos"),
-        ("mortgage_calculator", "repos"),
+        ("mortgage", "repos"),
     ]
 
     class Config:

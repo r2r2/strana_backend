@@ -73,7 +73,7 @@ class PagePagination(object):
         for param in page_params:
             if param.strip() == AllowedPageParams.ALL:
                 self.start: int = 0
-                self.page_number: int =  1
+                self.page_number: int = 1
                 self.page_size: int = 1000
                 self.end: int = 1000
 

@@ -155,3 +155,67 @@ class UsersInterestGlobalIdCase(UsersInterestCase):
 
         _, updated_property = await self.import_property_service(property=property)
         return updated_property
+
+
+class UsersInterestProfitIdCase(UsersInterestCase):
+    """
+    Добавления интересующих объектов пользователю по profitbase_id.
+    """
+
+    def __init__(
+        self,
+        user_repo: Type[UserRepo],
+        agency_repo: Type[AgencyRepo],
+        interests_repo: Type[UserInterestedRepo],
+        property_repo: Type[UserPropertyRepo],
+        import_property_service: ImportPropertyService
+    ) -> None:
+        self.user_repo: UserRepo = user_repo()
+        self.user_update = user_changes_logger(
+            self.user_repo.update, self, content="Обновление интересов пользователей"
+        )
+        self.agency_repo: AgencyRepo = agency_repo()
+        self.property_repo: UserPropertyRepo = property_repo()
+        self.interests_repo: UserInterestedRepo = interests_repo()
+        self.import_property_service: ImportPropertyService = import_property_service
+
+    async def __call__(
+            self,
+            user_id: int,
+            interested_profitbase_ids: list[int],
+            agent_id: int = None,
+            agency_id: int = None,
+            slug_type: str = SlugType.MINE,
+    ) -> User:
+        self.init_user_data(agent_id=agent_id, agency_id=agency_id)
+        filters: dict[str, Any] = self.get_user_filters(user_id=user_id)
+        user: User = await self.user_repo.retrieve(
+            filters=filters, prefetch_fields=["interested", "agent"]
+        )
+        if not user:
+            raise UserNotFoundError
+        current_user: User = await self.get_current_user()
+
+        interested = []
+        for interested_profitbase_id in interested_profitbase_ids:
+            if _property := await self._create_or_update_property(interested_profitbase_id):
+                interested.append(_property)
+        user_interested_global_ids: set[int] = set(map(lambda x: x.global_id, list(user.interested)))
+
+        for interest in interested:
+            if interest.global_id not in user_interested_global_ids:
+                asyncio.create_task(
+                    self.interests_repo.add(
+                        user=user, interest=interest, created_by=current_user, slug_type=slug_type
+                    )
+                )
+        return user
+
+    async def _create_or_update_property(self, profitbase_id: int) -> UserProperty:
+        """
+        Cоздаем или обновляем объект по данным из БД портала по profitbase_id.
+        """
+
+        _, updated_property = await self.import_property_service(backend_property_id=profitbase_id)
+        return updated_property
+

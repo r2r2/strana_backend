@@ -20,6 +20,7 @@ class CreateTicketCase(BaseDashboardCase):
     """
     note_template: str = """
         {title} 
+        Заголовок карточки: {card_title}
         Имя: {name}
         Контактный номер телефона: {phone}
     """
@@ -60,6 +61,23 @@ class CreateTicketCase(BaseDashboardCase):
         await ticket.city.add(city)
 
         amo_note: str = await self.get_amo_note(payload=payload, ticket=ticket)
+        await self.process_amocrm(
+            payload=payload,
+            city=city,
+            amo_note=amo_note,
+            ticket=ticket,
+        )
+
+    async def process_amocrm(
+        self,
+        payload: RequestCreateTicket,
+        city: City,
+        amo_note: str,
+        ticket: Ticket,
+    ) -> None:
+        """
+        Обработка АМО
+        """
         async with await self.amocrm_class() as amocrm:
             await self.amocrm_handler(
                 amocrm=amocrm,
@@ -82,6 +100,7 @@ class CreateTicketCase(BaseDashboardCase):
             name=ticket.name,
             phone=ticket.phone,
             title=title,
+            card_title=payload.card_title,
         )
 
         return self.note_template.format(**amo_note_data)
@@ -117,7 +136,7 @@ class CreateTicketCase(BaseDashboardCase):
             amocrm_contact_id: int = contacts[0].id
 
         else:
-            contacts: list[Any] = await amocrm.create_contact_v4(
+            contacts: list[Any] = await amocrm.create_contact(
                 user_name=payload.name, user_phone=payload.phone
             )
             amocrm_contact_id: int = contacts[0]["id"]
@@ -157,11 +176,11 @@ class CreateTicketCase(BaseDashboardCase):
             )
             amocrm_lead_id: int = leads[0].id
 
-        await amocrm.create_note_v4(lead_id=amocrm_lead_id, note="common", text=amo_note, element="lead")
+        await amocrm.create_note(lead_id=amocrm_lead_id, note="common", text=amo_note, element="lead")
 
         amo_data: dict = dict(
             user_amocrm_id=amocrm_contact_id,
             booking_amocrm_id=amocrm_lead_id,
             note=amo_note,
         )
-        await self.ticket_repo.update(model=ticket, data=dict(**amo_data))
+        await self.ticket_repo.update(model=ticket, data=amo_data)

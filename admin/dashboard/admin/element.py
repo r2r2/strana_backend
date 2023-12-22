@@ -15,6 +15,7 @@ class ElementAdmin(admin.ModelAdmin):
         "expires",
         "has_completed_booking",
         "block",
+        "priority",
     )
     readonly_fields = ("updated_at", "created_at",)
     ordering = ("type",)
@@ -32,7 +33,3 @@ class ElementAdmin(admin.ModelAdmin):
         msg = "Зажмите 'Ctrl' ('Cmd') или проведите мышкой, с зажатой левой кнопкой, чтобы выбрать несколько элементов."
         form_field.help_text = msg
         return form_field
-
-
-
-

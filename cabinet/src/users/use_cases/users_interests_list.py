@@ -1,6 +1,10 @@
+import binascii
 from typing import Type
 
+from pydantic import ValidationError
+
 from common import paginations
+from common.utils import from_global_id
 from src.users.entities import BaseUserCase
 from src.users.models import ResponseInterestsList, SlugTypeChoiceFilters
 from src.users.repos import InterestsRepo, UsersInterests
@@ -8,6 +12,13 @@ from src.properties.constants import PropertyStatuses
 
 
 class UsersInterestsListCase(BaseUserCase):
+    correct_property_types: list = [
+        "GlobalFlatType",
+        "GlobalPantryType",
+        "GlobalParkingSpaceType",
+        "GlobalCommercialSpaceType",
+    ]
+
     def __init__(self, user_interests_repo: Type[InterestsRepo]):
         self.user_interests_repo: InterestsRepo = user_interests_repo()
 
@@ -31,7 +42,7 @@ class UsersInterestsListCase(BaseUserCase):
         user_interests_global_ids = self._get_sorted_unique_global_ids(user_interests=user_interests)
 
         # пагинируем отсортированный список global_ids вручную из-за кастомной сортировки
-        if pagination.start and pagination.end:
+        if pagination.start is not None and pagination.end is not None:
             paginated_user_interests_global_ids = user_interests_global_ids[pagination.start:pagination.end]
         else:
             paginated_user_interests_global_ids = user_interests_global_ids
@@ -53,8 +64,12 @@ class UsersInterestsListCase(BaseUserCase):
             PropertyStatuses.SOLD: set(),
         }
         for user_interest in user_interests:
-            if user_interest.property.status is None:
+            if (
+                user_interest.property.status is None
+                or not self._check_global_id_is_correct(user_interest.property.global_id)
+            ):
                 continue
+
             elif user_interest.property.status == PropertyStatuses.FREE:
                 user_interests_ordered_data[PropertyStatuses.FREE].add(user_interest.property.global_id)
             elif user_interest.property.status == PropertyStatuses.BOOKED:
@@ -67,3 +82,10 @@ class UsersInterestsListCase(BaseUserCase):
             global_ids.extend(values)
 
         return global_ids
+
+    def _check_global_id_is_correct(self, global_id: str) -> bool:
+        try:
+            property_type, _ = from_global_id(global_id)
+            return True if property_type in self.correct_property_types else False
+        except (binascii.Error, UnicodeDecodeError, ValidationError, ValueError):
+            return False

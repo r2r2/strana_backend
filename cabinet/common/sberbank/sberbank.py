@@ -12,6 +12,7 @@ from ..unleash.client import UnleashClient
 class Sberbank(SberbankPay, SberbankStatus):
     """
     Sberbank integration
+    https://securepayments.sberbank.ru/wiki/doku.php/integration:api:start#интерфейс_rest
     """
 
     def __init__(
@@ -28,6 +29,7 @@ class Sberbank(SberbankPay, SberbankStatus):
         username: str,
         password: str,
         *,
+        amocrm_id: int | None = None,
         timeout: int | None = None,
         page_view: str | None = None,
         description: str | None = None,
@@ -72,6 +74,7 @@ class Sberbank(SberbankPay, SberbankStatus):
         self._timeout: int = timeout if timeout else 1200
         self._page_view: str = page_view if page_view else "DESKTOP"
         self._description: str = description if description else str()
+        self._amocrm_id: int | None = amocrm_id
 
     async def __call__(self, action: Literal["status", "pay"]) -> dict[str, Any] | str | list[Any] | None:
         method: Callable[..., Coroutine] | None = getattr(self, f"_{action}", None)

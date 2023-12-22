@@ -1,12 +1,17 @@
+from datetime import datetime
 from json import dumps
 from typing import Any, Union
 
+from pytz import UTC
+
+from common.sberbank.logging import sberbank_invoice_log, SberbankInvoiceLogDTO
 from common.sentry.utils import send_sentry_log
 
 
 class SberbankPay:
     """
     Sberbank payment integration
+    https://securepayments.sberbank.ru/wiki/doku.php/integration:api:rest:requests:register
     """
 
     async def _pay(self) -> Union[dict[str, Any], str]:
@@ -25,13 +30,21 @@ class SberbankPay:
                 context={"request_options": request_options},
             )
             print("Request options: ", request_options)
+            log_data: SberbankInvoiceLogDTO = SberbankInvoiceLogDTO(
+                amocrm_id=self._amocrm_id,
+                sent_date=datetime.now(tz=UTC),
+                sent_email=self._user_email,
+            )
             async with self._request_class(**request_options) as response:
-                if not response.ok:
-                    pay_data: dict[str, Any] = dict()
-                    self._pay_data: dict[str, Any] = pay_data
-                else:
+                if response.ok:
                     pay_data: Union[list[Any], dict[str, Any], str] = response.data
                     self._pay_data: Union[list[Any], dict[str, Any], str] = pay_data
+                    log_data.sent_status = True
+                else:
+                    pay_data: dict[str, Any] = dict()
+                    self._pay_data: dict[str, Any] = pay_data
+                    log_data.sent_status = False
+                    log_data.sent_error = response.data
 
                 await send_sentry_log(
                     tag="acquiring",
@@ -41,6 +54,7 @@ class SberbankPay:
                 print("Response data: ", response.data)
                 print("Response status: ", response.status)
                 print("Pay data: ", pay_data)
+                await sberbank_invoice_log(log_data=log_data)
         print("Pay data: ", pay_data)
         return pay_data
 
@@ -59,9 +73,13 @@ class SberbankPay:
         return pay_query
 
     def _form_pay_bundle(self) -> str:
+        """
+        https://securepayments.sberbank.ru/wiki/doku.php/integration:api:rest:requests:closeofdreceipt#orderbundle
+        """
         pay_bundle: dict[str, Any] = dict(
             customerDetails=dict(
-                phone=self._user_phone, fullName=self._user_full_name
+                phone=self._user_phone,
+                fullName=self._user_full_name,
             ),
             cartItems=dict(
                 items=[
@@ -91,12 +109,15 @@ class SberbankPay:
                 ]
             ),
         )
+        if self._user_email:
+            pay_bundle["customerDetails"]["email"] = self._user_email
         return dumps(pay_bundle)
 
 
 class SberbankStatus:
     """
     Sberbank status integration
+    https://securepayments.sberbank.ru/wiki/doku.php/integration:api:rest:requests:getorderstatusextended
     """
 
     async def _status(self) -> Union[list[Any], dict[str, Any], str]:

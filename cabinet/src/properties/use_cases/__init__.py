@@ -6,3 +6,5 @@ from .add_viewed_properties import AddViewedPropertiesCase
 from .get_viewed_properties import GetViewedPropertiesCase
 from .get_viewed_properties_ids import GetViewedPropertiesIdsCase
 from .property_detail import PropertyDetailCase
+from .get_viewed_properties_profit_ids import GetViewedPropertiesProfitIdsCase
+from .add_viewed_profit_id_properties import AddViewedPropertiesProfitIdCase

@@ -8,6 +8,8 @@ from datetime import datetime, timedelta
 from common.amocrm.types import AmoTag
 from common.schemas import UrlEncodeDTO
 from common.utils import generate_notify_url
+from common.unleash.client import UnleashClient
+from config.feature_flags import FeatureFlags
 from config import booking_config, site_config, MaintenanceSettings, EnvTypes
 from common.security import create_access_token
 from src.booking.repos import BookingRepo, Booking
@@ -19,7 +21,7 @@ from src.booking.exceptions import (
     BookingPropertyMissingError,
 )
 from src.booking.utils import get_booking_reserv_time
-from src.properties.services import CheckProfitbasePropertyService
+from src.properties.services import CheckProfitbasePropertyService, GetPropertyPriceService
 from src.booking.loggers import booking_changes_logger
 from src.booking.types import BookingAmoCRM, BookingEmail, BookingSms
 from src.buildings.repos import BuildingBookingTypeRepo, BuildingBookingType
@@ -33,7 +35,7 @@ from src.properties.entities import BasePropertyCase
 from src.properties.exceptions import PropertyNotFoundError
 from src.properties.models import RequestBindBookingPropertyModel
 from src.properties.repos import Property, PropertyRepo
-from src.payments.repos import PurchaseAmoMatrix, PurchaseAmoMatrixRepo
+from src.payments.repos import PurchaseAmoMatrix, PurchaseAmoMatrixRepo, PropertyPrice
 
 
 class BindBookingPropertyCase(BasePropertyCase):
@@ -67,6 +69,7 @@ class BindBookingPropertyCase(BasePropertyCase):
         send_sms_to_msk_client_service: SendSmsToMskClientService,
         global_id_decoder: Callable[[str], tuple[str, Union[str, int]]],
         get_sms_template_service: GetSmsTemplateService,
+        get_property_price_service: GetPropertyPriceService,
         logger: Optional[Any] = structlog.getLogger(__name__),
     ) -> None:
         self.logger = logger
@@ -89,6 +92,7 @@ class BindBookingPropertyCase(BasePropertyCase):
         self.change_booking_status_task: Any = change_booking_status_task
         self.update_task_instance_status_service: UpdateTaskInstanceStatusService = update_task_instance_status_service
         self.send_sms_to_msk_client_service: SendSmsToMskClientService = send_sms_to_msk_client_service
+        self.get_property_price_service: GetPropertyPriceService = get_property_price_service
 
         self.site_host: str = site_config["site_host"]
         self.booking_time_hours: int = booking_config["time_hours"]
@@ -104,6 +108,8 @@ class BindBookingPropertyCase(BasePropertyCase):
         self.get_sms_template_service: GetSmsTemplateService = get_sms_template_service
 
     async def __call__(self, payload: RequestBindBookingPropertyModel) -> Booking:
+        self.logger.info(f"properties bind payload {payload}")
+
         booking_property: Property = await self.property_repo.retrieve(
             filters=dict(id=payload.property_id),
             prefetch_fields=["building", "project", "project__city"]
@@ -199,6 +205,22 @@ class BindBookingPropertyCase(BasePropertyCase):
             )
             booking_data.update(additional_data)
 
+        self.logger.info(f"is_strana_lk_3196_enabled {self.__is_strana_lk_3196_enable}")
+        self.logger.info(f"payload.property_type_slug {payload.property_type_slug}")
+
+        if self.__is_strana_lk_3196_enable and payload.property_type_slug:
+            booking_property_price: PropertyPrice | None = await self.get_property_price_service(
+                property=booking_property,
+                property_price_type_slug=payload.property_type_slug,
+            )
+            if booking_property_price:
+                booking_data.update(
+                    price_id=booking_property_price.id,
+                    amo_payment_method_id=booking_property_price.price_type.price_offer.payment_method_id,
+                    mortgage_type_id=booking_property_price.price_type.price_offer.mortgage_type_id,
+                    price_offer_id=booking_property_price.price_type.price_offer.id,
+                )
+
         booking: Booking = await self.booking_update(booking=booking, data=booking_data)
         if booking.is_agent_assigned():
             asyncio_tasks: list[Awaitable] = [
@@ -276,7 +298,7 @@ class BindBookingPropertyCase(BasePropertyCase):
                 token=token,
             )
             data: dict[str, Any] = dict(
-                url_template=self.lk_client_auth_link_template,
+                route_template=self.lk_client_auth_link_template,
                 host=self.site_host,
                 query_params=query_params,
             )
@@ -315,3 +337,7 @@ class BindBookingPropertyCase(BasePropertyCase):
         task_context: CreateTaskDTO = CreateTaskDTO()
         task_context.is_main = True
         await self.create_task_service(booking_ids=booking.id, task_context=task_context)
+
+    @property
+    def __is_strana_lk_3196_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_3196)

@@ -43,7 +43,7 @@ from .clients_list import ResponseClientsListModel
 from .common_user_data import CurrentUserData
 from .confirm_email import RequestConfirmEmailModel, ResponseConfirmEmailModel
 from .get_me import RequestGetMeModel, ResponseGetMeModel
-from .interested_list import ResponseInterestsList, SlugTypeChoiceFilters
+from .interested_list import ResponseInterestsList, SlugTypeChoiceFilters, ResponseInterestsListProfitId
 from .manager_retrieve import (ResponseManagerRetrieveModel,
                                ResponseManagersListModel)
 from .partial_update import (RequestPartialUpdateModel,
@@ -93,3 +93,4 @@ from .email_reset import RequestEmailResetModel, ResponseEmailResetModel
 from .create_ticket import RequestCreateTicket
 from .consultation_type import ConsultationType
 from .import_clients_and_bookings import RequestImportClientsAndBookingsModel
+from .interested_list import PropertyData

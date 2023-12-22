@@ -91,14 +91,14 @@ class CreateContactService(BaseUserService):
         """
         Контакт не существует в AmoCRM
         """
-        contact: list[Any] = await amocrm.create_contact_v4(
+        contact: list[Any] = await amocrm.create_contact(
             user_phone=phone,
             tags=self.client_tag + self.lk_client_tag
         )
         if not contact:
             raise UserAmoCreateError
         amocrm_id: int = contact[0]["id"]
-        await amocrm.register_lead_v4(user_amocrm_id=amocrm_id)
+        await amocrm.register_lead(user_amocrm_id=amocrm_id)
         return amocrm_id, {}
 
     async def _one_contacts_case(self, contact: AmoContact) -> Tuple[int, dict]:

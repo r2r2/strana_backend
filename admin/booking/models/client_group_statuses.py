@@ -29,6 +29,15 @@ class ClientAmocrmGroupStatus(models.Model):
         default=False,
     )
 
+    task_chains = models.ManyToManyField(
+        to="task_management.TaskChain",
+        verbose_name="Цепочки заданий",
+        through="TaskChainClientGroupStatusThrough",
+        through_fields=("client_group_status", "task_chain"),
+        related_name="taskchain_client_group_statuses",
+        blank=True,
+    )
+
     def __str__(self):
         return self.name
 
@@ -38,3 +47,25 @@ class ClientAmocrmGroupStatus(models.Model):
         ordering = ("sort",)
         verbose_name = "Группирующий статус для клиента"
         verbose_name_plural = "1.10. [Справочник] Группирующие статусы ЛК клиента в списке броней"
+
+
+class TaskChainClientGroupStatusThrough(models.Model):
+    """
+    Связь между цепочками заданий и группирующими статусами
+    """
+    task_chain = models.ForeignKey(
+        "task_management.TaskChain",
+        related_name="taskchain_client_group_status_through",
+        verbose_name="Цепочки заданий",
+        on_delete=models.CASCADE,
+    )
+    client_group_status = models.ForeignKey(
+        "ClientAmocrmGroupStatus",
+        related_name="taskchain_client_group_status_through",
+        verbose_name="Группирующие статусы",
+        on_delete=models.CASCADE,
+    )
+
+    class Meta:
+        managed = False
+        db_table = "taskchain_client_group_status_through"

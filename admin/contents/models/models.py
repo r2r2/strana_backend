@@ -228,48 +228,83 @@ class Instruction(models.Model):
         verbose_name = "Инструкция"
         verbose_name_plural = "5.4. Инструкции пользователя"
 
-# class MortgageTextBlock(models.Model):
-#     """
-#     Текстовые блоки для ик.
-#     """
 
-#     title = models.TextField(
-#         verbose_name="Заголовок блока",
-#         null=True,
-#         blank=True,
-#         help_text="H1 заголовок страницы / слайд-панели",
-#     )
-#     text = RichTextField(
-#         verbose_name="Текст блока",
-#         null=True,
-#         blank=True,
-#     )
-#     slug = models.CharField(
-#         max_length=100,
-#         verbose_name="Слаг текстового блока",
-#         help_text="Максимум 100 символов, для привязки к событию на беке",
-#         unique=True,
-#     )
-#     lk_type: str = models.CharField(
-#         verbose_name="Сервис ЛК, в котором применяется текстовый блок",
-#         choices=LkType.choices,
-#         max_length=10,
-#         help_text="Не участвует в бизнес-логике, поле для фильтрации в админке",
-#     )
-#     description = models.TextField(
-#         verbose_name="Описание назначения текстового блока",
-#         null=True,
-#         blank=True,
-#         help_text="Не участвует в бизнес-логике, поле для доп. описания",
-#     )
+class MortgageTextBlock(models.Model):
+    """
+    Текстовые блоки для ик.
+    """
 
-#     created_at = models.DateTimeField(verbose_name="Когда создано", help_text="Когда создано", auto_now_add=True)
-#     updated_at = models.DateTimeField(verbose_name="Когда обновлено", help_text="Когда обновлено", auto_now=True)
+    title = models.TextField(
+        verbose_name="Заголовок блока",
+        null=True,
+        blank=True,
+        help_text="H1 заголовок страницы / слайд-панели",
+    )
+    text = RichTextField(
+        verbose_name="Текст блока",
+        null=True,
+        blank=True,
+    )
+    slug = models.CharField(
+        max_length=100,
+        verbose_name="Слаг текстового блока",
+        help_text="Максимум 100 символов, для привязки к событию на беке",
+        unique=True,
+    )
+    lk_type: str = models.CharField(
+        verbose_name="Сервис ЛК, в котором применяется текстовый блок",
+        choices=LkType.choices,
+        max_length=10,
+        help_text="Не участвует в бизнес-логике, поле для фильтрации в админке",
+        null=True,
+        blank=True,
+    )
+    description = models.TextField(
+        verbose_name="Описание назначения текстового блока",
+        null=True,
+        blank=True,
+        help_text="Не участвует в бизнес-логике, поле для доп. описания",
+    )
 
-#     def __str__(self) -> str:
-#         return self.slug
+    created_at = models.DateTimeField(verbose_name="Когда создано", help_text="Когда создано", auto_now_add=True)
+    updated_at = models.DateTimeField(verbose_name="Когда обновлено", help_text="Когда обновлено", auto_now=True)
 
-#     class Meta:
-#         db_table = "text_block_text_block"
-#         verbose_name = "Текстовый блок для ик"
-#         verbose_name_plural = "5.6. [ЛК Клиента] Текстовые блоки"
+    cities = models.ManyToManyField(
+        to="references.Cities",
+        related_name="mortgage_text_blocks",
+        through="MortgageCalculatorTextBlockCityThrough",
+        through_fields=("mortgage_text_block", "city"),
+        verbose_name="Города",
+    )
+
+    def __str__(self) -> str:
+        return self.slug
+
+    class Meta:
+        managed = False
+        db_table = "mortgage_calculator_text_blocks"
+        verbose_name = "Текстовый блок для ик"
+        verbose_name_plural = "5.6. [ЛК Клиента] Текстовые блоки"
+
+
+class MortgageCalculatorTextBlockCityThrough(models.Model):
+    """
+    Отношения ип калькулят текстовых блоков к городам.
+    """
+
+    mortgage_text_block = models.ForeignKey(
+        "contents.MortgageTextBlock",
+        on_delete=models.CASCADE,
+        related_name="mortgage_text_block_city_through",
+        verbose_name="Текстовый блок",
+    )
+    city = models.ForeignKey(
+        "references.Cities",
+        on_delete=models.CASCADE,
+        related_name="mortgage_text_block_city_through",
+        verbose_name="Город",
+    )
+
+    class Meta:
+        managed = False
+        db_table = "mortgage_calculator_text_block_city_through"

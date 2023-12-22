@@ -205,15 +205,17 @@ class UpdateBookingsService:
                 if purchase_type_enum:
                     purchase_amo: Optional[PurchaseAmoMatrix] = await self.purchase_amo_matrix_repo.retrieve(
                         filters=dict(amo_payment_type=purchase_type_enum),
+                        related_fields=["mortgage_type", "payment_method"],
                     )
                     if not purchase_amo:
                         purchase_amo: PurchaseAmoMatrix = await self.purchase_amo_matrix_repo.retrieve(
                             filters=dict(default=True),
+                            related_fields=["mortgage_type", "payment_method"],
                         )
                     booking_purchase_data = dict(
                         amo_payment_method=purchase_amo.payment_method,
                         mortgage_type=purchase_amo.mortgage_type,
-                    )
+                    ) if purchase_amo else None
 
         query_type: Optional[str] = self.types_map.get(property_type, None)
         query_name: Optional[str] = self.queries_map.get(property_type, None)

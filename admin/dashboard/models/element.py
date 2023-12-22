@@ -23,6 +23,7 @@ class Element(models.Model):
     expires: datetime = models.DateTimeField(verbose_name="Истекает", null=True, blank=True)
     has_completed_booking: bool = models.BooleanField(verbose_name="Бронирование завершено", default=False)
     priority: int = models.IntegerField(verbose_name="Приоритет", default=0)
+    enable_fos: bool = models.BooleanField(verbose_name="Показывать при клике ФОС", default=False)
 
     block: models.ForeignKey = models.ForeignKey(
         to='dashboard.Block',

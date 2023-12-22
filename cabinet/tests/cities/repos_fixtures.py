@@ -20,6 +20,6 @@ def city_factory(city_repo, faker):
 
 @fixture(scope="function")
 async def city(faker, city_repo):
-    data = {"slug": f"test_{faker.word()}", "name": faker.city()}
+    data = {"slug": "msk", "name": "Moskva"}
     city_obj = await city_repo.create(data)
     return city_obj

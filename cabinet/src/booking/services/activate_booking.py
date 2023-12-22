@@ -215,9 +215,9 @@ class ActivateBookingService(BaseBookingService, BookingLogMixin):
 
     async def __profitbase_booking(self, booking: Booking) -> bool:
         """
-        Бронированиве в profitbase
+        Бронирование в profitbase
         """
-        property_id: int = self.global_id_decoder(booking.property.global_id)[1]
+        property_id: int = int(self.global_id_decoder(booking.property.global_id)[1])
         async with await self.profitbase_class() as profitbase:
             data: dict[str, bool] = await profitbase.book_property(
                 property_id=property_id, deal_id=booking.amocrm_id

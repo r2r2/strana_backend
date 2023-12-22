@@ -139,7 +139,8 @@ class CreateBookingCase(BaseBookingCase):
                 pipeline_id=loaded_property_from_backend.project.amo_pipeline_id,
             ),
         )
-
+        await loaded_property_from_backend.fetch_related("building")
+        until: datetime = datetime.now(tz=UTC) + timedelta(days=booking_type.period)
         booking_data: dict = dict(
             acitve=True,
             amocrm_id=booking_amocrm_id,
@@ -157,6 +158,8 @@ class CreateBookingCase(BaseBookingCase):
             building_id=loaded_property_from_backend.building_id,
             project_id=loaded_property_from_backend.project_id,
             payment_amount=booking_type.price,
+            should_be_deactivated_by_timer=True,
+            until=until,
         )
 
         if profitbase_is_booked:

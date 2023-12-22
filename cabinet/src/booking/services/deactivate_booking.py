@@ -1,5 +1,6 @@
 import asyncio
 
+from common.amocrm.components import AmoCRMLeads
 from ..loggers import booking_changes_logger
 from ..repos import Booking
 from ..types import BookingProperty

@@ -11,6 +11,8 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 SECRET_KEY = os.getenv("LK_SECRET_KEY", "rw+t6fn87n-r+9%$s^rfsdjfaa2yux(rz#!8th3_1^e2^z-9!3!l")
 
+ALLOWED_TOOLBAR = os.getenv("ALLOWED_TOOLBAR", "False") == "True"
+
 TESTING = len(sys.argv) > 1 and sys.argv[1] == "test"
 
 # DEBUG = os.getenv("DEBUG", "True") == "True" and not TESTING
@@ -62,7 +64,8 @@ INSTALLED_APPS = [
     'events_list.apps.EventsListConfig',
     "commercial_offers.apps.CommercialOffersConfig",
     "news.apps.NewsAppConfig",
-    "mortgage.apps.MortageConfig"
+    "mortgage.apps.MortgageConfig",
+    "debug_toolbar",
 ]
 
 MIDDLEWARE = [
@@ -74,6 +77,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "django.contrib.sites.middleware.CurrentSiteMiddleware",
+    "debug_toolbar.middleware.DebugToolbarMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -291,6 +295,14 @@ TEMPLATE_LOADERS = (
         'django.template.loaders.app_directories.Loader',
     )),
 )
+
+DEBUG_TOOLBAR_CONFIG = {
+    "SHOW_TOOLBAR_CALLBACK": "config.settings.show_toolbar"
+}
+
+
+def show_toolbar(_):
+    return ALLOWED_TOOLBAR
 
 # todo: think about this
 # Добавил, чтобы в модели admin/events_list/admin/event_list.py не было ошибки

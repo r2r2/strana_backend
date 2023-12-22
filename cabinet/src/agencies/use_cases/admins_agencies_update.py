@@ -104,10 +104,10 @@ class AdminsAgenciesUpdateCase(BaseAgencyCase):
 
         url_data: dict[str, Any] = dict(
             host=self.site_host,
-            route_template = self.email_link_route_template,
-            query_params = dict(
-                q = token,
-                p = maintainer.change_phone_token,
+            route_template=self.email_link_route_template,
+            query_params=dict(
+                q=token,
+                p=maintainer.change_phone_token,
             )
         )
         url_dto: UrlEncodeDTO = UrlEncodeDTO(**url_data)

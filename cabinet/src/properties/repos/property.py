@@ -28,6 +28,9 @@ class Property(Model):
     global_id: Optional[str] = fields.CharField(
         description="Глобальный ID", max_length=200, unique=True, null=True
     )
+    profitbase_id: Optional[int] = fields.IntField(
+        description="Profitbase ID", null=True
+    )
     type: Optional[str] = cfields.CharChoiceField(
         description="Тип", max_length=50, null=True, choice_class=PropertyTypes
     )

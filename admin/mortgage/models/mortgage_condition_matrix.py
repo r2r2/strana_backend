@@ -1,69 +1,50 @@
-# from typing import Optional
-# from django.db import models
+from django.db import models
 
 
-# class MortgageConditionMatrix(models.Model):
-#     """
-#     Матрица условий
-#     """
-#     id =  models.BigIntegerField(verbose_name="ID", primary_key=True)
+class MortgageConditionMatrix(models.Model):
+    """
+    Матрица условий
+    """
+    name: str = models.CharField(verbose_name="Название", max_length=100)
+    amocrm_statuses: models.ManyToManyField = models.ManyToManyField(
+        verbose_name="Статусы сделки",
+        to="booking.AmocrmStatus",
+        through="mortgage.MortgageConditionStatusThrough",
+        through_fields=("mortgage_matrix_condition", "amocrm_status"),
+        related_name="mortgagematrix_amocrm_statuses",
+    )  
+    is_there_agent: bool = models.BooleanField(verbose_name="Есть агент", default=False)
+    default_value: bool = models.BooleanField(verbose_name="По умолчанию", default=False)
 
-#     name: str = models.CharField(verbose_name="Название", max_length=100)
+    created_at = models.DateTimeField(verbose_name="Дата и время создания", auto_now_add=True)
+    updated_at = models.DateTimeField(verbose_name="Дата и время обновления", auto_now=True)
 
-#     offer_statuses: models.ManyToManyField(
-#         verbose_name="Статусы сделки",
-#         to="properties.MortgageType",
-#         through="mortgage.MortgageConditionStatusThrough",
-#         through_fields=("mortgage", "offer_status"),
-#         related_name="mortgage",
-#     )  
+    def __str__(self) -> str:
+        return self.name
 
-#     is_there_agent: bool = models.BooleanField(verbose_name="Есть агент", default=False)
+    class Meta:
+        managed = False
+        db_table = 'mortgage_calculator_condition_matrix'
+        verbose_name = "Матрица условий"
+        verbose_name_plural = "21.1. [Справочник] Матрица условий подачи заявки на ипотеку через застройщика"
 
-#     default_value: bool = models.BooleanField(verbose_name="По умолчанию", default=False)
 
-#     class MortageApproove(models.TextChoices):
-#         """
-#         Выборочное подтверждение ипотеки в матрице
-#         """
-#         YES: str = "Yes", ("Да 1")
-#         NO: str = "No", ("Нет")
+class MortgageConditionStatusThrough(models.Model):
+    """
+    Промежуточная таблица матрицы условий к статусам сделок.
+    """
 
-#     is_apply_for_mortgage: str = models.CharField(
-#         verbose_name="Можно ли подать заявку на ипотеку",
-#         max_length=50,
-#         default=MortageApproove.NO,
-#         choices=MortageApproove.choices,
-#     )
+    mortgage_matrix_condition: models.ForeignKey = models.ForeignKey(
+        to="MortgageConditionMatrix",
+        on_delete=models.CASCADE,
+        related_name='mortgage_matrix_condition_amocrm_statuses_through',
+    )
+    amocrm_status: models.ForeignKey = models.ForeignKey(
+        to='booking.AmocrmStatus',
+        on_delete=models.CASCADE,
+        related_name='amocrm_status_matrix_condition_through',
+    )
 
-#     created_at = models.DateTimeField(verbose_name="Дата и время создания", auto_now_add=True)
-#     updated_at = models.DateTimeField(verbose_name="Дата и время обновления", auto_now=True)
-
-#     def __str__(self) -> str:
-#         return self.name
-
-#     class Meta:
-#         managed = False
-#         db_table = 'mortgage_calculator_condition_matrix'
-#         verbose_name = "Матрица условий"
-#         verbose_name_plural = "21.1. [Справочник] Матрица условий подачи заявки на ипотеку через застройщика"
-
-# class MortgageConditionStatusThrough(models.Model):
-#     """
-#     Статусы из амо
-#     """
-
-#     mortgage: models.ForeignKey = models.ForeignKey(
-#         to=MortgageConditionMatrix,
-#         on_delete=models.CASCADE,
-#         related_name='news_tag_through',
-#     )
-#     offer_status: models.ForeignKey = models.ForeignKey(
-#         to='news.NewsTag',
-#         on_delete=models.CASCADE,
-#         related_name='news_through',
-#     )
-
-#     class Meta:
-#         managed = False
-#         db_table = 'news_news_tag_through'
+    class Meta:
+        managed = False
+        db_table = 'mortgage_calсulator_matrix_amocrm_statuses_through'

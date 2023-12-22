@@ -42,10 +42,10 @@ class RepresResendLetterCase(BaseRepresCase):
 		"""
 		url_data: dict[str, Any] = dict(
 			host=self.site_host,
-			route_template = self.confirm_link_route_template,
-			query_params = dict(
-				q = token,
-				p = repres.email_token,
+			route_template=self.confirm_link_route_template,
+			query_params=dict(
+				q=token,
+				p=repres.email_token,
 			)
 		)
 		url_dto: UrlEncodeDTO = UrlEncodeDTO(**url_data)

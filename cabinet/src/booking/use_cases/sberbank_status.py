@@ -7,7 +7,6 @@ from datetime import datetime, timedelta
 from functools import wraps
 from secrets import compare_digest
 from typing import Any, Awaitable, Callable, Literal, Type
-from urllib.parse import urlencode
 from uuid import UUID
 
 import structlog
@@ -23,12 +22,11 @@ from config import sberbank_config
 from config.feature_flags import FeatureFlags
 from ..constants import (PAYMENT_PROPERTY_NAME, BookingSubstages,
                          PaymentStatuses)
-from ..decorators import logged_action
 from ..entities import BaseBookingCase
 from ..exceptions import BookingNotFoundError, BookingRedirectFailError
 from ..loggers.wrappers import booking_changes_logger
 from ..mixins import BookingLogMixin
-from ..repos import Booking, BookingRepo, AcquiringRepo
+from ..repos import Booking, BookingRepo, AcquiringRepo, BookingPaymentsMaintenanceRepo
 from ..services import HistoryService, ImportBookingsService
 from ..types import BookingAmoCRM, BookingEmail, BookingSberbank, BookingSms
 from src.task_management.constants import PaidBookingSlug, OnlineBookingSlug, FastBookingSlug, FreeBookingSlug
@@ -91,6 +89,7 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
         import_bookings_service: ImportBookingsService,
         get_sms_template_service: GetSmsTemplateService,
         get_email_template_service: GetEmailTemplateService,
+        booking_payments_maintenance_repo: Type[BookingPaymentsMaintenanceRepo],
     ) -> None:
         self.booking_repo: BookingRepo = booking_repo()
         self.acquiring_repo: AcquiringRepo = acquiring_repo()
@@ -122,6 +121,7 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
         self.get_email_template_service: GetEmailTemplateService = get_email_template_service
 
         self.booking_until_datetime: datetime | None = None
+        self.booking_payments_maintenance_repo = booking_payments_maintenance_repo()
 
     @sentry_log
     async def __call__(
@@ -133,7 +133,7 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
         **kwargs,
     ) -> str:
         filters: dict[str, Any] = dict(payment_id=payment_id, active=True)
-        booking: Booking = await self.booking_repo.retrieve(
+        booking: Booking | None = await self.booking_repo.retrieve(
             filters=filters,
             related_fields=[
                 "user",
@@ -151,6 +151,12 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
             raise BookingNotFoundError
         if not compare_digest(secret, self.secret):
             raise BookingRedirectFailError
+
+        data = dict(
+            booking_amocrm_id=booking.amocrm_id,
+            successful_payment=kind == BookingPayKind.SUCCESS,
+        )
+        await self.booking_payments_maintenance_repo.create(data=data)
 
         if booking.user:
             await self.import_bookings_service(user_id=booking.user.id)
@@ -190,13 +196,13 @@ class SberbankStatusCase(BaseBookingCase, BookingLogMixin):
         task: TaskInstance = await self._get_booking_task(booking=booking)
         url_data: dict[str, Any] = dict(
             host=booking.origin.split('//')[-1], # так коряво вытягиваем хоста
-            route_template = self.sber_booking_url_route_template,
-            route_params = [self.frontend_return_url],
-            query_params = dict(
-                status = kind.value,
-                description = action_code_description,
-                taskId = task.id,
-                bookingId = booking.id,
+            route_template=self.sber_booking_url_route_template,
+            route_params=[self.frontend_return_url],
+            query_params=dict(
+                status=kind.value,
+                description=action_code_description,
+                taskId=task.id,
+                bookingId=booking.id,
             )
         )
         url_dto: UrlEncodeDTO = UrlEncodeDTO(**url_data)

@@ -15,9 +15,11 @@ from common.email import EmailService
 from common.utils import parse_phone, partition_list
 from pydantic import BaseModel
 from pytz import UTC
+from src.booking.loggers import booking_changes_logger
 from src.users.constants import UserType
 from src.users.loggers.wrappers import user_changes_logger
 from src.notifications.services import GetEmailTemplateService
+from src.users.repos import UserRoleRepo
 
 from ...booking.constants import BookingSubstages
 from ...booking.repos import Booking, BookingRepo
@@ -58,6 +60,7 @@ class ImportClientsService(BaseAgentService):
         booking_repo: Type[BookingRepo],
         amocrm_class: Type[AgentAmoCRM],
         user_repo: Type[AgentUserRepo],
+        user_role_repo: type[UserRoleRepo],
         check_repo: Type[AgentCheckRepo],
         email_class: Type[EmailService],
         amocrm_config: dict[Any, Any],
@@ -74,6 +77,7 @@ class ImportClientsService(BaseAgentService):
             self.agent_repo.update, self, content="Обновление amocrm_id агента из AmoCRM"
         )
         self.user_repo: AgentUserRepo = user_repo()
+        self.user_role_repo: UserRoleRepo = user_role_repo()
         self.client_update = user_changes_logger(
             self.user_repo.update, self, content="Обновление клиента из AmoCRM"
         )
@@ -85,6 +89,11 @@ class ImportClientsService(BaseAgentService):
         )
         self.unbind_client = user_changes_logger(
             self.user_repo.update, self, content="Импорт клиентов из AmoCRM | Отвязка клиента от агента"
+        )
+        self.booking_bulk_update = booking_changes_logger(
+            self.booking_repo.bulk_update, self,
+            content="Открепляем агента от активных сделок клиента, "
+                    "делаем сделки неактивными и помечаем их как закрытые.",
         )
         self.check_repo: AgentCheckRepo = check_repo()
         self.booking_repo: BookingRepo = booking_repo()
@@ -127,7 +136,7 @@ class ImportClientsService(BaseAgentService):
             leads_gen: AsyncGenerator = self._fetch_leads(amocrm, agent_contact)
 
             async for leads in leads_gen:
-                self.logger.info(f"Fetched leads: {[lead.id for lead in leads]}")
+                self.logger.info(f":Fetched leads {[lead.id for lead in leads]}")
                 for lead in leads:
                     client_ids.update(self._client_ids_by_lead(amocrm, lead, agent_contact_id))
             self.logger.info(f"Agent '{agent_id}' has {len(client_ids)} clients")
@@ -270,7 +279,11 @@ class ImportClientsService(BaseAgentService):
 
         if client:
             self.logger.info(f"Client with amo_id found (id: '{client.id}'). Updating data")
-            data: dict[str, Any] = dict(amocrm_id=client_amocrm_id)
+            data: dict[str, Any] = dict(
+                amocrm_id=client_amocrm_id,
+                agent_id=agent.id,
+                agency_id=agent.agency_id,
+            )
             return await self.client_update(client, data)
 
         if not phone and not email:
@@ -278,6 +291,7 @@ class ImportClientsService(BaseAgentService):
             return
 
         self.logger.info(f"Client with amo_id '{client_amocrm_id}' was not found. Start creation")
+        user_role = await self.user_role_repo.retrieve(filters=dict(slug=UserType.CLIENT))
         data: dict[str, Any] = dict(
             name=name,
             email=email,
@@ -291,6 +305,7 @@ class ImportClientsService(BaseAgentService):
             is_active=True,
             is_approved=True,
             type=UserType.CLIENT,
+            role=user_role,
         )
         user: User = await self.user_create(data=data)
         data: dict[str, Any] = dict(
@@ -355,7 +370,7 @@ class ImportClientsService(BaseAgentService):
 
     async def _proceed_changed_assign(self, client: User, agent: User):
         """change assign"""
-        await self._update_amocrm_leads(client=client)
+        await self._update_amocrm_leads(client=client, agent=agent)
         client_agent_dto = RequestDataDto(
             client_id=client.id,
             agent_id=agent.id
@@ -373,15 +388,13 @@ class ImportClientsService(BaseAgentService):
         """
         filters = dict(user_id=user_data.client_id, agent_id=user_data.agent_id, active=True)
         data: dict[str, Any] = dict(
-            agent_id=None,
-            agency_id=None,
             amocrm_stage=Booking.stages.DDU_UNREGISTERED,
             amocrm_substage=Booking.substages.UNREALIZED,
             active=False
         )
-        await self.booking_repo.bulk_update(filters=filters, data=data)
+        await self.booking_bulk_update(filters=filters, data=data)
 
-    async def _update_amocrm_leads(self, client: User):
+    async def _update_amocrm_leads(self, client: User, agent: User):
         """
         Обновить сделки пользователя в амо.
         Всем сделкам ставим статус "закрыто и не реализовано"
@@ -390,7 +403,7 @@ class ImportClientsService(BaseAgentService):
         filters: dict[str, Any] = dict(
             active=True,
             user_id=client.id,
-            agent_id=client.agent_id
+            agent_id=agent.id
         )
         bookings: list[Booking] = await self.booking_repo.list(
             filters=filters, prefetch_fields=['project', 'project__city']
@@ -437,8 +450,6 @@ class ImportClientsService(BaseAgentService):
         ]
         data = dict(
             active=False,
-            agent_id=None,
-            agency_id=None,
             amocrm_status_id=LeadStatuses.UNREALIZED,
         )
-        await self.booking_repo.bulk_update(filters=filters, data=data, exclude_filters=exclude_filters)
+        await self.booking_bulk_update(filters=filters, data=data, exclude_filters=exclude_filters)

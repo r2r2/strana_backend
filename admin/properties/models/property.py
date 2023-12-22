@@ -12,6 +12,12 @@ class Property(models.Model):
         blank=True,
         null=True,
     )
+    profitbase_id = models.BigIntegerField(
+        unique=True,
+        help_text="Profitbase ID",
+        blank=True,
+        null=True,
+    )
     type = models.CharField(max_length=50, blank=True, null=True)
     property_type = models.ForeignKey(
         "properties.PropertyType",

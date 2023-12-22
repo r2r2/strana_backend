@@ -16,6 +16,7 @@ from .models import (
     EmailFooterTemplate,
     QRcodeSMSNotify,
     RopEmailsDispute,
+    SberbankInvoiceLog,
 )
 from .models.booking_notificaton import BookingNotification
 from .models.booking_fixation_notificaton import BookingFixationNotification
@@ -360,4 +361,24 @@ class RopEmailsDisputeAdmin(admin.ModelAdmin):
         "fio",
         "email",
         "project"
+    )
+
+
+@admin.register(SberbankInvoiceLog)
+class SberbankInvoiceLogAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "amocrm_id",
+        "sent_date",
+        "sent_email",
+        "sent_status",
+        "sent_error",
+        "created_at",
+        "updated_at",
+    )
+    search_fields = ("amocrm_id", "sent_email", "sent_status")
+    list_filter = ("sent_status",)
+    readonly_fields = (
+        "created_at",
+        "updated_at",
     )

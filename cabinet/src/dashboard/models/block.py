@@ -13,6 +13,7 @@ class ElementRetrieveModel(BaseDashboardModel):
     image: Optional[dict[str, Any]]
     link: Optional[str]
     expires: Optional[datetime]
+    enable_fos: Optional[bool]
 
     class Config:
         orm_mode = True

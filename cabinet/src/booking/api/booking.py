@@ -91,6 +91,7 @@ from src.booking.utils import get_booking_reserv_time
 from src.booking.services import UpdateAmoBookingService
 from src.task_management.factories import UpdateTaskInstanceStatusServiceFactory, CreateTaskInstanceServiceFactory
 from src.properties.factories import CheckProfitbasePropertyServiceFactory
+from src.mortgage.factories import ChangeMortgageTicketStatusServiceFactory
 
 
 router = APIRouter(prefix="/booking", tags=["Booking"])
@@ -564,6 +565,7 @@ async def sberbank_status_view(
         update_task_instance_status_service=update_task_instance_status_service,
         get_sms_template_service=get_sms_template_service,
         get_email_template_service=get_email_template_service,
+        booking_payments_maintenance_repo=booking_repos.BookingPaymentsMaintenanceRepo,
     )
     redirect_url = await sberbank_status(kind=kind, secret=secret, payment_id=payment_id)
 
@@ -929,11 +931,18 @@ async def amocrm_webhook_notify_view(request: Request):
 @amocrm_webhook_maintenance
 @handle_amocrm_webhook_errors
 async def amocrm_webhook_view(
-    request: Request, background_tasks: BackgroundTasks, secret: str = Path(...)
+    request: Request,
+    background_tasks: BackgroundTasks,
+    secret: str = Path(...),
+    x_real_ip: Optional[str] = Header(default=None),
 ) -> None:
     """
     Вебхук АМО
     """
+    amo_webhook_request_ip_enabled = request.app.unleash.is_enabled(request.app.feature_flags.amo_webhook_request_ip)
+    if amo_webhook_request_ip_enabled:
+        logger = structlog.getLogger("amo_webhook_request_ip")
+        logger.info("AMOcrm webhook request", ip=x_real_ip)
     try:
         payload: bytes = await request.body()
     except ClientDisconnect:
@@ -1012,6 +1021,7 @@ async def _amocrm_webhook_view(
             import_property_service=import_property_service,
         )
     )
+    change_mortgage_ticket_status_service = ChangeMortgageTicketStatusServiceFactory.create()
     resources: dict[str, Any] = dict(
         amocrm_class=amocrm.AmoCRM,
         amocrm_config=amocrm_config,
@@ -1038,6 +1048,7 @@ async def _amocrm_webhook_view(
         import_contact_service=import_contact_service,
         import_meeting_service=import_meeting_service,
         booking_creation_service=booking_creation_service,
+        change_mortgage_ticket_status_service=change_mortgage_ticket_status_service,
     )
     amocrm_webhook: use_cases.AmoCRMWebhookCase = use_cases.AmoCRMWebhookCase(
         **resources
@@ -1222,6 +1233,8 @@ async def amocrm_webhook_update_view(
             import_property_service=import_property_service,
         )
     )
+    change_mortgage_ticket_status_service = ChangeMortgageTicketStatusServiceFactory.create()
+
     resources: dict[str, Any] = dict(
         amocrm_class=amocrm.AmoCRM,
         amocrm_config=amocrm_config,
@@ -1248,6 +1261,8 @@ async def amocrm_webhook_update_view(
         import_contact_service=import_contact_service,
         import_meeting_service=import_meeting_service,
         booking_creation_service=booking_creation_service,
+        purchase_amo_matrix_repo=payment_repos.PurchaseAmoMatrixRepo,
+        change_mortgage_ticket_status_service=change_mortgage_ticket_status_service,
     )
     amocrm_webhook_update: use_cases.AmoCRMWebhookUpdateCase = use_cases.AmoCRMWebhookUpdateCase(
         **resources

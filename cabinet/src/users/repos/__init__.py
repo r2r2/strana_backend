@@ -37,3 +37,5 @@ from .amocrm_request_check_log import AmoCrmCheckLogRepo, AmoCrmCheckLog
 from .dispute_status import DisputeStatus, DisputeStatusRepo
 from .consultation_type import ConsultationType, ConsultationTypeRepo
 from .strana_office_admin import StranaOfficeAdmin, StranaOfficeAdminRepo
+from .client_check_maintenance import ClientCheckMaintenance, ClientCheckMaintenanceRepo
+from .client_assign_maintenance import ClientAssignMaintenance, ClientAssignMaintenanceRepo

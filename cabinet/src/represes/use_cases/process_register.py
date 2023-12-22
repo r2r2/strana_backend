@@ -38,7 +38,6 @@ class ProcessRegisterCase(BaseRepresCase):
     repres_mail_event_slug = "repres_confirm_email"
     admin_mail_event_slug = "admin_confirm_agency"
     common_link_template: str = "/confirm/represes/confirm_email"
-
     default_general_type_slug = "agency"
     user_type = UserType.REPRES
 
@@ -169,10 +168,10 @@ class ProcessRegisterCase(BaseRepresCase):
         """
         url_data: dict[str, Any] = dict(
             host=self.site_host,
-            route_template = self.link_route_template,
-            query_params = dict(
-                q = token,
-                p = repres.email_token,
+            route_template=self.common_link_template,
+            query_params=dict(
+                q=token,
+                p=repres.email_token,
             )
         )
         url_dto: UrlEncodeDTO = UrlEncodeDTO(**url_data)

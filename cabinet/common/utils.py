@@ -173,9 +173,9 @@ def generate_notify_url(url_dto: UrlEncodeDTO) -> str:
     base_url: str = "https://{host}".format(host=url_dto.host)
 
     route_params: list[str] = url_dto.route_params
-    if not route_params: # список пустой
+    if not route_params:  # список пустой
         route_url: str = url_dto.route_template
-    else: # список не пустой, надо изменить route по параметрам
+    else:  # список не пустой, надо изменить route по параметрам
         route_url: str = url_dto.route_template.format(*route_params) 
 
     query_params_dict: dict[str, Any] = url_dto.query_params or dict()

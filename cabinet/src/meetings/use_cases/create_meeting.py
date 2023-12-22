@@ -51,6 +51,7 @@ class CreateMeetingCase(BaseMeetingCase):
     meeting_created_to_client_mail = "meeting_created_to_client_mail"
     meeting_created_to_broker_mail = "meeting_created_to_broker_mail"
     meeting_created_to_admin_mail = "meeting_created_to_admin_mail"
+    meeting_created_to_admin_mail_client = "meeting_created_to_admin_mail_client"
     amocrm_link = "https://eurobereg72.amocrm.ru/leads/detail/{id}"
     lk_client_tag: list[str] = [
         "ЛК Клиента",
@@ -302,6 +303,24 @@ class CreateMeetingCase(BaseMeetingCase):
             mail_event_slug=self.meeting_created_to_client_mail
         )
 
+        if self.__is_strana_lk_3116_enable(user_id=user.id):
+            filters = dict(project_id=created_meeting.project.id)
+            admins = await self.strana_office_admin_repo.list(filters=filters)
+
+            await self.send_email(
+                recipients=admins,
+                context=dict(
+                    client_fio=user.full_name,
+                    meeting_date=created_meeting.date.strftime("%Y-%m-%d %H:%M:%S"),
+                    client_phone=user.phone,
+                    booking_link=self.amocrm_link.format(id=booking.amocrm_id),
+                    city=created_meeting.city.name,
+                    project=created_meeting.project.name,
+                    property_type=MeetingPropertyType().to_label(created_meeting.property_type),
+                ),
+                mail_event_slug=self.meeting_created_to_admin_mail_client,
+            )
+
         return created_meeting
 
     async def broker_create_meeting(
@@ -403,46 +422,39 @@ class CreateMeetingCase(BaseMeetingCase):
         )
         await self.calendar_event_repo.create(data=calendar_event_data)
 
-        name__icontains = "Встреча назначена"
-        if self.__is_strana_lk_2515_enable:
-            name__icontains = self.amocrm_default_offline_group_status_name
+        name__icontains = self.amocrm_default_offline_group_status_name
         amocrm_status: AmocrmStatus = await self.amocrm_status_repo.retrieve(
             filters=dict(
                 pipeline_id=created_meeting.project.amo_pipeline_id,
                 name__icontains=name__icontains,
             )
         )
-        amocrm_substage = BookingSubstages.MAKE_APPOINTMENT
-        if self.__is_strana_lk_2515_enable:
-            amocrm_substage = BookingSubstages.MEETING
+
+        amocrm_substage = BookingSubstages.MEETING
         booking_data: dict = dict(
             amocrm_status_id=amocrm_status.id,
             amocrm_substage=amocrm_substage,
         )
         new_responsible_user_id = None
-        if self.__is_strana_lk_2515_enable:
-            if format_type == "online":
-                amocrm_status: AmocrmStatus = await self.amocrm_status_repo.retrieve(
-                    filters=dict(id=self.amocrm_appointed_zoom_status_id)
-                )
-                new_responsible_user_id = DEFAULT_RESPONSIBLE_USER_ID
-            booking_data.update(
-                amocrm_status_id=amocrm_status.id if amocrm_status else None,
-                amocrm_substage=BookingSubstages.MEETING,
+        if format_type == "online":
+            amocrm_status: AmocrmStatus = await self.amocrm_status_repo.retrieve(
+                filters=dict(id=self.amocrm_appointed_zoom_status_id)
             )
+            new_responsible_user_id = DEFAULT_RESPONSIBLE_USER_ID
+        booking_data.update(
+            amocrm_status_id=amocrm_status.id if amocrm_status else None,
+            amocrm_substage=BookingSubstages.MEETING,
+        )
 
         await self.booking_repo.update(model=created_meeting.booking, data=booking_data)
 
-        if self.__is_strana_lk_2898_enable(user_id=user.id):
-            tags = booking.tags or []
-            tags += self.broker_tag
-            if maintenance_settings["environment"] == EnvTypes.DEV:
-                tags = tags + self.dev_test_booking_tag
-            elif maintenance_settings["environment"] == EnvTypes.STAGE:
-                tags = tags + self.stage_test_booking_tag
-            await self.booking_repo.update(booking, data=dict(tags=tags))
-        else:
-            tags = booking.tags
+        tags = booking.tags or []
+        tags += self.broker_tag
+        if maintenance_settings["environment"] == EnvTypes.DEV:
+            tags = tags + self.dev_test_booking_tag
+        elif maintenance_settings["environment"] == EnvTypes.STAGE:
+            tags = tags + self.stage_test_booking_tag
+        await self.booking_repo.update(booking, data=dict(tags=tags))
 
         async with await self.amocrm_class() as amocrm:
             amo_date: float = self.amo_date_formatter(created_meeting.date)
@@ -483,24 +495,23 @@ class CreateMeetingCase(BaseMeetingCase):
             mail_event_slug=self.meeting_created_to_client_mail,
         )
 
-        if self.__is_strana_lk_2897_enable(user_id=user.id):
-            filters = dict(project_id=created_meeting.project.id)
-            admins = await self.strana_office_admin_repo.list(filters=filters)
+        filters = dict(project_id=created_meeting.project.id)
+        admins = await self.strana_office_admin_repo.list(filters=filters)
 
-            await self.send_email(
-                recipients=admins,
-                context=dict(
-                    agent_fio=user.full_name,
-                    meeting_date=created_meeting.date.strftime("%Y-%m-%d %H:%M:%S"),
-                    agent_phone=user.phone,
-                    client_phone=client.phone,
-                    booking_link=self.amocrm_link.format(id=booking.amocrm_id),
-                    city=created_meeting.city.name,
-                    project=created_meeting.project.name,
-                    property_type=MeetingPropertyType().to_label(created_meeting.property_type),
-                ),
-                mail_event_slug=self.meeting_created_to_admin_mail,
-            )
+        await self.send_email(
+            recipients=admins,
+            context=dict(
+                agent_fio=user.full_name,
+                meeting_date=created_meeting.date.strftime("%Y-%m-%d %H:%M:%S"),
+                agent_phone=user.phone,
+                client_phone=client.phone,
+                booking_link=self.amocrm_link.format(id=booking.amocrm_id),
+                city=created_meeting.city.name,
+                project=created_meeting.project.name,
+                property_type=MeetingPropertyType().to_label(created_meeting.property_type),
+            ),
+            mail_event_slug=self.meeting_created_to_admin_mail,
+        )
 
         return created_meeting
 
@@ -543,14 +554,6 @@ class CreateMeetingCase(BaseMeetingCase):
         amo_date_timestamp: float = amo_date_diff.timestamp()
         return amo_date_timestamp
 
-    @property
-    def __is_strana_lk_2515_enable(self) -> bool:
-        return UnleashClient().is_enabled(FeatureFlags.strana_lk_2515)
-
-    def __is_strana_lk_2898_enable(self, user_id: int) -> bool:
+    def __is_strana_lk_3116_enable(self, user_id: int) -> bool:
         context = dict(userId=user_id)
-        return UnleashClient().is_enabled(FeatureFlags.strana_lk_2898, context=context)
-
-    def __is_strana_lk_2897_enable(self, user_id: int) -> bool:
-        context = dict(userId=user_id)
-        return UnleashClient().is_enabled(FeatureFlags.strana_lk_2897, context=context)
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_3116, context=context)

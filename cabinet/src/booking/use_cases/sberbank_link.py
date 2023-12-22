@@ -189,6 +189,7 @@ class SberbankLinkCase(BaseBookingCase, BookingLogMixin):
             timeout=(booking.expires - datetime.now(tz=UTC) - timedelta(seconds=10)).seconds,
             username=_username,
             password=_password,
+            amocrm_id=booking.amocrm_id,
         )
         sberbank_service: BookingSberbank = self.sberbank_class(**payment_options)
         payment: Union[dict[str, Any], str] = await sberbank_service("pay")

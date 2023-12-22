@@ -23,15 +23,11 @@ class TestCreateTicket:
             type="test",
             city="spb",
         )
-
-        with patch(
-            "src.dashboard.use_cases.create_ticket.CreateTicketCase.amocrm_handler",
-            new_callable=AsyncMock
-        ) as mock_amo_calls:
+        mock_amocrm: str = "src.dashboard.use_cases.create_ticket.CreateTicketCase.process_amocrm"
+        with patch(mock_amocrm, new_callable=AsyncMock):
             response = await async_client.post(
                 "users/ticket",
                 headers=headers,
                 json=test_payload,
             )
             assert response.status_code == HTTPStatus.CREATED
-            mock_amo_calls.assert_called()

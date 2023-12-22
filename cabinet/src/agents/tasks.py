@@ -33,6 +33,7 @@ def import_clients_task(agent_id: int) -> None:
         booking_repo=BookingRepo,
         amocrm_class=amocrm.AmoCRM,
         user_repo=users_repos.UserRepo,
+        user_role_repo=users_repos.UserRoleRepo,
         check_repo=users_repos.CheckRepo,
         orm_class=Tortoise,
         orm_config=tortoise_config,

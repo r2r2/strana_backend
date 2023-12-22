@@ -103,6 +103,7 @@ class CheckBookingService(BaseBookingService):
                 "project__city",
                 "property",
                 "building",
+                "booking_source",
             ],
         )
         print(f'{booking=}')
@@ -113,15 +114,15 @@ class CheckBookingService(BaseBookingService):
                 data = dict(should_be_deactivated_by_timer=False)
                 await self.booking_deactivate_for_step_four(booking=booking, data=data)
                 result: bool = True
-            elif booking.time_valid():
-                print("booking.time_valid()")
-                task_delay: int = (booking.expires - datetime.now(tz=UTC)).seconds
-                if self.check_booking_task:
-                    pass
-                    # self.check_booking_task.apply_async(
-                    #     (booking.id, status), countdown=task_delay
-                    # )
-                result: bool = False
+            # elif booking.time_valid():
+            #     print("booking.time_valid()")
+            #     task_delay: int = (booking.expires - datetime.now(tz=UTC)).seconds
+            #     if self.check_booking_task:
+            #         pass
+            #         # self.check_booking_task.apply_async(
+            #         #     (booking.id, status), countdown=task_delay
+            #         # )
+            #     result: bool = False
             else:
                 print("else")
                 match booking.booking_source.slug:

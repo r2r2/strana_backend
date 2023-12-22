@@ -141,11 +141,11 @@ class ProcessRegisterCase(BaseAgentCase):
 
     async def _send_confirm_email(self, agent: User, token: str) -> Task:
         url_data: dict[str, Any] = dict(
-            host = self.site_host,
-            route_template = self.confirm_link_route_template,
-            query_params = dict(
-                q = token,
-                p = agent.email_token,
+            host=self.site_host,
+            route_template=self.confirm_link_route_template,
+            query_params=dict(
+                q=token,
+                p=agent.email_token,
             )
         )
         url_dto: UrlEncodeDTO = UrlEncodeDTO(**url_data)

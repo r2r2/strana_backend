@@ -27,6 +27,7 @@ class ClientAmocrmGroupStatusAdminForm(forms.ModelForm):
             "is_hide",
             "show_reservation_date",
             "show_booking_date",
+            "task_chains",
         ]
 
     def __init__(self, *args, **kwargs):
@@ -69,7 +70,7 @@ class ClientAmocrmGroupStatusAdmin(admin.ModelAdmin):
         return qs
 
     def formfield_for_manytomany(self, db_field, request, **kwargs):
-        if db_field.name in ["actions", "tags"]:
+        if db_field.name in ["actions", "tags", "task_chains"]:
             kwargs['widget'] = FilteredSelectMultiple(
                 db_field.verbose_name, is_stacked=False
             )
@@ -77,5 +78,11 @@ class ClientAmocrmGroupStatusAdmin(admin.ModelAdmin):
             return super().formfield_for_manytomany(db_field, request, **kwargs)
         form_field = db_field.formfield(**kwargs)
         msg = "Зажмите 'Ctrl' ('Cmd') или проведите мышкой, с зажатой левой кнопкой, чтобы выбрать несколько элементов."
+        if db_field.name == 'task_chains':
+            msg = (
+                "Выберите цепочки заданий, таски из которых должны отображаться "
+                "на данном статусе в списке броней и деталке брони"
+            )
+
         form_field.help_text = msg
         return form_field

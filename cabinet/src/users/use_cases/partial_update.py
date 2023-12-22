@@ -86,11 +86,11 @@ class PartialUpdateCase(BaseUserCase):
         Отправка письма
         """
         url_data: dict[str, Any] = dict(
-            host = self.site_host,
-            route_template = self.common_link_route_template,
-            query_params = dict(
-                q = token,
-                p = user.email_token,
+            host=self.site_host,
+            route_template=self.common_link_route_template,
+            query_params=dict(
+                q=token,
+                p=user.email_token,
             )
         )
         url_dto: UrlEncodeDTO = UrlEncodeDTO(**url_data)

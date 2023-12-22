@@ -1,3 +1,4 @@
+from enum import IntEnum
 from typing import Any, Type, Callable, Union
 
 from ..constants import BookingSubstages, BookingStages
@@ -8,6 +9,14 @@ from ..mixins import BookingLogMixin
 from ..repos import BookingRepo, Booking
 from ..types import BookingSqlUpdateRequest, BookingProfitBase, BookingAmoCRM, BookingPropertyRepo
 from ..loggers.wrappers import booking_changes_logger
+
+
+class LeadStatuses(IntEnum):
+    """
+     Статусы закрытых сделок в амо.
+    """
+    REALIZED: int = 142  # Успешно реализовано
+    UNREALIZED: int = 143  # Закрыто и не реализовано
 
 
 class BookingDeleteCase(BaseBookingCase, BookingLogMixin):

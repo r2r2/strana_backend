@@ -11,3 +11,4 @@ from .email_footer import EmailFooterTemplate
 from .event_qrcode_sms import QRcodeSMSNotify, QRcodeSMSCityThrough, QRcodeSMSEventListThrough, QRCodeSMSGroupThrough
 from .template_content import TemplateContent
 from .rop import RopEmailsDispute
+from .sberbank_invoice_log import SberbankInvoiceLog

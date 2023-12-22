@@ -337,6 +337,9 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         BOOKING: int = 29096401  # Бронь
         PAID_BOOKING: int = 45598284  # Платная бронь
         MORTGAGE_LEAD: int = 29096404  # Заявка на ипотеку
+        APPLY_FOR_A_MORTGAGE: int = 29096404  # Подать на ипотеку
+        MORTGAGE_FILED: int = 45598290  # Ипотека подана
+        MORTGAGE_DONE: int = 45598293  # Ипотека одобрена
         DDU_PROCESS: int = 29096407  # Оформление ДДУ
         CONFIRMATION: int = 29096410  # Согласование
         DDU_SIGNING: int = 29096413  # Подписание ДДУ с клиентом
@@ -511,6 +514,8 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         """
         Lead lookup by id
         """
+        if lead_id is None:
+            return None
         route: str = f"/leads/{lead_id}"
         query: dict[str, Any] = {}
         if query_with:
@@ -723,7 +728,19 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         meeting_type_next_contact: Optional[str] = None,
         tags: Optional[list[AmoTag]] = None,
         payment_type_enum: Optional[int] = None,
-        tilda_offer_amo: Optional[dict] = None
+        tilda_offer_amo: Optional[dict] = None,
+        online_purchase_status: str | None = None,
+        online_purchase_start_datetime: int | None = None,
+        ddu_acceptance_datetime: Optional[int] = None,
+        ddu_upload_url: Optional[str] = None,
+        send_documents_datetime: Optional[int] = None,
+        online_purchase_id: Optional[str] = None,
+        is_mortgage_approved: Optional[bool] = None,
+        payment_method: Optional[AmoCRMPaymentMethod] = None,
+        booking_end: Optional[int] = None,
+        booking_price: Optional[int] = None,
+        is_agency_deal: Optional[bool] = None,
+        booking_expires_datetime: Optional[int] = None,
     ):
         route: str = f"/leads/{lead_id}"
         custom_fields = []
@@ -836,6 +853,73 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
                 dict(
                     field_id=self.commercial_offer_field_id,
                     values=[dict(value=str(tilda_offer_amo).replace("'", '"').replace("None", "null"))]
+                )
+            )
+        # Статус онлайн-покупки
+        if online_purchase_status is not None:
+            custom_fields.append(
+                dict(
+                    id=self.booking_online_purchase_status_field_id,
+                    values=[self.online_purchase_status_map[online_purchase_status]],
+                )
+            )
+        # Дата и время начала онлайн-покупки
+        if online_purchase_start_datetime is not None:
+            custom_fields.append(
+                dict(
+                    id=self.booking_online_purchase_start_datetime_field_id,
+                    values=[dict(value=online_purchase_start_datetime)],
+                )
+            )
+        # Дата и время согласования договора
+        if ddu_acceptance_datetime is not None:
+            custom_fields.append(
+                dict(
+                    id=self.booking_ddu_acceptance_datetime_field_id,
+                    values=[dict(value=ddu_acceptance_datetime)],
+                )
+            )
+        # Ипотека одобрена?
+        if is_mortgage_approved is not None:
+            custom_fields.append(
+                dict(
+                    id=self.booking_is_mortgage_approved_field_id,
+                    values=[dict(value="да" if is_mortgage_approved else "нет")],
+                )
+            )
+        # Форма для загрузки ДДУ
+        if ddu_upload_url is not None:
+            custom_fields.append(
+                dict(id=self.booking_ddu_upload_url_field_id, values=[dict(value=ddu_upload_url)])
+            )
+        # Дата и время отправки документов на регистрацию
+        if send_documents_datetime is not None:
+            custom_fields.append(
+                dict(
+                    id=self.booking_send_documents_datetime_field_id,
+                    values=[dict(value=send_documents_datetime)],
+                )
+            )
+        # ID онлайн-покупки
+        if online_purchase_id is not None:
+            custom_fields.append(
+                dict(
+                    id=self.booking_online_purchase_id_field_id,
+                    values=[dict(value=online_purchase_id)],
+                )
+            )
+
+        if booking_end and booking_price:
+            custom_fields: list[dict[str, Any]] = self._get_lead_payed_custom_fields(
+                booking_end=booking_end, booking_price=booking_price
+            )
+        custom_fields = self._append_is_agency_deal(custom_fields, is_agency_deal)
+        # Дата и время окончания бронирования
+        if booking_expires_datetime:
+            custom_fields.append(
+                dict(
+                    id=self.booking_expires_datetime_field_id,
+                    values=[dict(value=booking_expires_datetime)],
                 )
             )
 
@@ -1094,16 +1178,6 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
                 )
             )
 
-        #  Тип оплаты
-        if payment_method is not None:
-            payment_method_value = AmoCRMPaymentMethodMapping[payment_method]
-            custom_fields.append(
-                dict(
-                    id=self.booking_payment_type_field_id,
-                    values=[payment_method_value],
-                )
-            )
-
         custom_fields = self._append_is_agency_deal(custom_fields, is_agency_deal)
 
         # Ипотека одобрена?
@@ -1166,7 +1240,8 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
 
         return custom_fields
 
-    async def update_showtime(self, lead_id: int) -> list[Any]: # это вообще не используется
+    # deprecated
+    async def update_showtime(self, lead_id: int) -> list[Any]:
         """
         Showtime mutation
         """
@@ -1210,6 +1285,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
             data: list[Any] = []
         return data
 
+    # deprecated
     async def register_lead(self, user_amocrm_id: int) -> list[Any]:
         """
         Register lead creation
@@ -1237,7 +1313,6 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
             data: list[Any] = []
         return data
 
-
     async def register_lead_v4(self, user_amocrm_id: int) -> list[Any]:
         """
         Register lead creation v_4
@@ -1264,6 +1339,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         else:
             data: list[Any] = []
         return data
+
     async def get_leads_pipelines(self) -> list[Any]:
         route: str = '/leads/pipelines'
         response: CommonResponse = await self._request_get_v4(route=route, query={})
@@ -1486,3 +1562,22 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
                 ])
 
         await self._request_post_v4(route=route, payload=payload)
+
+    def get_substatus_id_in_pipeline(self, amocrm_status_id: int, new_substatus: str) -> int | None:
+        if amocrm_status_id in self.tmn_substages:
+            return self.tmn_status_ids[new_substatus]
+
+        if amocrm_status_id in self.msk_substages:
+            return self.msk_status_ids[new_substatus]
+
+        if amocrm_status_id in self.spb_substages:
+            return self.spb_status_ids[new_substatus]
+
+        if amocrm_status_id in self.ekb_substages:
+            return self.ekb_status_ids[new_substatus]
+
+        if amocrm_status_id in self.call_center_substages:
+            return self.call_center_status_ids[new_substatus]
+
+        if amocrm_status_id in self.test_case_substages:
+            return self.test_case_status_ids[new_substatus]

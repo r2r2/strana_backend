@@ -33,6 +33,7 @@ class UpdateMeetingCase(BaseMeetingCase):
     meeting_updated_to_client_mail = "meeting_updated_to_client_mail"
     meeting_updated_to_broker_mail = "meeting_updated_to_broker_mail"
     meeting_updated_to_admin_mail = "meeting_updated_to_admin_mail"
+    meeting_updated_to_admin_mail_client = "meeting_updated_to_admin_mail_client"
     amocrm_link = "https://eurobereg72.amocrm.ru/leads/detail/{id}"
 
     def __init__(
@@ -171,25 +172,24 @@ class UpdateMeetingCase(BaseMeetingCase):
                 mail_event_slug=self.meeting_updated_to_broker_mail,
             )
 
-            if self.__is_strana_lk_2897_enable(user_id=user_id):
-                filters = dict(project_id=update_meeting.project.id)
-                admins = await self.strana_office_admin_repo.list(filters=filters)
+            filters = dict(project_id=update_meeting.project.id)
+            admins = await self.strana_office_admin_repo.list(filters=filters)
 
-                await self.send_email(
-                    recipients=admins,
-                    context=dict(
-                        agent_fio=user.full_name,
-                        meeting_date_before=meeting_date_before,
-                        meeting_date_after=update_meeting.date.strftime("%Y-%m-%d %H:%M:%S"),
-                        agent_phone=user.phone,
-                        client_phone=update_meeting.booking.user.phone,
-                        booking_link=self.amocrm_link.format(id=update_meeting.booking.amocrm_id),
-                        city=update_meeting.city.name,
-                        project=update_meeting.project.name,
-                        property_type=MeetingPropertyType().to_label(update_meeting.property_type),
-                    ),
-                    mail_event_slug=self.meeting_updated_to_admin_mail,
-                )
+            await self.send_email(
+                recipients=admins,
+                context=dict(
+                    agent_fio=user.full_name,
+                    meeting_date_before=meeting_date_before,
+                    meeting_date_after=update_meeting.date.strftime("%Y-%m-%d %H:%M:%S"),
+                    agent_phone=user.phone,
+                    client_phone=update_meeting.booking.user.phone,
+                    booking_link=self.amocrm_link.format(id=update_meeting.booking.amocrm_id),
+                    city=update_meeting.city.name,
+                    project=update_meeting.project.name,
+                    property_type=MeetingPropertyType().to_label(update_meeting.property_type),
+                ),
+                mail_event_slug=self.meeting_updated_to_admin_mail,
+            )
         elif user.type == UserType.CLIENT:
             await self.update_task_instance_status_service(
                 booking_id=update_meeting.booking_id,
@@ -200,6 +200,26 @@ class UpdateMeetingCase(BaseMeetingCase):
                     recipients=[user],
                     context=dict(meeting=update_meeting, user=user),
                     mail_event_slug=self.meeting_updated_to_broker_mail,
+                )
+
+            if self.__is_strana_lk_3116_enable(user_id=user.id):
+                filters = dict(project_id=update_meeting.project.id)
+                admins = await self.strana_office_admin_repo.list(filters=filters)
+
+                await self.send_email(
+                    recipients=admins,
+                    context=dict(
+                        client_fio=user.full_name,
+                        meeting_date_before=meeting_date_before,
+                        meeting_date_after=update_meeting.date.strftime("%Y-%m-%d %H:%M:%S"),
+                        agent_phone=update_meeting.booking.agent.phone if update_meeting.booking.agent else None,
+                        client_phone=user.phone,
+                        booking_link=self.amocrm_link.format(id=update_meeting.booking.amocrm_id),
+                        city=update_meeting.city.name,
+                        project=update_meeting.project.name,
+                        property_type=MeetingPropertyType().to_label(update_meeting.property_type),
+                    ),
+                    mail_event_slug=self.meeting_updated_to_admin_mail_client,
                 )
 
         await self.send_email(
@@ -249,6 +269,6 @@ class UpdateMeetingCase(BaseMeetingCase):
         amo_date_timestamp: float = amo_date_diff.timestamp()
         return amo_date_timestamp
 
-    def __is_strana_lk_2897_enable(self, user_id: int) -> bool:
+    def __is_strana_lk_3116_enable(self, user_id: int) -> bool:
         context = dict(userId=user_id)
-        return UnleashClient().is_enabled(FeatureFlags.strana_lk_2897, context=context)
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_3116, context=context)

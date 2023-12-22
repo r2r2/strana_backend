@@ -51,7 +51,7 @@ class ConfirmEmailCase(BaseAgentCase):
         )
         url_data: dict[str, Any] = dict(
             host=self.site_host,
-            route_template = self.common_link_route_template,
+            route_template=self.common_link_route_template,
         )
         url_dto: UrlEncodeDTO = UrlEncodeDTO(**url_data)
         link: str = generate_notify_url(url_dto=url_dto)

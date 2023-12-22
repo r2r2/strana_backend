@@ -5,9 +5,7 @@ from typing import Any
 from pytz import UTC
 
 from common import email
-from common.unleash.client import UnleashClient
 from config import amocrm_config, site_config
-from config.feature_flags import FeatureFlags
 from src.admins.repos import AdminRepo
 from src.agents.exceptions import AgentNotFoundError
 from src.agents.repos import AgentRepo
@@ -106,8 +104,12 @@ class CheckDisputeCase(BaseCheckCase):
         )
 
         mail_data: dict[str:Any] = dict(
-            agent_name=f"{agent.name} {agent.patronymic} {agent.surname}",
-            client_name=f"{user.name} {user.patronymic} {user.surname}",
+            agent_name=f"{agent.name if agent.name else ''}"
+                       f"{' ' + agent.patronymic if agent.patronymic else ''}"
+                       f"{' ' + agent.surname if agent.surname else ''}",
+            client_name=f"{user.name if user.name else ''}"
+                        f"{' ' + user.patronymic if user.patronymic else ''}"
+                        f"{' ' + user.surname if user.surname else ''}",
             client_phone=user.phone,
             agent_phone=agent.phone,
             amocrm_link=self._generate_amocrm_link(check.amocrm_id),
@@ -115,33 +117,27 @@ class CheckDisputeCase(BaseCheckCase):
             client_comment=payload.comment,
             client_email=user.email,
         )
-        if self.__is_strana_lk_2949_enable(user_id=dispute_agent_id):
-            if check.button_slug == self.want_dispute_slug:
-                await self.send_check_admins_email(
-                    check=check,
-                    mail_event_slug=self.mail_event_want_dispute_slug,
-                    data=mail_data,
-                )
-            elif check.button_slug == self.want_work_slug:
-                mail_data.update(dict(
-                    city=check.project.city.name,
-                    project=check.project.name,
-                ))
-                filters = dict(
-                    project_id=check.project.id,
-                )
-                rops = await self.rop_email_dispute_repo.list(filters=filters)
-                await self.send_check_admins_email(
-                    check=check,
-                    mail_event_slug=self.mail_event_want_work_slug,
-                    data=mail_data,
-                    additional_recipients_emails=[rop.email for rop in rops],
-                )
-        else:
+
+        if check.button_slug == self.want_dispute_slug:
             await self.send_check_admins_email(
                 check=check,
                 mail_event_slug=self.mail_event_want_dispute_slug,
                 data=mail_data,
+            )
+        elif check.button_slug == self.want_work_slug:
+            mail_data.update(dict(
+                city=check.project.city.name,
+                project=check.project.name,
+            ))
+            filters = dict(
+                project_id=check.project.id,
+            )
+            rops = await self.rop_email_dispute_repo.list(filters=filters)
+            await self.send_check_admins_email(
+                check=check,
+                mail_event_slug=self.mail_event_want_work_slug,
+                data=mail_data,
+                additional_recipients_emails=[rop.email for rop in rops],
             )
 
         return check
@@ -154,7 +150,3 @@ class CheckDisputeCase(BaseCheckCase):
         Example: https://eurobereg72.amocrm.ru/leads/detail/32152190
         """
         return f"{self.amocrm_host}/leads/detail/{leads_id}"
-
-    def __is_strana_lk_2949_enable(self, user_id: int) -> bool:
-        context = dict(userId=user_id)
-        return UnleashClient().is_enabled(FeatureFlags.strana_lk_2949, context=context)

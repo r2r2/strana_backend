@@ -19,6 +19,17 @@ class ClientAmocrmGroupStatus(Model):
     show_reservation_date: bool = fields.BooleanField(description="Выводить дату резерва", default=False)
     show_booking_date: bool = fields.BooleanField(description="Выводить дату брони", default=False)
 
+    task_chains: fields.ManyToManyRelation["TaskChain"] = fields.ManyToManyField(
+        model_name="models.TaskChain",
+        related_name="taskchain_client_group_statuses",
+        through="taskchain_client_group_status_through",
+        description="Цепочки заданий",
+        null=True,
+        on_delete=fields.SET_NULL,
+        backward_key="client_group_status_id",
+        forward_key="task_chain_id",
+    )
+
     booking_tags: fields.ManyToManyRelation["BookingTag"]
     statuses: fields.ReverseRelation["AmocrmStatus"]
 
@@ -27,6 +38,34 @@ class ClientAmocrmGroupStatus(Model):
 
     class Meta:
         table = "client_amocrm_group_statuses"
+
+
+class TaskChainClientGroupStatusThrough(Model):
+    """
+    Связь между цепочками заданий и группирующими статусами
+    """
+    id: int = fields.IntField(description='ID', pk=True)
+    task_chain: fields.ForeignKeyRelation["TaskChain"] = fields.ForeignKeyField(
+        model_name="models.TaskChain",
+        related_name="taskchain_client_group_status_through",
+        description="Цепочки заданий",
+        null=True,
+        on_delete=fields.CASCADE,
+        backward_key="task_chain_id",
+        forward_key="client_group_status_id",
+    )
+    client_group_status: fields.ForeignKeyRelation["ClientAmocrmGroupStatus"] = fields.ForeignKeyField(
+        model_name="models.ClientAmocrmGroupStatus",
+        related_name="taskchain_client_group_status_through",
+        description="Группирующие статусы",
+        null=True,
+        on_delete=fields.CASCADE,
+        backward_key="client_group_status_id",
+        forward_key="task_chain_id",
+    )
+
+    class Meta:
+        table = "taskchain_client_group_status_through"
 
 
 class ClientAmocrmGroupStatusRepo(BaseAmocrmRepo, GenericMixin):

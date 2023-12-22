@@ -75,6 +75,7 @@ coroutines_map: dict[str, Callable[..., Coroutine]] = {
     "generateagentsusers": manage.GenerateAgentsUsers(),
     "updateproperties": manage.UpdatePropertiesManage(),
     "checkpropertiesunique": manage.CheckPropertiesUniqueManage(),
+    "updateinterestproperties": manage.UpdateInterestPropertiesManage(),
     "generateagenciesagents": manage.GenerateAgenciesAgents(),
     "checkprofitbase": manage.CheckPropertyProfitbase(),
     "historyprofitbase": manage.HistoryPropertyProfitbase(),

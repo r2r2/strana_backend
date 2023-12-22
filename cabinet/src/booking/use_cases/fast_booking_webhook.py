@@ -431,8 +431,9 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
             )
             data: dict[str, Any] = dict(
                 host=self.site_host,
-                route_template = self.fast_booking_route_template,
-                query_params = query_params,
+                route_template=self.fast_booking_route_template,
+                query_params=query_params,
+                use_ampersand_ascii=True,
             )
             url_dto: UrlEncodeDTO = UrlEncodeDTO(**data)
             fast_booking_link: str = generate_notify_url(url_dto=url_dto)
@@ -457,8 +458,8 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
         )
         data: dict[str, Any] = dict(
             host=self.site_host,
-            route_template = self.fast_booking_route_template,
-            query_params = query_params,
+            route_template=self.fast_booking_route_template,
+            query_params=query_params,
         )
         url_dto: UrlEncodeDTO = UrlEncodeDTO(**data)
         fast_booking_link: str = generate_notify_url(url_dto=url_dto)

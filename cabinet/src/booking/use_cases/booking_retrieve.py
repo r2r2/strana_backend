@@ -8,7 +8,7 @@ from src.task_management.constants import (
     FreeBookingSlug,
     OnlineBookingSlug,
 )
-from src.task_management.repos import TaskStatus
+from src.task_management.repos import TaskStatus, TaskChain
 from src.task_management.utils import (
     get_interesting_task_chain,
     get_booking_tasks,
@@ -67,6 +67,7 @@ class BookingRetrieveCase(BaseBookingCase):
             prefetch_fields=[
                 "ddu__participants",
                 "amocrm_status__group_status",
+                "amocrm_status__client_group_status__task_chains",
                 "task_instances__status__buttons",
                 "task_instances__status__tasks_chain__task_visibility",
                 dict(
@@ -168,18 +169,27 @@ class BookingRetrieveCase(BaseBookingCase):
             booking_id=booking.id,
             task_chain_slug=task_chain_slug,
         )
+        tasks: list[dict | None] = await self._clear_tasks(tasks=tasks, booking=booking)
         return tasks
 
-    async def _clear_tasks(self, tasks: list[dict[str, Any] | None]) -> list[dict[str, Any]]:
+    async def _clear_tasks(
+        self,
+        tasks: list[dict[str, Any] | None],
+        booking: Booking,
+    ) -> list[dict[str, Any] | None]:
         banned_statuses: list[str] = [
             OnlineBookingSlug.PAYMENT_SUCCESS.value,
             FastBookingSlug.PAYMENT_SUCCESS.value,
             FreeBookingSlug.PAYMENT_SUCCESS.value,
         ]
-        return [
-            task for task in tasks
-            if task["task_status"] not in banned_statuses
-        ]
+        cleared_tasks: list[dict | None] = []
+        for task in tasks:
+            task_chain: TaskChain = await get_interesting_task_chain(status=task["task_status"])
+            valid_task_chain: bool = task_chain in booking.amocrm_status.client_group_status.task_chains
+            valid_task_status: bool = task["task_status"] not in banned_statuses
+            if valid_task_chain and valid_task_status:
+                cleared_tasks.append(task)
+        return cleared_tasks
 
     async def _get_task_chain_statuses(self, status: str) -> list[TaskStatus] | None:
         task_chain = await get_interesting_task_chain(status=status)

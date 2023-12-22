@@ -161,6 +161,28 @@ async def resend_confirm_letter_view(
     return await resend_letter(repres_id)
 
 
+@router.get("/reset_password",
+            status_code=HTTPStatus.PERMANENT_REDIRECT,
+            summary="Сброс пароля")
+async def reset_password_view(
+    request: Request, token: str = Query(..., alias="q"), discard_token: str = Query(..., alias="p")
+):
+    """
+    Служебный эндпоинт для сброса пароля
+    """
+    resources: dict[str, Any] = dict(
+        site_config=site_config,
+        auth_config=auth_config,
+        session=request.session,
+        session_config=session_config,
+        repres_repo=represes_repos.RepresRepo,
+        user_type=users_constants.UserType.REPRES,
+        token_decoder=security.decode_email_token,
+    )
+    reset_password: use_cases.ResetPasswordCase = use_cases.ResetPasswordCase(**resources)
+    return RedirectResponse(url=await reset_password(token=token, discard_token=discard_token))
+
+
 @router.get("/reset_available",
             status_code=HTTPStatus.OK,
             response_model=models.ResponseResetAvailableModel,

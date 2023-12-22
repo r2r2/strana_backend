@@ -240,15 +240,18 @@ class ImportMeetingFromAmoService(BaseMeetingService):
             booking_amocrm_substage = BookingSubstages.MAKE_APPOINTMENT
 
         if amocrm_status and booking_amocrm_substage:
+            filters = dict(amocrm_id=webhook_lead.lead_id)
             booking_data = dict(
                 active=True,
                 amocrm_substage=booking_amocrm_substage,
                 project_id=project.id if project else None,
                 amocrm_status_id=amocrm_status.id if amocrm_status else None,
-                amocrm_id=webhook_lead.lead_id,
                 user_id=user.id,
             )
-            return await self.booking_repo.create(booking_data)
+            return await self.booking_repo.update_or_create(
+                filters=filters,
+                data=booking_data,
+            )
 
     def _parse_meeting_data(self, webhook_lead: WebhookLead) -> dict:
         """

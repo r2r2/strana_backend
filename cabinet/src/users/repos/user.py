@@ -291,6 +291,10 @@ class User(Model):
             ("type", "email"),
             ("type", "username"),
             ("type", "amocrm_id"),
+            ("role_id", "phone"),
+            ("role_id", "email"),
+            ("role_id", "username"),
+            ("role_id", "amocrm_id"),
         )
         ordering = ["-created_at"]
 

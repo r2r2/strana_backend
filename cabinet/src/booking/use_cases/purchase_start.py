@@ -96,7 +96,7 @@ class PurchaseStartCase(BaseBookingCase, BookingLogMixin):
         """amocrm hook"""
         amocrm: AmoCRM
         async with await self.amocrm_class() as amocrm:
-            # Ставим тег "онлайн-покупка" в сделке
+            # Ставим тег "онлайн-покупка" в сделке.
             # Меняем значение свойства "статус онлайн-покупки" на "приступил к онлайн-покупке"
             # Заполняем поле "дата и время начала онлайн-покупки"
             data: list[Any] = await amocrm.update_lead(

@@ -8,7 +8,9 @@ from common.amocrm import AmoCRM
 from common.amocrm.constants import AmoContactQueryWith
 from common.amocrm.types import AmoContact, AmoLead
 from common.redis import Redis, broker as redis
+from common.unleash.client import UnleashClient
 from common.utils import partition_list
+from config.feature_flags import FeatureFlags
 from src.users.constants import UserPinningStatusType
 from src.users.entities import BaseUserService
 from src.users.exceptions import UserNotFoundError
@@ -106,23 +108,27 @@ class CheckPinningStatusService(BaseUserService):
         self.amocrm_class: type[AmoCRM] = amocrm_class
         self.partition_limit: int = amocrm_config["partition_limit"]
 
-        self.logger = structlog.get_logger(__name__)
+        self.logger = structlog.get_logger(self.__class__.__name__)
         self.request_limit = 5
         self.amocrm_rate_limiter = TokenBucketRateLimiter(max_tokens=self.request_limit, refill_rate=self.request_limit)
         self.lock = asyncio.Lock()
 
-    async def __call__(self, user_id: int) -> None:
+    async def __call__(
+        self,
+        user_id: int,
+        lead_id: int | None = None,
+    ) -> None:
         filters: dict[str, Any] = dict(id=user_id)
         user: User = await self.user_repo.retrieve(filters=filters)
         if not user:
             raise UserNotFoundError
 
-        status: UniqueStatus = await self._check_user(user)
+        status: UniqueStatus = await self._check_user(user, lead_id)
         await self.user_pinning_repo.update_or_create(
             filters=dict(user=user), data=dict(unique_status=status)
         )
 
-    async def _check_user(self, user: User) -> UniqueStatus:
+    async def _check_user(self, user: User, lead_id: int | None = None) -> UniqueStatus:
         async with await self.amocrm_class() as amocrm:
             await self.amocrm_rate_limiter.wait_and_acquire(num_tokens=2, timeout=3 * 60)
             async with self.lock:
@@ -135,6 +141,9 @@ class CheckPinningStatusService(BaseUserService):
                 leads = await self._one_contact_case(contacts=contacts)
             else:
                 leads = await self._some_contacts_case(contacts=contacts)
+
+            if lead_id and self.__is_strana_lk_3183_enable:
+                leads = [lead_id]
 
             status: UniqueStatus = await self._check_contact_leads(amocrm=amocrm, leads=leads)
             return status
@@ -218,3 +227,7 @@ class CheckPinningStatusService(BaseUserService):
         Wrap into a task object
         """
         return asyncio.create_task(self(user_id=user_id))
+
+    @property
+    def __is_strana_lk_3183_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_3183)

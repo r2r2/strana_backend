@@ -19,8 +19,6 @@ class ChangePhoneCase(BaseRepresCase):
     sms_event_slug = "repres_change_phone_old"
     link: str = "https://{}/confirm/represes/confirm_phone?q={}&p={}"
     link_route_template: str = "/confirm/represes/confirm_phone"
-    
-
     fail_link: str = "https://{}/account/represes"
     success_link: str = "https://{}/account/represes"
 

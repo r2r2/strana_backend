@@ -198,9 +198,9 @@ class DDUCreateCase(BaseBookingCase):
         )
 
         ddu_upload_data:  dict[str, Any] = dict(
-            host = self.main_site_host,
-            route_template = self.route_template,
-            query_params = dict(
+            host=self.main_site_host,
+            route_template=self.route_template,
+            query_params=dict(
                 secret=ddu_upload_url_secret, 
                 booking_id=booking.id
             )
@@ -469,6 +469,8 @@ class DDUCreateCase(BaseBookingCase):
         )
         async with await self.amocrm_class() as amocrm:
             lead: Optional[AmoLead] = await amocrm.fetch_lead(lead_id=booking.amocrm_id)
+            new_status_id = amocrm.get_substatus_id_in_pipeline(
+                booking.amocrm_status_id, BookingSubstages.APPLY_FOR_A_MORTGAGE)
 
         amocrm_booking_status: str = amocrm.get_lead_substage(lead.status_id)
 
@@ -492,7 +494,7 @@ class DDUCreateCase(BaseBookingCase):
                 user_name=user_name,
                 ddu_data=ddu_data,
             )
-            await amocrm.create_note_v4(
+            await amocrm.create_note(
                 lead_id=booking.amocrm_id, text=note_text, element="lead", note="common"
             )
             await self._update_genders(booking, ddu_participants, amocrm)

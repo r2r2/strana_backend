@@ -15,7 +15,7 @@ from .booking_tag import (
     BookingTagsBookingSourceThrough,
 )
 from .broker_group_statuses import AmocrmGroupStatus, GroupStatusActionThrough
-from .client_group_statuses import ClientAmocrmGroupStatus
+from .client_group_statuses import ClientAmocrmGroupStatus, TaskChainClientGroupStatusThrough
 from .pipelines import AmocrmPipeline
 from .statuses import AmocrmStatus
 from .payment_methods import PaymentMethod

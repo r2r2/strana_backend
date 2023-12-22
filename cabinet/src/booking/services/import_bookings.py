@@ -174,6 +174,7 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
                         )
                         self.logger.info(f"Для клиента {user.id=} найдено сделок, в количестве - {len(leads)} шт.")
                         for lead in leads:
+                            self.logger.info(f"Для клиента {user.id=} инициирован импорт сделки с {lead.id=}")
                             await self._update_lead(
                                 lead=lead,
                                 booking_ids=booking_ids,
@@ -298,15 +299,17 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
                 if purchase_type_enum:
                     purchase_amo: Optional[PurchaseAmoMatrix] = await self.purchase_amo_matrix_repo.retrieve(
                         filters=dict(amo_payment_type=purchase_type_enum),
+                        related_fields=["mortgage_type", "payment_method"],
                     )
                     if not purchase_amo:
                         purchase_amo: PurchaseAmoMatrix = await self.purchase_amo_matrix_repo.retrieve(
                             filters=dict(default=True),
+                            related_fields=["mortgage_type", "payment_method"],
                         )
                     booking_purchase_data = dict(
                         amo_payment_method=purchase_amo.payment_method,
                         mortgage_type=purchase_amo.mortgage_type,
-                    )
+                    ) if purchase_amo else None
 
         property_type: str = property_type or property_str_type
         if property_id and property_type:

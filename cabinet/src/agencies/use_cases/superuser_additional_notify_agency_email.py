@@ -56,7 +56,7 @@ class SuperuserAdditionalNotifyAgencyEmailCase(BaseAgencyCase):
             if agency.maintainer and agency.maintainer.email and project_names:
                 url_data: dict[str, Any] = dict(
                     host=site_config["broker_site_host"],
-                    route_template = self.link_route_template,
+                    route_template=self.link_route_template,
                 )
                 url_dto: UrlEncodeDTO = UrlEncodeDTO(**url_data)
                 update_link: str = generate_notify_url(url_dto=url_dto)

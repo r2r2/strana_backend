@@ -19,6 +19,7 @@ from src.notifications.services import GetEmailTemplateService
 from common.schemas import UrlEncodeDTO
 from common.utils import generate_notify_url
 
+
 class SetPasswordCase(BaseRepresCase):
     """
     Установка пароля
@@ -96,10 +97,10 @@ class SetPasswordCase(BaseRepresCase):
     async def _send_email(self, repres: User, token: str) -> Task:
         url_data: dict[str, Any] = dict(
             host=self.site_host,
-            route_template = self.link_route_template,
-            query_params = dict(
-                q = token,
-                p = repres.email_token,
+            route_template=self.link_route_template,
+            query_params=dict(
+                q=token,
+                p=repres.email_token,
             )
         )
         url_dto: UrlEncodeDTO = UrlEncodeDTO(**url_data)

@@ -44,10 +44,25 @@ from ..types import (
 from src.projects.constants import ProjectStatus
 from src.task_management.dto import CreateTaskDTO
 
-MEETING_IN_PROGRESS_STATUSES = [
+MEETING_STATUSES = [
+    AmoCRM.TMNStatuses.MAKE_APPOINTMENT,
+    AmoCRM.TMNStatuses.ASSIGN_AGENT,
+    AmoCRM.TMNStatuses.MEETING,
     AmoCRM.TMNStatuses.MEETING_IN_PROGRESS,
+
+    AmoCRM.MSKStatuses.MAKE_APPOINTMENT,
+    AmoCRM.MSKStatuses.ASSIGN_AGENT,
+    AmoCRM.MSKStatuses.MEETING,
     AmoCRM.MSKStatuses.MEETING_IN_PROGRESS,
+
+    AmoCRM.SPBStatuses.MAKE_APPOINTMENT,
+    AmoCRM.SPBStatuses.ASSIGN_AGENT,
+    AmoCRM.SPBStatuses.MEETING,
     AmoCRM.SPBStatuses.MEETING_IN_PROGRESS,
+
+    AmoCRM.EKBStatuses.MAKE_APPOINTMENT,
+    AmoCRM.EKBStatuses.ASSIGN_AGENT,
+    AmoCRM.EKBStatuses.MEETING,
     AmoCRM.EKBStatuses.MEETING_IN_PROGRESS,
 ]
 
@@ -379,7 +394,7 @@ class AmoCRMWebhookStatusCase(BaseBookingCase, BookingLogMixin):
                 )
 
         elif meeting and meeting.status.slug == MeetingStatusChoice.START \
-                and booking.amocrm_status_id not in MEETING_IN_PROGRESS_STATUSES:
+                and booking.amocrm_status_id not in MEETING_STATUSES:
             finish_meeting_status = await self.meeting_status_repo.retrieve(
                 filters=dict(slug=MeetingStatusChoice.FINISH)
             )
@@ -677,7 +692,7 @@ class AmoCRMWebhookStatusCase(BaseBookingCase, BookingLogMixin):
         """
         Обновление задачи для бронирования
         """
-        status_slug: str | None = task_context.status_slug
+        status_slug: str | None = task_context.status_slug if task_context else None
 
         if status_slug:
             await self.update_task_instance_service(booking_id=booking.id, status_slug=status_slug)

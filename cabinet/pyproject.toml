@@ -101,4 +101,3 @@ plugins = [
 exclude = [
     "venv*",
 ]
-

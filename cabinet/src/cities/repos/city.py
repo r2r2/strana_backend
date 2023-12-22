@@ -43,6 +43,7 @@ class City(Model):
     links: fields.ManyToManyRelation["Link"]
     elements: fields.ManyToManyRelation["Element"]
     qrcode_sms: fields.ManyToManyRelation["QRcodeSMSNotify"]
+    mortgage_text_blocks: fields.ManyToManyRelation["MortgageTextBlock"]
 
     def __repr__(self):
         return self.name

@@ -158,7 +158,7 @@ class BookingCurrentClientCase(BaseUserCase):
             if contacts:
                 amocrm_id: int = contacts[0].id
             else:
-                created_contact: list[dict] = await amocrm.create_contact_v4(
+                created_contact: list[dict] = await amocrm.create_contact(
                     user_phone=payload.phone,
                     user_email=payload.email,
                     user_name=payload.full_name,

@@ -71,7 +71,7 @@ class GetDashboardListCase(BaseDashboardCase):
             user = await self.user_repo.retrieve(filters=dict(id=user_id),
                                                  prefetch_fields=[dict(relation="bookings", queryset=bookings_qs,
                                                                        to_attr="bookings_list")])
-            if user.bookings_list:
+            if user and user.bookings_list:
                 user_has_success_booking = True
             else:
                 user_has_success_booking = False

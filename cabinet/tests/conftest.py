@@ -41,6 +41,7 @@ from .additional_services.repos_fixtures import *
 from .api_integrations.test_depreg import *
 from .events_list.repos_fixtures import *
 from .news.repos_fixtures import *
+from .mortgage.repos_fixtures import *
 
 
 @pytest.fixture
@@ -54,5 +55,4 @@ async def redis():
     redis = getattr(import_module("common.redis"), "broker")
     await redis.connect()
     yield redis
-    await redis.flush()
     await redis.disconnect()

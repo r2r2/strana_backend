@@ -5,6 +5,7 @@ from django.urls import include, path
 urlpatterns = [
     path("admin/ckeditor/", include("ckeditor_uploader.urls")),
     path('admin/logs/', include('log_viewer.urls')),
+    path("__debug__/", include("debug_toolbar.urls")),
     path('grappelli/', include('grappelli.urls')),  # grappelli URLS
     path('admin/', admin.site.urls),
     path('admin/', include('users.urls')),

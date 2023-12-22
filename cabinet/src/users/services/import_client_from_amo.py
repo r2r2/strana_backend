@@ -106,11 +106,6 @@ class ImportContactFromAmoService(CreateContactService):
 
             return updated_user
 
-
-
-        updated_user: User = await self.user_repo.create(data=data)
-        return updated_user
-
     def _get_contact_id(self, amo_lead: AmoLead) -> int | None:
         if contacts := amo_lead.embedded.contacts:
             contact: AmoLeadContact = contacts[0]

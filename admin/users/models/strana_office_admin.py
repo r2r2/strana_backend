@@ -21,4 +21,4 @@ class StranaOfficeAdmin(models.Model):
         managed = False
         db_table = "users_strana_office_admin"
         verbose_name = "Администратор офиса"
-        verbose_name_plural = ' 2.12 Администратор офиса "Страна"'
+        verbose_name_plural = '2.12. Администратор офиса "Страна"'

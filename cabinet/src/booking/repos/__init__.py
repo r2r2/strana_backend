@@ -24,3 +24,4 @@ from .purchase_help_text import PurchaseHelpText, PurchaseHelpTextRepo
 from .webhook_request import WebhookRequest, WebhookRequestRepo
 from .payment_page import PaymentPageNotification, PaymentPageNotificationRepo
 from .booking_source import BookingSource, BookingSourceRepo
+from .booking_payments_maintenance import BookingPaymentsMaintenance, BookingPaymentsMaintenanceRepo

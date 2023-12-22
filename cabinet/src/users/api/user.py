@@ -302,6 +302,28 @@ async def client_interests_view(
     return await user_case(user_id=user_id, pagination=pagination, init_filters=init_filters)
 
 
+@router_v2.get(
+    "/clients/interests",
+    status_code=HTTPStatus.OK,
+    response_model=models.ResponseInterestsListProfitId,
+    dependencies=[Depends(dependencies.DeletedUserCheck())]
+)
+async def client_interests_view(
+    user_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.CLIENT)),
+    pagination: paginations.PagePagination = Depends(dependencies.Pagination()),
+    init_filters: models.SlugTypeChoiceFilters = Depends()
+):
+    """
+    Получение предпочтений пользователя по profitbase_id.
+    """
+
+    resources: dict[str: Any] = dict(
+        user_interests_repo=users_repos.InterestsRepo,
+    )
+    user_case: use_cases.UsersInterestsListProfitIdCase = use_cases.UsersInterestsListProfitIdCase(**resources)
+    return await user_case(user_id=user_id, pagination=pagination, init_filters=init_filters)
+
+
 @router.patch(
     "/clients/interests",
     status_code=HTTPStatus.OK,
@@ -330,6 +352,35 @@ async def client_interest_view(
     return await users_interest_case(user_id=user_id, interested_global_ids=interested_global_ids)
 
 
+@router_v2.patch(
+    "/clients/interests",
+    status_code=HTTPStatus.OK,
+    response_model=models.ResponseUsersInterestModel,
+    dependencies=[Depends(dependencies.DeletedUserCheck())],
+)
+async def client_add_interest_view(
+    interested_profitbase_ids: list[int] = Body(...),
+    user_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.CLIENT)),
+):
+    """
+    Добавление предпочтений пользователем по profitbase_id.
+    """
+
+    import_property_service: property_services.ImportPropertyService = \
+        property_services.ImportPropertyServiceFactory.create()
+    resources: dict[str, Any] = dict(
+        user_repo=users_repos.UserRepo,
+        property_repo=properties_repos.PropertyRepo,
+        interests_repo=users_repos.InterestsRepo,
+        agency_repo=agencies_repos.AgencyRepo,
+        import_property_service=import_property_service,
+    )
+    add_users_interest_case: use_cases.UsersInterestProfitIdCase = use_cases.UsersInterestProfitIdCase(
+        **resources
+    )
+    return await add_users_interest_case(user_id=user_id, interested_profitbase_ids=interested_profitbase_ids)
+
+
 @router.patch(
     "/clients/uninterests",
     status_code=HTTPStatus.OK,
@@ -350,6 +401,141 @@ async def clients_users_uninterest_view(
         **resources
     )
     return await agents_users_interest(user_id=user_id, uninterested_global_ids=uninterested_global_ids)
+
+
+@router_v2.patch(
+    "/clients/uninterests",
+    status_code=HTTPStatus.OK,
+    response_model=models.ResponseUsersUninterestModel,
+    dependencies=[Depends(dependencies.DeletedUserCheck())],
+)
+async def clients_users_uninterest_view(
+    user_id: int = Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.CLIENT)),
+    uninterested_profitbase_ids: list[int] = Body(...),
+):
+    """
+    Удаление предпочтений пользователю по profitbase_id.
+    """
+
+    resources: dict[str, Any] = dict(
+        user_repo=users_repos.UserRepo, property_repo=properties_repos.PropertyRepo
+    )
+    remove_users_interest_case: use_cases.UsersUninterestProfitIdCase = use_cases.UsersUninterestProfitIdCase(
+        **resources
+    )
+    return await remove_users_interest_case(user_id=user_id, uninterested_profitbase_ids=uninterested_profitbase_ids)
+
+
+@router.patch(
+    "/managers/interest",
+    status_code=HTTPStatus.OK,
+    response_model=models.ResponseUsersInterestModel,
+    dependencies=[Depends(dependencies.DeletedUserCheck())],
+)
+async def manager_interest_view(
+    interested: list[int] = Depends(
+        dependencies.PropertiesFromGlobalId(properties_repos.PropertyRepo)
+    ),
+    user_id: int = Depends(dependencies.CurrentUserFromAmocrm(users_repos.UserRepo)),
+):
+    """
+    Добавление предпочтений пользователю менеджером.
+    """
+
+    resources: dict[str, Any] = dict(
+        user_repo=users_repos.UserRepo,
+        project_repo=projects_repos.ProjectRepo,
+        property_repo=properties_repos.PropertyRepo,
+        interests_repo=users_repos.InterestsRepo,
+        agency_repo=agencies_repos.AgencyRepo,
+    )
+    users_interest_case: use_cases.UsersInterestCase = use_cases.UsersInterestCase(
+        **resources
+    )
+    payload = models.RequestUsersInterestModel(interested=interested)
+    return await users_interest_case(user_id=user_id, payload=payload)
+
+
+@router_v2.patch(
+    "/managers/interest",
+    status_code=HTTPStatus.OK,
+    response_model=models.ResponseUsersInterestModel,
+    dependencies=[Depends(dependencies.DeletedUserCheck())],
+)
+async def manager_add_interest_view(
+    interested_profitbase_ids: list[int] = Body(...),
+    user_id: int = Depends(dependencies.CurrentUserFromAmocrm(users_repos.UserRepo)),
+):
+    """
+    Добавление предпочтений пользователю менеджером по profitbase_id.
+    """
+
+    import_property_service: property_services.ImportPropertyService = \
+        property_services.ImportPropertyServiceFactory.create()
+    resources: dict[str, Any] = dict(
+        user_repo=users_repos.UserRepo,
+        property_repo=properties_repos.PropertyRepo,
+        interests_repo=users_repos.InterestsRepo,
+        agency_repo=agencies_repos.AgencyRepo,
+        import_property_service=import_property_service,
+    )
+    add_users_interest_case: use_cases.UsersInterestProfitIdCase = use_cases.UsersInterestProfitIdCase(
+        **resources
+    )
+    return await add_users_interest_case(
+        user_id=user_id,
+        interested_profitbase_ids=interested_profitbase_ids,
+        slug_type=users_constants.SlugType.MANAGER,
+    )
+
+
+@router.patch(
+    "/managers/uninterests",
+    status_code=HTTPStatus.OK,
+    response_model=models.ResponseUsersUninterestModel,
+    dependencies=[Depends(dependencies.DeletedUserCheck())],
+)
+async def managers_users_uninterest_view(
+    uninterested: list[int] = Depends(
+        dependencies.PropertiesFromGlobalId(properties_repos.PropertyRepo)
+    ),
+    user_id: int = Depends(dependencies.CurrentUserFromAmocrm(users_repos.UserRepo)),
+):
+    """
+    Удаление предпочтений пользователю менеджером.
+    """
+
+    resources: dict[str, Any] = dict(
+        user_repo=users_repos.UserRepo, property_repo=properties_repos.PropertyRepo
+    )
+    agents_users_interest: use_cases.UsersUninterestCase = use_cases.UsersUninterestCase(
+        **resources
+    )
+    payload = models.RequestUsersUninterestModel(uninterested=uninterested)
+    return await agents_users_interest(user_id=user_id, payload=payload)
+
+
+@router_v2.patch(
+    "/managers/uninterests",
+    status_code=HTTPStatus.OK,
+    response_model=models.ResponseUsersUninterestModel,
+    dependencies=[Depends(dependencies.DeletedUserCheck())],
+)
+async def manager_remove_users_uninterest_view(
+    uninterested_profitbase_ids: list[int] = Body(...),
+    user_id: int = Depends(dependencies.CurrentUserFromAmocrm(users_repos.UserRepo)),
+):
+    """
+    Удаление предпочтений пользователю менеджером по profitbase_id.
+    """
+
+    resources: dict[str, Any] = dict(
+        user_repo=users_repos.UserRepo, property_repo=properties_repos.PropertyRepo
+    )
+    remove_users_interest_case: use_cases.UsersUninterestProfitIdCase = use_cases.UsersUninterestProfitIdCase(
+        **resources
+    )
+    return await remove_users_interest_case(user_id=user_id, uninterested_profitbase_ids=uninterested_profitbase_ids)
 
 
 @router.get(
@@ -1468,6 +1654,7 @@ async def import_clients_and_bookings_from_amo_view(
         booking_repo=booking_repos.BookingRepo,
         amocrm_class=amocrm.AmoCRM,
         user_repo=users_repos.UserRepo,
+        user_role_repo=users_repos.UserRoleRepo,
         check_repo=users_repos.CheckRepo,
         orm_class=Tortoise,
         orm_config=tortoise_config,

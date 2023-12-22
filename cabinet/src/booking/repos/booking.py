@@ -377,6 +377,7 @@ class Booking(Model):
     )
 
     task_instances: fields.ReverseRelation["TaskInstance"]
+    mortgage_dev_tickets: fields.ReverseRelation["MortgageDeveloperTicket"]
     mortgage_type_id: int | None
     property_id: Optional[int]
     project_id: Optional[int]

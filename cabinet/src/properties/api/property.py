@@ -15,12 +15,13 @@ from src.properties import repos as properties_repos
 from src.properties import services, use_cases
 from src.amocrm import repos as amocrm_repos
 from src.properties.factories.services import CheckProfitbasePropertyServiceFactory
+from src.properties.services import GetPropertyPriceService
 from src.task_management.factories import UpdateTaskInstanceStatusServiceFactory, CreateTaskInstanceServiceFactory
 from src.users import repos as users_repos
 from src.users import services as user_services
 from src.notifications import services as notification_services
 from src.notifications import repos as notification_repos
-
+from src.payments import repos as payment_repos
 
 router = APIRouter(prefix="/properties", tags=["Properties"])
 
@@ -119,6 +120,12 @@ async def bind_booking_property(
     check_pinning: user_services.CheckPinningStatusService = user_services.CheckPinningStatusService(**resources)
 
     resources: dict[str, Any] = dict(
+        property_price_repo=payment_repos.PropertyPriceRepo,
+        property_price_type_repo=payment_repos.PropertyPriceTypeRepo,
+    )
+    get_property_price_service: GetPropertyPriceService = GetPropertyPriceService(**resources)
+
+    resources: dict[str, Any] = dict(
         property_repo=properties_repos.PropertyRepo,
         booking_repo=booking_repos.BookingRepo,
         building_booking_type_repo=buildings_repos.BuildingBookingTypeRepo,
@@ -135,6 +142,7 @@ async def bind_booking_property(
         send_sms_to_msk_client_service=send_sms_to_msk_client,
         check_pinning=check_pinning,
         create_task_service=create_task_service,
+        get_property_price_service=get_property_price_service,
     )
     bind_property: use_cases.BindBookingPropertyCase = use_cases.BindBookingPropertyCase(**resources)
     return await bind_property(payload=payload)

@@ -125,6 +125,7 @@ class BookingsFacetsCase(BaseUserCase):
             filters.update(dict(agency_id=agency_id))
 
         search: list[list[dict[str, Any]]] = init_filters.pop("search", [])
+        init_filters.pop("ordering", None)
         filters.update(init_filters)
         if len(search) == 1:
             q_filters: list[Any] = [self.booking_repo.q_builder(or_filters=search[0])]

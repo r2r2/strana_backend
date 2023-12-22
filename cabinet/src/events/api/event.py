@@ -173,16 +173,20 @@ async def send_email_to_agent(
         notification_services.GetEmailTemplateService(
             email_template_repo=notification_repos.EmailTemplateRepo,
         )
-    get_event_notification_task_service: GetEventNotificationTaskService = GetEventNotificationTaskService(
+
+    get_event_sms_notification_service: GetEventNotificationTaskService = GetEventNotificationTaskService(
         event_sms_notification_repo=notification_repos.EventsSmsNotificationRepo,
-        # sending_sms_to_broker_on_event_task=sending_sms_to_broker_on_event_task,
+    )
+    event_notification_task_service: EventNotificationTaskService = EventNotificationTaskService(
+        get_event_sms_notification_service=get_event_sms_notification_service,
+        sending_sms_to_broker_on_event_task=sending_sms_to_broker_on_event_task,
     )
     resources: dict[str, Any] = dict(
         event_repo=EventRepo,
         agent_repo=agents_repos.AgentRepo,
         email_class=email.EmailService,
         get_email_template_service=get_email_template_service,
-        get_event_notification_template_service=get_event_notification_task_service,
+        event_notification_task_service=event_notification_task_service,
     )
     send_email_to_agent_case: EventSendEmailFromAdminCase = EventSendEmailFromAdminCase(**resources)
     return await send_email_to_agent_case(payload=payload, data=data)

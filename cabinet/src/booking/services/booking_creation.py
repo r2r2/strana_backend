@@ -71,15 +71,17 @@ class BookingCreationFromAmoService(BaseBookingService):
         if purchase_type_enum and self.__is_strana_lk_2494_enable:
             purchase_amo: Optional[PurchaseAmoMatrix] = await self.purchase_amo_matrix_repo.retrieve(
                 filters=dict(amo_payment_type=purchase_type_enum),
+                related_fields=["mortgage_type", "payment_method"],
             )
             if not purchase_amo:
                 purchase_amo: PurchaseAmoMatrix = await self.purchase_amo_matrix_repo.retrieve(
                     filters=dict(default=True),
+                    related_fields=["mortgage_type", "payment_method"],
                 )
             booking_purchase_data = dict(
                 amo_payment_method=purchase_amo.payment_method,
                 mortgage_type=purchase_amo.mortgage_type,
-            )
+            ) if purchase_amo else None
 
         booking_data: dict = dict(
             active=True,

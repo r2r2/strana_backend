@@ -1,7 +1,8 @@
 from django.contrib import admin
 from django.contrib.admin import register, SimpleListFilter
+from django.contrib.admin.widgets import FilteredSelectMultiple
 
-from contents.models import Caution, TextBlock, BrokerRegistration, Instruction
+from contents.models import Caution, TextBlock, BrokerRegistration, Instruction, MortgageTextBlock
 
 
 class CautionTypesFilter(SimpleListFilter):
@@ -88,3 +89,32 @@ class BrokerRegistrationAdmin(admin.ModelAdmin):
 class InstructionAdmin(admin.ModelAdmin):
     list_display = ("slug", "link_text")
     search_fields = ("slug", "link_text")
+
+
+@admin.register(MortgageTextBlock)
+class MortgageTextBlockAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "title",
+        "text",
+        "slug",
+        "lk_type",
+    )
+    search_fields = ("slug", "title",)
+    list_filter = ("lk_type",)
+    readonly_fields = (
+        "created_at",
+        "updated_at",
+    )
+
+    def formfield_for_manytomany(self, db_field, request, **kwargs):
+        if db_field.name in ("cities",):
+            kwargs['widget'] = FilteredSelectMultiple(
+                db_field.verbose_name, is_stacked=False
+            )
+        else:
+            return super().formfield_for_manytomany(db_field, request, **kwargs)
+        form_field = db_field.formfield(**kwargs)
+        msg = "Зажмите 'Ctrl' ('Cmd') или проведите мышкой, с зажатой левой кнопкой, чтобы выбрать несколько элементов."
+        form_field.help_text = msg
+        return form_field

@@ -55,10 +55,11 @@ from .update_personal import UpdatePersonalCase
 from .users_booking_retrieve import UserBookingRetrieveCase
 from .users_bookings_case import UsersBookingsCase
 from .users_check_unique_in_base import UserCheckUniqueCase
-from .users_interest import UsersInterestCase, UsersInterestGlobalIdCase
+from .users_interest import UsersInterestCase, UsersInterestGlobalIdCase, UsersInterestProfitIdCase
 from .users_interests_list import UsersInterestsListCase
 from .users_list_case import UsersListCase
-from .users_uninterest import UsersUninterestCase, UsersUninterestGlobalIdCase
+from .users_uninterest import UsersUninterestCase, UsersUninterestGlobalIdCase, UsersUninterestProfitIdCase
 from .validate_code import ValidateCodeCase
 from .get_consultation_type import GetConsultationType
 from .import_clients_and_bookings import ImportClientsAndBookingsModelCase
+from .users_interests_list_profit_id import UsersInterestsListProfitIdCase

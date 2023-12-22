@@ -78,7 +78,7 @@ class BookingListCase(BaseBookingCase):
             related_fields=related_fields,
             prefetch_fields=[
                 "amocrm_status__group_status",
-                "amocrm_status__client_group_status",
+                "amocrm_status__client_group_status__task_chains",
             ],
         )
         for booking in bookings:
@@ -138,7 +138,7 @@ class BookingListCase(BaseBookingCase):
             booking_id=booking.id,
             task_chain_slug=task_chain_slug,
         )
-        tasks: list[dict[str, Any]] = await self._clear_tasks(tasks=tasks)
+        tasks: list[dict | None] = await self._clear_tasks(tasks=tasks, booking=booking)
         return tasks
 
     async def _get_task_chain_slug(self, booking: Booking) -> str:
@@ -243,13 +243,35 @@ class BookingListCase(BaseBookingCase):
                 tags.append(tag)
         return tags
 
-    async def _clear_tasks(self, tasks: list[dict[str, Any] | None]) -> list[dict[str, Any]]:
+    async def _clear_tasks(
+        self,
+        tasks: list[dict[str, Any] | None],
+        booking: Booking,
+    ) -> list[dict[str, Any] | None]:
         banned_statuses: list[str] = [
             OnlineBookingSlug.PAYMENT_SUCCESS.value,
             FastBookingSlug.PAYMENT_SUCCESS.value,
             FreeBookingSlug.PAYMENT_SUCCESS.value,
         ]
-        return [
-            task for task in tasks
-            if task["task_status"] not in banned_statuses
-        ]
+        cleared_tasks: list[dict | None] = []
+        for task in tasks:
+            task_chain: TaskChain = await get_interesting_task_chain(status=task["task_status"])
+            valid_task_chain: bool = await self._is_valid_task_chain(
+                task_chain=task_chain,
+                booking=booking,
+            )
+            valid_task_status: bool = task["task_status"] not in banned_statuses
+            if valid_task_chain and valid_task_status:
+                cleared_tasks.append(task)
+        return cleared_tasks
+
+    async def _is_valid_task_chain(
+        self,
+        task_chain: TaskChain,
+        booking: Booking,
+    ) -> bool:
+        """Проверяем, что сделка подходит под цепочку задач"""
+        if booking.amocrm_status.client_group_status:
+            return task_chain in booking.amocrm_status.client_group_status.task_chains
+        # Если нет связи client_group_status, то предполагаем, что эта задача не должна выводиться в сделке
+        return False

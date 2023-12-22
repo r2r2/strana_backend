@@ -19,7 +19,7 @@ def get_routers() -> list[APIRouter]:
     from src.projects.api import projects_router, projects_router_v2, projects_router_v3
     from src.buildings.api import buildings_router
     from src.properties.api import properties_router
-    from src.favourites.api import favourites_router
+    from src.favourites.api import favourites_router, favourites_router_v2
     from src.represes.api import represes_router
     from src.showtimes.api import showtimes_router
     from src.tips.api import tips_router
@@ -35,7 +35,8 @@ def get_routers() -> list[APIRouter]:
     from src.feature_flags.api import feature_flags_router
     from src.commercial_offers.api import offers_router
     from src.news.api import news_router
-    from src.mortgage_calculator.api import mortgage_router
+    from src.mortgage.api import mortgage_router
+    from src.maintenance.api import maintenance_router
 
     routers: list[APIRouter] = list()
 
@@ -53,6 +54,7 @@ def get_routers() -> list[APIRouter]:
     routers.append(escrow_router)
     routers.append(properties_router)
     routers.append(favourites_router)
+    routers.append(favourites_router_v2)
     routers.append(agencies_router)
     routers.append(pages_router)
     routers.append(notifications_router)
@@ -80,6 +82,7 @@ def get_routers() -> list[APIRouter]:
     routers.append(offers_router)
     routers.append(news_router)
     routers.append(mortgage_router)
+    routers.append(maintenance_router)
 
     return routers
 

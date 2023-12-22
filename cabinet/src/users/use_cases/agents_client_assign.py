@@ -57,6 +57,7 @@ from src.users.repos import (
 from src.users.types import UserHasher
 from src.users.loggers.wrappers import user_changes_logger
 from src.users.utils import get_unique_status
+from ..decorators import assign_maintenance
 
 
 class LeadStatuses(IntEnum):
@@ -189,6 +190,7 @@ class AssignClientCase(BaseUserCase):
                 contact_id=client.amocrm_id, message=message[:100])
             await self.amocrm_log_repo.create(**amocrm_response)
 
+    @assign_maintenance
     async def __call__(
         self,
         payload: RequestAssignClient,
@@ -361,7 +363,7 @@ class AssignClientCase(BaseUserCase):
             if contacts:
                 amocrm_id: int = contacts[0].id
             else:
-                created_contact: list[dict] = await amocrm.create_contact_v4(
+                created_contact: list[dict] = await amocrm.create_contact(
                     user_phone=payload.phone,
                     user_email=payload.email,
                     user_name=payload.full_name,

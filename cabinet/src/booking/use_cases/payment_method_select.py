@@ -298,13 +298,13 @@ class PaymentMethodSelectCase(BaseBookingCase, BookingLogMixin):
             # данные для подачи заявки на ипотеку
             if bank_contact_info is not None:
                 note_text = self._get_bank_contact_info_note_text(bank_contact_info)
-                await amocrm.create_note_v4(
+                await amocrm.create_note(
                     lead_id=booking.amocrm_id, text=note_text, element="lead", note="common"
                 )
 
             if mortgage_request_created:
                 note_text = "Клиент намерен подать заявку на ипотеку через Страну"
-                await amocrm.create_note_v4(
+                await amocrm.create_note(
                     lead_id=booking.amocrm_id, text=note_text, element="lead", note="common"
                 )
 

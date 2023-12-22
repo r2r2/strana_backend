@@ -16,8 +16,18 @@ class News(models.Model):
     short_description = models.TextField(verbose_name="Краткое описание новости", blank=True)
     description = RichTextField(verbose_name="Описание новости")
     is_active = models.BooleanField(verbose_name="Новость активна", default=True)
-    image_preview = models.FileField(verbose_name="Изображение (превью)", null=True, blank=True)
-    image = models.FileField(verbose_name="Изображение", null=True, blank=True)
+    image_preview = models.FileField(
+        verbose_name="Изображение (превью)",
+        upload_to='n/i/p',
+        null=True,
+        blank=True,
+    )
+    image = models.FileField(
+        verbose_name="Изображение",
+        upload_to='n/i/i',
+        null=True,
+        blank=True,
+    )
     pub_date = models.DateTimeField(
         verbose_name="Дата публикации новости",
     )

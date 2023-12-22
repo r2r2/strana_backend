@@ -23,6 +23,8 @@ from src.users.services import SendCheckAdminsEmailService
 from src.users.utils import get_unique_status_button
 from common.schemas import UrlEncodeDTO
 from common.utils import generate_notify_url
+from ..decorators import check_maintenance
+
 
 class UsersCheckCase(BaseUserCase):
     """
@@ -55,6 +57,7 @@ class UsersCheckCase(BaseUserCase):
         self.email_class: Type[AgentEmail] = email_class
         self.send_check_admins_email = send_check_admins_email
 
+    @check_maintenance
     async def __call__(
         self,
         payload: RequestUsersCheckModel,

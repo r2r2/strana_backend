@@ -34,6 +34,7 @@ class GenerateAgentsUsers(object):
 
     def __init__(self):
         self.user_repo: users_repos.UserRepo = users_repos.UserRepo()
+        self.user_role_repo: users_repos.UserRoleRepo = users_repos.UserRoleRepo()
         self.check_repo: users_repos.CheckRepo = users_repos.CheckRepo()
         self.agent_repo: agents_repos.AgentRepo = agents_repos.AgentRepo()
         self.floor_repo: floors_repos.FloorRepo = floors_repos.FloorRepo()
@@ -187,6 +188,7 @@ class GenerateAgentsUsers(object):
                 agent_id = None
                 agency_id = None
 
+            user_role = await self.user_role_repo.retrieve(filters=dict(slug=users_constants.UserType.CLIENT))
             data: dict[str, Any] = dict(
                 is_active=True,
                 agent_id=agent_id,
@@ -197,6 +199,7 @@ class GenerateAgentsUsers(object):
                 work_start=datetime.now(tz=UTC),
                 surname=f"Фамилия_{self._counter}",
                 type=users_constants.UserType.CLIENT,
+                role=user_role,
                 phone=f"{self._phone}{self._counter}",
                 patronymic=f"Отчество_{self._counter}",
                 birth_date=datetime.now(tz=UTC) - timedelta(weeks=2000),

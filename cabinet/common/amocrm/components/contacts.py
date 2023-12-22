@@ -280,6 +280,8 @@ class AmoCRMContacts(AmoCRMInterface, ABC):
         """
         Contact lookup by phone
         """
+        if user_id is None:
+            return None
         if not query_with:
             query_with = []
 
@@ -362,6 +364,45 @@ class AmoCRMContacts(AmoCRMInterface, ABC):
         if response.status == status.HTTP_204_NO_CONTENT:
             return [], amo_request_log
         return self._parse_contacts_data_v4(response=response, method_name='AmoCRM.fetch_contacts'), amo_request_log
+
+    @user_tag_test_wrapper
+    async def create_contact(
+        self,
+        user_phone: str,
+        user_name: Optional[str] = None,
+        first_name: Optional[str] = None,
+        last_name: Optional[str] = None,
+        user_email: Optional[str] = None,
+        tags: list[str] = [],
+    ) -> list[Any]:
+        """
+        Contact creation
+        """
+        route: str = "/contacts"
+        payload: dict[str, Any] = dict(
+            add=[
+                dict(
+                    name=user_name or '',
+                    first_name=first_name or '',
+                    last_name=last_name or '',
+                    tags=self._contact_tags + tags,
+                    created_at=int(datetime.now(tz=UTC).timestamp()),
+                    updated_at=int(datetime.now(tz=UTC).timestamp()),
+                    custom_fields=[
+                        dict(
+                            id=self.phone_field_id,
+                            values=[dict(value=user_phone, enum=self.phone_field_enum)],
+                        ),
+                        dict(
+                            id=self.email_field_id,
+                            values=[dict(value=user_email, enum=self.email_field_enum)]
+                        )
+                    ],
+                )
+            ]
+        )
+        response: CommonResponse = await self._request_post(route=route, payload=payload)
+        return self._parse_contacts_data_v2(response=response, method_name='AmoCRM.create_contact')
 
     @user_tag_test_wrapper
     async def create_contact_v4(
