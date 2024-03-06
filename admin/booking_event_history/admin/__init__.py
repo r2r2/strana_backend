@@ -1,0 +1,5 @@
+from .event import BookingEventAdmin
+from .event_type import EventTypeAdmin
+from .booking_event_history import BookingEventHistoryAdmin
+from .mortgage_application_archive import MortgageApplicationArchiveAdmin
+from .document_archive import DocumentArchiveAdmin
