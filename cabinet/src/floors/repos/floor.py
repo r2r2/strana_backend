@@ -1,11 +1,14 @@
-from typing import Optional
+from typing import Optional, Annotated
 
+from pydantic import Field
 from tortoise import Model, fields
 from tortoise.fields import ForeignKeyNullableRelation
 
 from common import orm
 from src.buildings.repos import Building
 from common.orm.mixins import CreateMixin, UpdateOrCreateMixin, ListMixin
+from common import cfields
+
 from ..entities import BaseFloorRepo
 
 
@@ -23,6 +26,9 @@ class Floor(Model):
     )
     section: fields.ForeignKeyNullableRelation["BuildingSection"] = fields.ForeignKeyField(
         "models.BuildingSection", null=True, on_delete=fields.CASCADE, related_name="section_floors"
+    )
+    plan: Annotated[str, Field(max_length=500)] = cfields.MediaField(
+        description="Планировка", max_length=500, null=True
     )
 
     def __str__(self) -> str:

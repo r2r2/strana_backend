@@ -6,6 +6,7 @@ def get_exceptions() -> OrderedDict[type[Exception], Callable[..., Any]]:
     from common import handlers as common_handlers
     from common.depreg import exceptions as depreg_exceptions
     from common.settings import exceptions as settings_exceptions
+    from common.nextcloud import exceptions as nextcloud_exceptions
     from src.users import exceptions as users_exceptions
     from src.booking import exceptions as booking_exceptions
     from src.properties import exceptions as properties_exceptions
@@ -29,6 +30,7 @@ def get_exceptions() -> OrderedDict[type[Exception], Callable[..., Any]]:
     from src.news import exceptions as news_exceptions
     from common.tilda import exceptions as tilda_exceptions
     from src.mortgage import exceptions as mortgage_exceptions
+    from src.questionnaire import exceptions as questionnaire_exceptions
 
     modules: list[Any] = [
         users_exceptions,
@@ -56,6 +58,8 @@ def get_exceptions() -> OrderedDict[type[Exception], Callable[..., Any]]:
         settings_exceptions,
         news_exceptions,
         mortgage_exceptions,
+        questionnaire_exceptions,
+        nextcloud_exceptions,
     ]
 
     exceptions: OrderedDict[type[Exception], Callable[..., Any]] = OrderedDict()

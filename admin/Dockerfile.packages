@@ -1,4 +1,4 @@
-FROM python:3.11-alpine
+FROM python:3.11-alpine3.18
 ARG POETRY_PARAMS=""
 ENV PYTHONUNBUFFERED 1
 ENV PATH="${PATH}:/root/.local/bin"

@@ -20,6 +20,8 @@ class AmocrmStatusForm(forms.ModelForm):
             ].initial = self.instance.add_service_group_status.all()
 
     def save(self, commit=True):
+        # FIXME может добавить?
+        # self.fields["statuses"].initial.update(add_service_group_status=None)
         self.instance.save()
         if statuses := self.cleaned_data.get("statuses"):
             statuses.update(add_service_group_status=self.instance)

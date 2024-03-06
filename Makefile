@@ -41,4 +41,15 @@ ps:
 logs:
 	docker-compose --env-file $(e) logs $(c)
 
+up_local:
+	docker compose -f docker-compose.backend.yml -f docker-compose.override.yml up db db_cabinet redis admin
 
+run_local:
+	cd cabinet && python manage.py runserver
+
+tests:
+	cd cabinet && pytest tests
+
+
+#rungunicorn:
+#	gunicorn config.asgi:application --preload -w 15 -k uvicorn.workers.UvicornWorker --keep-alive 120 -b 0.0.0.0:8080 --access-logfile - --error-logfile -

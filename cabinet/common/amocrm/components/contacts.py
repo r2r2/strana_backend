@@ -10,12 +10,14 @@ from pydantic import ValidationError, parse_obj_as
 from pytz import UTC
 from starlette import status
 
+from config.feature_flags import FeatureFlags
 from ..constants import AmoContactQueryWith
 from common.amocrm.exceptions import AmoTryAgainLaterError
 from ..types import (AmoContact, AmoContactEmbedded, AmoCustomField,
                      AmoCustomFieldValue, ChoiceField, DateField, DDUData,
-                     GenderField, StringField)
+                     GenderField, StringField, AmoTag)
 from .decorators import user_tag_test_wrapper
+from ...unleash.client import UnleashClient
 
 
 class AmoCRMContacts(AmoCRMInterface, ABC):
@@ -28,6 +30,8 @@ class AmoCRMContacts(AmoCRMInterface, ABC):
         self.logger = logger
 
     broker_tag: str = "Риелтор"
+
+    # deprecated
     _contact_tags: list[str] = []
 
     phone_field_id: int = 362093
@@ -328,6 +332,7 @@ class AmoCRMContacts(AmoCRMInterface, ABC):
         response: CommonResponse = await self._request_get_v4(route=route, query=query)
         if response.status == status.HTTP_204_NO_CONTENT:
             return []
+
         return self._parse_contacts_data_v4(response=response, method_name='AmoCRM.fetch_contacts')
 
     async def fetch_contacts_v2(self,
@@ -367,6 +372,25 @@ class AmoCRMContacts(AmoCRMInterface, ABC):
 
     @user_tag_test_wrapper
     async def create_contact(
+            self,
+            user_phone: str,
+            user_name: str | None = None,
+            first_name: str | None = None,
+            last_name: str | None = None,
+            user_email: str | None = None,
+            tags: list[str] = [],
+    ) -> list[Any]:
+        if self.__is_strana_lk_2882_enable:
+            return await self.create_contact_v4(
+                user_phone, user_name, first_name, last_name, user_email, tags
+            )
+        else:
+            return await self.create_contact_v2(
+                user_phone, user_name, first_name, last_name, user_email, tags
+            )
+
+    # deprecated
+    async def create_contact_v2(
         self,
         user_phone: str,
         user_name: Optional[str] = None,
@@ -402,29 +426,29 @@ class AmoCRMContacts(AmoCRMInterface, ABC):
             ]
         )
         response: CommonResponse = await self._request_post(route=route, payload=payload)
-        return self._parse_contacts_data_v2(response=response, method_name='AmoCRM.create_contact')
+        return self._parse_contacts_data_v2(response=response, method_name='AmoCRM.create_contact_v2')
 
-    @user_tag_test_wrapper
     async def create_contact_v4(
         self,
         user_phone: str,
-        user_name: Optional[str] = None,
-        first_name: Optional[str] = None,
-        last_name: Optional[str] = None,
-        user_email: Optional[str] = None,
-        tags: list[str] = [],
+        user_name: str | None = None,
+        first_name: str | None = None,
+        last_name: str | None = None,
+        user_email: str | None = None,
+        tags: list[str] | None = None,
     ) -> list[Any]:
         """
         Contact creation
         """
         route: str = "/contacts"
-        payload: dict[str, Any] = dict(
-            add=[
+        if tags is None:
+            tags: list[str] = []
+        amo_tags: list[AmoTag] = [AmoTag(name=tag) for tag in tags]
+        payload: list[dict[str, Any]] = [
                 dict(
                     name=user_name or '',
                     first_name=first_name or '',
                     last_name=last_name or '',
-                    tags=self._contact_tags + tags,
                     created_at=int(datetime.now(tz=UTC).timestamp()),
                     updated_at=int(datetime.now(tz=UTC).timestamp()),
                     custom_fields=[
@@ -437,11 +461,12 @@ class AmoCRMContacts(AmoCRMInterface, ABC):
                             values=[dict(value=user_email, enum=self.email_field_enum)]
                         )
                     ],
+                    _embedded=AmoContactEmbedded(tags=amo_tags).dict(exclude_unset=True),
                 )
             ]
-        )
         response: CommonResponse = await self._request_post_v4(route=route, payload=payload)
-        return self._parse_contacts_data_v4(response=response, method_name='AmoCRM.create_contact')
+        items: list[Any] = getattr(response, "data", {}).get("_embedded", {}).get("contacts")
+        return items
 
     async def update_contact(
         self,
@@ -664,9 +689,11 @@ class AmoCRMContacts(AmoCRMInterface, ABC):
             items: list[Any] = getattr(response, "data", {}).get("_embedded", {}).get("contacts")
             return parse_obj_as(list[AmoContact], items)
         except (ValidationError, AttributeError) as err:
+            response_status = response.status
+            response_data = response.data
             self.logger.warning(
-                f"{method_name}: Status {response.status}: "
-                f"Пришли неверные данные: {response.data}"
+                f"{method_name}: Status {response_status}: "
+                f"Пришли неверные данные: {response_data}"
                 f"Exception: {err}"
             )
             raise AmoTryAgainLaterError from err
@@ -679,9 +706,15 @@ class AmoCRMContacts(AmoCRMInterface, ABC):
         try:
             return getattr(response, "data", {}).get("_embedded", {}).get("items", [])
         except AttributeError as err:
+            response_status = response.status
+            response_data = response.data
             self.logger.warning(
-                f"{method_name}: Status {response.status}: "
-                f"Пришли неверные данные: {response.data}"
+                f"{method_name}: Status {response_status}: "
+                f"Пришли неверные данные: {response_data}"
                 f"Exception: {err}"
             )
             return []
+
+    @property
+    def __is_strana_lk_2882_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_2882)

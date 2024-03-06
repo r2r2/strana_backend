@@ -15,8 +15,10 @@ class UserLog(Model, AbstractLogMixin):
     user: ForeignKeyNullableRelation[User] = fields.ForeignKeyField(
         description="Пользователь",
         model_name="models.User",
+        on_delete=fields.SET_NULL,
         related_name="user_logs",
-        null=True
+        null=True,
+        index=True,
     )
 
     class Meta:

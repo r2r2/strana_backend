@@ -31,3 +31,9 @@ class PropertyImportError(BasePropertyException):
     message: str = "Ошибка импорта объекта недвижимости."
     status: int = status.HTTP_400_BAD_REQUEST
     reason: str = "property_import_error"
+
+
+class PropertyIsNotFlatError(BasePropertyException):
+    message: str = "Переданный объект не является квартирой"
+    status: int = status.HTTP_400_BAD_REQUEST
+    reason: str = "property_is_not_flat"

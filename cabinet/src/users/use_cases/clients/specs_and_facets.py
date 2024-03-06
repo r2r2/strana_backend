@@ -36,13 +36,13 @@ class ClientsSpecsCase(BaseUserCase):
 
         # агенты
         agents_filters = filters.copy()
-        agents_filters.update(dict(agent__name__isnull=False))
+        agents_filters.update(dict(agent__surname__isnull=False))
         agents: dict[str, Any] = await self.user_repo.list(
             filters=agents_filters,
             prefetch_fields=["agent"],
         ).order_by("agent__id").distinct().values(
             "agent__id",
-            "agent__name",
+            "agent__surname",
         )
 
         # проекты

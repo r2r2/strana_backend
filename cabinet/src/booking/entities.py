@@ -31,6 +31,12 @@ class BaseBookingRepo(BaseRepo):
     """
 
 
+class BaseDocumentArchiveRepo(BaseRepo):
+    """
+    Базовый репозиторий архива документов
+    """
+
+
 class BaseBookingFilter(BaseModel):
     """
     Базовый фильтр бронирования

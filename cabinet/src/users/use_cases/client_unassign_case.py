@@ -5,8 +5,10 @@ from typing import Type, Any
 from pytz import UTC
 
 from common.amocrm import AmoCRM
-from common.amocrm.constants import AmoElementTypes, AmoTaskTypes
+from common.amocrm.constants import AmoElementTypes, AmoTaskTypes, AmoEntityTypes
 from common.email import EmailService
+from common.unleash.client import UnleashClient
+from config.feature_flags import FeatureFlags
 from src.admins.repos import AdminRepo
 from src.agencies.repos import Agency
 from src.agents.types import AgentEmail, AgentSms
@@ -93,14 +95,25 @@ class UnassignCase(BaseUserCase):
         complete_till_datetime = datetime.datetime.now() + datetime.timedelta(days=2)
 
         async with await self.amocrm_class() as amocrm:
-            await amocrm.create_task(
-                element_id=client_amocrm_id,
-                element_type=AmoElementTypes.CONTACT,
-                task_type=AmoTaskTypes.CALL,
-                text=self.task_message,
-                complete_till=int(complete_till_datetime.timestamp()),
-                responsible_user_id=self.responsible_manager_amocrm_id
-            )
+
+            if self.__is_strana_lk_2882_enable:
+                await amocrm.create_task_v4(
+                    text=self.task_message,
+                    complete_till=int(complete_till_datetime.timestamp()),
+                    entity_id=client_amocrm_id,
+                    entity_type=AmoEntityTypes.CONTACTS,
+                    task_type=AmoTaskTypes.CALL,
+                    responsible_user_id=self.responsible_manager_amocrm_id
+                )
+            else:
+                await amocrm.create_task(
+                    element_id=client_amocrm_id,
+                    element_type=AmoElementTypes.CONTACT,
+                    task_type=AmoTaskTypes.CALL,
+                    text=self.task_message,
+                    complete_till=int(complete_till_datetime.timestamp()),
+                    responsible_user_id=self.responsible_manager_amocrm_id
+                )
 
     async def _set_unassigned_time(self, client: User, agent: User, agency: Agency) -> None:
         """
@@ -120,3 +133,7 @@ class UnassignCase(BaseUserCase):
             unassigned_at=datetime.datetime.now(tz=UTC)
         )
         await self.confirm_client_assign_repo.update(model=confirm_client, data=data)
+
+    @property
+    def __is_strana_lk_2882_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_2882)

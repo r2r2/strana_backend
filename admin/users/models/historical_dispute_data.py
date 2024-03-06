@@ -30,6 +30,7 @@ class HistoricalDisputeData(models.Model):
         related_name='historical_dispute_data_client',
         verbose_name='Клиент',
         help_text='Проверяемый клиент',
+        db_index=True,
     )
     agent = models.ForeignKey(
         "users.CabinetUser",

@@ -13,7 +13,9 @@ from common.amocrm import AmoCRM
 from common.amocrm.types import AmoContact, AmoLead, DDUData
 from common.files.files import FileContainer
 from common.schemas import UrlEncodeDTO
+from common.unleash.client import UnleashClient
 from common.utils import size_to_byte, generate_notify_url
+from config.feature_flags import FeatureFlags
 from src.booking.loggers.wrappers import booking_changes_logger
 from src.booking.repos import (DDU, Booking, BookingRepo, DDUParticipant,
                                DDUParticipantRepo, DDURepo, BookingSource)
@@ -469,9 +471,6 @@ class DDUCreateCase(BaseBookingCase):
         )
         async with await self.amocrm_class() as amocrm:
             lead: Optional[AmoLead] = await amocrm.fetch_lead(lead_id=booking.amocrm_id)
-            new_status_id = amocrm.get_substatus_id_in_pipeline(
-                booking.amocrm_status_id, BookingSubstages.APPLY_FOR_A_MORTGAGE)
-
         amocrm_booking_status: str = amocrm.get_lead_substage(lead.status_id)
 
         if booking.amo_payment_method.name == PaymentMethods.MORTGAGE_LABEL:
@@ -490,13 +489,17 @@ class DDUCreateCase(BaseBookingCase):
             # 1-ый участник ДДУ может быть основным контактом
             user_name = ddu_data.fio[0] if ddu_participants[0].is_main_contact else None
             await amocrm.update_contact(
-                booking.user.amocrm_id,
+                user_id=booking.user.amocrm_id,
                 user_name=user_name,
                 ddu_data=ddu_data,
             )
-            await amocrm.create_note(
-                lead_id=booking.amocrm_id, text=note_text, element="lead", note="common"
-            )
+            if self.__is_strana_lk_2882_enable:
+                await amocrm.create_note_v4(lead_id=booking.amocrm_id, text=note_text)
+            else:
+                await amocrm.create_note(
+                    lead_id=booking.amocrm_id, text=note_text, element="lead", note="common"
+                )
+
             await self._update_genders(booking, ddu_participants, amocrm)
 
     async def _update_genders(
@@ -726,3 +729,7 @@ class DDUCreateCase(BaseBookingCase):
         """Проверка на выполнение условий."""
         if booking.online_purchase_step() != OnlinePurchaseSteps.DDU_CREATE:
             raise BookingWrongStepError
+
+    @property
+    def __is_strana_lk_2882_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_2882)

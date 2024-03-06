@@ -21,6 +21,7 @@ from src.properties.repos import Property, PropertyRepo
 from src.payments.repos import PurchaseAmoMatrix, PurchaseAmoMatrixRepo
 
 from ..constants import BookingStagesMapping, BookingSubstages
+from ..event_emitter_handlers import event_emitter
 from ..repos import Booking, BookingRepo
 from ..types import BookingAmoCRM, BookingGraphQLRequest, BookingORM
 from ...cities.repos import City, CityRepo
@@ -132,7 +133,7 @@ class UpdateBookingsService:
                 leads = await amocrm.fetch_leads(lead_ids=lead_ids)
                 for lead in leads:
                     try:
-                        await self.update_lead(
+                        await self._update_lead(
                             lead=lead,
                             bookings_found_in_amocrm=bookings_found_in_amocrm,
                             booking_map=booking_map,
@@ -146,7 +147,7 @@ class UpdateBookingsService:
         bookings_not_found_in_amocrm = set(booking_map.keys()) - bookings_found_in_amocrm
         await self.deactivate_deleted_bookings(bookings_not_found_in_amocrm)
 
-    async def update_lead(
+    async def _update_lead(
         self,
         *,
         lead: AmoLead,
@@ -254,7 +255,15 @@ class UpdateBookingsService:
         if amocrm_substage and booking.amocrm_substage != amocrm_substage:
             data["amocrm_substage"] = amocrm_substage
 
+        old_group_status = booking.amocrm_substage if booking.amocrm_substage else None
         await self.booking_repo.update(model=booking, data=data)
+
+        event_emitter.ee.emit(
+            event='change_status',
+            booking=booking,
+            user=None,
+            old_group_status=old_group_status,
+        )
         # Если сделка находится в определённом статусе, который не требует проверки наличия квартиры
         # (Фиксация клиента за АН), то пропускаем этот шаг
         if booking.amocrm_substage in [BookingSubstages.ASSIGN_AGENT]:

@@ -3,3 +3,6 @@ from .get_slug_document import GetSlugDocumentCase
 from .get_escrow_document import GetSlugEscrowCase
 from .get_instruction_by_slug import GetSlugInstructionCase
 from .get_document_interaction import GetInteractionDocumentCase
+from .upload_documents import UploadDocumentsCase, UploadDocumentsCaseV2
+from .delete_documents import DeleteDocumentsCase
+from .get_uploaded_documents import GetUploadedDocumentsCase

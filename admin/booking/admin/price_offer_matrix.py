@@ -8,8 +8,9 @@ class PriceOfferMatrixAdmin(admin.ModelAdmin):
     list_display = (
         "name",
         "payment_method",
+        "mortgage_type",
         "price_type",
-        "by_dev",
+        "default",
         "priority",
     )
     fieldsets = (
@@ -19,7 +20,7 @@ class PriceOfferMatrixAdmin(admin.ModelAdmin):
                     "name",
                     "payment_method",
                     "mortgage_type",
-                    "by_dev",
+                    "default",
                 )
             }
         ),

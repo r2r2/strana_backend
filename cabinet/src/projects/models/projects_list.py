@@ -23,12 +23,14 @@ class ProjectListModel(BaseProjectModel):
     slug: Optional[str]
     name: Optional[str]
     city: Optional[Any]
+    city_name: Optional[str]
     status: Optional[ProjectStatus.serializer]
 
     @root_validator
     def validate_city(cls, values: dict[str, Any]) -> dict[str, Any]:
         city = values.pop('city', None)
         values['city'] = city.slug if city else None
+        values['city_name'] = city.name if city else None
         return values
 
     class Config:

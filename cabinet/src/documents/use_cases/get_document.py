@@ -28,36 +28,37 @@ class GetDocumentCase(BaseDocumentCase):
         self.document_key: str = session_config["document_key"]
 
     async def __call__(self) -> Document:
-        document_info: dict[str, Any] = await self.session.get(self.document_key)
-        if (
-            document_info
-            and document_info["city"] is not None
-            and document_info["address"] is not None
-            and document_info["premise"] is not None
-            and document_info["premise"] is not None
-            and document_info["period"] is not None
-
-        ):
-            city: str = document_info["city"]
-            address: str = document_info["address"]
-            premise: str = document_info["premise"]
-            price: int = document_info["price"]
-            try:
-                period: int = int(document_info["period"])
-            except ValueError:
-                raise DocumentNotFoundError
-        else:
-            raise DocumentNotFoundError
+        # document_info: dict[str, Any] = await self.session.get(self.document_key)
+        # if (
+        #     document_info
+        #     and document_info["city"] is not None
+        #     and document_info["address"] is not None
+        #     and document_info["premise"] is not None
+        #     and document_info["premise"] is not None
+        #     and document_info["period"] is not None
+        #
+        # ):
+        #     city: str = document_info["city"]
+        #     address: str = document_info["address"]
+        #     premise: str = document_info["premise"]
+        #     price: int = document_info["price"]
+        #     try:
+        #         period: int = int(document_info["period"])
+        #     except ValueError:
+        #         raise DocumentNotFoundError
+        # else:
+        #     raise DocumentNotFoundError
+        city = "reglament"
         filters: dict[str, Any] = dict(slug=city)
         document: Document = await self.document_repo.retrieve(filters=filters)
         if not document:
             raise DocumentNotFoundError
 
         document.text = document.text.format(
-            address=address,
-            premise=premise,
-            price=self._get_price_text(price),
-            period=self._get_period_text(period),
+            address="address",
+            premise="premise",
+            price=5000,
+            period=self._get_period_text(10),
         )
         return document
 

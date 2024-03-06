@@ -42,6 +42,7 @@ class AmoCRMCompanies(AmoCRMInterface, ABC):
 
     agency_tag: str = "АН"
     inn_field_id: int = 682719
+    agency_city: int = 826426
 
     state_registration_number_field_id = 812904
     legal_address_field_id = 812900

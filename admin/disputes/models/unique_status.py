@@ -107,10 +107,6 @@ class UniqueStatus(models.Model):
         blank=True,
         help_text="Внутренний комментарий по назначению статуса",
     )
-    can_dispute = models.BooleanField(
-        verbose_name="Можно оспорить статус клиента",
-        default=False,
-    )
     stop_check = models.BooleanField(
         verbose_name="Остановить проверку",
         default=False,

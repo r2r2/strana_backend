@@ -4,6 +4,7 @@ from common.amocrm.types import AmoLead
 from common.getdoc.types import project_filename_mapping
 from config import EnvTypes, maintenance_settings
 from fastapi import UploadFile
+from src.booking.repos import TestBookingRepo
 from src.projects.repos import Project
 from src.users.repos import User
 
@@ -16,6 +17,7 @@ from ..types import (AgencyAmoCRM, AgencyFileProcessor, AgencyGetDoc,
 from ..loggers.wrappers import agency_changes_logger
 
 
+# TODO Где используется?
 class RepresAgenciesFileCase(BaseAgencyCase):
     """
     Получение договора агентства
@@ -34,6 +36,7 @@ class RepresAgenciesFileCase(BaseAgencyCase):
         getdoc_class: Type[AgencyGetDoc],
         amocrm_class: Type[AgencyAmoCRM],
         project_repo: Type[AgencyProjectRepo],
+        test_booking_repo: Type[TestBookingRepo],
     ) -> None:
         self._booking_substages: Any = booking_substages
         self._agency_repo: AgencyRepo = agency_repo()
@@ -42,6 +45,7 @@ class RepresAgenciesFileCase(BaseAgencyCase):
         )
         self._user_repo: AgencyUserRepo = user_repo()
         self._project_repo: AgencyProjectRepo = project_repo()
+        self._test_booking_repo: TestBookingRepo = test_booking_repo()
         self._file_processor: Type[AgencyFileProcessor] = file_processor
         self._getdoc_class: Type[AgencyGetDoc] = getdoc_class
         self._amocrm_class: Type[AgencyAmoCRM] = amocrm_class
@@ -88,10 +92,14 @@ class RepresAgenciesFileCase(BaseAgencyCase):
         async with self._amocrm_class() as amocrm:
             data: list[AmoLead] = await amocrm.create_lead(**lead_options)
         lead_id: int = data[0].id
+
+        data: dict[str, Any] = dict(amocrm_id=lead_id, is_test_user=repres.is_test_user)
+        await self._test_booking_repo.create(data=data)
+
         return await self.agency_update(agency, data=dict(getdoc_lead_id=lead_id))
 
     async def _get_doc(self, agency: Agency, project: Project) -> UploadFile:
-        """Получение дговора для агенства"""
+        """Получение договора для агентства"""
         async with self._getdoc_class() as getdoc:
             filename = None
             templates = project_filename_mapping.get(project.amo_pipeline_id)

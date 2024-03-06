@@ -2,6 +2,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from common.orm.entities import BaseRepo
 from common.pydantic import CamelCaseBaseModel
 
 
@@ -49,3 +50,9 @@ class BaseMortgageException(Exception):
     message: str
     status: int
     reason: str
+
+
+class BaseMortgageRepo(BaseRepo):
+    """
+    Базовый репозиторий заявки на ипотеку
+    """

@@ -65,14 +65,15 @@ class CreateActCase(BaseAgencyCase):
 
         filters = dict(project_id=booking.project_id)
         act_template: ActTemplate = await self._act_template_repo.retrieve(filters=filters)
-
-        act: AgencyAct = await self._create_act(
-            user=user,
-            booking=booking,
-            agency=agency,
-            template_name=act_template.template_name,
-        )
-        return act
+        if act_template:
+            act: AgencyAct = await self._create_act(
+                user=user,
+                booking=booking,
+                agency=agency,
+                template_name=act_template.template_name,
+            )
+            return act
+        raise exceptions.ActTemplateNotFound
 
     async def _create_act(
         self,

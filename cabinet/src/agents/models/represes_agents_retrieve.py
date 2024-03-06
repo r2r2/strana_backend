@@ -49,7 +49,7 @@ class _UserListModel(BaseAgentModel):
             for check in checks:
                 unique_status = check.unique_status
                 result: dict[str, Any] = {
-                    "value": check.unique_status.slug,
+                    "value": check.unique_status.slug if check.unique_status else None,
                     "label": f"{check.unique_status.title} {check.unique_status.subtitle or ''}".strip(),
                 }
                 if unique_status.slug == users_constants.UserStatus.UNIQUE:

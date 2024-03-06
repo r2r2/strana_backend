@@ -1,7 +1,7 @@
 from http import HTTPStatus
 from typing import Any, Optional
 
-from fastapi import APIRouter, Body, Depends, Header
+from fastapi import APIRouter, Body, Depends, Header, Request
 
 from common import (
     dependencies,
@@ -17,6 +17,7 @@ router = APIRouter(prefix="/fast-booking", tags=["Fast Booking"])
     "/accept", status_code=HTTPStatus.CREATED, response_model=models.ResponseAcceptContractModel
 )
 async def fast_accept_contract_view(
+    request: Request,
     payload: models.RequestFastAcceptContractModel = Body(...),
     origin: Optional[str] = Header(None),
     user_id: Optional[int] = Depends(

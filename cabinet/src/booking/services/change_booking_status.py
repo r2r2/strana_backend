@@ -19,7 +19,6 @@ class ChangeBookingStatusService(BaseBookingService):
         orm_config: Optional[dict[str, Any]] = None,
     ) -> None:
         self.booking_repo: BookingRepo = booking_repo()
-
         self.orm_class: Optional[Type[Tortoise]] = orm_class
         self.orm_config: Optional[dict[str, Any]] = copy(orm_config)
         if self.orm_config:
@@ -30,3 +29,4 @@ class ChangeBookingStatusService(BaseBookingService):
         booking: Booking = await self.booking_repo.retrieve(filters=dict(id=booking_id, price_payed=False))
         if booking:
             await self.booking_repo.update(model=booking, data=dict(amocrm_stage=status, amocrm_substage=status))
+

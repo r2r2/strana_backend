@@ -136,9 +136,12 @@ class ProcessRegisterCase(BaseRepresCase):
         )
         data.update(extra_data)
         repres: User = await self.repres_create(data=data)
-        token = self.token_creator(repres.id)
+        token = self.create_email_token(repres.id)
         await self._send_repres_confirmation_email(repres=repres, token=token)
         return repres
+
+    def create_email_token(self, repres_id) -> str:
+        return self.token_creator(repres_id)
 
     async def _create_agency(self, payload: AgencyRegisterModel, **files: Any) -> Agency:
         # Стираем из БД существующее бронирование, помеченное как "удалённое"

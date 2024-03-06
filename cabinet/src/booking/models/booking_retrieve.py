@@ -10,6 +10,7 @@ from src.agents.models import AgentRetrieveModel
 from src.properties.models import PropertyRetrieveModel
 from src.booking.entities import BaseBookingModel, BaseBookingCamelCaseModel
 from src.task_management.constants import TaskStatusType, ButtonCondition
+from src.booking.models.booking_list import PaymentMethodModel, MortgageTypeModel
 
 from ..constants import (
     BookingCreatedSources,
@@ -256,8 +257,9 @@ class ResponseBookingRetrieveModel(BaseBookingModel):
     escrow_uploaded: bool
     amocrm_signing_date_set: bool
     amocrm_signed: bool
-    has_subsidy_price: bool = False
     amocrm_status: _BookingStatusListModel | None
+    amo_payment_method: PaymentMethodModel | None
+    mortgage_type: MortgageTypeModel | None
 
     origin: str | None
     until: datetime | None

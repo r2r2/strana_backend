@@ -37,13 +37,13 @@ class BookingsSpecsCase(BaseUserCase):
 
         # агенты
         agents_filters = filters.copy()
-        agents_filters.update(dict(agent__name__isnull=False))
+        agents_filters.update(dict(agent__surname__isnull=False))
         agents: dict[str, Any] = await self.booking_repo.list(
             filters=agents_filters,
             related_fields=["agent"],
         ).distinct().values(
             "agent__id",
-            "agent__name",
+            "agent__surname",
         )
 
         # статусы сделок

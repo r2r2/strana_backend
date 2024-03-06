@@ -21,4 +21,4 @@ class RopEmailsDispute(models.Model):
         managed = False
         db_table = "notifications_rop_emails_dispute"
         verbose_name = "Роп (для писем оспаривания)"
-        verbose_name_plural = ' 4.11 Ропы (для писем оспаривания)'
+        verbose_name_plural = ' 4.11. Ропы (для писем оспаривания)'

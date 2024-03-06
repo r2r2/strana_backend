@@ -119,6 +119,8 @@ class Booking(Model):
         description="Матрица предложения цены",
         null=True,
     )
+    mortgage_offer: Optional[str] = fields.TextField(description="Ипотечное предложение", null=True)
+    calculator_options: Optional[str] = fields.JSONField(description="Опции калькулятора подбора", null=True)
     price_payed: bool = fields.BooleanField(
         description="Стоимость оплачена (шаг 4)", default=False
     )
@@ -230,6 +232,7 @@ class Booking(Model):
         null=True,
         description="ID статуса из амо",
         model_name="models.AmocrmStatus",
+        on_delete=fields.SET_NULL,
         related_name="bookings",
     )
 
@@ -259,44 +262,65 @@ class Booking(Model):
     floor: ForeignKeyNullableRelation[Floor] = fields.ForeignKeyField(
         description="Этаж",
         model_name="models.Floor",
+        on_delete=fields.SET_NULL,
         related_name="bookings",
         null=True,
     )
     user: ForeignKeyNullableRelation[User] = fields.ForeignKeyField(
         description="Пользователь",
         model_name="models.User",
+        on_delete=fields.SET_NULL,
         related_name="bookings",
         null=True,
+        index=True,
     )
     agent: ForeignKeyNullableRelation[User] = fields.ForeignKeyField(
         description="Агент",
         model_name="models.User",
+        on_delete=fields.SET_NULL,
         related_name="reservations",
         null=True,
     )
     agency: ForeignKeyNullableRelation[Agency] = fields.ForeignKeyField(
         description="Агентство",
         model_name="models.Agency",
+        on_delete=fields.SET_NULL,
         related_name="bookings",
         null=True,
     )
     project: ForeignKeyNullableRelation[Project] = fields.ForeignKeyField(
         description="Проект",
         model_name="models.Project",
+        on_delete=fields.SET_NULL,
         related_name="bookings",
         null=True,
     )
     building: ForeignKeyNullableRelation[Building] = fields.ForeignKeyField(
         description="Корпус",
         model_name="models.Building",
+        on_delete=fields.SET_NULL,
         related_name="bookings",
         null=True,
     )
     property: ForeignKeyNullableRelation[Property] = fields.ForeignKeyField(
         description="Объект недвижимости",
         model_name="models.Property",
+        on_delete=fields.SET_NULL,
         related_name="bookings",
         null=True,
+    )
+    property_lk: bool = fields.BooleanField(
+        description="Объект недвижимости забронирован из ЛК",
+        default=False,
+    )
+    property_lk_datetime: Optional[datetime] = fields.DatetimeField(
+        description="Дата и время начала бронирования объекта недвижимости",
+        null=True,
+        source_field="property_lk_datetime",
+    )
+    property_lk_on_time: bool = fields.BooleanField(
+        description="Бронь была оплачена вовремя",
+        default=False,
     )
 
     purchase_start_datetime: Optional[datetime] = fields.DatetimeField(
@@ -308,6 +332,7 @@ class Booking(Model):
     bank_contact_info: OneToOneNullableRelation[BankContactInfo] = fields.OneToOneField(
         description="Данные для связи с банком",
         model_name="models.BankContactInfo",
+        on_delete=fields.SET_NULL,
         related_name="booking",
         null=True,
     )
@@ -345,6 +370,7 @@ class Booking(Model):
     booking_source: ForeignKeyNullableRelation["BookingSource"] = fields.ForeignKeyField(
         description="Источник создания онлайн-бронирования",
         model_name="models.BookingSource",
+        on_delete=fields.SET_NULL,
         related_name="bookings",
         null=True,
     )
@@ -364,6 +390,17 @@ class Booking(Model):
     loyalty_point_amount: int | None = fields.IntField(
         description="Количество баллов лояльности", null=True
     )
+    loyalty_discount: Optional[Decimal] = fields.DecimalField(
+        description="Скидка по промокоду (руб.)",
+        decimal_places=3,
+        max_digits=15,
+        null=True
+    )
+    loyalty_discount_name: str | None = fields.CharField(
+        description="Применённый промокод/скидка",
+        max_length=150,
+        null=True
+    )
 
     clients: fields.ManyToManyRelation["User"] = fields.ManyToManyField(
         model_name="models.User",
@@ -371,19 +408,21 @@ class Booking(Model):
         through="booking_booking_client_user_through",
         description="Клиенты",
         null=True,
-        on_delete=fields.CASCADE,
+        on_delete=fields.SET_NULL,
         backward_key="booking_id",
         forward_key="client_id",
     )
 
     task_instances: fields.ReverseRelation["TaskInstance"]
     mortgage_dev_tickets: fields.ReverseRelation["MortgageDeveloperTicket"]
+    mortgage_forms: fields.ReverseRelation["MortgageForm"]
     mortgage_type_id: int | None
     property_id: Optional[int]
     project_id: Optional[int]
     agency_id: Optional[int]
     agent_id: Optional[int]
     user_id: Optional[int]
+    amocrm_status_id: int | None
 
     def __str__(self) -> str:
         return str(self.id)
@@ -506,6 +545,9 @@ class Booking(Model):
             or not self.personal_filled
             or not self.params_checked
             or not self.price_payed
+            or not self.property_lk
+            or not self.property_lk_datetime
+            or not self.property_lk_on_time
         ):
             booking: Booking = await BookingRepo().retrieve(filters=dict(id=self.id))
             ##########################################
@@ -550,14 +592,15 @@ class Booking(Model):
                 self.expires = booking.expires
             if not self.payment_id and booking.payment_id:
                 self.payment_id = booking.payment_id
-            if not self.payment_amount and booking.payment_amount:
-                self.payment_amount = booking.payment_amount
+            # Чтобы была возможность очищать эти поля при удалении объекта недвижимости из сделки
+            # if not self.payment_amount and booking.payment_amount:
+            #     self.payment_amount = booking.payment_amount
+            # if not self.final_payment_amount and booking.final_payment_amount:
+            #     self.final_payment_amount = booking.final_payment_amount
             if not self.payment_url and booking.payment_url:
                 self.payment_url = booking.payment_url
             if not self.payment_order_number and booking.payment_order_number:
                 self.payment_order_number = booking.payment_order_number
-            if not self.final_payment_amount and booking.final_payment_amount:
-                self.final_payment_amount = booking.final_payment_amount
             if not self.property_id and booking.property_id:
                 self.property_id = booking.property_id
             if not self.property and booking.property:
@@ -578,6 +621,12 @@ class Booking(Model):
                 self.params_checked = booking.params_checked
             if not self.price_payed and booking.price_payed:
                 self.price_payed = booking.price_payed
+            if not self.property_lk and booking.property_lk:
+                self.property_lk = booking.property_lk
+            if not self.property_lk_datetime and booking.property_lk_datetime:
+                self.property_lk_datetime = booking.property_lk_datetime
+            if not self.property_lk_on_time and booking.property_lk_on_time:
+                self.property_lk_on_time = booking.property_lk_on_time
         await super().save(using_db, update_fields, force_create, force_update)
 
     class Meta:
@@ -652,16 +701,15 @@ class BookingRepo(BaseBookingRepo, CRUDMixin, SCountMixin, FacetsMixin, SpecsMix
             "until",
             "expires",
             "payment_id",
-            "payment_amount",
+            # "payment_amount",
             "payment_url",
             "payment_order_number",
-            "final_payment_amount",
+            # "final_payment_amount",
             "property_id",
             "property",
             "fixation_expires",
             "extension_number",
             "project_id",
-            "loyalty_point_amount",
         )
         return non_nullable_fields
 
@@ -678,8 +726,7 @@ class BookingRepo(BaseBookingRepo, CRUDMixin, SCountMixin, FacetsMixin, SpecsMix
     async def create(self, data: dict[str, Any]) -> "CreateMixin.model":
         model = await super().create(data)
 
-        self.logger.debug("Booking create: ", id=model.id, data=data)
-        self.logger.debug(traceback.print_stack(limit=5))
+        self.logger.debug("Booking create: ", id=model.id, data=data, traceback=traceback.format_stack(limit=5))
 
         return model
 
@@ -714,8 +761,10 @@ class BookingRepo(BaseBookingRepo, CRUDMixin, SCountMixin, FacetsMixin, SpecsMix
 
         model, _ = await self.model.update_or_create(**filters, defaults=data)
 
-        self.logger.debug("Booking update_or_create: ", id=model.id, data=data)
-        self.logger.debug(traceback.print_stack(limit=5))
+        self.logger.debug("Booking update_or_create: ",
+                          id=model.id,
+                          data=data,
+                          traceback=traceback.format_stack(limit=5))
 
         return model
 
@@ -723,10 +772,10 @@ class BookingRepo(BaseBookingRepo, CRUDMixin, SCountMixin, FacetsMixin, SpecsMix
         """
         Обновление модели
         """
-        print("Booking data: ", data)
-        self.logger.debug("Booking update: ", id=model.id, data=data)
-        self.logger.debug(traceback.print_stack(limit=5))
-
+        self.logger.debug("Booking update: ",
+                          id=model.id,
+                          data=data,
+                          traceback=traceback.format_stack(limit=5))
         if self.__is_strana_lk_2398_enable:
             stack_trace: str = "".join(traceback.format_stack(limit=5))
             await _send_email(
@@ -756,8 +805,10 @@ class BookingRepo(BaseBookingRepo, CRUDMixin, SCountMixin, FacetsMixin, SpecsMix
         """
         Обновление пачки бронирований
         """
-        self.logger.debug("Booking bulk_update: ", filters=filters, data=data)
-        self.logger.debug(traceback.print_stack(limit=5))
+        self.logger.debug("Booking bulk_update: ",
+                          filters=filters,
+                          data=data,
+                          traceback=traceback.format_stack(limit=5))
 
         if self.__is_strana_lk_2398_enable:
             if bookings := await self.model.all(**filters):

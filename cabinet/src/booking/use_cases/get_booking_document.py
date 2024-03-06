@@ -5,6 +5,7 @@ from common.sentry.utils import send_sentry_log
 from src.documents.repos import DocumentRepo, Document
 from src.documents.exceptions import DocumentNotFoundError
 from ..entities import BaseBookingCase
+from ..event_emitter_handlers import event_emitter
 from ..exceptions import BookingProjectMissingError, BookingPropertyMissingError, BookingNotFoundError
 from ..repos import BookingRepo, Booking
 
@@ -28,7 +29,13 @@ class GetBookingDocumentCase(BaseBookingCase):
         booking_filters: dict = dict(active=True, id=booking_id, user_id=user_id)
         booking: Booking = await self.booking_repo.retrieve(
             filters=booking_filters,
-            related_fields=["project__city", "property__property_type", "building"]
+            related_fields=[
+                "project__city",
+                "property__property_type",
+                "building",
+                "user",
+                "property__building",
+            ],
         )
         try:
             self._check_booking_valid(booking=booking)
@@ -61,14 +68,23 @@ class GetBookingDocumentCase(BaseBookingCase):
             )
             raise DocumentNotFoundError
 
+        event_emitter.ee.emit(
+            event='accept_contract',
+            booking=booking,
+            user=booking.user,
+            city=booking.project.city.slug if booking.project.city else None,
+        )
+
         price: int = booking.payment_amount if booking.payment_amount else booking.building.booking_price
+        booking_period: int = booking.booking_period if booking.booking_period else booking.building.booking_period
         document_info_data: dict = dict(
-            address=booking.building.address,
+            address=booking.property.building.address,
             price=self._get_price_text(price),
-            period=self._get_period_text(booking.building.booking_period),
+            period=self._get_period_text(booking_period),
             premise=booking.property.premise.label,
         )
         document.text = document.text.format(**document_info_data)
+
         return document
 
     def _check_booking_valid(self, booking: Booking) -> None:

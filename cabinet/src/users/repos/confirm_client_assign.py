@@ -24,6 +24,7 @@ class ConfirmClientAssign(Model):
         description="Клиент",
         null=True,
         on_delete=fields.SET_NULL,
+        index=True,
     )
     agency: fields.ForeignKeyNullableRelation["Agency"] = fields.ForeignKeyField(
         "models.Agency",

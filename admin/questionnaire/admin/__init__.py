@@ -8,3 +8,4 @@ from .documents import QuestionnaireDocumentAdmin
 from .upload_documents import QuestionnaireUploadDocumentAdmin
 from .users_answers import UserAnswerAdmin
 from .task_instance_logs import TaskInstanceLogAdmin
+from .fields import QuestionnaireFieldAdmin

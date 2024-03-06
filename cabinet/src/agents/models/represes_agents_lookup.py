@@ -34,9 +34,9 @@ class _AgentListModel(BaseAgentModel):
 
     @method_field
     def get_fio(cls, values: dict[str, Any]) -> dict[str, Any]:
-        name: str = values.pop("name", str()).capitalize()
-        surname: str = values.pop("surname", str()).capitalize()
-        patronymic: str = values.pop("patronymic", str()).capitalize()
+        name: str = values.pop("name").capitalize() if values.get("name") else str()
+        surname: str = values.pop("surname").capitalize() if values.get("surname") else str()
+        patronymic: str = values.pop("patronymic").capitalize() if values.get("patronymic") else str()
         fio: str = f"{surname} {name} {patronymic}"
         if not patronymic:
             fio: str = f"{surname} {name}"

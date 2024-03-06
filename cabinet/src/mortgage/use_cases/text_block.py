@@ -42,7 +42,7 @@ class GetMortgageTextBlockCase(BaseMortgageCase):
         sentry_ctx: dict[str, Any] = dict(
             city_slug=city_slug,
         )
-        asyncio.create_task(
+        _: asyncio.Task = asyncio.create_task(
             send_sentry_log(
                 tag=self.__class__.__name__,
                 message=f"Не найден текстовый блок для слага города {city_slug=}",

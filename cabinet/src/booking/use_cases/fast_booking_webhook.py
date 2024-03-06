@@ -5,6 +5,7 @@ from typing import Any, Callable, Optional, Type, Union
 import structlog
 from common.amocrm import AmoCRM
 from common.amocrm.constants import AmoLeadQueryWith
+from common.amocrm.exceptions import AmoFetchLeadNotFoundError
 from common.amocrm.types import AmoContact, AmoLead
 from pytz import UTC
 
@@ -21,6 +22,9 @@ from src.amocrm.repos import AmocrmStatus, AmocrmStatusRepo
 from src.booking.utils import get_booking_reserv_time, get_booking_source
 from src.task_management.services import CreateTaskInstanceService
 from src.task_management.dto import CreateTaskDTO
+from src.booking.dto import FastBookingWebhookResponseDTO
+from src.notifications.repos import SmsTemplate
+from ..event_emitter_handlers import event_emitter
 
 from ...users.services import CreateContactService
 from src.booking.constants import BookingCreatedSources, BookingStagesMapping, PaymentStatuses
@@ -68,6 +72,7 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
         get_sms_template_service: GetSmsTemplateService,
         get_email_template_service: GetEmailTemplateService,
         create_booking_log_task: Optional[Any] = None,
+
         logger: Optional[Any] = structlog.getLogger(__name__),
     ) -> None:
         self.logger = logger
@@ -116,6 +121,7 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
         )
 
         self.tags: set[str] = set()
+        self.sms_text: str = ""
 
     @amocrm_note(AmoCRM)
     async def __call__(
@@ -125,15 +131,9 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
         amocrm_id: Optional[int] = None,
         amocrm_stage: Optional[str] = None,
         amocrm_substage: Optional[str] = None,
-    ) -> Optional[Booking]:
-        print("FastBookingWebhookCase")
+    ) -> FastBookingWebhookResponseDTO:
         self.booking = booking
-
-        async with await self.amocrm_class() as amocrm:
-            lead: Optional[AmoLead] = await amocrm.fetch_lead(
-                lead_id=amocrm_id,
-                query_with=[AmoLeadQueryWith.contacts],
-            )
+        lead: AmoLead = await self._get_lead(amocrm_id=amocrm_id)
 
         self.tags: set[str] = {tag.name for tag in lead.embedded.tags}
 
@@ -144,13 +144,9 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
             new_status_id=lead.status_id,
         )
 
-        lead_custom_fields = {
-            field.field_id:
-                CustomFieldValue(value=field.values[0].value, enum=field.values[0].enum_id)
-            for field in lead.custom_fields_values
-        }
+        lead_custom_fields: dict[int, CustomFieldValue] = self._get_lead_custom_fields(lead=lead)
 
-        self._validate_lead(lead_custom_fields)
+        self._validate_lead(lead_custom_fields=lead_custom_fields)
 
         property_id: str = lead_custom_fields.get(
             self.amocrm_class.property_field_id,
@@ -160,14 +156,14 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
             self.amocrm_class.property_str_type_field_id, CustomFieldValue()
         ).value
         property_type: str = self.amocrm_class.property_str_type_reverse_values.get(property_str_type)
-        print(f'{property_type=}')
-        print(f'{property_id=}')
-        booking_property: Property = await self._create_property(property_id, property_type)
-        print(f'{booking_property=}')
+        booking_property: Property = await self._create_property(
+            property_id=property_id,
+            property_type=property_type,
+        )
         user: Optional[User] = None
         for contact in lead.embedded.contacts:
             if contact.is_main:
-                user: User = await self._update_or_create_user_from_amo(contact.id)
+                user: User = await self._update_or_create_user_from_amo(main_contact_id=contact.id)
                 break
         if not user:
             self.logger.error("No main contact in lead", lead_id=lead.id)
@@ -183,12 +179,30 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
             booking_type_id=booking_type_id,
         )
         await self._send_fast_booking_notify(user=user, booking=fast_booking)
-        return fast_booking
+        return FastBookingWebhookResponseDTO(booking=fast_booking, sms_text=self.sms_text)
+
+    async def _get_lead(self, amocrm_id: int) -> AmoLead:
+        async with await self.amocrm_class() as amocrm:
+            lead: Optional[AmoLead] = await amocrm.fetch_lead(
+                lead_id=amocrm_id,
+                query_with=[AmoLeadQueryWith.contacts],
+            )
+            if not lead:
+                self.logger.info('await amocrm.fetch_lead not found', lead_id=amocrm_id)
+                raise AmoFetchLeadNotFoundError
+            return lead
+
+    def _get_lead_custom_fields(self, lead: AmoLead) -> dict[int, CustomFieldValue]:
+        return {
+            field.field_id:
+                CustomFieldValue(value=field.values[0].value, enum=field.values[0].enum_id)
+            for field in lead.custom_fields_values
+        }
 
     async def _send_fast_booking_notify(self, user: User, booking: Booking) -> None:
         token: str = self.token_creator(subject_type=self.client_role_slug, subject=user.id)["token"]
-        await self._send_sms(booking, user, token),
-        await self._send_email(booking, user, token),
+        await self._send_sms(booking, user, token)
+        await self._send_email(booking, user, token)
 
     def _validate_lead(self, lead_custom_fields: dict) -> None:
         """
@@ -219,36 +233,35 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
         Create property for booking
         """
         global_property_type: str = self.amocrm_class.global_types_mapping.get(property_type, "GlobalFlatType")
-        print(f'{global_property_type=}')
         property_global_id: str = self.global_id_encoder(
             global_property_type, property_id
         )
-        print(f'{property_global_id=}')
 
         filters: dict[str, Any] = dict(global_id=property_global_id)
         data: dict[str, Any] = dict(premise=PremiseType.RESIDENTIAL, type=property_type)
         if property_type != PropertyTypes.FLAT:
             data: dict[str, Any] = dict(premise=PremiseType.NONRESIDENTIAL, type=property_type)
         booking_property: Property = await self.property_repo.update_or_create(filters=filters, data=data)
-        print(f'_create_property: {booking_property=}')
-        print("import_property_service")
-        await self.import_property_service(property=booking_property)
+        await self._import_property(property_=booking_property)
         filters = dict(id=booking_property.id)
         related_fields = ["building", "project"]
         booking_property: Property = await self.property_repo.retrieve(
             filters=filters,
             related_fields=related_fields
         )
-        print(f'{filters=}')
-        print(f'_create_property: {booking_property=}')
         return booking_property
+
+    async def _import_property(self, property_: Property) -> None:
+        """
+        Import property
+        """
+        await self.import_property_service(property=property_)
 
     async def _update_or_create_user_from_amo(self, main_contact_id: int) -> User:
         """
         Update or create user from amo
         """
-        amo_user_data: dict[str, Any] = await self.get_amocrm_user_data(main_contact_id)
-        self.validate_contact(amo_user_data)
+        amo_user_data: dict[str, Any] = await self.get_amocrm_user_data(main_contact_id=main_contact_id)
         partial_user_data = dict(
             is_brokers_client=True,
             is_deleted=False,
@@ -306,7 +319,7 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
         lead_custom_fields: dict[int, Any],
         user: User,
         booking_property: Property,
-        booking_type_id: Optional[str],
+        booking_type_id: Optional[int],
     ) -> Booking:
         """
         New booking creation
@@ -380,7 +393,8 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
             self.logger.info('Booking updated', lead_id=lead.id, booking_id=booking.id, tags=booking.tags)
         else:
             booking_data.update({"tags": list(self.tags)})
-            booking = await self.booking_create(data=booking_data)
+            booking = await self._booking_create(data=booking_data)
+            event_emitter.ee.emit(event='booking_created', booking=booking)
             self.logger.info('New Booking created', lead_id=lead.id, booking_id=booking.id, tags=booking.tags)
 
         await self.create_task_instance(booking=booking)
@@ -390,16 +404,12 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
             data = dict(final_price=price_with_sale or property_final_price)
             await self.property_repo.update(model=booking_property, data=data)
 
-        now = datetime.now().astimezone()
-        executed = booking.expires - now
-        print(
-            f"Start check_booking_task at {now}\n"
-            f"with args: booking_id={booking.id}, eta={booking.expires}.\n"
-            f"Should be executed in {int(executed.seconds / 60)} minutes."
-        )
         self.check_booking_task.apply_async((booking.id,), eta=expires, queue="scheduled")
 
         return booking
+
+    async def _booking_create(self, data: dict[str, Any]) -> Booking:
+        return await self.booking_create(data=data)
 
     # @logged_action(content="БРОНИРОВАНИЕ | PORTAL")
     async def _property_backend_booking(self, booking: Booking) -> str:
@@ -444,9 +454,23 @@ class FastBookingWebhookCase(BaseBookingCase, BookingLogMixin):
                 lk_type=sms_notification_template.lk_type.value,
                 sms_event_slug=sms_notification_template.sms_event_slug,
             )
+
+            self._set_sms_text_for_amo_note(
+                template=sms_notification_template,
+                sms_data=data,
+            )
             sms_service: BookingSms = self.sms_class(**sms_options)
             self.logger.info('FastBooking SMS sent', phone=user.phone, message=sms_options["message"])
             return sms_service.as_task()
+
+    def _set_sms_text_for_amo_note(self, template: SmsTemplate, sms_data: dict[str, Any]) -> None:
+        """
+        Сформировать текст для записи в амо
+        """
+        sms_data.pop("use_ampersand_ascii")
+        url_dto: UrlEncodeDTO = UrlEncodeDTO(**sms_data)
+        link: str = generate_notify_url(url_dto=url_dto)
+        self.sms_text: str = template.template_text.format(fast_booking_link=link)
 
     async def _send_email(self, booking: Booking, user: User, token: str) -> Task:
         """

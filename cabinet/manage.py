@@ -84,6 +84,8 @@ coroutines_map: dict[str, Callable[..., Coroutine]] = {
     "closeoldbookings": manage.CloseOldBookings(),
     "unknown_participants": manage.CheckParticipantsNotInDB(),
     "remove_slash_in_plan": manage.RemoveSlashInPlan(),
+    "check_client_interests": manage.CheckClientInterestManage(),
+    "compare_type_and_role": manage.CompareTypeAndRole(),
 }
 
 

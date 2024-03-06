@@ -1,6 +1,7 @@
 from typing import Any
 
 from common import dependencies
+from common.backend import repos as backend_repos
 from fastapi import APIRouter, Depends, status
 from src.properties import repos
 from src.properties import services as property_services
@@ -79,6 +80,8 @@ async def get_viewed_properties_list_ids_view(
     """
     resources: dict[str, Any] = dict(
         property_repo=repos.PropertyRepo,
+        viewed_property_repo=users_repos.UserViewedPropertyRepo,
+        backend_properties_repo=backend_repos.BackendPropertiesRepo,
     )
     get_viewed_properties_ids: use_cases.GetViewedPropertiesIdsCase = use_cases.GetViewedPropertiesIdsCase(**resources)
     return await get_viewed_properties_ids(user_id=user_id)
@@ -94,6 +97,7 @@ async def get_viewed_properties_list_ids_view(
 
     resources: dict[str, Any] = dict(
         property_repo=repos.PropertyRepo,
+        backend_properties_repo=backend_repos.BackendPropertiesRepo,
     )
     get_viewed_properties_profit_ids: use_cases.GetViewedPropertiesProfitIdsCase = (
         use_cases.GetViewedPropertiesProfitIdsCase(**resources)

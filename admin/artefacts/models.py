@@ -1,6 +1,8 @@
 from django.db import models
 from ckeditor.fields import RichTextField
 
+from booking_event_history.models import DocumentArchive
+
 
 class CheckUnique(models.Model):
     """
@@ -45,6 +47,16 @@ class Document(models.Model):
     text = RichTextField()
     slug = models.CharField(max_length=50)
     file = models.FileField(max_length=500, blank=True, null=True, upload_to="d/d/f")
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        # При создании/обновлении документа, сохраняем новую запись в архив
+        DocumentArchive.objects.create(
+            offer_text=self.text,
+            slug=self.slug,
+            file=self.file
+        )
+
 
     def __str__(self) -> str:
         return self.slug

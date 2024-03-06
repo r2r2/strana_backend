@@ -1,12 +1,14 @@
 # pylint: disable=unused-argument,protected-access
 import os
 import csv
+from datetime import datetime
+from urllib.parse import quote
 
 from django.contrib import messages
 from django.contrib.admin import ModelAdmin, StackedInline, TabularInline, register
 from django.contrib.admin.widgets import FilteredSelectMultiple
 from django.http import HttpResponse, HttpResponseRedirect
-from django.db.models import OuterRef, Subquery
+from django.db.models import OuterRef, Subquery, QuerySet
 
 from common.loggers.models import BaseLogInline
 from booking.models import Booking
@@ -20,28 +22,37 @@ from users.models import (
     CityUserThrough,
     CabinetUserQuerySet
 )
-from ..utils import get_client_token_from_cabinet, import_clients_and_booking_from_amo
+
+from ..custom_filters import AutocompleteAgenciesFilter
+from ..utils import (
+    get_client_token_from_cabinet,
+    import_clients_and_booking_from_amo,
+    compute_user_fullname,
+    format_localize_datetime
+)
 
 
 class BookingInline(StackedInline):
     model = Booking
     extra = 0
     fk_name = "user"
-    raw_id_fields = [
+
+    raw_id_fields = (
         "agent",
         "agency",
         "project",
         "building",
         "floor",
         "property",
-    ]
+        "price",
+    )
 
 
 class UserLogInline(BaseLogInline):
     model = UserLog
 
 
-class ConfirmClientAssignInline(TabularInline):
+class ConfirmClientAssignInline(StackedInline):
     model = ConfirmClientAssign
     extra = 0
 
@@ -54,50 +65,13 @@ class ConfirmClientAssignInline(TabularInline):
         "assign_confirmed_at",
         "unassigned_at",
     ]
+    raw_id_fields = [
+        "agent",
+        "agency",
+        "client",
+    ]
 
     fk_name = 'client'
-
-
-# class RoleFilter(SimpleListFilter):
-#     title = "Роль"
-#     parameter_name = "role"
-#
-#     def lookups(self, request, model_admin):
-#         roles = {u.type for u in model_admin.model.objects.all()}
-#         return [(r, r) for r in roles]
-#
-#     def queryset(self, request, queryset):
-#         if self.value():
-#             return queryset.filter(type=self.value())
-#         return queryset
-#
-#
-# class DBRoleFilter(SimpleListFilter):
-#     title = "Роль из бд"
-#     parameter_name = "role"
-#
-#     def lookups(self, request, model_admin):
-#         all_roles = [
-#             (role.id, role.name) for role in UserRole.objects.all()
-#         ]
-#         return all_roles
-#
-#     def queryset(self, request, queryset):
-#         params: dict = request.GET.dict()
-#         return queryset.filter(**params)
-#
-#
-# class TypeFilter(SimpleListFilter):
-#     title = "Тип"
-#     parameter_name = "type"
-#
-#     def lookups(self, request, model_admin):
-#         return [("is_brokers_client", "ЛК Брокера"), ("is_independent_client", "ЛК Клиента")]
-#
-#     def queryset(self, request, queryset):
-#         if self.value():
-#             return queryset.filter(**{self.value(): True})
-#         return queryset
 
 
 @register(CabinetUser)
@@ -155,8 +129,6 @@ class CabinetUserAdmin(ModelAdmin):
     )
     date_hierarchy = "auth_first_at"
     list_filter = (
-        # RoleFilter,
-        # TypeFilter,
         "agency__city",
         "created_at",
         "auth_first_at",
@@ -248,6 +220,7 @@ class CabinetUserAdmin(ModelAdmin):
         response["Content-Disposition"] = "attachment; filename={}.csv".format(meta)
         fieldnames_user = [
             "phone",
+            "email",
             "id",
             "name",
             "surname",
@@ -260,11 +233,12 @@ class CabinetUserAdmin(ModelAdmin):
             "is_brokers_client",
             "is_independent_client",
             "created_at",
+            "auth_last_at",
         ]
         writer = csv.DictWriter(response, fieldnames=fieldnames_user)
         writer.writeheader()
 
-        data = queryset.annotate_file_data().values(*fieldnames_user)
+        data = queryset.order_by("-auth_last_at").annotate_file_data().values(*fieldnames_user)
         for row in data:
             writer.writerow(row)
 
@@ -365,6 +339,17 @@ class CabinetAgentAdmin(CabinetUserAdmin):
         "agency_in_list",
         "auth_last_at",
     )
+    list_filter = (
+        AutocompleteAgenciesFilter,
+        "agency__city",
+        "created_at",
+        "auth_first_at",
+        "auth_last_at",
+        "origin",
+        "type",
+        "role",
+        "interested_sub",
+    )
 
     exclude = (
         "code",
@@ -394,6 +379,56 @@ class CabinetAgentAdmin(CabinetUserAdmin):
 
     def get_queryset(self, request):
         return CabinetAgent.objects.filter(type__in=["agent", "repres"])
+
+    def export_csv(self, request, queryset):
+        response = HttpResponse(content_type="text/csv")
+
+        current_date: str = datetime.today().strftime('%d-%m-%Y')
+        filename = f'Выгрузка агентов за {current_date}.csv'
+        encoded_filename = quote(filename.encode('utf-8'))
+
+        response["Content-Disposition"] = f'attachment; filename*=UTF-8\'\'{encoded_filename}'
+
+        writer = csv.writer(response)
+        writer.writerow(
+            [
+                "ID",
+                "Пользователь",
+                "ФИО",
+                "E-mail",
+                "Тип/роль",
+                "Роль",
+                "Amocrm id",
+                "Агентство",
+                "Оферта принята",
+                "Дата присвоения статуса лояльности",
+                "Дата первой авторизации",
+                "Дата последней авторизации",
+            ]
+        )
+
+        for agent in queryset:
+            writer.writerow(
+                [
+                    agent.id,
+                    agent,
+                    compute_user_fullname(agent),
+                    agent.email,
+                    agent.type,
+                    agent.role,
+                    agent.amocrm_id,
+                    agent.agency,
+                    "Да" if agent.is_offer_accepted else "Нет",
+                    format_localize_datetime(agent.date_assignment_loyalty_status),
+                    format_localize_datetime(agent.auth_first_at),
+                    format_localize_datetime(agent.auth_last_at),
+                ]
+            )
+
+        return response
+
+    export_csv.short_description = "Сделать выгрузку в CSV"
+    export_csv.admin_order_field = "export_agents_to_csv"
 
     class Meta:
         proxy = True

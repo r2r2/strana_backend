@@ -61,6 +61,7 @@ class MeetingsAdmin(admin.ModelAdmin):
         "project",
         "local_date",
         "creation_source",
+        "creation_source_ref",
         "has_calendar_event",
         "get_calendar_tags_on_list",
     )
@@ -71,7 +72,9 @@ class MeetingsAdmin(admin.ModelAdmin):
         "project",
         "booking",
         "status",
+        "status_ref",
         "creation_source",
+        "creation_source_ref",
         "record_link",
         "meeting_link",
         "meeting_address",
@@ -79,16 +82,14 @@ class MeetingsAdmin(admin.ModelAdmin):
         "type",
         "property_type",
     )
-    exclude = (
-        "date",
-    )
+    exclude = ("date",)
     autocomplete_fields = ("booking",)
     search_fields = (
         "booking__user__phone__icontains",
         "booking__user__amocrm_id__icontains",
         "booking__amocrm_id__icontains",
     )
-    list_filter = ("calendar_event__tags", "creation_source")
+    list_filter = ("calendar_event__tags", "creation_source", "creation_source_ref")
 
     def has_calendar_event(self, obj):
         return obj.has_calendar_event

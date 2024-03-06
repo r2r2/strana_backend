@@ -261,10 +261,10 @@ class SendSMSBookingNotifyService(BaseNotificationService):
             booking_days=booking.booking_period,
         )
 
-        await self._send_sms(phone=booking.user.phone, message=message)
+        await self._send_sms(phone=booking.user.phone, message=message, sms_template=sms_template)
         return True
 
-    async def _send_sms(self, phone: str, message: str) -> None:
+    async def _send_sms(self, phone: str, message: str, sms_template: SmsTemplate) -> None:
         """
         Отправляем смс клиенту.
         @param phone: str
@@ -274,6 +274,8 @@ class SendSMSBookingNotifyService(BaseNotificationService):
             phone=phone,
             message=message,
             tiny_url=True,
+            lk_type=sms_template.lk_type.value,
+            sms_event_slug=sms_template.sms_event_slug,
         )
         send_sms: SmsService = self.sms_class(**sms_options)
         await send_sms()
@@ -356,6 +358,10 @@ class BookingFixationNotificationService(BaseNotificationService):
                         extend_notify_eta: datetime = task_instance.booking.fixation_expires - timedelta(
                             days=notification_fixation_condition.days_before_send
                         )
+                        data: dict[str, Any] = dict(
+                            booking_id=task_instance.booking.id,
+                            fixation_notification_id=notification_fixation_condition.id,
+                        )
 
                         if (
                             extend_notify_eta > datetime.now(UTC)
@@ -363,23 +369,39 @@ class BookingFixationNotificationService(BaseNotificationService):
                                 hours=celery_config.get("periodic_eta_timeout_hours", 24)
                             )
                         ):
-                            data: dict[str, Any] = dict(
-                                booking_id=task_instance.booking.id,
-                                fixation_notification_id=notification_fixation_condition.id,
-                            )
                             self.send_booking_fixation_notify_email_task.apply_async(
                                 (data,),
                                 eta=extend_notify_eta,
                                 queue="scheduled",
                             )
                             self.logger.info(
-                                f"Для задачи {task_instance} добавлена в eta очередь задач на отправку уведомлений "
+                                f"Для задачи {task_instance} добавлена в eta очередь задача на отправку уведомлений "
+                                f"о необходимости продления фиксации"
+                            )
+                        elif (
+                            notification_fixation_condition.days_before_send == booking_settings.extension_deadline
+                            and extend_notify_eta < datetime.now(UTC)
+                            and datetime.now(UTC) - extend_notify_eta < (
+                                timedelta(hours=celery_config.get("periodic_eta_timeout_hours", 24))
+                                + timedelta(minutes=5)
+                            )
+                        ):
+                            self.send_booking_fixation_notify_email_task.apply_async(
+                                (data,),
+                                queue="scheduled",
+                            )
+                            self.logger.info(
+                                f"Для задачи {task_instance} отправлено уведомление "
                                 f"о необходимости продления фиксации"
                             )
 
                     elif notification_fixation_condition.type == BookingFixationNotificationType.FINISH:
                         finish_notify_eta: datetime = task_instance.booking.fixation_expires - timedelta(
                             days=notification_fixation_condition.days_before_send
+                        )
+                        data: dict[str, Any] = dict(
+                            booking_id=task_instance.booking.id,
+                            fixation_notification_id=notification_fixation_condition.id,
                         )
 
                         if (
@@ -388,17 +410,13 @@ class BookingFixationNotificationService(BaseNotificationService):
                                 hours=celery_config.get("periodic_eta_timeout_hours", 24)
                             )
                         ):
-                            data: dict[str, Any] = dict(
-                                booking_id=task_instance.booking.id,
-                                fixation_notification_id=notification_fixation_condition.id,
-                            )
                             self.send_booking_fixation_notify_email_task.apply_async(
                                 (data,),
                                 eta=finish_notify_eta,
                                 queue="scheduled",
                             )
                             self.logger.info(
-                                f"Для задачи {task_instance} добавлена в eta очередь задач на отправку уведомлений "
+                                f"Для задачи {task_instance} добавлена в eta очередь задача на отправку уведомлений "
                                 f"о невозможности продлить фиксацию из-за даты окончания"
                             )
 
@@ -484,7 +502,7 @@ class SendEmailBookingFixationNotifyService(BaseNotificationService):
         **context,
     ) -> Task:
         """
-        Отправляем письмо на почту брокеру с информаией об окончании фиксации.
+        Отправляем письмо на почту брокеру с информацией об окончании фиксации.
         """
         email_notification_template = await self.get_email_template_service(
             mail_event_slug=mail_event_slug,

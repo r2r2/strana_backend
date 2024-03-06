@@ -1,9 +1,10 @@
 from typing import Type
 
-from common.utils import to_global_id
+from common.utils import to_global_id, from_global_id
 from src.properties.repos import PropertyRepo, Property
 from src.properties.services import ImportPropertyService
 from ..entities import BasePropertyCase
+from ..exceptions import PropertyIsNotFlatError
 
 
 class PropertyDetailCase(BasePropertyCase):
@@ -31,8 +32,9 @@ class PropertyDetailCase(BasePropertyCase):
             related_fields=["section", "floor", "property_type"],
         )
         if not booking_property:
-            data = dict(global_id=global_id)
-            created_booking_property = await self.property_repo.create(data)
-            _, booking_property = await self.import_property_service(property=created_booking_property)
+            _, booking_property = await self.import_property_service(backend_property_id=int(profitbase_id))
+            updated_property_type, _ = from_global_id(booking_property.global_id)
+            if updated_property_type != self.property_type:
+                raise PropertyIsNotFlatError
 
         return booking_property

@@ -20,7 +20,7 @@ from src.amocrm.repos import (
     AmocrmGroupStatus,
 )
 from src.booking.constants import BookingSubstages
-from src.booking.repos import Booking, BookingRepo
+from src.booking.repos import Booking, BookingRepo, TestBookingRepo
 from src.cities.repos import CityRepo
 from src.events.repos import CalendarEventRepo, CalendarEventType
 from src.notifications.services import GetEmailTemplateService
@@ -35,12 +35,16 @@ from ..constants import (
     MeetingTopicType,
     MeetingType,
     MeetingPropertyType,
-    MeetingCreationSourceChoice, DEFAULT_RESPONSIBLE_USER_ID,
+    MeetingCreationSourceChoice,
+    DEFAULT_RESPONSIBLE_USER_ID,
 )
 from ..entities import BaseMeetingCase
+from ..event_emitter_handlers import meeting_event_emitter
 from ..exceptions import BookingStatusError, IncorrectBookingCreateMeetingError
 from ..models import RequestCreateMeetingModel
-from ..repos import Meeting, MeetingRepo, MeetingStatusRepo, MeetingCreationSourceRepo
+from ..repos import Meeting, MeetingRepo, MeetingStatusRepo, MeetingCreationSourceRepo, MeetingCreationSourceRefRepo
+from ..repos import MeetingStatusRefRepo
+from src.booking.event_emitter_handlers import event_emitter
 
 
 class CreateMeetingCase(BaseMeetingCase):
@@ -72,11 +76,15 @@ class CreateMeetingCase(BaseMeetingCase):
     amocrm_appointed_zoom_status_id = 40127292
     amocrm_push_meeting_status_id = 39394842
 
+    non_project_text = "не выбран"
+
     def __init__(
         self,
         meeting_repo: type[MeetingRepo],
         meeting_status_repo: type[MeetingStatusRepo],
+        meeting_status_ref_repo: type[MeetingStatusRefRepo],
         meeting_creation_source_repo: type[MeetingCreationSourceRepo],
+        meeting_creation_source_ref_repo: type[MeetingCreationSourceRefRepo],
         calendar_event_repo: type[CalendarEventRepo],
         amocrm_class: type[AmoCRM],
         booking_repo: type[BookingRepo],
@@ -86,23 +94,25 @@ class CreateMeetingCase(BaseMeetingCase):
         amocrm_pipeline_repo: type[AmocrmPipelineRepo],
         amocrm_group_status_repo: type[AmocrmGroupStatusRepo],
         strana_office_admin_repo: type[StranaOfficeAdminRepo],
+        test_booking_repo: type[TestBookingRepo],
         email_class: type[EmailService],
         get_email_template_service: GetEmailTemplateService,
         update_task_instance_status_service: UpdateTaskInstanceStatusService,
     ) -> None:
         self.meeting_repo: MeetingRepo = meeting_repo()
         self.meeting_status_repo: MeetingStatusRepo = meeting_status_repo()
+        self.meeting_status_ref_repo: MeetingStatusRefRepo = meeting_status_ref_repo()
         self.meeting_creation_source_repo: MeetingCreationSourceRepo = meeting_creation_source_repo()
+        self.meeting_creation_source_ref_repo: MeetingCreationSourceRefRepo = meeting_creation_source_ref_repo()
         self.calendar_event_repo: CalendarEventRepo = calendar_event_repo()
         self.booking_repo: BookingRepo = booking_repo()
         self.user_repo: UserRepo = user_repo()
         self.city_repo: CityRepo = city_repo()
         self.amocrm_status_repo: AmocrmStatusRepo = amocrm_status_repo()
         self.amocrm_pipeline_repo: AmocrmPipelineRepo = amocrm_pipeline_repo()
-        self.amocrm_group_status_repo: AmocrmGroupStatusRepo = (
-            amocrm_group_status_repo()
-        )
+        self.amocrm_group_status_repo: AmocrmGroupStatusRepo = amocrm_group_status_repo()
         self.strana_office_admin_repo: StranaOfficeAdminRepo = strana_office_admin_repo()
+        self.test_booking_repo: TestBookingRepo = test_booking_repo()
         self.amocrm_class: type[AmoCRM] = amocrm_class
         self.email_class: type[EmailService] = email_class
         self.get_email_template_service: GetEmailTemplateService = (
@@ -157,9 +167,81 @@ class CreateMeetingCase(BaseMeetingCase):
             topic=MeetingTopicType.BUY,
             date=payload.date,
             property_type=payload.property_type,
-            status_id=created_meeting_status.id,
-            creation_source_id=lk_client_creating_meeting_source.id if lk_client_creating_meeting_source else None,
         )
+
+        if self.__is_strana_lk_3011_add_enable(user_id=user.id):
+            lk_client_creating_meeting_source = await self.meeting_creation_source_repo.retrieve(
+                filters=dict(slug=MeetingCreationSourceChoice.LK_CLIENT)
+            )
+            creation_source_id = lk_client_creating_meeting_source.id if lk_client_creating_meeting_source else None
+            meeting_data["creation_source_id"] = creation_source_id
+            lk_client_creating_meeting_source_ref = await self.meeting_creation_source_ref_repo.retrieve(
+                filters=dict(slug=MeetingCreationSourceChoice.LK_CLIENT)
+            )
+            if lk_client_creating_meeting_source_ref:
+                creation_source_ref_id = lk_client_creating_meeting_source_ref.slug
+            else:
+                creation_source_ref_id = None
+            meeting_data["creation_source_ref_id"] = creation_source_ref_id
+
+            created_meeting_status_ref = await self.meeting_status_ref_repo.retrieve(
+                filters=dict(slug=MeetingStatusChoice.NOT_CONFIRM)
+            )
+            created_meeting_status = await self.meeting_status_repo.retrieve(
+                filters=dict(slug=MeetingStatusChoice.NOT_CONFIRM)
+            )
+            meeting_data["status_id"] = created_meeting_status.id
+            meeting_data["status_ref_id"] = created_meeting_status_ref.slug
+        elif self.__is_strana_lk_3011_use_enable(user_id=user.id):
+            lk_client_creating_meeting_source = await self.meeting_creation_source_repo.retrieve(
+                filters=dict(slug=MeetingCreationSourceChoice.LK_CLIENT)
+            )
+            creation_source_id = lk_client_creating_meeting_source.id if lk_client_creating_meeting_source else None
+            meeting_data["creation_source_id"] = creation_source_id
+            lk_client_creating_meeting_source_ref = await self.meeting_creation_source_ref_repo.retrieve(
+                filters=dict(slug=MeetingCreationSourceChoice.LK_CLIENT)
+            )
+            if lk_client_creating_meeting_source_ref:
+                creation_source_ref_id = lk_client_creating_meeting_source_ref.slug
+            else:
+                creation_source_ref_id = None
+            meeting_data["creation_source_ref_id"] = creation_source_ref_id
+
+            created_meeting_status_ref = await self.meeting_status_ref_repo.retrieve(
+                filters=dict(slug=MeetingStatusChoice.NOT_CONFIRM)
+            )
+            created_meeting_status = await self.meeting_status_repo.retrieve(
+                filters=dict(slug=MeetingStatusChoice.NOT_CONFIRM)
+            )
+            meeting_data["status_id"] = created_meeting_status.id
+            meeting_data["status_ref_id"] = created_meeting_status_ref.slug
+
+        elif self.__is_strana_lk_3011_off_old_enable(user_id=user.id):
+            lk_client_creating_meeting_source_ref = await self.meeting_creation_source_ref_repo.retrieve(
+                filters=dict(slug=MeetingCreationSourceChoice.LK_CLIENT)
+            )
+            if lk_client_creating_meeting_source_ref:
+                creation_source_ref_id = lk_client_creating_meeting_source_ref.slug
+            else:
+                creation_source_ref_id = None
+            meeting_data["creation_source_ref_id"] = creation_source_ref_id
+
+            created_meeting_status_ref = await self.meeting_status_ref_repo.retrieve(
+                filters=dict(slug=MeetingStatusChoice.NOT_CONFIRM)
+            )
+            meeting_data["status_ref_id"] = created_meeting_status_ref.slug
+        else:
+            lk_client_creating_meeting_source = await self.meeting_creation_source_repo.retrieve(
+                filters=dict(slug=MeetingCreationSourceChoice.LK_CLIENT)
+            )
+            creation_source_id = lk_client_creating_meeting_source.id if lk_client_creating_meeting_source else None
+            meeting_data["creation_source_id"] = creation_source_id
+
+            created_meeting_status = await self.meeting_status_repo.retrieve(
+                filters=dict(slug=MeetingStatusChoice.NOT_CONFIRM)
+            )
+            meeting_data["status_id"] = created_meeting_status.id
+
         if payload.project_id:
             meeting_data["project_id"] = payload.project_id
         created_meeting: Meeting = await self.meeting_repo.create(data=meeting_data)
@@ -263,6 +345,13 @@ class CreateMeetingCase(BaseMeetingCase):
             lead: list[AmoLead] = await amocrm.create_lead(**amo_data)
             amo_date: float = self.amo_date_formatter(created_meeting.date)
             lead_id: int = lead[0].id
+
+            data: dict[str, Any] = dict(
+                amocrm_id=lead_id,
+                is_test_user=user.is_test_user if user else False,
+            )
+            await self.test_booking_repo.create(data=data)
+
             lead_options: dict[str, Any] = dict(
                 lead_id=lead_id,
                 meeting_date_sensei=amo_date,
@@ -286,6 +375,8 @@ class CreateMeetingCase(BaseMeetingCase):
         booking_data["tags"] = tags
 
         booking: Booking = await self.booking_repo.create(data=booking_data)
+        event_emitter.ee.emit(event='booking_created', booking=booking, user=user)
+
         created_meeting = await self.meeting_repo.update(
             model=created_meeting, data=dict(booking_id=booking.id)
         )
@@ -297,29 +388,41 @@ class CreateMeetingCase(BaseMeetingCase):
         ]
         await created_meeting.fetch_related(*prefetch_fields)
 
+        meeting_event_emitter.ee.emit(
+            'meeting_created',
+            booking=booking,
+            new_status=created_meeting_status,
+            user=user,
+        )
+
         await self.send_email(
             recipients=[user],
             context=dict(meeting=created_meeting, user=user),
             mail_event_slug=self.meeting_created_to_client_mail
         )
 
-        if self.__is_strana_lk_3116_enable(user_id=user.id):
-            filters = dict(project_id=created_meeting.project.id)
-            admins = await self.strana_office_admin_repo.list(filters=filters)
+        if created_meeting.project:
+            filters = dict(projects=created_meeting.project.id, type=created_meeting.type)
+            project_name = created_meeting.project.name
+        else:
+            filters = dict(projects__city=created_meeting.city, type=MeetingType.ONLINE)
+            project_name = self.non_project_text
 
-            await self.send_email(
-                recipients=admins,
-                context=dict(
-                    client_fio=user.full_name,
-                    meeting_date=created_meeting.date.strftime("%Y-%m-%d %H:%M:%S"),
-                    client_phone=user.phone,
-                    booking_link=self.amocrm_link.format(id=booking.amocrm_id),
-                    city=created_meeting.city.name,
-                    project=created_meeting.project.name,
-                    property_type=MeetingPropertyType().to_label(created_meeting.property_type),
-                ),
-                mail_event_slug=self.meeting_created_to_admin_mail_client,
-            )
+        admins = list(set(await self.strana_office_admin_repo.list(filters=filters)))
+
+        await self.send_email(
+            recipients=admins,
+            context=dict(
+                client_fio=user.full_name,
+                meeting_date=created_meeting.date.strftime("%Y-%m-%d %H:%M:%S"),
+                client_phone=user.phone,
+                booking_link=self.amocrm_link.format(id=booking.amocrm_id),
+                city=created_meeting.city.name,
+                project=project_name,
+                property_type=MeetingPropertyType().to_label(created_meeting.property_type),
+            ),
+            mail_event_slug=self.meeting_created_to_admin_mail_client,
+        )
 
         return created_meeting
 
@@ -356,9 +459,8 @@ class CreateMeetingCase(BaseMeetingCase):
             booking_id=booking.id,
             # status__slug__not_in=[MeetingStatusChoice.FINISH, MeetingStatusChoice.CANCELLED],
         )
-        active_meetings = await self.meeting_repo.list(
-            filters=filters, related_fields=["status"]
-        )
+
+        active_meetings = await self.meeting_repo.list(filters=filters)
         for active_meeting in active_meetings:
             # await self.meeting_repo.update(
             #     model=active_meeting,
@@ -371,9 +473,6 @@ class CreateMeetingCase(BaseMeetingCase):
         )
 
         # создаем новую активную встречу
-        created_meeting_status = await self.meeting_status_repo.retrieve(
-            filters=dict(slug=MeetingStatusChoice.NOT_CONFIRM)
-        )
         lk_broker_creating_meeting_source = await self.meeting_creation_source_repo.retrieve(
             filters=dict(slug=MeetingCreationSourceChoice.LK_BROKER)
         )
@@ -386,9 +485,38 @@ class CreateMeetingCase(BaseMeetingCase):
             date=payload.date,
             property_type=payload.property_type,
             booking_id=payload.booking_id,
-            status_id=created_meeting_status.id,
             creation_source_id=lk_broker_creating_meeting_source.id if lk_broker_creating_meeting_source else None,
         )
+        created_meeting_status = None
+        if self.__is_strana_lk_3011_add_enable(user_id=user.id):
+            created_meeting_status_ref = await self.meeting_status_ref_repo.retrieve(
+                filters=dict(slug=MeetingStatusChoice.NOT_CONFIRM)
+            )
+            meeting_data["status_ref_id"] = created_meeting_status_ref.slug
+            created_meeting_status = await self.meeting_status_repo.retrieve(
+                filters=dict(slug=MeetingStatusChoice.NOT_CONFIRM)
+            )
+            meeting_data["status_id"] = created_meeting_status.id
+        elif self.__is_strana_lk_3011_use_enable(user_id=user.id):
+            created_meeting_status_ref = await self.meeting_status_ref_repo.retrieve(
+                filters=dict(slug=MeetingStatusChoice.NOT_CONFIRM)
+            )
+            meeting_data["status_ref_id"] = created_meeting_status_ref.slug
+            created_meeting_status = await self.meeting_status_repo.retrieve(
+                filters=dict(slug=MeetingStatusChoice.NOT_CONFIRM)
+            )
+            meeting_data["status_id"] = created_meeting_status.id
+        elif self.__is_strana_lk_3011_off_old_enable(user_id=user.id):
+            created_meeting_status_ref = await self.meeting_status_ref_repo.retrieve(
+                filters=dict(slug=MeetingStatusChoice.NOT_CONFIRM)
+            )
+            meeting_data["status_ref_id"] = created_meeting_status_ref.slug
+        else:
+            created_meeting_status = await self.meeting_status_repo.retrieve(
+                filters=dict(slug=MeetingStatusChoice.NOT_CONFIRM)
+            )
+            meeting_data["status_id"] = created_meeting_status.id
+
         created_meeting: Meeting = await self.meeting_repo.create(data=meeting_data)
         prefetch_fields: list[str] = [
             "project",
@@ -484,6 +612,13 @@ class CreateMeetingCase(BaseMeetingCase):
             status_slug=MeetingsSlug.AWAITING_CONFIRMATION.value,
         )
 
+        meeting_event_emitter.ee.emit(
+            'meeting_created',
+            booking=booking,
+            new_status=created_meeting_status,
+            user=user,
+        )
+
         await self.send_email(
             recipients=[user],
             context=dict(meeting=created_meeting, user=user),
@@ -495,7 +630,8 @@ class CreateMeetingCase(BaseMeetingCase):
             mail_event_slug=self.meeting_created_to_client_mail,
         )
 
-        filters = dict(project_id=created_meeting.project.id)
+        filters = dict(projects=created_meeting.project.id, type=created_meeting.type)
+
         admins = await self.strana_office_admin_repo.list(filters=filters)
 
         await self.send_email(
@@ -554,6 +690,14 @@ class CreateMeetingCase(BaseMeetingCase):
         amo_date_timestamp: float = amo_date_diff.timestamp()
         return amo_date_timestamp
 
-    def __is_strana_lk_3116_enable(self, user_id: int) -> bool:
+    def __is_strana_lk_3011_add_enable(self, user_id: int) -> bool:
         context = dict(userId=user_id)
-        return UnleashClient().is_enabled(FeatureFlags.strana_lk_3116, context=context)
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_3011_add, context=context)
+
+    def __is_strana_lk_3011_use_enable(self, user_id: int) -> bool:
+        context = dict(userId=user_id)
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_3011_use, context=context)
+
+    def __is_strana_lk_3011_off_old_enable(self, user_id: int) -> bool:
+        context = dict(userId=user_id)
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_3011_off_old, context=context)

@@ -5,7 +5,10 @@ from typing import Any, Callable, Optional, Type, Union
 
 from celery.app.task import Task
 from pytz import UTC
-from src.agents.tasks import import_clients_task
+
+from common.unleash.client import UnleashClient
+from config.feature_flags import FeatureFlags
+from src.agents.tasks import import_clients_task, import_clients_with_all_booking_task
 from src.users import constants as users_constants
 from src.users.loggers.wrappers import user_changes_logger
 
@@ -28,6 +31,7 @@ class ProcessLoginCase(BaseProcessLoginCase):
     _NotApprovedError: Type[BaseUserException] = UserNotApprovedError
     _WasDeletedError: Type[BaseUserException] = UserWasDeletedError
     _import_clients_task: Task = import_clients_task
+    _import_clients_with_all_booking_task: Task = import_clients_with_all_booking_task
 
     def __init__(
         self,
@@ -62,6 +66,7 @@ class ProcessLoginCase(BaseProcessLoginCase):
         self.WrongPasswordError: Type[Exception] = self._WrongPasswordError
         self.NotApprovedError: Type[Exception] = self._NotApprovedError
         self.import_clients_task: Task = self._import_clients_task
+        self.import_clients_with_all_booking_task: Task = self._import_clients_with_all_booking_task
 
     async def __call__(self, payload: RequestProcessLoginModel) -> dict[str, Any]:
         data: dict[str, Any] = payload.dict()
@@ -139,10 +144,20 @@ class ProcessLoginCase(BaseProcessLoginCase):
 
     async def _import_amocrm_hook(self, user: User):
         if user.type == UserType.AGENT:
-            self.import_clients_task.delay(user.id)
+            if self.__is_strana_lk_3412_enable(user_id=user.id):
+                self.import_clients_with_all_booking_task.delay(agent_id=user.id)
+            else:
+                self.import_clients_task.delay(agent_id=user.id)
         elif user.type == UserType.REPRES:
             agents = await self.user_repo.list(filters=dict(agency_id=user.agency_id, type=UserType.AGENT))
             self.import_clients_task.delay(user.id)
             for agent in agents:
                 agent: User
-                self.import_clients_task.delay(agent.id)
+                if self.__is_strana_lk_3412_enable(user_id=user.id):
+                    self.import_clients_with_all_booking_task.delay(agent_id=agent.id)
+                else:
+                    self.import_clients_task.delay(agent_id=agent.id)
+
+    def __is_strana_lk_3412_enable(self, user_id: int) -> bool:
+        context = dict(userId=user_id)
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_3412, context=context)

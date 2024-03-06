@@ -4,6 +4,8 @@ from typing import Any, Optional, Type
 from common.amocrm import AmoCRM
 from common.amocrm.leads.payment_method import (AmoCRMPaymentMethod,
                                                 AmoCRMPaymentMethodMapping)
+from common.unleash.client import UnleashClient
+from config.feature_flags import FeatureFlags
 from src.booking.loggers.wrappers import booking_changes_logger
 
 from ..constants import OnlinePurchaseSteps, PaymentMethods
@@ -298,15 +300,23 @@ class PaymentMethodSelectCase(BaseBookingCase, BookingLogMixin):
             # данные для подачи заявки на ипотеку
             if bank_contact_info is not None:
                 note_text = self._get_bank_contact_info_note_text(bank_contact_info)
+
+            if self.__is_strana_lk_2882_enable:
+                await amocrm.create_note_v4(lead_id=booking.amocrm_id, text=note_text)
+            else:
                 await amocrm.create_note(
                     lead_id=booking.amocrm_id, text=note_text, element="lead", note="common"
                 )
 
             if mortgage_request_created:
                 note_text = "Клиент намерен подать заявку на ипотеку через Страну"
-                await amocrm.create_note(
-                    lead_id=booking.amocrm_id, text=note_text, element="lead", note="common"
-                )
+                if self.__is_strana_lk_2882_enable:
+                    await amocrm.create_note_v4(lead_id=booking.amocrm_id, text=note_text)
+                else:
+                    await amocrm.create_note(
+                        lead_id=booking.amocrm_id, text=note_text, element="lead", note="common"
+                    )
+
 
     @classmethod
     def _get_bank_contact_info_note_text(cls, bank_contact_info: BankContactInfo) -> str:
@@ -352,3 +362,7 @@ class PaymentMethodSelectCase(BaseBookingCase, BookingLogMixin):
         )
         if payment_method not in AmoCRMPaymentMethodMapping:
             raise BookingPaymentMethodNotFoundError
+
+    @property
+    def __is_strana_lk_2882_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_2882)

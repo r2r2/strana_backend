@@ -45,7 +45,7 @@ class AgentConfirmEmailError(BaseAgentException):
 
 
 class AgentSamePasswordError(BaseAgentException):
-    message: str = "Пароль остался неизменным."
+    message: str = "Введен пароль, который использован ранее в этом аккаунте."
     status: int = HTTPStatus.BAD_REQUEST
     reason: str = "agent_same_password"
 
@@ -129,7 +129,7 @@ class UploadDocumentsNotFoundError(BaseAgentException):
 
 
 class UploadDocumentInternalError(BaseAgentException):
-    message: str = "Ошибка сервиса загрузки файлов"
+    message: str = "Ошибка загрузки документов. Пожалуйста, повторите попытку позже."
     status: int = HTTPStatus.INTERNAL_SERVER_ERROR
     reason: str = "upload_service_internal_error"
 

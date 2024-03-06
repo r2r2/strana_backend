@@ -8,10 +8,10 @@ from tortoise import Model
 def get_routers() -> list[APIRouter]:
     from src.admins.api import admins_router
     from src.agencies.api import agencies_router
-    from src.agents.api import agents_router
+    from src.agents.api import agents_router, agents_router_v2
     from src.auth import auth_router
     from src.booking.api import booking_router, fast_booking_router, booking_router_v2
-    from src.documents.api import documents_router, escrow_router
+    from src.documents.api import documents_router, escrow_router, documents_router_v2
     from src.notifications.api import notifications_router, templates_router
     from src.cautions.api import caution_router
     from src.task_management.api import task_management_router
@@ -37,6 +37,10 @@ def get_routers() -> list[APIRouter]:
     from src.news.api import news_router
     from src.mortgage.api import mortgage_router
     from src.maintenance.api import maintenance_router
+    from src.users.api import amocrm_contact_router
+    from src.faq.api import faq_router
+    from src.privilege_program.api import privilege_program_router
+    from src.questionnaire.api import questionnaire_router
 
     routers: list[APIRouter] = list()
 
@@ -45,12 +49,14 @@ def get_routers() -> list[APIRouter]:
     routers.append(users_router)
     routers.append(manager_router)
     routers.append(agents_router)
+    routers.append(agents_router_v2)
     routers.append(customers_router)
     routers.append(booking_router)
     routers.append(booking_router_v2)
     routers.append(fast_booking_router)
     routers.append(represes_router)
     routers.append(documents_router)
+    routers.append(documents_router_v2)
     routers.append(escrow_router)
     routers.append(properties_router)
     routers.append(favourites_router)
@@ -83,6 +89,10 @@ def get_routers() -> list[APIRouter]:
     routers.append(news_router)
     routers.append(mortgage_router)
     routers.append(maintenance_router)
+    routers.append(amocrm_contact_router)
+    routers.append(faq_router)
+    routers.append(privilege_program_router)
+    routers.append(questionnaire_router)
 
     return routers
 

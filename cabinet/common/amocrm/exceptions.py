@@ -12,7 +12,11 @@ class BaseAmocrmException(Exception):
 
 
 class AmocrmHookError(BaseAmocrmException):
-    def __init__(self, message: str = "Ошибка интеграции с АМО-ЦРМ.", reason: str = "amocrm_hook_exception"):
+    def __init__(
+        self,
+        message: str = "Ошибка интеграции с AMO CRM. Пожалуйста, повторите попытку позже.",
+        reason: str = "amocrm_hook_exception",
+    ):
         self.message = message
         self.reason = reason
 
@@ -47,3 +51,9 @@ class AmoFetchLeadNotFoundError(BaseAmocrmException):
     message: str = "Лид не найден"
     status: int = status.HTTP_404_NOT_FOUND
     reason: str = "amo_fetch_lead_not_found_error"
+
+
+class AmoNoMainContactError(BaseAmocrmException):
+    message: str = "No main contact in lead"
+    status: int = status.HTTP_404_NOT_FOUND
+    reason: str = "no_main_contact_error"

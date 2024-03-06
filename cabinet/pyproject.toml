@@ -65,12 +65,10 @@ black = "^23.9.1"
 mypy = "^1.5.1"
 requests = "^2.25.1"
 
-
 [tool.aerich]
 tortoise_orm = "config.aerich_config"
 location = "./migrations"
 src_folder = "./."
-
 
 [build-system]
 requires = ["poetry-core"]

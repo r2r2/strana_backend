@@ -309,3 +309,60 @@ class BookingFixationNotificationType(mixins.Choices):
     """
     EXTEND: str = "extend", "Продление фиксации"
     FINISH: str = "finish", "Окончании фиксации"
+
+
+# Statistic
+PROPERTY_PAYED_FROM_LK_PERIOD_DAYS = 1
+
+
+class BookingEventSlugs(mixins.Choices):
+    """
+    Слаги событий бронирования(для истории сделки)
+    """
+
+    CHANGE_DEAL_GROUPING_STATUS: str = "change-deal-grouping-status", "Смена группирующего статуса сделки"
+    TIME_EXPIRED: str = "time-expired", "Время истекло"
+    BOOKING_SUCCESSFULLY_PAID: str = "booking-successfully-paid", "Бронирование успешно оплачено"
+    PAY_BOOKING: str = "pay-booking", "Оплатите бронирование"
+    FILL_PERSONAL_INFORMATION: str = "fill-personal-information", "Заполните персональные данные"
+    READ_CONTRACT_OFFER: str = "read-contract-offer", "Ознакомьтесь с договором офертой"
+    EXTEND_FREE_BOOKING: str = "extend-free-booking", "Продлить бесплатную бронь"
+    CREATE_DEAL: str = "create-deal", "Создание сделки"
+    CREATE_MORTGAGE_APPLICATION: str = "create-mortgage-application", "Создание заявки на ипотеку"
+    MORTGAGE_APPLICATION_STATUS_CHANGED: str = "mortgage-application-status-changed", "Изменен статус заявки на ипотеку"
+    CREATE_MEETING: str = "create-meeting", "Создание встречи"
+    MEETING_STATUS_CHANGED: str = "meeting-status-changed", "Изменение статуса встречи"
+
+
+class BookingEventTypeTypes(mixins.Choices):
+    """
+    Типы событий
+    """
+
+    CHANGE_DEAL_GROUPING_STATUS: str = "change-deal-grouping-status", "Смена группирующего статуса сделки"
+    BOOKING_STEPS_PROGRESS: str = "booking-steps-progress", "Прохождение шагов бронирования"
+    CREATE_DEAL: str = "create-deal", "Создание сделки"
+    CREATE_MORTGAGE_APPLICATION: str = "create-mortgage-application", "Создание заявки на ипотеку"
+    MORTGAGE_APPLICATION_STATUS_CHANGED: str = "mortgage-application-status-changed", "Смена статуса заявки на ипотеку"
+    CREATE_MEETING: str = "create-meeting", "Создание встречи"
+    MEETING_STATUS_CHANGED: str = "meeting-status-changed", "Изменение статуса встречи"
+
+
+class CancelRewardComment(StrEnum):
+    CANCELED = "Сделка отменена"
+    UNBOOKED = "Квартира разбронирована"
+    CANCEL_REWARD = "Скидка отменена Вами"
+
+
+class CancelRewardBookingGroupStatus(StrEnum):
+    UNREALIZED = "Закрыто и не реализовано"
+    MAKE_DECISION = "Принимают решение"
+    START = "Первичный контакт"
+
+
+class TestBookingStatuses(mixins.Choices):
+    """
+    Статусы тестового бронирования
+    """
+    IN_AMO: str = "in_amo", "Есть в АМО (не удалена)"
+    NOT_IN_AMO: str = "not_in_amo", "Нет в АМО (удалена)"

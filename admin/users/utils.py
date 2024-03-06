@@ -1,9 +1,13 @@
 import os
+import pytz
+from datetime import datetime
+
 import requests
 import json
 from http import HTTPStatus
 
 from django.forms import JSONField
+import locale
 
 DOCKER_SITE_HOST = os.getenv("LK_DOCKER_SITE_HOST", "http://cabinet:1800")
 SITE_HOST = os.getenv("LK_SITE_HOST")
@@ -37,3 +41,36 @@ def import_clients_and_booking_from_amo(broker_id):
         return True
     else:
         return False
+
+
+def compute_user_fullname(user) -> str:
+    fullname: str = "{surname} {name} {patronymic}"
+
+    return fullname.format(
+        name=user.name,
+        surname=user.surname,
+        patronymic=user.patronymic,
+    ).strip()
+
+
+def format_localize_datetime(input_datetime: datetime | None) -> str:
+    """
+    Приводит дату вида `2023-10-18 15:13:07.109458+00:00`
+    к формату `18 октября 2023 г. 18:13`
+    Преобразует из UTC в UTC-3 (Мск)
+    """
+
+    if not input_datetime:
+        return ""
+
+    target_timezone_obj = pytz.timezone("Europe/Moscow")
+
+    try:
+        input_datetime_utc = input_datetime.replace(tzinfo=pytz.utc)
+        local_datetime = input_datetime_utc.astimezone(target_timezone_obj)
+        locale.setlocale(locale.LC_TIME, "ru_RU.utf-8")
+        formatted_datetime = local_datetime.strftime("%d %B %Y г. %H:%M")
+    except (AttributeError, ValueError):
+        formatted_datetime = ""
+
+    return formatted_datetime

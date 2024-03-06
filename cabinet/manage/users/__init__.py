@@ -1,1 +1,3 @@
 from .generate_agents_users import GenerateAgentsUsers
+from .check_client_interests import CheckClientInterestManage
+from .compare_type_and_role import CompareTypeAndRole

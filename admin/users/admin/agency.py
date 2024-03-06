@@ -27,7 +27,7 @@ class AgencyAdmin(admin.ModelAdmin):
     )
     inlines = (AgencyLogInline, )
     search_fields = ("name", "inn", "amocrm_id", "type", "city")
-    list_filter = ("created_at", "general_type", "city")
+    list_filter = ("created_at", "general_type", "city", "type")
     formfield_overrides = {
         models.JSONField: {'form_class': ReadableJSONFormField},
     }

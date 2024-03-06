@@ -8,6 +8,8 @@ from typing import Any, Type, TypedDict, Union, Optional, Iterable
 from pydantic import BaseModel, validator
 
 from common.amocrm import AmoCRM
+from common.unleash.client import UnleashClient
+from config.feature_flags import FeatureFlags
 
 from ..constants import (
     DDUParticipantFileType,
@@ -332,9 +334,12 @@ class DDUUpdateCase(BaseBookingCase):
             )
             note_text = self._get_note_text(grouped_by_participants_diff_list)
             if note_text:
-                await amocrm.create_note(
-                    lead_id=booking.amocrm_id, text=note_text, element="lead", note="common"
-                )
+                if self.__is_strana_lk_2882_enable:
+                    await amocrm.create_note_v4(lead_id=booking.amocrm_id, text=note_text)
+                else:
+                    await amocrm.create_note(
+                        lead_id=booking.amocrm_id, text=note_text, element="lead", note="common"
+                    )
 
     @classmethod
     def _get_note_text(
@@ -458,3 +463,7 @@ class DDUUpdateCase(BaseBookingCase):
         """Проверка на выполнение условий."""
         if booking.online_purchase_step() != OnlinePurchaseSteps.AMOCRM_DDU_UPLOADING_BY_LAWYER:
             raise BookingWrongStepError
+
+    @property
+    def __is_strana_lk_2882_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_2882)

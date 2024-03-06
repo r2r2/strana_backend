@@ -1,3 +1,4 @@
+from common.amocrm.components import AmoCRMLeads
 from common.settings.repos import BookingSettings, BookingSettingsRepo
 from src.booking.exceptions import BookingSourceNotFoundError
 from src.properties.repos import Property
@@ -21,7 +22,6 @@ async def get_booking_reserv_time(created_source: str, booking_property: Propert
             created_source=created_source,
             project__in=[booking_property.project],
         ),
-        prefetch_fields=["project"],
     )
 
     if booking_reserv:
@@ -54,3 +54,77 @@ def create_lead_name(user: User) -> str | None:
     elif user.name:
         lead_name = user.name
     return lead_name
+
+
+def get_statuses_before_booking() -> set[int]:
+    amo_statuses = AmoCRMLeads
+    return {
+        amo_statuses.CallCenterStatuses.START.value,
+        amo_statuses.CallCenterStatuses.REDIAL.value,
+        amo_statuses.CallCenterStatuses.ROBOT_CHECK.value,
+        amo_statuses.CallCenterStatuses.TRY_CONTACT.value,
+        amo_statuses.CallCenterStatuses.QUALITY_CONTROL.value,
+        amo_statuses.CallCenterStatuses.SELL_APPOINTMENT.value,
+        amo_statuses.CallCenterStatuses.GET_TO_MEETING.value,
+        amo_statuses.CallCenterStatuses.MAKE_APPOINTMENT.value,
+        amo_statuses.CallCenterStatuses.APPOINTED_ZOOM.value,
+        amo_statuses.CallCenterStatuses.ZOOM_CALL.value,
+        amo_statuses.CallCenterStatuses.MAKE_DECISION.value,
+        amo_statuses.CallCenterStatuses.THINKING_OF_MORTGAGE.value,
+        amo_statuses.CallCenterStatuses.START_2.value,
+        amo_statuses.CallCenterStatuses.SUCCESSFUL_BOT_CALL_TRANSFER.value,
+        amo_statuses.CallCenterStatuses.REFUSE_MANGO_BOT.value,
+        amo_statuses.CallCenterStatuses.RESUSCITATED_CLIENT.value,
+        amo_statuses.CallCenterStatuses.SUBMIT_SELECTION.value,
+        amo_statuses.CallCenterStatuses.THINKING_ABOUT_PRICE.value,
+        amo_statuses.CallCenterStatuses.SEEKING_MONEY.value,
+        amo_statuses.CallCenterStatuses.CONTACT_AFTER_BOT.value,
+
+        amo_statuses.TMNStatuses.START.value,
+        amo_statuses.TMNStatuses.MAKE_APPOINTMENT.value,
+        amo_statuses.TMNStatuses.ASSIGN_AGENT.value,
+        amo_statuses.TMNStatuses.MEETING.value,
+        amo_statuses.TMNStatuses.MEETING_IN_PROGRESS.value,
+        amo_statuses.TMNStatuses.MAKE_DECISION.value,
+        amo_statuses.TMNStatuses.RE_MEETING.value,
+
+        amo_statuses.MSKStatuses.START.value,
+        amo_statuses.MSKStatuses.ASSIGN_AGENT.value,
+        amo_statuses.MSKStatuses.MAKE_APPOINTMENT.value,
+        amo_statuses.MSKStatuses.MEETING.value,
+        amo_statuses.MSKStatuses.MEETING_IN_PROGRESS.value,
+        amo_statuses.MSKStatuses.MAKE_DECISION.value,
+        amo_statuses.MSKStatuses.RE_MEETING.value,
+
+        amo_statuses.SPBStatuses.START.value,
+        amo_statuses.SPBStatuses.ASSIGN_AGENT.value,
+        amo_statuses.SPBStatuses.MAKE_APPOINTMENT.value,
+        amo_statuses.SPBStatuses.MEETING.value,
+        amo_statuses.SPBStatuses.MEETING_IN_PROGRESS.value,
+        amo_statuses.SPBStatuses.MAKE_DECISION.value,
+        amo_statuses.SPBStatuses.RE_MEETING.value,
+
+        amo_statuses.EKBStatuses.START.value,
+        amo_statuses.EKBStatuses.ASSIGN_AGENT.value,
+        amo_statuses.EKBStatuses.MAKE_APPOINTMENT.value,
+        amo_statuses.EKBStatuses.MEETING.value,
+        amo_statuses.EKBStatuses.MEETING_IN_PROGRESS.value,
+        amo_statuses.EKBStatuses.MAKE_DECISION.value,
+        amo_statuses.EKBStatuses.RE_MEETING.value,
+
+        amo_statuses.TestStatuses.START.value,
+        amo_statuses.TestStatuses.REDIAL.value,
+        amo_statuses.TestStatuses.ROBOT_CHECK.value,
+        amo_statuses.TestStatuses.TRY_CONTACT.value,
+        amo_statuses.TestStatuses.QUALITY_CONTROL.value,
+        amo_statuses.TestStatuses.SELL_APPOINTMENT.value,
+        amo_statuses.TestStatuses.GET_TO_MEETING.value,
+        amo_statuses.TestStatuses.ASSIGN_AGENT.value,
+        amo_statuses.TestStatuses.MAKE_APPOINTMENT.value,
+        amo_statuses.TestStatuses.APPOINTED_ZOOM.value,
+        amo_statuses.TestStatuses.MEETING_IS_SET.value,
+        amo_statuses.TestStatuses.ZOOM_CALL.value,
+        amo_statuses.TestStatuses.MEETING_IN_PROGRESS.value,
+        amo_statuses.TestStatuses.MAKE_DECISION.value,
+        amo_statuses.TestStatuses.RE_MEETING.value,
+    }

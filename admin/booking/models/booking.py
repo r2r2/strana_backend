@@ -53,32 +53,51 @@ class Booking(models.Model):
     amocrm_substage = models.CharField(max_length=100, blank=True, null=True)
     project = models.ForeignKey("properties.Project", models.CASCADE, blank=True, null=True, verbose_name="ЖК")
     building = models.ForeignKey(
-        "properties.Building", models.CASCADE, blank=True, null=True, verbose_name="Корпус"
+        "properties.Building",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        verbose_name="Корпус",
     )
     user = models.ForeignKey(
         "users.CabinetUser",
-        models.CASCADE,
-        blank=True, null=True,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
         related_name="booking_user",
-        verbose_name="Клиент"
+        verbose_name="Клиент",
+        db_index=True,
     )
     agent = models.ForeignKey(
         "users.CabinetUser",
-        models.CASCADE,
-        blank=True, null=True,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
         related_name="booking_agent",
-        verbose_name="Агент"
+        verbose_name="Агент",
     )
     agency = models.ForeignKey(
         "users.Agency",
-        models.DO_NOTHING,
-        blank=True, null=True,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
         related_name="booking_agency",
-        verbose_name="Агентство"
+        verbose_name="Агентство",
     )
     property = models.ForeignKey(
-        "properties.Property", models.CASCADE, blank=True, null=True, verbose_name="Объект недвижимости"
+        "properties.Property",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        verbose_name="Объект недвижимости",
     )
+    property_lk = models.BooleanField(verbose_name="Объект недвижимости забронирован из ЛК Брокера")
+    property_lk_datetime = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name="Дата и время начала бронирования объекта недвижимости",
+    )
+    property_lk_on_time = models.BooleanField(verbose_name="Бронь оплачена в течении суток")
     payment_order_number = models.UUIDField(help_text="Номер заказа в эквайринге")
     payment_currency = models.IntegerField(help_text="ID используемой валюты (643 - рубли)")
     payment_amount = models.DecimalField(
@@ -94,7 +113,12 @@ class Booking(models.Model):
                      "MOBILE - мобильное устройство",
     )
     payment_status = models.IntegerField(blank=True, null=True, help_text="Статус оплаты в эквайринге")
-    floor = models.ForeignKey("properties.Floor", models.CASCADE, blank=True, null=True)
+    floor = models.ForeignKey(
+        "properties.Floor",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+    )
     profitbase_booked = models.BooleanField(help_text="Забронировано в Profitbase")
     expires = models.DateTimeField(blank=True, null=True)
     fixation_expires = models.DateTimeField(verbose_name="Фиксация истекает", blank=True, null=True)
@@ -105,14 +129,21 @@ class Booking(models.Model):
     online_purchase_id = models.CharField(max_length=9, blank=True, null=True)
     ddu_upload_url_secret = models.CharField(max_length=60, blank=True, null=True)
     signing_date = models.DateField(null=True, blank=True)
-    created_source = models.CharField(choices=CreatedSourceChoices.choices, default=None, null=True,
-                                      max_length=100, blank=True, help_text="Deprecated")
+    created_source = models.CharField(
+        choices=CreatedSourceChoices.choices,
+        default=None,
+        null=True,
+        max_length=100,
+        blank=True,
+        help_text="Deprecated",
+    )
     booking_source = models.ForeignKey(
         to="BookingSource",
-        on_delete=models.CASCADE,
-        blank=True, null=True,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
         related_name="bookings",
-        verbose_name="Источник бронирования"
+        verbose_name="Источник бронирования",
     )
     amocrm_status_id = models.IntegerField(null=True, blank=True)
     amocrm_status_name = models.CharField(null=True, blank=True, max_length=200)
@@ -159,11 +190,30 @@ class Booking(models.Model):
         null=True,
         blank=True,
     )
+    mortgage_offer = models.TextField(verbose_name="Ипотечное предложение", null=True, blank=True)
+    calculator_options = models.JSONField(
+        verbose_name="Опции калькулятора при подборе квартиры",
+        null=True,
+        blank=True,
+    )
     loyalty_point_amount = models.IntegerField(
         verbose_name="Количество баллов лояльности",
         help_text="Только для информации, редактируется через микросервис лояльности",
         null=True,
         blank=True,
+    )
+    loyalty_discount = models.DecimalField(
+        verbose_name="Скидка по промокоду (руб.)",
+        decimal_places=3,
+        max_digits=15,
+        null=True,
+        blank=True
+    )
+    loyalty_discount_name = models.CharField(
+        verbose_name="Применённый промокод/скидка",
+        max_length=150,
+        null=True,
+        blank=True
     )
 
     def __str__(self) -> str:
@@ -202,7 +252,6 @@ class Booking(models.Model):
         self.__original_project = self.project
         self.__original_contract_accepted = self.contract_accepted
         self.__original_personal_filled = self.personal_filled
-        self.__original_params_checked = self.params_checked
         self.__original_price_payed = self.price_payed
 
     def save(self, *args, **kwargs):
@@ -232,8 +281,6 @@ class Booking(models.Model):
             self.contract_accepted = self.__original_contract_accepted
         if self.__original_personal_filled and not self.personal_filled:
             self.personal_filled = self.__original_personal_filled
-        if self.__original_params_checked and not self.params_checked:
-            self.params_checked = self.__original_params_checked
         if self.__original_price_payed and not self.price_payed:
             self.price_payed = self.__original_price_payed
 
@@ -248,7 +295,6 @@ class Booking(models.Model):
         self.__original_property = self.property
         self.__original_contract_accepted = self.contract_accepted
         self.__original_personal_filled = self.personal_filled
-        self.__original_params_checked = self.params_checked
         self.__original_price_payed = self.price_payed
 
     errors.short_description = "Есть ошибки"

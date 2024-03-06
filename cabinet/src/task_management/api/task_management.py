@@ -127,31 +127,17 @@ async def set_previous_status(
 )
 async def one_time_set_pinning():
     import asyncio
-    from pytz import UTC
-    from datetime import datetime
-    from common.sberbank.logging import sberbank_invoice_log, SberbankInvoiceLogDTO
-    from src.properties.constants import PropertyTypes
-    from src.mortgage.factories import ChangeMortgageTicketStatusServiceFactory
-    # change_mortgage_ticket_status_service = ChangeMortgageTicketStatusServiceFactory.create()
-    # change_mortgage_ticket_status_service.as_task(booking_id=5777)
-    # await asyncio.sleep(0)
-    log_data: SberbankInvoiceLogDTO = SberbankInvoiceLogDTO(
-        amocrm_id=577777,
-        sent_date=datetime.now(tz=UTC),
-        sent_email="email@email.com",
-        sent_error=None,
+    from src.booking.repos import Booking, BookingRepo
+
+    filters: dict[str, Any] = dict(amocrm_id=31711670)
+    booking: Booking | None = await BookingRepo().retrieve(
+        filters=filters,
+        related_fields=["property", "amocrm_status", "amocrm_status__group_status"],
     )
-    log_data.sent_status = True
-    print(f'{log_data=}')
-    print(f'{type(log_data)=}')
-    print(f'{log_data.__dict__=}')
-    # await sberbank_invoice_log(log_data=log_data)
-
-
-
-
-#     """
-#     Одноразовый эндпоинт. Удалить после использования.
+    print(f'{booking=}')
+    return {"status": "ok"}
+    """
+    Одноразовый эндпоинт. Удалить после использования.
 #     Установка Статуса закрепления для всех пользователей
 #     """
 #     import asyncio

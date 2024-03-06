@@ -5,7 +5,7 @@ from config import EnvTypes, maintenance_settings
 from fastapi import UploadFile
 from src.agreements.constants import AdditionalAgreementFileType
 from src.agreements.repos import AgencyAdditionalAgreement
-from src.booking.repos import Booking
+from src.booking.repos import Booking, TestBookingRepo
 from src.projects.repos import Project
 from src.users.repos import User
 from src.agents.repos import AgentRepo
@@ -38,6 +38,7 @@ class AgenciesAdditionalAgreementGetDocCase(BaseAgencyCase):
         booking_repo: Type[AgencyBookingRepo],
         additional_agreement_repo: Type[AgencyAdditionalAgreementRepo],
         agent_repo: Type[AgentRepo],
+        test_booking_repo: Type[TestBookingRepo],
     ) -> None:
         self._admin_repo: Type[AgencyAdminsRepo] = admin_repo()
         self._booking_getdoc_statuses: Any = booking_getdoc_statuses
@@ -48,6 +49,7 @@ class AgenciesAdditionalAgreementGetDocCase(BaseAgencyCase):
         self._amocrm_class: Type[AgencyAmoCRM] = amocrm_class
         self._additional_agreement_repo: Type[AgencyAdditionalAgreementRepo] = additional_agreement_repo()
         self._agent_repo: AgentRepo = agent_repo()
+        self._test_booking_repo: TestBookingRepo = test_booking_repo()
 
     async def __call__(
         self,
@@ -84,6 +86,17 @@ class AgenciesAdditionalAgreementGetDocCase(BaseAgencyCase):
             lead_user=agency.maintainer,
             project=project
         )
+        if agent_id:
+            is_test_user = agent.is_test_user
+        else:
+            is_test_user = agency.maintainer.is_test_user
+        data: dict[str, Any] = dict(
+            booking=booking,
+            amocrm_id=booking.amocrm_id,
+            is_test_user=is_test_user,
+        )
+        await self._test_booking_repo.create(data=data)
+
         additional_agreement: AgencyAdditionalAgreement = await self._additional_agreement_get_document(
             additional_agreement=additional_agreement,
             booking=booking
@@ -115,6 +128,7 @@ class AgenciesAdditionalAgreementGetDocCase(BaseAgencyCase):
         )
         async with await self._amocrm_class() as amocrm:
             data: list[AmoLead] = await amocrm.create_lead(**lead_options)
+
         booking_data = dict(
             project_id=project.id,
             amocrm_id=data[0].id,

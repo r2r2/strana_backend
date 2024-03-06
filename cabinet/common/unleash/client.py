@@ -1,7 +1,6 @@
 from typing import Callable, Any
 from config import maintenance_settings, unleash_config
 import structlog
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from .cache import RCache
 

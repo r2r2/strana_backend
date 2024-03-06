@@ -15,6 +15,8 @@ class UniqueStatusButton(Model):
     text_color: str = fields.CharField(default="#FFFFFF", description="Цвет текста", max_length=7, null=True)
     description: str = fields.TextField(description="Описание", null=True)
 
+    terms: fields.ReverseRelation["CheckTerm"]
+
     class Meta:
         table = "users_unique_statuses_buttons"
 

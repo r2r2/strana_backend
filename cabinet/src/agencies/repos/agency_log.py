@@ -16,6 +16,7 @@ class AgencyLog(Model, AbstractLogMixin):
         description="Агентство",
         model_name="models.Agency",
         related_name="agency_logs",
+        on_delete=fields.SET_NULL,
         null=True,
     )
 

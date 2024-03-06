@@ -1,4 +1,5 @@
 from .check_booking import CheckBookingService
+from .check_test_booking import CheckTestBookingService
 from .deactivate_expired_bookings import DeactivateExpiredBookingsService
 from .generate_online_purchase_id import GenerateOnlinePurchaseIDService
 from .ddu_data_from_participants import DDUDataFromParticipantsService
@@ -15,3 +16,4 @@ from .repeat_booking import RepeatBookingService
 from .update_booking_in_amo import UpdateAmoBookingService
 from .send_sms_msk_client import SendSmsToMskClientService
 from .booking_creation import BookingCreationFromAmoService
+from .cancel_loyalty_reward_service import CancelLoyaltyRewardService

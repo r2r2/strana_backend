@@ -12,55 +12,19 @@ class MortgageFormNotFoundError(BaseMortgageException):
     reason = "mortgage_form_not_found"
 
 
-class MortgageConditionMatrixNotFoundError(BaseMortgageException):
+class NoAuthTokenError(BaseMortgageException):
     """
-    Матрица условий не найдена.
+    Не передан токен авторизации.
     """
-    message: str = "Матрица условий не найдена"
+    message: str = "Не передан токен авторизации"
+    status: int = HTTPStatus.UNAUTHORIZED
+    reason = "no_auth_token"
+
+
+class DocumentsNotFoundError(BaseMortgageException):
+    """
+    Документы не найдены.
+    """
+    message: str = "Загруженные документы не найдены"
     status: int = HTTPStatus.NOT_FOUND
-    reason = "mortgage_condition_matrix_not_found"
-
-
-class MortgageCalculatorConditionNotFoundError(BaseMortgageException):
-    """
-    Условие в калькуляторе не найдено.
-    """
-    message: str = "Условие в калькуляторе не найдено"
-    status: int = HTTPStatus.NOT_FOUND
-    reason = "mortgage_calculator_condition_not_found"
-
-
-class MortgageProgramNotFoundError(BaseMortgageException):
-    """
-    Ипотечная программа не найдена.
-    """
-    message: str = "Ипотечная программа не найдена"
-    status: int = HTTPStatus.NOT_FOUND
-    reason = "mortgage_program_not_found"
-
-
-class MortgageBankNotFoundError(BaseMortgageException):
-    """
-    Банк не найден.
-    """
-    message: str = "Банк не найден"
-    status: int = HTTPStatus.NOT_FOUND
-    reason = "mortgage_bank_not_found"
-
-
-class MortgageApplicationStatusNotFoundError(BaseMortgageException):
-    """
-    Статус заявки не найден.
-    """
-    message: str = "Статус заявки не найден"
-    status: int = HTTPStatus.NOT_FOUND
-    reason = "mortgage_application_status_not_found"
-
-
-class MortgageTicketNotFoundError(BaseMortgageException):
-    """
-    Заявка не найдена.
-    """
-    message: str = "Заявка на ипотеку не найдена"
-    status: int = HTTPStatus.NOT_FOUND
-    reason = "mortgage_ticket_not_found"
+    reason = "documents_not_found"

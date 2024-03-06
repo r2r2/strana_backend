@@ -82,10 +82,10 @@ class ImportPropertyService(BasePropertyService):
         "building": ("BuildingType", "id"),
         "project": ("GlobalProjectType", "slug"),
     }
-    # price_type_mapping: dict = {
-    #     "ordinary_price_slug": "ordinary",
-    #     "subsidy_price_slug": "subsidy",
-    # }
+    price_type_mapping: dict = {
+        "ordinary_price_slug": "ordinary",
+        "subsidy_price_slug": "subsidy",
+    }
 
     def __init__(
         self,
@@ -202,62 +202,43 @@ class ImportPropertyService(BasePropertyService):
         print("ImportPropertyService")
         print(f'{property=}')
 
-        if self.__is_strana_lk_3122_enable:
-            property_global_id: str | None = None
-            if backend_property_id:
-                # backend_property (new)
-                backend_property = await self._load_property_from_backend(backend_property_id)
-                if backend_property is None:
-                    print(f'{backend_property is None=}')
-                    return False, None
+        property_global_id: str | None = None
+        if backend_property_id:
+            # backend_property (new)
+            backend_property = await self._load_property_from_backend(backend_property_id)
+            if backend_property is None:
+                print(f'{backend_property is None=}')
+                return False, None
 
-                property_global_id_type = self.property_types_mapping.get(backend_property.type)
-                property_global_id_value = str(backend_property.id)
-                property_global_id = self.global_id_encoder(
-                    property_global_id_type, property_global_id_value
-                )
-                # _property (new)
-                _property: Property | None = await self.property_repo.retrieve(
-                    filters=dict(global_id=property_global_id)
-                )
-                if not _property:
-                    _property: Property = await self.property_repo.create(data=dict(global_id=property_global_id))
+            property_global_id_type = self.property_types_mapping.get(backend_property.type)
+            property_global_id_value = str(backend_property.id)
+            property_global_id = self.global_id_encoder(
+                property_global_id_type, property_global_id_value
+            )
+            # _property (new)
+            _property: Property | None = await self.property_repo.retrieve(
+                filters=dict(global_id=property_global_id)
+            )
+            if not _property:
+                _property: Property = await self.property_repo.create(data=dict(global_id=property_global_id))
 
-                # status (new)
-                status: bool = True
-                is_property_with_global_id_exists = True
-            else:
-                # _property (old)
-                _property = property
-                if not _property:
-                    filters: dict = dict(id=property_id)
-                    _property: Property = await self.property_repo.retrieve(filters=filters)
-                # status (old)
-                status: bool = True
-                if not _property.global_id:
-                    return status, _property
-
-                backend_property_id = self.global_id_decoder(_property.global_id)[1]
-                print(f'{backend_property_id=}')
-                # backend_property (old)
-                backend_property = await self._load_property_from_backend(backend_property_id)
-                print(f'{backend_property=}')
-                if backend_property is None:
-                    print(f'{backend_property is None=}')
-                    return False, _property
-
+            # status (new)
+            status: bool = True
+            is_property_with_global_id_exists = True
         else:
+            # _property (old)
             _property = property
             if not _property:
                 filters: dict = dict(id=property_id)
                 _property: Property = await self.property_repo.retrieve(filters=filters)
+            # status (old)
             status: bool = True
-
             if not _property.global_id:
                 return status, _property
 
             backend_property_id = self.global_id_decoder(_property.global_id)[1]
             print(f'{backend_property_id=}')
+            # backend_property (old)
             backend_property = await self._load_property_from_backend(backend_property_id)
             print(f'{backend_property=}')
             if backend_property is None:
@@ -446,7 +427,7 @@ class ImportPropertyService(BasePropertyService):
             floor_global_id_type, floor_global_id_value
         )
         floor_data = dict(
-            number=backend_floor.number, building=building, section=building_section
+            number=backend_floor.number, building=building, section=building_section, plan=backend_floor.plan
         )
         floor = await self.floor_repo.update_or_create(
             filters=dict(global_id=floor_global_id), data=floor_data
@@ -469,17 +450,7 @@ class ImportPropertyService(BasePropertyService):
             )
 
         # Создаём/обновляем квартиру
-        if self.__is_strana_lk_3122_enable:
-            if not property_global_id:
-                property_global_id_type = self.property_types_mapping.get(backend_property.type)
-                property_global_id_value = str(backend_property.id)
-                property_global_id = self.global_id_encoder(
-                    property_global_id_type, property_global_id_value
-                )
-                is_property_with_global_id_exists: bool = await self.property_repo.exists(
-                    filters=dict(global_id=property_global_id)
-                )
-        else:
+        if not property_global_id:
             property_global_id_type = self.property_types_mapping.get(backend_property.type)
             property_global_id_value = str(backend_property.id)
             property_global_id = self.global_id_encoder(
@@ -512,31 +483,28 @@ class ImportPropertyService(BasePropertyService):
             similar_property_global_id = None
             special_offers = None
 
-        # Создаем модель обычной цены для объекта недвижимости
-        # if backend_property.full_final_price:
-        #     price_type_default = await self.price_type_repo.retrieve(
-        #         filters=dict(default=True),
-        #     )
-        #     if price_type_default:
-        #         price_data = dict(
-        #             property=_property,
-        #             price=backend_property.full_final_price,
-        #             price_type=price_type_default,
-        #         )
-        #         await self.price_repo.create(data=price_data)
+        if self.__is_strana_lk_2496_enable:
+            price_type = await self.price_type_repo.retrieve(
+                filters=dict(slug=self.price_type_mapping.get("ordinary_price_slug")),
+            )
+            if price_type:
+                price_data = dict(
+                    property=_property,
+                    price=backend_property.full_final_price,
+                    price_type=price_type,
+                )
+                await self.price_repo.create(data=price_data)
 
-        # Создаем модель субсидированной цены для объекта недвижимости
-        # if backend_property.original_price:
-        #     subsidy_price_type = await self.price_type_repo.retrieve(
-        #         filters=dict(slug=self.price_type_mapping.get("subsidy_price_slug")),
-        #     )
-        #     if subsidy_price_type:
-        #         price_data = dict(
-        #             property=_property,
-        #             price=backend_property.original_price,
-        #             price_type=subsidy_price_type,
-        #         )
-        #         await self.price_repo.create(data=price_data)
+            subsidy_price_type = await self.price_type_repo.retrieve(
+                filters=dict(slug=self.price_type_mapping.get("subsidy_price_slug")),
+            )
+            if subsidy_price_type:
+                price_data = dict(
+                    property=_property,
+                    price=backend_property.original_price,
+                    price_type=subsidy_price_type,
+                )
+                await self.price_repo.create(data=price_data)
 
         property_data = dict(
             global_id=property_global_id if not is_property_with_global_id_exists else _property.global_id,
@@ -544,6 +512,7 @@ class ImportPropertyService(BasePropertyService):
             article=backend_property.article,
             plan=backend_property.plan,
             plan_png=backend_property.plan_png,
+            plan_hover=backend_property.plan_hover,
             price=backend_property.full_final_price or backend_property.price,
             original_price=backend_property.original_price,
             final_price=backend_property.full_final_price or backend_property.price,
@@ -592,8 +561,7 @@ class ImportPropertyService(BasePropertyService):
             cash_price=backend_property.cash_price
         )
 
-        if self.__is_strana_lk_3122_enable:
-            property_data.update(profitbase_id=backend_property.id)
+        property_data.update(profitbase_id=backend_property.id)
 
         _property = await self.property_repo.update(_property, data=property_data)
         _property = await self.update_features(backend_property, _property)
@@ -696,8 +664,8 @@ class ImportPropertyService(BasePropertyService):
         return ", ".join(special_offers_names)
 
     @property
-    def __is_strana_lk_3122_enable(self) -> bool:
-        return UnleashClient().is_enabled(FeatureFlags.strana_lk_3122)
+    def __is_strana_lk_2496_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_2496)
 
 
 class ImportPropertyServiceFactory:

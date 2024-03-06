@@ -13,9 +13,10 @@ from config import EnvTypes, maintenance_settings
 from fastapi import Request
 from src.booking.constants import (BookingCreatedSources, BookingStages,
                                    BookingStagesMapping, BookingSubstages)
+from src.booking.event_emitter_handlers import event_emitter
 from src.booking.loggers import booking_changes_logger
 from src.booking.models import ResponseBookingRetrieveModel
-from src.booking.repos import Booking, BookingRepo, BookingSource
+from src.booking.repos import Booking, BookingRepo, BookingSource, TestBookingRepo
 from src.booking.utils import get_booking_source, create_lead_name
 from src.projects.repos import Project, ProjectRepo
 from src.task_management.dto import CreateTaskDTO
@@ -25,7 +26,7 @@ from src.users.entities import BaseUserCase
 from src.users.exceptions import UserNotFoundError, UserAgentMismatchError
 from src.users.models import RequestAssignClient, RequestBookingCurrentClient
 from src.users.repos import CheckRepo, User, UserRepo
-from src.users.services import CheckPinningStatusService
+from src.users.services import CheckPinningStatusServiceV2
 from src.projects.constants import ProjectStatus
 
 
@@ -55,11 +56,12 @@ class BookingCurrentClientCase(BaseUserCase):
         project_repo: Type[ProjectRepo],
         booking_repo: Type[BookingRepo],
         amo_statuses_repo: Type[AmoStatusesRepo],
+        test_booking_repo: Type[TestBookingRepo],
         amocrm_class: Type[AmoCRM],
         create_task_instance_service: CreateTaskInstanceService,
         amocrm_config: dict[Any, Any],
         site_config: dict,
-        check_pinning: CheckPinningStatusService,
+        check_pinning: CheckPinningStatusServiceV2,
         request: Request,
         logger: Optional[Any] = structlog.getLogger(__name__),
     ):
@@ -68,9 +70,10 @@ class BookingCurrentClientCase(BaseUserCase):
         self.project_repo: ProjectRepo = project_repo()
         self.booking_repo: BookingRepo = booking_repo()
         self.amo_statuses_repo: AmoStatusesRepo = amo_statuses_repo()
+        self.test_booking_repo: TestBookingRepo = test_booking_repo()
         self.amocrm_class: Type[AmoCRM] = amocrm_class
         self.create_task_instance_service: CreateTaskInstanceService = create_task_instance_service
-        self.check_pinning: CheckPinningStatusService = check_pinning
+        self.check_pinning: CheckPinningStatusServiceV2 = check_pinning
         self.partition_limit: int = amocrm_config["partition_limit"]
         self.site_host: str = site_config["site_host"]
         self.request = request,
@@ -124,11 +127,11 @@ class BookingCurrentClientCase(BaseUserCase):
         @param payload: RequestAssignClient
         @param client: User
         """
-        async with await self.amocrm_class() as amocrm:
-            not_created_projects: list[Project] = await self._find_not_created_projects(
-                client=client, agent_id=agent.id, payload=payload
-            )
+        not_created_projects: list[Project] = await self._find_not_created_projects(
+            client=client, agent_id=agent.id, payload=payload
+        )
 
+        async with await self.amocrm_class() as amocrm:
             return await self._create_requested_leads(
                 amocrm,
                 client=client,
@@ -258,6 +261,7 @@ class BookingCurrentClientCase(BaseUserCase):
                     booking_source=booking_source,
                 )
                 booking = await self.booking_create(data=data)
+                event_emitter.ee.emit(event='booking_created', booking=booking)
                 await self._create_task_instance(booking.id, booking_created=True)
 
 
@@ -328,21 +332,15 @@ class BookingCurrentClientCase(BaseUserCase):
                 creator_user_id=agent.id,
                 tags=tags,
             )
-            print(f"New lead AMO data: {amo_data}")
+            self.logger.info(f"New lead AMO data: {amo_data}")
             lead: list[AmoLead] = await amocrm.create_lead(**amo_data)
             booking_source: BookingSource = await get_booking_source(slug=BookingCreatedSources.LK_ASSIGN)
             lead_amocrm_id = lead[0].id
+
+            data = dict(amocrm_id=lead_amocrm_id, is_test_user=agent.is_test_user if agent else None)
+            await self.test_booking_repo.create(data=data)
+
             booking = await self.booking_repo.retrieve(filters=dict(amocrm_id=lead_amocrm_id))
-            # if booking:
-            #     if booking.amocrm_substage == BookingSubstages.START:
-            #         _amocrm_stage = BookingStages.START,
-            #         _amocrm_substage = BookingSubstages.ASSIGN_AGENT
-            #     else:
-            #         _amocrm_stage = booking.amocrm_stage
-            #         _amocrm_substage = booking.amocrm_substage
-            # else:
-            #     _amocrm_stage = BookingStages.START,
-            #     _amocrm_substage = BookingSubstages.ASSIGN_AGENT
             data: dict[str, Any] = dict(
                 amocrm_id=lead_amocrm_id,
                 amocrm_stage=BookingStages.START,
@@ -364,7 +362,7 @@ class BookingCurrentClientCase(BaseUserCase):
                 booking = await self.booking_update(booking=booking, data=data)
             else:
                 booking = await self.booking_create(data=data)
-
+                event_emitter.ee.emit(event='booking_created', booking=booking)
             await booking.refresh_from_db(fields=["id"])
             await self._create_task_instance(booking.id, booking_created=True)
             self.check_pinning.as_task(user_id=client.id)

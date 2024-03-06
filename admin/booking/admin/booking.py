@@ -153,6 +153,8 @@ class BookingAdmin(admin.ModelAdmin):
         "agency",
         "project",
         "building",
+        "floor",
+        "price",
     )
     search_fields = (
         "amocrm_id__icontains",
@@ -193,10 +195,20 @@ class BookingAdmin(admin.ModelAdmin):
         "property_in_list",
         "booking_source",
         "group_status",
+        "property_lk_on_time",
     )
     list_filter = (
-        "created", "agency__general_type", "active", IsCompletedFilter, IsExpiredFilter, IsOveredFilter,
-        "booking_source__name", GroupStatusFilter, IsErrorsFilter)
+        "created",
+        "agency__general_type",
+        "active",
+        IsCompletedFilter,
+        IsExpiredFilter,
+        IsOveredFilter,
+        "booking_source__name",
+        GroupStatusFilter,
+        IsErrorsFilter,
+        "property_lk_on_time",
+    )
     readonly_fields = ("agency_type", "loyalty_point_amount")
     save_on_top = True
     list_per_page = 15

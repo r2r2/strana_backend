@@ -18,17 +18,17 @@ class User(AbstractUser):
 class CabinetUserQuerySet(models.QuerySet):
     def annotate_file_data(self):
         return self.annotate(
-            booking_count=models.Count("booking"),
+            booking_count=models.Count("booking_user"),
             booking_active_count=models.Count(
-                "booking",
-                filter=models.Q(booking__active=True)),
+                "booking_user",
+                filter=models.Q(booking_user__active=True)),
             booking_lk_count=models.Count(
-                "booking",
-                filter=models.Q(booking__booking_source__slug=Booking.CreatedSourceChoices.LK)),
+                "booking_user",
+                filter=models.Q(booking_user__booking_source__slug=Booking.CreatedSourceChoices.LK)),
             booking_lk_active=models.Count(
-                "booking",
-                filter=models.Q(booking__booking_source__slug=Booking.CreatedSourceChoices.LK) &
-                models.Q(booking__active=True)),
+                "booking_user",
+                filter=models.Q(booking_user__booking_source__slug=Booking.CreatedSourceChoices.LK) &
+                models.Q(booking_user__active=True)),
         )
 
 
@@ -81,13 +81,14 @@ class CabinetUser(models.Model):
         max_length=20,
         verbose_name="Тип/Роль",
         help_text="Роль пользователя в системе",
+        db_index=True,
     )
     origin = models.CharField(
         choices=OriginType.choices,
         max_length=30,
         default=None,
         null=True,
-        verbose_name="Источник"
+        verbose_name="Источник",
     )
     role = models.ForeignKey(
         "users.UserRole",
@@ -96,7 +97,8 @@ class CabinetUser(models.Model):
         null=True,
         blank=True,
         verbose_name="Роль",
-        help_text="Роль пользователя"
+        help_text="Роль пользователя",
+        db_index=True,
     )
     is_imported = models.BooleanField(
         help_text="Проверяет при валидации (при первой проверке телефона [регистрации клиента] - FALSE, "

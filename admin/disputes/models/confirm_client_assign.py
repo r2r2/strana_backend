@@ -20,6 +20,7 @@ class ConfirmClientAssign(models.Model):
         on_delete=models.SET_NULL,
         verbose_name="Клиент",
         related_name="client_confirm_client_assign",
+        db_index=True,
     )
     agency = models.ForeignKey(
         to="users.Agency",

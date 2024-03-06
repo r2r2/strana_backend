@@ -36,6 +36,7 @@ class TaskInstance(BaseTaskModel):
 
     class Meta:
         table = "task_management_taskinstance"
+        unique_together = (("booking", "status"),)
 
 
 class TaskInstanceRepo(BaseTaskRepo, CRUDMixin):

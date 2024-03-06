@@ -170,6 +170,35 @@ class _ClientAmocrmGroupStatusSchema(BaseBookingCamelCaseModel):
         orm_mode = True
 
 
+class PaymentMethodModel(BaseBookingCamelCaseModel):
+    """
+    Модель способов оплаты
+    """
+
+    id: Optional[int]
+    amocrm_id: Optional[int]
+    name: Optional[str]
+    slug: Optional[str]
+
+    class Config:
+        orm_mode = True
+
+
+class MortgageTypeModel(BaseBookingCamelCaseModel):
+    """
+    Модель типа ипотеки
+    """
+
+    id: Optional[int]
+    amocrm_id: Optional[int]
+    title: Optional[str]
+    by_dev: Optional[bool]
+    slug: Optional[str]
+
+    class Config:
+        orm_mode = True
+
+
 class _BookingListModel(BaseBookingModel):
     """
     Модель бронирования
@@ -191,10 +220,11 @@ class _BookingListModel(BaseBookingModel):
     escrow_uploaded: bool
     amocrm_signing_date_set: bool
     amocrm_signed: bool
-    has_subsidy_price: bool
     amocrm_status: Optional[_BookingStatusListModel]
     client_group_statuses: list[_ClientAmocrmGroupStatusSchema | None]
     booking_tags: Optional[list[BookingTagListModel]]
+    amo_payment_method: PaymentMethodModel | None
+    mortgage_type: MortgageTypeModel | None
 
     origin: Optional[str]
     until: Optional[datetime]

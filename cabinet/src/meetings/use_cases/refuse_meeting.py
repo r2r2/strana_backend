@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import HTTPException
 
 from common.amocrm import AmoCRM
-from common.amocrm.constants import AmoElementTypes, AmoTaskTypes
+from common.amocrm.constants import AmoElementTypes, AmoTaskTypes, AmoEntityTypes
 from common.email import EmailService
 from common.unleash.client import UnleashClient
 from config.feature_flags import FeatureFlags
@@ -20,10 +20,12 @@ from src.task_management.constants import MeetingsSlug
 from src.task_management.services import UpdateTaskInstanceStatusService
 from src.users.constants import UserType
 from src.users.repos import User, UserRepo
-from ..constants import MeetingStatusChoice, MeetingPropertyType, DEFAULT_RESPONSIBLE_USER_ID
+from ..constants import MeetingStatusChoice, MeetingPropertyType, DEFAULT_RESPONSIBLE_USER_ID, MeetingType
 from ..entities import BaseMeetingCase
+from ..event_emitter_handlers import meeting_event_emitter
 from ..exceptions import MeetingAlreadyFinishError, MeetingNotFoundError
-from ..repos import Meeting, MeetingRepo, MeetingStatusRepo
+from ..repos import Meeting, MeetingRepo, MeetingStatusRepo, MeetingStatusRefRepo, MeetingStatus
+from src.booking.event_emitter_handlers import event_emitter
 
 
 class LeadStatuses(IntEnum):
@@ -52,10 +54,13 @@ class RefuseMeetingCase(BaseMeetingCase):
     BROKER_TASK_MESSAGE = 'Брокер отменил встречу.' \
                           'Необходимо связаться с клиентом для уточнения деталей.'
 
+    non_project_text = "не выбран"
+
     def __init__(
         self,
         meeting_repo: type[MeetingRepo],
         meeting_status_repo: type[MeetingStatusRepo],
+        meeting_status_ref_repo: type[MeetingStatusRefRepo],
         user_repo: type[UserRepo],
         booking_repo: type[BookingRepo],
         strana_office_admin_repo: type[StranaOfficeAdminRepo],
@@ -67,6 +72,7 @@ class RefuseMeetingCase(BaseMeetingCase):
     ) -> None:
         self.meeting_repo: MeetingRepo = meeting_repo()
         self.meeting_status_repo: MeetingStatusRepo = meeting_status_repo()
+        self.meeting_status_ref_repo: MeetingStatusRefRepo = meeting_status_ref_repo()
         self.booking_repo: BookingRepo = booking_repo()
         self.user_repo: UserRepo = user_repo()
         self.strana_office_admin_repo: StranaOfficeAdminRepo = strana_office_admin_repo()
@@ -81,15 +87,35 @@ class RefuseMeetingCase(BaseMeetingCase):
         meeting_id: int,
         user_id: int,
     ) -> Meeting:
+
+        if self.__is_strana_lk_3011_add_enable:
+            related_fields = ["booking", "project", "status", "status_ref", "city"]
+        elif self.__is_strana_lk_3011_use_enable:
+            related_fields = ["booking", "project", "status", "status_ref", "city"]
+        elif self.__is_strana_lk_3011_off_old_enable:
+            related_fields = ["booking", "project", "status_ref", "city"]
+        else:
+            related_fields = ["booking", "project", "status", "city"]
+
         meeting: Meeting = await self.meeting_repo.retrieve(
             filters=dict(id=meeting_id),
-            related_fields=["booking", "project", "status", "city"],
+            related_fields=related_fields,
         )
 
         if not meeting:
             raise MeetingNotFoundError
-        if meeting.status.slug in [MeetingStatusChoice.FINISH, MeetingStatusChoice.CANCELLED]:
-            raise MeetingAlreadyFinishError
+        if self.__is_strana_lk_3011_add_enable:
+            if meeting.status.slug in [MeetingStatusChoice.FINISH, MeetingStatusChoice.CANCELLED]:
+                raise MeetingAlreadyFinishError
+        elif self.__is_strana_lk_3011_use_enable:
+            if meeting.status_ref_id in [MeetingStatusChoice.FINISH, MeetingStatusChoice.CANCELLED]:
+                raise MeetingAlreadyFinishError
+        elif self.__is_strana_lk_3011_off_old_enable:
+            if meeting.status_ref_id in [MeetingStatusChoice.FINISH, MeetingStatusChoice.CANCELLED]:
+                raise MeetingAlreadyFinishError
+        else:
+            if meeting.status.slug in [MeetingStatusChoice.FINISH, MeetingStatusChoice.CANCELLED]:
+                raise MeetingAlreadyFinishError
 
         user: User = await self.user_repo.retrieve(filters=dict(id=user_id))
         if not self._is_allowed(meeting, user):
@@ -106,16 +132,25 @@ class RefuseMeetingCase(BaseMeetingCase):
             amocrm_status_id=amocrm_status_id,
             amocrm_substage=amocrm_substage,
         )
+        old_group_status = meeting.booking.amocrm_substage if meeting.booking.amocrm_substage else None
         await self.booking_repo.update(model=meeting.booking, data=booking_data)
 
-        # завершаем встречу
-        refused_meeting_status = await self.meeting_status_repo.retrieve(
-            filters=dict(slug=MeetingStatusChoice.CANCELLED)
+        event_emitter.ee.emit(
+            event='change_status',
+            booking=meeting.booking,
+            user=user,
+            old_group_status=old_group_status,
         )
-        refused_meeting: Meeting = await self.meeting_repo.update(
-            model=meeting,
-            data=dict(status_id=refused_meeting_status.id),
-        )
+
+        if self.__is_strana_lk_3011_add_enable:
+            refused_meeting = await self._refuse_meeting(meeting)
+        elif self.__is_strana_lk_3011_use_enable:
+            refused_meeting = await self._refuse_meeting_ref(meeting)
+        elif self.__is_strana_lk_3011_off_old_enable:
+            refused_meeting = await self._refuse_meeting_ref(meeting)
+        else:
+            refused_meeting = await self._refuse_meeting(meeting)
+
         prefetch_fields: list[str] = [
             "project",
             "project__city",
@@ -146,14 +181,24 @@ class RefuseMeetingCase(BaseMeetingCase):
                 text = self.CLIENT_TASK_MESSAGE
 
             if responsible_user_id:
-                await amocrm.create_task(
-                    element_id=refused_meeting.booking.amocrm_id,
-                    element_type=AmoElementTypes.CONTACT,
-                    task_type=AmoTaskTypes.MEETING,
-                    text=text,
-                    complete_till=int(complete_till_datetime.timestamp()),
-                    responsible_user_id=responsible_user_id
-                )
+                if self.__is_strana_lk_2882_enable:
+                    await amocrm.create_task_v4(
+                        text=text,
+                        complete_till=int(complete_till_datetime.timestamp()),
+                        entity_id=refused_meeting.booking.amocrm_id,
+                        entity_type=AmoEntityTypes.CONTACTS,
+                        task_type=AmoTaskTypes.MEETING,
+                        responsible_user_id=responsible_user_id,
+                    )
+                else:
+                    await amocrm.create_task(
+                        element_id=refused_meeting.booking.amocrm_id,
+                        element_type=AmoElementTypes.CONTACT,
+                        task_type=AmoTaskTypes.MEETING,
+                        text=text,
+                        complete_till=int(complete_till_datetime.timestamp()),
+                        responsible_user_id=responsible_user_id,
+                    )
 
         if user.type in [UserType.AGENT, UserType.REPRES]:
             await self.update_task_instance_status_service(
@@ -166,7 +211,7 @@ class RefuseMeetingCase(BaseMeetingCase):
                 mail_event_slug=self.meeting_refused_to_broker_mail
             )
 
-            filters = dict(project_id=refused_meeting.project.id)
+            filters = dict(projects=refused_meeting.project.id, type=refused_meeting.type)
             admins = await self.strana_office_admin_repo.list(filters=filters)
 
             await self.send_email(
@@ -183,6 +228,13 @@ class RefuseMeetingCase(BaseMeetingCase):
                 ),
                 mail_event_slug=self.meeting_refused_to_admin_mail,
             )
+
+            await self.send_email(
+                recipients=[refused_meeting.booking.user],
+                context=dict(meeting=refused_meeting, user=user),
+                mail_event_slug=self.meeting_refused_to_client_mail,
+            )
+
         elif user.type == UserType.CLIENT:
             await self.update_task_instance_status_service(
                 booking_id=refused_meeting.booking_id,
@@ -190,35 +242,40 @@ class RefuseMeetingCase(BaseMeetingCase):
             )
             if refused_meeting.booking.agent:
                 await self.send_email(
-                    recipients=[user],
+                    recipients=[refused_meeting.booking.agent],
                     context=dict(meeting=refused_meeting, user=user),
                     mail_event_slug=self.meeting_refused_to_broker_mail
                 )
 
-            if self.__is_strana_lk_3116_enable(user_id=user.id):
-                filters = dict(project_id=refused_meeting.project.id)
-                admins = await self.strana_office_admin_repo.list(filters=filters)
+            if refused_meeting.project:
+                filters = dict(projects=refused_meeting.project.id, type=refused_meeting.type)
+                project_name = refused_meeting.project.name
+            else:
+                filters = dict(projects__city=refused_meeting.city, type=MeetingType.ONLINE)
+                project_name = self.non_project_text
 
-                await self.send_email(
-                    recipients=admins,
-                    context=dict(
-                        client_fio=user.full_name,
-                        meeting_date=refused_meeting.date.strftime("%Y-%m-%d %H:%M:%S"),
-                        agent_phone=refused_meeting.booking.agent.phone if refused_meeting.booking.agent else None,
-                        client_phone=user.phone,
-                        booking_link=self.amocrm_link.format(id=refused_meeting.booking.amocrm_id),
-                        city=refused_meeting.city.name,
-                        project=refused_meeting.project.name,
-                        property_type=MeetingPropertyType().to_label(refused_meeting.property_type),
-                    ),
-                    mail_event_slug=self.meeting_refused_to_admin_mail_client,
-                )
+            admins = list(set(await self.strana_office_admin_repo.list(filters=filters)))
 
-        await self.send_email(
-            recipients=[user],
-            context=dict(meeting=refused_meeting, user=user),
-            mail_event_slug=self.meeting_refused_to_client_mail,
-        )
+            await self.send_email(
+                recipients=admins,
+                context=dict(
+                    client_fio=user.full_name,
+                    meeting_date=refused_meeting.date.strftime("%Y-%m-%d %H:%M:%S"),
+                    agent_phone=refused_meeting.booking.agent.phone if refused_meeting.booking.agent else None,
+                    client_phone=user.phone,
+                    booking_link=self.amocrm_link.format(id=refused_meeting.booking.amocrm_id),
+                    city=refused_meeting.city.name,
+                    project=project_name,
+                    property_type=MeetingPropertyType().to_label(refused_meeting.property_type),
+                ),
+                mail_event_slug=self.meeting_refused_to_admin_mail_client,
+            )
+
+            await self.send_email(
+                recipients=[user],
+                context=dict(meeting=refused_meeting, user=user),
+                mail_event_slug=self.meeting_refused_to_client_mail,
+            )
 
         return refused_meeting
 
@@ -306,6 +363,64 @@ class RefuseMeetingCase(BaseMeetingCase):
 
         return True
 
-    def __is_strana_lk_3116_enable(self, user_id: int) -> bool:
-        context = dict(userId=user_id)
-        return UnleashClient().is_enabled(FeatureFlags.strana_lk_3116, context=context)
+    async def _refuse_meeting(self, meeting):
+        """
+        Завершаем встречу.
+        Реализация до 3011 and ADD
+        """
+        old_status: MeetingStatus | None = meeting.status if meeting and meeting.status else None
+        refused_meeting_status: MeetingStatus | None = await self.meeting_status_repo.retrieve(
+            filters=dict(slug=MeetingStatusChoice.CANCELLED)
+        )
+        refused_meeting: Meeting = await self.meeting_repo.update(
+            model=meeting,
+            data=dict(status_id=refused_meeting_status.id),
+        )
+
+        meeting_event_emitter.ee.emit(
+            'meeting_status_changed',
+            booking=meeting.booking,
+            new_status=refused_meeting_status,
+            old_status=old_status,
+        )
+
+        return refused_meeting
+
+    async def _refuse_meeting_ref(self, meeting):
+        """
+        Завершаем встречу.
+        Реализация 3011 USE and OFF
+        """
+        old_status = meeting.status if meeting and meeting.status else None
+        refused_meeting_status = await self.meeting_status_ref_repo.retrieve(
+            filters=dict(slug=MeetingStatusChoice.CANCELLED)
+        )
+        refused_meeting: Meeting = await self.meeting_repo.update(
+            model=meeting,
+            data=dict(status_ref_id=refused_meeting_status.slug),
+        )
+
+        meeting_event_emitter.ee.emit(
+            'meeting_status_changed',
+            booking=meeting.booking,
+            new_status=refused_meeting_status,
+            old_status=old_status,
+        )
+
+        return refused_meeting
+
+    @property
+    def __is_strana_lk_2882_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_2882)
+
+    @property
+    def __is_strana_lk_3011_add_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_3011_add)
+
+    @property
+    def __is_strana_lk_3011_use_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_3011_use)
+
+    @property
+    def __is_strana_lk_3011_off_old_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_3011_off_old)

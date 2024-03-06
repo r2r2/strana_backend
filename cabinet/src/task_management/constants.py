@@ -128,7 +128,7 @@ class FreeBookingSlug(Slugs):
     """
     Слаги для Бесплатного бронирования
     """
-    EXTEND: str = "free_booking_extend"  # 1. Продлить бесплатаную бронь
+    EXTEND: str = "free_booking_extend"  # 1. Продлить бесплатную бронь
     ACCEPT_OFFER: str = "free_booking_accept_offer"  # 2. Ознакомьтесь с договором офертой
     FILL_PERSONAL_DATA: str = "free_booking_fill_personal_data"  # 3. Заполните персональные данные
     CONFIRM_BOOKING: str = "free_booking_confirm_booking"  # 4. Подтвердите параметры бронирования
@@ -137,3 +137,20 @@ class FreeBookingSlug(Slugs):
     TIME_IS_UP: str = "free_booking_time_is_up"  # 7. Время истекло
     CAN_EXTEND: str = "free_booking_can_extend"  # 8. Можно продлить бронирование
     CAN_NOT_EXTEND: str = "free_booking_can_not_extend"  # 9. Нельзя продлить бронирование
+
+
+class UpdateMeetingGroupStatusSlug(Slugs):
+    """
+    Слаги групповых статусов сделок встреч для обновления
+    """
+    MAKE_APPOINTMENT: str = "Назначить встречу"
+    MEETING: str = "Встреча назначена"
+    MEETING_IN_PROGRESS: str = "Идет встреча"
+
+
+class OnlinePurchaseSlug(Slugs):
+    """
+    Слаги для Онлайн покупки
+    """
+    TAKE_THE_QUESTIONNAIRE: str = "online_purchase_take_the_questionnaire"  # 1. Пройдите опросник
+    DOCUMENT_VERIFICATION: str = "online_purchase_document_verification"  # 2. Ожидайте проверки документов

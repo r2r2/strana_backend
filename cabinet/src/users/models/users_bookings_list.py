@@ -7,7 +7,7 @@ from pydantic import BaseModel, root_validator, validator, Field
 from src.meetings.constants import MeetingPropertyType, MeetingType
 from src.properties.models import PropertyRetrieveModel
 from src.users.constants import UserStatus
-from src.users.entities import BaseCheckModel, BaseUserModel
+from src.users.entities import BaseCheckModel, BaseUserModel, BaseUserCamelCaseModel
 
 from ...agencies.models import AgencyRetrieveModel
 from ...agents.models import AgentRetrieveModel
@@ -203,6 +203,35 @@ class _BookingBuildingRetrieveModel(BaseUserModel):
         orm_mode = True
 
 
+class PaymentMethodModel(BaseUserCamelCaseModel):
+    """
+    Модель способов оплаты
+    """
+
+    id: int
+    amocrm_id: Optional[int]
+    name: Optional[str]
+    slug: Optional[str]
+
+    class Config:
+        orm_mode = True
+
+
+class MortgageTypeModel(BaseUserCamelCaseModel):
+    """
+    Модель типа ипотеки
+    """
+
+    id: int
+    amocrm_id: Optional[int]
+    title: Optional[str]
+    by_dev: Optional[bool]
+    slug: Optional[str]
+
+    class Config:
+        orm_mode = True
+
+
 class _UserBookingsListModel(BaseUserModel):
     """
     Модель сделки
@@ -219,6 +248,8 @@ class _UserBookingsListModel(BaseUserModel):
     until: Optional[datetime]
     loyalty_point_amount: Optional[int] = Field(None, alias="loyaltyPoint")
     show_update_fixation_info: bool = Field(None, alias="showUpdateFixationInfo")
+    amo_payment_method: Optional[PaymentMethodModel] = Field(None, alias="amoPaymentMethod")
+    mortgage_type: Optional[MortgageTypeModel] = Field(None, alias="mortgageType")
 
     user: _BookingUserModel
 
@@ -234,6 +265,7 @@ class _UserBookingsListModel(BaseUserModel):
     property: Optional[PropertyRetrieveModel]
     tags: Optional[list[str]]
     tasks: Optional[list[TaskInstanceResponseSchema]]
+    loyalty_discount: Optional[Decimal] = Field(None, alias="loyaltyDiscount")
 
     class Config:
         orm_mode = True

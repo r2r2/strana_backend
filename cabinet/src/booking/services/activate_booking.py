@@ -7,14 +7,16 @@ from pytz import UTC
 import structlog
 
 from common.amocrm.types import AmoLead
+from common.unleash.client import UnleashClient
 from config import backend_config, EnvTypes, maintenance_settings
+from config.feature_flags import FeatureFlags
 from src.buildings.repos import BuildingBookingType, BuildingBookingTypeRepo
 from ..constants import BookingSubstages
 from ..entities import BaseBookingService
 from ..exceptions import BookingNotFoundError, BookingPropertyUnavailableError, BookingPropertyMissingError
 from ..loggers import booking_changes_logger
 from ..mixins import BookingLogMixin
-from ..repos import Booking
+from ..repos import Booking, TestBookingRepo
 from ..repos import BookingRepo
 from ..types import BookingAmoCRM, BookingProfitBase
 from ..types import BookingProperty
@@ -44,6 +46,7 @@ class ActivateBookingService(BaseBookingService, BookingLogMixin):
         booking_repo: Type[BookingRepo],
         property_repo: Type[BookingPropertyRepo],
         building_booking_type_repo: Type[BuildingBookingTypeRepo],
+        test_booking_repo: Type[TestBookingRepo],
 
         amocrm_class: Type[BookingAmoCRM],
         profitbase_class: Type[BookingProfitBase],
@@ -69,6 +72,7 @@ class ActivateBookingService(BaseBookingService, BookingLogMixin):
         self.password: str = backend_config["internal_password"]
         self.backend_url: str = backend_config["url"] + backend_config["graphql"]
         self.building_booking_type_repo: BuildingBookingTypeRepo = building_booking_type_repo()
+        self.test_booking_repo: TestBookingRepo = test_booking_repo()
 
         self.amocrm_class: Type[BookingAmoCRM] = amocrm_class
         self.profitbase_class: Type[BookingProfitBase] = profitbase_class
@@ -145,72 +149,99 @@ class ActivateBookingService(BaseBookingService, BookingLogMixin):
         """
         Бронирование в AmoCRM
         """
+
+        lead_options: dict[str, Any] = dict(lead_id=booking.amocrm_id)
         async with await self.amocrm_class() as amocrm:
-            lead_options: dict[str, Any] = dict(lead_id=booking.amocrm_id)
             lead: list[Any] = await amocrm.fetch_lead(**lead_options)
 
-            if lead:
-                lead_options: dict[str, Any] = dict(
-                    status=BookingSubstages.BOOKING,
-                    lead_id=booking.amocrm_id,
-                    city_slug=booking.project.city.slug,
-                )
+        if lead:
+            lead_options: dict[str, Any] = dict(
+                status=BookingSubstages.BOOKING,
+                lead_id=booking.amocrm_id,
+                city_slug=booking.project.city.slug,
+            )
+            async with await self.amocrm_class() as amocrm:
                 data: list[Any] = await amocrm.update_lead(**lead_options)
-                lead_id: int = data[0]["id"]
-            else:
-                booking_type_filter = dict(period=booking.booking_period, price=booking.payment_amount)
-                booking_type: Union[
-                    BuildingBookingType,
-                    BookingTypeNamedTuple
-                ] = await self.building_booking_type_repo.retrieve(
-                    filters=booking_type_filter)
-                if not booking_type:
-                    booking_type = BookingTypeNamedTuple(price=int(booking.payment_amount))
+            lead_id: int = data[0]["id"]
+        else:
+            booking_type_filter = dict(period=booking.booking_period, price=booking.payment_amount)
+            booking_type: Union[
+                BuildingBookingType,
+                BookingTypeNamedTuple
+            ] = await self.building_booking_type_repo.retrieve(
+                filters=booking_type_filter)
+            if not booking_type:
+                booking_type = BookingTypeNamedTuple(price=int(booking.payment_amount))
 
-                tags = booking.tags
-                if maintenance_settings["environment"] == EnvTypes.DEV:
-                    tags = tags + self.dev_test_booking_tag
-                elif maintenance_settings["environment"] == EnvTypes.STAGE:
-                    tags = tags + self.stage_test_booking_tag
+            tags = booking.tags
+            if maintenance_settings["environment"] == EnvTypes.DEV:
+                tags = tags + self.dev_test_booking_tag
+            elif maintenance_settings["environment"] == EnvTypes.STAGE:
+                tags = tags + self.stage_test_booking_tag
 
-                lead_options: dict[str, Any] = dict(
-                    status=BookingSubstages.START,
-                    tags=tags,
-                    city_slug=booking.project.city.slug,
-                    property_type=booking.property.type.value.lower(),
-                    user_amocrm_id=booking.user.amocrm_id,
-                    lead_name=create_lead_name(booking.user),
-                    project_amocrm_name=booking.project.amocrm_name,
-                    project_amocrm_enum=booking.project.amocrm_enum,
-                    project_amocrm_organization=booking.project.amocrm_organization,
-                    project_amocrm_pipeline_id=booking.project.amo_pipeline_id,
-                    project_amocrm_responsible_user_id=booking.project.amo_responsible_user_id,
-                    property_id=self.global_id_decoder(booking.property.global_id)[1],
-                    booking_type_id=booking_type.amocrm_id,
-                    creator_user_id=booking.user.id,
-                )
+            lead_options: dict[str, Any] = dict(
+                status=BookingSubstages.START,
+                tags=tags,
+                city_slug=booking.project.city.slug,
+                property_type=booking.property.type.value.lower(),
+                user_amocrm_id=booking.user.amocrm_id,
+                lead_name=create_lead_name(booking.user),
+                project_amocrm_name=booking.project.amocrm_name,
+                project_amocrm_enum=booking.project.amocrm_enum,
+                project_amocrm_organization=booking.project.amocrm_organization,
+                project_amocrm_pipeline_id=booking.project.amo_pipeline_id,
+                project_amocrm_responsible_user_id=booking.project.amo_responsible_user_id,
+                property_id=self.global_id_decoder(booking.property.global_id)[1],
+                booking_type_id=booking_type.amocrm_id,
+                creator_user_id=booking.user.id,
+            )
 
+            async with await self.amocrm_class() as amocrm:
                 data: list[AmoLead] = await amocrm.create_lead(**lead_options)
-                lead_id: int = data[0].id
+            lead_id: int = data[0].id
+
+            data: dict[str, Any] = dict(
+                booking=booking,
+                amocrm_id=lead_id,
+                is_test_user=booking.user.is_test_user if booking.user else False,
+            )
+            await self.test_booking_repo.create(data=data)
+
+            if self.__is_strana_lk_2882_enable:
+                note_data: dict[str, Any] = dict(
+                    lead_id=lead_id,
+                    text="Создано онлайн-бронирование",
+                )
+            else:
                 note_data: dict[str, Any] = dict(
                     element="lead",
                     lead_id=lead_id,
                     note="lead_created",
                     text="Создано онлайн-бронирование",
                 )
-                self.create_amocrm_log_task.delay(note_data=note_data)
-                lead_options: dict[str, Any] = dict(
-                    status=BookingSubstages.BOOKING, lead_id=lead_id, city_slug=booking.project.city.slug
-                )
+
+            self.create_amocrm_log_task.delay(note_data=note_data)
+            lead_options: dict[str, Any] = dict(
+                status=BookingSubstages.BOOKING, lead_id=lead_id, city_slug=booking.project.city.slug
+            )
+            async with await self.amocrm_class() as amocrm:
                 data: list[Any] = await amocrm.update_lead(**lead_options)
-                lead_id: int = data[0]["id"]
+            lead_id: int = data[0]["id"]
+
+            if self.__is_strana_lk_2882_enable:
+                note_data: dict[str, Any] = dict(
+                    lead_id=lead_id,
+                    text="Изменен статус заявки на 'Бронь'",
+                )
+            else:
                 note_data: dict[str, Any] = dict(
                     element="lead",
                     lead_id=lead_id,
                     note="lead_changed",
                     text="Изменен статус заявки на 'Бронь'",
                 )
-                self.create_amocrm_log_task.delay(note_data=note_data)
+
+            self.create_amocrm_log_task.delay(note_data=note_data)
         return lead_id
 
     async def __profitbase_booking(self, booking: Booking) -> bool:
@@ -236,3 +267,7 @@ class ActivateBookingService(BaseBookingService, BookingLogMixin):
             )
             raise BookingPropertyUnavailableError(booked, in_deal)
         return profitbase_booked
+
+    @property
+    def __is_strana_lk_2882_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_2882)

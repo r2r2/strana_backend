@@ -13,7 +13,6 @@ class Property(models.Model):
         null=True,
     )
     profitbase_id = models.BigIntegerField(
-        unique=True,
         help_text="Profitbase ID",
         blank=True,
         null=True,
@@ -29,6 +28,7 @@ class Property(models.Model):
     article = models.CharField(max_length=50, blank=True, null=True)
     plan = models.ImageField(max_length=300, blank=True, null=True, upload_to="p/p/p")
     plan_png = models.ImageField(max_length=300, blank=True, null=True, upload_to="p/p/pp")
+    plan_hover = models.TextField(null=True, blank=True)
     price = models.BigIntegerField(blank=True, null=True)
     original_price = models.BigIntegerField(blank=True, null=True)
     final_price = models.BigIntegerField(blank=True, null=True)

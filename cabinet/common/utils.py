@@ -110,6 +110,7 @@ def parse_phone(phone: str) -> Optional[str]:
 
     :returns: номер в формате E164 или None
     """
+    phone = phone.strip()
 
     # Если телефон начинается с 8 и скорее всего это телефон рф, введённый в национальном формате
     if phone.startswith("8"):

@@ -1,6 +1,6 @@
 import structlog
 from datetime import datetime
-from typing import Optional, Callable
+from typing import Optional, Callable, Any
 
 from common.amocrm import AmoCRM
 from config import site_config
@@ -16,9 +16,11 @@ from src.payments.repos import PurchaseAmoMatrix, PurchaseAmoMatrixRepo
 from ..constants import BookingCreatedSources, BookingStages
 from ..entities import BaseBookingService
 from src.booking.repos import BookingRepo, Booking, BookingSource
+from ..event_emitter_handlers import event_emitter
 from ..types import WebhookLead, CustomFieldValue
 from src.booking.utils import get_booking_source
 from src.projects.constants import ProjectStatus
+from src.buildings.repos import BuildingBookingType, BuildingBookingTypeRepo
 
 
 class BookingCreationFromAmoService(BaseBookingService):
@@ -46,6 +48,8 @@ class BookingCreationFromAmoService(BaseBookingService):
         self.amocrm_class: type[AmoCRM] = amocrm_class
         self.global_id_encoder: Callable = global_id_encoder
         self.import_property_service: ImportPropertyService = import_property_service
+
+        self.building_booking_type_repo: BuildingBookingTypeRepo = BuildingBookingTypeRepo()
 
     async def __call__(
             self,
@@ -94,11 +98,15 @@ class BookingCreationFromAmoService(BaseBookingService):
             origin=f"https://{self.SITE_HOST}",
             created_source=BookingCreatedSources.AMOCRM,  # todo: deprecated
             booking_source=booking_source,
-            expires=datetime.fromtimestamp(int(expires_timestamp.value))
+            expires=datetime.strptime(expires_timestamp.value, "%Y-%m-%d %H:%M:%S"),
         )
 
         if booking_purchase_data:
             booking_data.update(booking_purchase_data)
+
+        booking_period_data: dict[str, Any] = dict(
+            custom_fields=custom_fields,
+        )
 
         if property_id and property_type:
             booking_property: Property = await self._create_property(property_id, property_type)
@@ -108,9 +116,16 @@ class BookingCreationFromAmoService(BaseBookingService):
                 building_id=booking_property.building_id,
                 project_id=booking_property.project_id,
             )
+            booking_period_data.update(property_=booking_property)
+
+        booking_period: int = await self._get_booking_period(data=booking_period_data)
+        if booking_period:
+            booking_data.update(booking_period=booking_period)
         booking: Booking = await self.booking_repo.create(data=booking_data)
+        event_emitter.ee.emit(event='booking_created', booking=booking)
         self.logger.warning(f"Lead {webhook_lead.lead_id} from amo was created in {__name__}")
         await booking.fetch_related("user")
+
         return booking
 
     async def _create_property(self, property_id: str, property_type: Optional[str] = None) -> Property:
@@ -126,6 +141,32 @@ class BookingCreationFromAmoService(BaseBookingService):
         booking_property: Property = await self.property_repo.update_or_create(filters=filters, data=data)
         await self.import_property_service(property=booking_property)
         return booking_property
+
+    async def _get_booking_period(self, data: dict) -> int:
+        custom_fields: dict = data.get("custom_fields", {})
+        property_: Property = data.get("property_")
+
+        booking_type_id: int = custom_fields.get(self.amocrm_class.booking_type_field_id, CustomFieldValue()).enum
+        booking_type: BuildingBookingType = await self.building_booking_type_repo.retrieve(
+            filters=dict(amocrm_id=booking_type_id),
+        )
+
+        if property_ and not booking_type:
+            await property_.fetch_related("building")
+            self.logger.info(
+                f'[BookingCreationFromAmoService] Не найден Тип бронирования у корпусов. '
+                f'Берем период бронирования у корпуса {property_.building.id=}'
+            )
+            return property_.building.booking_period
+
+        elif not booking_type:
+            self.logger.info(
+                f"[BookingCreationFromAmoService] Не найден Тип бронирования у корпусов и не нашли Property. "
+                f"Не ставим период бронирования"
+            )
+            return 0
+
+        return booking_type.period
 
     @property
     def __is_strana_lk_2494_enable(self) -> bool:

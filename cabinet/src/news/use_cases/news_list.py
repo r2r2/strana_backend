@@ -68,12 +68,12 @@ class NewsListCase(BaseNewsCase):
             start=pagination.start,
             end=pagination.end,
             ordering="-pub_date",
-        )
+        ).distinct()
 
         # проверяем, что у новостей есть изображения и ставим дефолтные при их отсутствии
         await self.check_images(news_list)
 
-        count: int = await self.news_repo.count(filters=filters)
+        count: int = len(await self.news_repo.list(filters=filters).distinct())
         news_list_data: dict[str, Any] = dict(count=count, result=news_list, page_info=pagination(count=count))
         return news_list_data
 

@@ -20,7 +20,7 @@ services:
   admin:
     restart: always
       #entrypoint: sh wait-for ${LK_POSTGRES_HOST:-db_cabinet}:${LK_POSTGRES_PORT:-5432} -- ./entrypoint.production.sh
-    command: gunicorn config.wsgi:application -w 1 --keep-alive 120 -b 0.0.0.0:2100 --access-logfile - --error-logfile -
+    command: gunicorn config.wsgi:application -w 5 --keep-alive 120 --timeout 600 -b 0.0.0.0:2100 --access-logfile - --error-logfile -
     volumes:
       - cabinetlog:/app/logs/:ro
       - adminstatic:/app/static/:delegated

@@ -2,7 +2,7 @@
 from typing import Any
 
 from common import amocrm, dependencies, email, messages, profitbase, requests, security, utils
-from config import amocrm_config, session_config, site_config
+from config import session_config, site_config
 from fastapi import APIRouter, Body, Depends, Request, status, Path
 from src.booking import repos as booking_repos
 from src.booking import tasks
@@ -18,10 +18,12 @@ from src.properties.factories.services import CheckProfitbasePropertyServiceFact
 from src.properties.services import GetPropertyPriceService
 from src.task_management.factories import UpdateTaskInstanceStatusServiceFactory, CreateTaskInstanceServiceFactory
 from src.users import repos as users_repos
-from src.users import services as user_services
 from src.notifications import services as notification_services
 from src.notifications import repos as notification_repos
 from src.payments import repos as payment_repos
+from src.users.factories import CheckPinningStatusServiceFactory
+from src.payments import repos as payments_repos
+
 
 router = APIRouter(prefix="/properties", tags=["Properties"])
 
@@ -87,7 +89,7 @@ async def bind_booking_property(
     payload: models.RequestBindBookingPropertyModel = Body(...)
 ):
     """
-    Связывание объекта недвижимости со сделкой
+    Связывание объекта недвижимости со сделкой [Платная бронь]
     """
     activate_bookings_service: ActivateBookingService = ActivateBookingServiceFactory.create()
     check_profitbase_property_service = CheckProfitbasePropertyServiceFactory.create()
@@ -110,18 +112,11 @@ async def bind_booking_property(
             sms_template_repo=notification_repos.SmsTemplateRepo,
         )
 
-    resources: dict[str, Any] = dict(
-        amocrm_class=amocrm.AmoCRM,
-        user_repo=users_repos.UserRepo,
-        check_pinning_repo=users_repos.PinningStatusRepo,
-        user_pinning_repo=users_repos.UserPinningStatusRepo,
-        amocrm_config=amocrm_config,
-    )
-    check_pinning: user_services.CheckPinningStatusService = user_services.CheckPinningStatusService(**resources)
+    check_pinning = CheckPinningStatusServiceFactory.create()
 
     resources: dict[str, Any] = dict(
         property_price_repo=payment_repos.PropertyPriceRepo,
-        property_price_type_repo=payment_repos.PropertyPriceTypeRepo,
+        price_offer_matrix_repo=payment_repos.PriceOfferMatrixRepo,
     )
     get_property_price_service: GetPropertyPriceService = GetPropertyPriceService(**resources)
 
@@ -130,9 +125,11 @@ async def bind_booking_property(
         booking_repo=booking_repos.BookingRepo,
         building_booking_type_repo=buildings_repos.BuildingBookingTypeRepo,
         amocrm_status_repo=amocrm_repos.AmocrmStatusRepo,
+        purchase_amo_matrix_repo=payments_repos.PurchaseAmoMatrixRepo,
         amocrm_class=amocrm.AmoCRM,
         activate_bookings_service=activate_bookings_service,
         change_booking_status_task=tasks.change_booking_status_task,
+        check_booking_task=tasks.check_booking_task,
         update_task_instance_status_service=update_status_service,
         check_profitbase_property_service=check_profitbase_property_service,
         email_class=email.EmailService,

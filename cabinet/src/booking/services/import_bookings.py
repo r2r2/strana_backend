@@ -35,6 +35,7 @@ from src.payments.repos import PurchaseAmoMatrix, PurchaseAmoMatrixRepo
 
 from ..constants import BookingStagesMapping, BookingSubstages
 from ..entities import BaseBookingService
+from ..event_emitter_handlers import event_emitter
 from ..mixins import BookingLogMixin
 from src.booking.repos import Booking, BookingRepo, BookingSource
 from ..types import BookingGraphQLRequest, BookingORM
@@ -94,6 +95,7 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
         orm_config: Optional[dict[str, Any]] = None,
         create_booking_log_task: Optional[Any] = None,
         check_booking_task: Optional[Any] = None,
+
         logger=structlog.getLogger(__name__),
     ) -> None:
         self.logger = logger
@@ -135,6 +137,8 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
         self.check_booking_task: Any = check_booking_task
 
     async def __call__(self, user_id: int) -> bool:
+        if self.__is_strana_lk_3412_enable():
+            self.logger.debug(f"3412 Запуск импорта сделок для пользователя {user_id}")
         user_filters: dict[str, Any] = dict(id=user_id)
         user: User = await self.user_repo.retrieve(filters=user_filters, related_fields=["agent"])
         q_filters = [self.agent_repo.q_builder(
@@ -164,6 +168,12 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
             bookings: QuerySet = self.booking_repo.list()
             booking_ids: list[int] = await bookings.distinct().values_list("amocrm_id", flat=True)
 
+            if self.__is_strana_lk_3412_enable():
+                self.logger.debug(f"3412 Контакт клиента из АМО {import_contact}")
+                self.logger.debug(f"3412 Список amocrm_id для обновления {booking_ids=}")
+                self.logger.debug(f"3412 len {len(booking_ids)}")
+
+            counter_updated_leads = 0
             if import_contact:
                 big_lead_ids: list[int] = [lead.id for lead in import_contact.embedded.leads]
                 for lead_ids in partition_list(big_lead_ids, self.partition_limit):
@@ -175,6 +185,7 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
                         self.logger.info(f"Для клиента {user.id=} найдено сделок, в количестве - {len(leads)} шт.")
                         for lead in leads:
                             self.logger.info(f"Для клиента {user.id=} инициирован импорт сделки с {lead.id=}")
+                            counter_updated_leads += 1
                             await self._update_lead(
                                 lead=lead,
                                 booking_ids=booking_ids,
@@ -182,6 +193,9 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
                                 user=user,
                                 agents=agents,
                             )
+
+            if self.__is_strana_lk_3412_enable():
+                self.logger.debug(f"3412 Обновлено {counter_updated_leads} сделок")
 
         data: dict[str, Any] = dict(is_imported=True)
         await self.user_update(user=user, data=data)
@@ -229,6 +243,10 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
             filters=dict(id=amocrm_status.id if amocrm_status else None),
             related_fields=["group_status"],
         )
+
+        if amocrm_cabinet_status is None:
+            self.logger.error(f"3412 amocrm_cabinet_status для {amocrm_status} не найден")
+
         if (
             booking and
             amocrm_cabinet_status.group_status
@@ -391,11 +409,23 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
             lead_contacts.intersection(set(agent.amocrm_id for agent in agents)) and user.agent_id
         ):
             data.update(dict(agent_id=user.agent_id, agency_id=user.agency_id))
+        else:
+            if self.__is_strana_lk_3412_enable():
+                self.logger.debug(f"3412 Не перепривязываем закрытую сделку {lead.id} других агентов у клиента ")
+                self.logger.debug(f"3412 {lead_contacts} {agents} {user.agent_id} ")
 
         booking = await self.booking_repo.retrieve(filters=filters)
         if booking:
+            if self.__is_strana_lk_3412_enable():
+                self.logger.debug(f"3412 Сделка по фильтру найдена и будет обновлена")
             await self.booking_repo.update(model=booking, data=data)
         else:
+            if self.__is_strana_lk_3412_enable():
+                self.logger.debug(f"3412 Сделка по фильтру {filters=} не найдена и будет создана")
+                data.update(
+                    agent_id=user.agent_id,
+                    agency_id=user.agency_id,
+                )
             booking_source: BookingSource = await get_booking_source(slug=BookingCreatedSources.AMOCRM)
             data.update(
                 amocrm_id=lead.id,
@@ -403,6 +433,8 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
                 booking_source=booking_source,
             )
             booking: Booking = await self.booking_repo.create(data=data)
+            event_emitter.ee.emit(event='booking_created', booking=booking)
+
             self.check_booking_task.apply_async((booking.id,), eta=booking.expires, queue="scheduled") 
 
     @staticmethod
@@ -450,3 +482,6 @@ class ImportBookingsService(BaseBookingService, BookingLogMixin):
     @property
     def __is_strana_lk_2494_enable(self) -> bool:
         return UnleashClient().is_enabled(FeatureFlags.strana_lk_2494)
+
+    def __is_strana_lk_3412_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_3412)

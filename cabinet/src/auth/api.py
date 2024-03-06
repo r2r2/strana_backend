@@ -17,6 +17,9 @@ async def process_login_view(
 ):
     """
     Вход администратора/Агентства (представителя)/Агента
+
+    Авторизация администратора
+    Авторизация агента
     """
     resources: dict[str, Any] = dict(
         auth_config=auth_config,

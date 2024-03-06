@@ -2,11 +2,14 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from common.amocrm import AmoCRM
-from common.amocrm.constants import AmoContactQueryWith, AmoLeadQueryWith
+from common.amocrm.constants import AmoContactQueryWith, AmoLeadQueryWith, AmoEntityTypes
 from common.amocrm.types import AmoContact, AmoLead
+from common.unleash.client import UnleashClient
 from common.utils import partition_list
 from config import EnvTypes, maintenance_settings
+from config.feature_flags import FeatureFlags
 from src.agents.services.import_clients import LeadStatuses
+from src.booking.repos import TestBookingRepo
 from src.cities.exceptions import CityNotFoundError
 from src.cities.repos import CityRepo, City
 from src.dashboard.entities import BaseDashboardCase
@@ -32,11 +35,13 @@ class CreateTicketCase(BaseDashboardCase):
         self,
         ticket_repo: type[TicketRepo],
         city_repo: type[CityRepo],
+        test_booking_repo: type[TestBookingRepo],
         amocrm_class: type[AmoCRM],
         amocrm_config: dict[str, Any],
     ):
         self.ticket_repo: TicketRepo = ticket_repo()
         self.city_repo: CityRepo = city_repo()
+        self.test_booking_repo: TestBookingRepo = test_booking_repo()
         self.amocrm_class: type[AmoCRM] = amocrm_class
         self.partition_limit: int = amocrm_config["partition_limit"]
 
@@ -153,12 +158,23 @@ class CreateTicketCase(BaseDashboardCase):
         if active_leads:
             amocrm_lead_id: int = active_leads[0].id
             complete_till_datetime: datetime = datetime.now() + timedelta(days=2)
-            await amocrm.create_task_v4(
-                element_id=amocrm_lead_id,
-                text=amo_note,
-                complete_till=int(complete_till_datetime.timestamp()),
-                responsible_user_id=amocrm_contact_id,
-            )
+
+            if self.__is_strana_lk_2882_enable:
+                await amocrm.create_task_v4(
+                    text=amo_note,
+                    complete_till=int(complete_till_datetime.timestamp()),
+                    entity_id=amocrm_lead_id,
+                    entity_type=AmoEntityTypes.LEADS,
+                    responsible_user_id=amocrm_contact_id,
+                )
+            else:
+                await amocrm.create_task(
+                    element_id=amocrm_lead_id,
+                    text=amo_note,
+                    complete_till=int(complete_till_datetime.timestamp()),
+                    responsible_user_id=amocrm_contact_id,
+                )
+
         else:
             tags = self.tags
             if maintenance_settings["environment"] == EnvTypes.DEV:
@@ -176,7 +192,16 @@ class CreateTicketCase(BaseDashboardCase):
             )
             amocrm_lead_id: int = leads[0].id
 
-        await amocrm.create_note(lead_id=amocrm_lead_id, note="common", text=amo_note, element="lead")
+            data: dict[str, Any] = dict(
+                amocrm_id=amocrm_lead_id,
+                is_test_user=False,
+            )
+            await self.test_booking_repo.create(data=data)
+
+        if self.__is_strana_lk_2882_enable:
+            await amocrm.create_note_v4(lead_id=amocrm_lead_id, text=amo_note)
+        else:
+            await amocrm.create_note(lead_id=amocrm_lead_id, note="common", text=amo_note, element="lead")
 
         amo_data: dict = dict(
             user_amocrm_id=amocrm_contact_id,
@@ -184,3 +209,7 @@ class CreateTicketCase(BaseDashboardCase):
             note=amo_note,
         )
         await self.ticket_repo.update(model=ticket, data=amo_data)
+
+    @property
+    def __is_strana_lk_2882_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_2882)

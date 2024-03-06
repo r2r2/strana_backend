@@ -1,7 +1,7 @@
-from typing import Any
+from typing import Any, Optional
 
 from src.users.exceptions import UniqueStatusNotFoundError, UniqueStatusButtonNotFoundError
-from src.users.repos import UniqueStatus, UniqueStatusRepo, UniqueStatusButton, UniqueStatusButtonRepo
+from src.users.repos import UniqueStatus, UniqueStatusRepo, UniqueStatusButton, UniqueStatusButtonRepo, User, UserRepo
 
 
 async def get_unique_status(slug: str) -> UniqueStatus:

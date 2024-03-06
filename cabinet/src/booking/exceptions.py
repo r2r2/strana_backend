@@ -187,3 +187,21 @@ class BookingSourceNotFoundError(BaseBookingException):
     message = "Источник бронирования не найден"
     status = HTTPStatus.NOT_FOUND
     reason = "booking_source_not_found"
+
+
+class BookingSignedOfferNotFoundError(BaseBookingException):
+    message = "Подписанный договор оферты не найден"
+    status = HTTPStatus.NOT_FOUND
+    reason = "booking_signed_offer_not_found"
+
+
+class BookingAlreadyHasRewardError(BaseBookingException):
+    message = "У сделки уже есть примененная награда по программе лояльности."
+    status = HTTPStatus.BAD_REQUEST
+    reason = "booking_already_has_reward"
+
+
+class BookingHasNoRewardError(BaseBookingException):
+    message = "У сделки нет примененной награды по программе лояльности."
+    status = HTTPStatus.BAD_REQUEST
+    reason = "booking_has_no_reward"

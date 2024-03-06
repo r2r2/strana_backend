@@ -12,7 +12,11 @@ class BaseTildaException(Exception):
 
 
 class TildaIntegrationError(BaseTildaException):
-    def __init__(self, message: str = "Ошибка интеграции с Тильда.", reason: str = "tilda_exception"):
+    def __init__(
+        self,
+        message: str = "Ошибка интеграции с Tilda. Пожалуйста, повторите попытку позже.",
+        reason: str = "tilda_exception",
+    ):
         self.message = message
         self.reason = reason
 

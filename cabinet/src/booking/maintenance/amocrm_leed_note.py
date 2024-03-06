@@ -8,6 +8,7 @@ from tortoise.exceptions import IntegrityError, TransactionManagementError
 
 from common.amocrm import AmoCRM
 from common.amocrm.exceptions import BaseAmocrmException
+from src.booking.dto import FastBookingWebhookResponseDTO
 from src.booking.exceptions import BaseBookingException
 from src.booking.types import WebhookLead
 
@@ -49,14 +50,14 @@ async def _get_note_message(func, *args, **kwargs) -> Tuple[Any, Any, str]:
     """
     Получение результата функции, ошибки при выполнении этой функции и строку для передачи в амо
     """
-    result = None
+    result: FastBookingWebhookResponseDTO | None = None
     exception = None
     text = "Смс с быстрой бронью не отправлено - неизвестная ошибка. "
 
     try:
         # note: class method execution
         kwargs.update(**args[1])
-        result = await func(args[0], **kwargs)
+        result: FastBookingWebhookResponseDTO = await func(args[0], **kwargs)
     except (BaseAmocrmException, BaseBookingException, IntegrityError, TransactionManagementError) as e:
         exception = e
         text += _format_exception_message(e)
@@ -64,7 +65,10 @@ async def _get_note_message(func, *args, **kwargs) -> Tuple[Any, Any, str]:
         exception = e
         text += _format_exception_message(e)
     else:
-        text = "Смс с быстрой бронью успешно отправлено"
+        text = f"""
+            Смс с быстрой бронью успешно отправлено.
+            Текст сообщения: {result.sms_text}
+        """
 
     return result, exception, text
 

@@ -87,6 +87,12 @@ class CheckTerm(Model):
         related_name="terms",
         null=True,
     )
+    button: fields.ForeignKeyNullableRelation["UniqueStatusButton"] = fields.ForeignKeyField(
+        model_name="models.UniqueStatusButton",
+        description="Кнопка статуса уникальности",
+        related_name="terms",
+        null=True,
+    )
     comment: str = fields.TextField(description="Комментарий", null=True)
 
     class Meta:

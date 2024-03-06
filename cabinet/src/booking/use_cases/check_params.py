@@ -10,6 +10,7 @@ from common.sentry.utils import send_sentry_log
 from common.unleash.client import UnleashClient
 from config import sberbank_config
 from config.feature_flags import FeatureFlags
+from src.booking.event_emitter_handlers import event_emitter
 from src.properties.constants import PropertyStatuses
 from ..constants import PAYMENT_PROPERTY_NAME, BookingStages, BookingSubstages, PaymentStatuses, PaymentView
 from ..entities import BaseBookingCase
@@ -116,6 +117,7 @@ class CheckParamsCase(BaseBookingCase, BookingLogMixin):
             payment_page_view=PaymentView(value=step_data.pop("payment_page_view")),
             payment_order_number=uuid4(),
         )
+        old_group_status = booking.amocrm_substage if booking.amocrm_substage else None
         booking: Booking = await self.booking_update(booking=booking, data=data)
 
         payment: Union[dict[str, Any], str] = await self._online_payment(booking=booking)
@@ -152,6 +154,13 @@ class CheckParamsCase(BaseBookingCase, BookingLogMixin):
 
         data: dict[str, Any] = step_data
         booking: Booking = await self.booking_check_logger(booking=booking, data=data)
+
+        event_emitter.ee.emit(
+            event='pay_booking',
+            booking=booking,
+            user=booking.user,
+            old_group_status=old_group_status,
+        )
 
         filters: dict[str, Any] = dict(active=True, id=booking.id, user_id=user_id)
         booking: Booking = await self.booking_repo.retrieve(
@@ -196,6 +205,7 @@ class CheckParamsCase(BaseBookingCase, BookingLogMixin):
             timeout=(booking.expires - datetime.now(tz=UTC) - timedelta(seconds=10)).seconds,
             username=_username,
             password=_password,
+            amocrm_id=booking.amocrm_id,
         )
         sberbank_service: BookingSberbank = self.sberbank_class(**payment_options)
         payment: Union[dict[str, Any], str] = await sberbank_service("pay")
@@ -244,10 +254,70 @@ class CheckParamsCaseV2(BaseBookingCase, BookingLogMixin):
 
         filters: dict[str, Any] = dict(active=True, id=booking_id, user_id=user_id)
         booking: Booking = await self.booking_repo.retrieve(
-            filters=filters, related_fields=["user", "project", "project__city", "property", "building"]
+            filters=filters, related_fields=["user", "project__city", "property", "building"]
         )
 
         profitbase_id = base64.b64decode(booking.property.global_id).decode("utf-8").split(":")[-1]
+        self._check_booking(booking=booking, profitbase_id=profitbase_id)
+
+        data: dict[str, Any] = dict(
+            payment_page_view=PaymentView(value=step_data.pop("payment_page_view")),
+            payment_order_number=uuid4(),
+        )
+        old_group_status = booking.amocrm_substage if booking.amocrm_substage else None
+        booking: Booking = await self._booking_update(booking=booking, data=data)
+
+        payment: Union[dict[str, Any], str] = await self._online_payment(booking=booking)
+
+        if not payment.get("formUrl", None):
+            data: dict[str, Any] = dict(
+                params_checked=False,
+                amocrm_stage=BookingStages.BOOKING,
+                payment_status=PaymentStatuses.FAILED,
+                amocrm_substage=BookingSubstages.BOOKING,
+            )
+            await self._booking_fail_logger(booking=booking, data=data)
+            sentry_sdk.capture_message(
+                "cabinet/CheckParamsCase: BookingOnlinePaymentError: "
+                "Не удалось сгенерировать ссылку для оплаты"
+            )
+            raise BookingOnlinePaymentError
+
+        payment_id: str = payment.get("orderId")
+        payment_url: str = payment.get("formUrl")
+
+        data: dict[str, Any] = dict(
+            payment_id=payment_id, payment_url=payment_url, payment_status=PaymentStatuses.PENDING
+        )
+        booking: Booking = await self._booking_success_logger(booking=booking, data=data)
+
+        data: dict[str, Any] = step_data
+        booking: Booking = await self._booking_check_logger(booking=booking, data=data)
+
+        event_emitter.ee.emit(
+            event='pay_booking',
+            booking=booking,
+            user=booking.user,
+            old_group_status=old_group_status,
+        )
+
+        await self._update_task_status(booking=booking)
+
+        return await self._get_booking(booking=booking, user_id=user_id)
+
+    async def _booking_success_logger(self, booking: Booking, data: dict[str, Any]) -> Booking:
+        return await self.booking_success_logger(booking=booking, data=data)
+
+    async def _booking_fail_logger(self, booking: Booking, data: dict[str, Any]) -> Booking:
+        return await self.booking_fail_logger(booking=booking, data=data)
+
+    async def _booking_update(self, booking: Booking, data: dict[str, Any]) -> Booking:
+        return await self.booking_update(booking=booking, data=data)
+
+    async def _booking_check_logger(self, booking: Booking, data: dict[str, Any]) -> Booking:
+        return await self.booking_check_logger(booking=booking, data=data)
+
+    def _check_booking(self, booking: Booking, profitbase_id: str) -> None:
         sentry_sdk.set_context(
             "booking",
             {
@@ -282,51 +352,6 @@ class CheckParamsCaseV2(BaseBookingCase, BookingLogMixin):
             sentry_sdk.capture_message("cabinet/CheckParamsCase: Таймер бронирования истёк")
             raise BookingTimeOutError
 
-        data: dict[str, Any] = dict(
-            payment_page_view=PaymentView(value=step_data.pop("payment_page_view")),
-            payment_order_number=uuid4(),
-        )
-        booking: Booking = await self.booking_update(booking=booking, data=data)
-
-        payment: Union[dict[str, Any], str] = await self._online_payment(booking=booking)
-
-        if not payment.get("formUrl", None):
-            data: dict[str, Any] = dict(
-                params_checked=False,
-                amocrm_stage=BookingStages.BOOKING,
-                payment_status=PaymentStatuses.FAILED,
-                amocrm_substage=BookingSubstages.BOOKING,
-            )
-            await self.booking_fail_logger(booking=booking, data=data)
-            sentry_sdk.capture_message(
-                "cabinet/CheckParamsCase: BookingOnlinePaymentError: "
-                "Не удалось сгенерировать ссылку для оплаты"
-            )
-            raise BookingOnlinePaymentError
-
-        payment_id: str = payment.get("orderId")
-        payment_url: str = payment.get("formUrl")
-
-        data: dict[str, Any] = dict(
-            payment_id=payment_id, payment_url=payment_url, payment_status=PaymentStatuses.PENDING
-        )
-        booking: Booking = await self.booking_success_logger(booking=booking, data=data)
-
-        data: dict[str, Any] = step_data
-        booking: Booking = await self.booking_check_logger(booking=booking, data=data)
-        await self._update_task_status(booking=booking)
-
-        filters: dict[str, Any] = dict(active=True, id=booking.id, user_id=user_id)
-        booking: Booking = await self.booking_repo.retrieve(
-            filters=filters,
-            related_fields=["project__city", "property", "floor", "building", "ddu", "agent", "agency"],
-            prefetch_fields=["ddu__participants"],
-        )
-        booking.tasks = await get_booking_tasks(
-            booking_id=booking.id, task_chain_slug=OnlineBookingSlug.ACCEPT_OFFER.value
-        )
-        return booking
-
     async def _online_payment(self, booking: Booking) -> Union[dict[str, Any], str]:
         """online payment"""
         if UnleashClient().is_enabled(FeatureFlags.strana_lk_2090):
@@ -355,6 +380,7 @@ class CheckParamsCaseV2(BaseBookingCase, BookingLogMixin):
             timeout=(booking.expires - datetime.now(tz=UTC) - timedelta(seconds=10)).seconds,
             username=_username,
             password=_password,
+            amocrm_id=booking.amocrm_id,
         )
         sberbank_service: BookingSberbank = self.sberbank_class(**payment_options)
         payment: Union[dict[str, Any], str] = await sberbank_service("pay")
@@ -368,3 +394,15 @@ class CheckParamsCaseV2(BaseBookingCase, BookingLogMixin):
             booking_id=booking.id,
             status_slug=OnlineBookingSlug.PAYMENT.value,
         )
+
+    async def _get_booking(self, booking: Booking, user_id: int) -> Booking:
+        filters: dict[str, Any] = dict(active=True, id=booking.id, user_id=user_id)
+        booking: Booking = await self.booking_repo.retrieve(
+            filters=filters,
+            related_fields=["project__city", "property", "floor", "building", "ddu", "agent", "agency"],
+            prefetch_fields=["ddu__participants"],
+        )
+        booking.tasks = await get_booking_tasks(
+            booking_id=booking.id, task_chain_slug=OnlineBookingSlug.ACCEPT_OFFER.value
+        )
+        return booking

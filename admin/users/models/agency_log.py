@@ -4,7 +4,11 @@ from django.db import models
 
 class AgencyLog(AbstractLog):
     agency = models.ForeignKey(
-        "users.Agency", models.CASCADE, blank=True, null=True, verbose_name='Агентство'
+        "users.Agency",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        verbose_name='Агентство',
     )
 
 

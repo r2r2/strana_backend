@@ -3,8 +3,11 @@ from datetime import datetime, timedelta
 from typing import Type
 
 from common.amocrm import AmoCRM
-from common.amocrm.constants import AmoElementTypes, AmoTaskTypes
+from common.amocrm.constants import AmoElementTypes, AmoTaskTypes, AmoEntityTypes
 from pytz import UTC
+
+from common.unleash.client import UnleashClient
+from config.feature_flags import FeatureFlags
 from src.booking.loggers.wrappers import booking_changes_logger
 
 from ..constants import OnlinePurchaseStatuses, OnlinePurchaseSteps
@@ -152,18 +155,31 @@ class DDUAcceptCase(BaseBookingCase):
                 # Поставить дополнительную задачу-уведомление
                 # "клиент согласовал договор - связаться с клиентом" ответственному по сделке
                 complete_till_datetime = booking.ddu_acceptance_datetime + timedelta(days=1)
-
-                await amocrm.create_task(
-                    entity_id=booking.amocrm_id,
-                    responsible_user_id=amocrm_lead.responsible_user_id,
-                    entity_type=AmoElementTypes.LEAD,
-                    text=self.remainder_task_text,
-                    task_type=AmoTaskTypes.CALL,
-                    complete_till=int(complete_till_datetime.timestamp()),
-                )
+                if self.__is_strana_lk_2882_enable:
+                    await amocrm.create_task_v4(
+                        text=self.remainder_task_text,
+                        complete_till=int(complete_till_datetime.timestamp()),
+                        entity_id=booking.amocrm_id,
+                        entity_type=AmoEntityTypes.LEADS,
+                        responsible_user_id=amocrm_lead.responsible_user_id,
+                        task_type=AmoTaskTypes.CALL,
+                    )
+                else:
+                    await amocrm.create_task(
+                        entity_id=booking.amocrm_id,
+                        responsible_user_id=amocrm_lead.responsible_user_id,
+                        entity_type=AmoElementTypes.LEAD,
+                        text=self.remainder_task_text,
+                        task_type=AmoTaskTypes.CALL,
+                        complete_till=int(complete_till_datetime.timestamp()),
+                    )
 
     @classmethod
     def _check_requirements(cls, booking: Booking) -> None:
         """Проверка на выполнение условий."""
         if booking.online_purchase_step() != OnlinePurchaseSteps.DDU_ACCEPT:
             raise BookingWrongStepError
+
+    @property
+    def __is_strana_lk_2882_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_2882)

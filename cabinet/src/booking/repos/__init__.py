@@ -19,9 +19,16 @@ from .booking_tag import (
     BookingTagsBookingSourceThrough,
     BookingTagsSystemThrough,
 )
+from .booking_test import TestBooking, TestBookingRepo
 from .ddu import DDU, DDUParticipant, DDUParticipantRepo, DDURepo
 from .purchase_help_text import PurchaseHelpText, PurchaseHelpTextRepo
 from .webhook_request import WebhookRequest, WebhookRequestRepo
 from .payment_page import PaymentPageNotification, PaymentPageNotificationRepo
 from .booking_source import BookingSource, BookingSourceRepo
 from .booking_payments_maintenance import BookingPaymentsMaintenance, BookingPaymentsMaintenanceRepo
+from .mortgage_application_archive import MortgageApplicationArchive, MortgageApplicationArchiveRepo
+from .document_archive import DocumentArchive, DocumentArchiveRepo
+from .booking_event_type import BookingEventType, BookingEventTypeRepo
+from .booking_event import BookingEvent, BookingEventRepo
+from .mortgage_application_archive import MortgageApplicationArchive, MortgageApplicationArchiveRepo
+from .booking_event_history import BookingEventHistory, BookingEventHistoryRepo, BookingEventHistory

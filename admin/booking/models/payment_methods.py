@@ -7,6 +7,11 @@ class PaymentMethod(models.Model):
     """
     name = models.CharField(max_length=100, null=True, verbose_name="Название")
     amocrm_id = models.BigIntegerField(blank=True, null=True, verbose_name="AmoCRM ID")
+    slug = models.CharField(
+        max_length=50,
+        unique=True,
+        verbose_name="Слаг",
+    )
 
     def __str__(self):
         return self.name

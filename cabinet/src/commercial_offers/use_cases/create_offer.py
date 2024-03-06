@@ -2,6 +2,8 @@ from typing import Callable, List, Optional, Any, Set
 from datetime import date
 from fastapi.encoders import jsonable_encoder
 from tortoise.fields import ForeignKeyNullableRelation, ManyToManyRelation
+from common.unleash.client import UnleashClient
+from config.feature_flags import FeatureFlags
 from src.properties.services import ImportPropertyService
 from src.properties.repos import PropertyRepo, PropertyTypeRepo, Property, Feature
 from src.projects.repos import ProjectRepo
@@ -134,7 +136,11 @@ class CreateOfferCaseSaving(BaseOfferCase):
         # Отправка запроса на редактирование сделки в АМО, сохранение КП в комментарий
         note_message = f"Добавлено коммерческое предложение. Ссылка на КП: {offer_link}"
         async with await self.amocrm_class() as amocrm:
-            await amocrm.create_note(lead_id=lead.amocrm_id, text=note_message, element="lead", note="common")
+
+            if self.__is_strana_lk_2882_enable:
+                await amocrm.create_note_v4(lead_id=lead.amocrm_id, text=note_message)
+            else:
+                await amocrm.create_note(lead_id=lead.amocrm_id, text=note_message, element="lead", note="common")
 
         return tilda_response_data
 
@@ -167,7 +173,7 @@ class CreateOfferCaseSaving(BaseOfferCase):
                 property_=property_,
                 client=client,
                 lead=lead,
-                payload=payload
+                payload=payload,
             )
             data.templates.append(template)
         tilda_payload.data = data
@@ -195,6 +201,10 @@ class CreateOfferCaseSaving(BaseOfferCase):
             properties.append(property_)
         return properties
 
+    @property
+    def __is_strana_lk_2882_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_2882)
+
 
 class TildaTemplateFields:
 
@@ -207,7 +217,7 @@ class TildaTemplateFields:
         features: ManyToManyRelation["Feature"] = property_.property_features
 
         template.area = property_.area
-        template.price = property_.price
+        template.price = property_.cash_price
         template.client = f"{client.name} {client.surname} {client.patronymic}"
         template.akcia = (property_.special_offers, ) if property_.special_offers else ""
         template.akciaDiscountEnabled = ("Да", ) if property_.special_offers else ""
@@ -230,7 +240,7 @@ class TildaTemplateFields:
             profitbase_id="pbcf_628e102ab241b",
             features=features) else ""
         template.corner_windows = "Да" if property_.corner_windows else ""
-        template.creationDate = str(date.today())
+        template.creationDate = date.today().strftime("%d.%m.%Y")
         template.design_by_project = "Да" if self._is_related_feature(
             profitbase_id="pbcf_63db466c2894c",
             features=features) else ""
@@ -241,7 +251,7 @@ class TildaTemplateFields:
             profitbase_id="pbcf_5ec6621e549be",
             features=features) else ""
         template.front_garden = "Да" if property_.frontage else ""
-        template.frontdoor = property_.section.name if property_.section.name else ""
+        template.frontdoor = property_.section.number if property_.section.number else ""
         template.grocery = "Да" if self._is_related_feature(
             profitbase_id="pbcf_628e107ccef29",
             features=features) else ""
@@ -264,7 +274,7 @@ class TildaTemplateFields:
             features=features) else ""
         template.penthouse = "Да" if property_.is_penthouse else ""
         template.pochta = payload.manager_login
-        template.priceWithCash = str(property_.cash_price) if property_.cash_price else ""
+        template.priceWithCash = str(property_.original_price) if property_.original_price else ""
         template.price_with_furnishing = property_.furnish_price_per_meter if property_.furnish_price_per_meter else ""
         template.price_with_kitchen = payload.price_with_kitchen if payload.price_with_kitchen else ""
         template.price_with_renovation = payload.price_with_renovation if payload.price_with_renovation else ""

@@ -10,7 +10,7 @@ from src.task_management import loggers
 
 def task_instance_logger(task_change: TaskInstanceRepo(), service: BaseTaskService | BaseTaskCase, content: str):
     async def _wrapper(task_instance: TaskInstance = None, data: dict = None, filters: dict = None):
-        task_instance_before = dict(task_instance) if task_instance else dict()
+        task_instance_before = dict(task_instance) if isinstance(task_instance, TaskInstance) else dict()
         context = content
         new_status = data.get("status") if data else None
 
@@ -80,7 +80,7 @@ async def log_task_instance_change(
         booking_id=booking_id,
         task_chain_id=task_chain_id,
     )
-    asyncio.create_task(
+    _: asyncio.Task = asyncio.create_task(
         create_task_instance_log(log_data=log_data),
     )
 

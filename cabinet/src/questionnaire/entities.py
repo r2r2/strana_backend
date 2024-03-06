@@ -19,3 +19,22 @@ class BaseQuestionnaireModel(Model, TimeBasedMixin):
     """
     Базовая модель опросника
     """
+
+
+class BaseQuestionnaireCase:
+    """
+    Базовый сценарий объекта недвижимости
+    """
+
+    async def __call__(self, *args: list[Any], **kwargs: dict[str, Any]) -> Any:
+        raise NotImplementedError
+
+
+class BaseQuestionnaireException(Exception):
+    """
+    Базовая ошибка заявки на ипотеку
+    """
+
+    message: str
+    status: int
+    reason: str

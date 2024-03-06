@@ -8,9 +8,10 @@ from common.amocrm import AmoCRM
 from common.amocrm.constants import AmoContactQueryWith
 from common.amocrm.types import AmoContact, AmoLead
 from common.redis import Redis, broker as redis
-from common.unleash.client import UnleashClient
 from common.utils import partition_list
-from config.feature_flags import FeatureFlags
+from src.amocrm.repos import AmocrmPipeline
+from src.booking.repos import Booking
+from src.cities.repos import City
 from src.users.constants import UserPinningStatusType
 from src.users.entities import BaseUserService
 from src.users.exceptions import UserNotFoundError
@@ -93,6 +94,7 @@ class TokenBucketRateLimiter:
 class CheckPinningStatusService(BaseUserService):
     """
     Проверка на закрепление
+    todo: deprecated
     """
     def __init__(
         self,
@@ -116,19 +118,19 @@ class CheckPinningStatusService(BaseUserService):
     async def __call__(
         self,
         user_id: int,
-        lead_id: int | None = None,
     ) -> None:
         filters: dict[str, Any] = dict(id=user_id)
         user: User = await self.user_repo.retrieve(filters=filters)
         if not user:
             raise UserNotFoundError
 
-        status: UniqueStatus = await self._check_user(user, lead_id)
+        status: UniqueStatus = await self._check_user(user)
         await self.user_pinning_repo.update_or_create(
             filters=dict(user=user), data=dict(unique_status=status)
         )
 
-    async def _check_user(self, user: User, lead_id: int | None = None) -> UniqueStatus:
+    async def _check_user(self, user: User) -> UniqueStatus:
+        self.logger.info(f"Начало проверки закрепления для пользователя {user=}")
         async with await self.amocrm_class() as amocrm:
             await self.amocrm_rate_limiter.wait_and_acquire(num_tokens=2, timeout=3 * 60)
             async with self.lock:
@@ -136,14 +138,17 @@ class CheckPinningStatusService(BaseUserService):
                     user_phone=user.phone, query_with=[AmoContactQueryWith.leads]
                 )
             if len(contacts) == 0:
+                self.logger.info(
+                    f"Контакт не найден в AmoCRM {user.phone=}"
+                    f"Статус закрепления {UserPinningStatusType.UNKNOWN=}"
+                )
                 return await get_unique_status(slug=UserPinningStatusType.UNKNOWN)
             elif len(contacts) == 1:
+                self.logger.info(f"Найден один контакт в AmoCRM {user.phone=}")
                 leads = await self._one_contact_case(contacts=contacts)
             else:
+                self.logger.info(f"Найдено несколько контактов в AmoCRM {user.phone=}")
                 leads = await self._some_contacts_case(contacts=contacts)
-
-            if lead_id and self.__is_strana_lk_3183_enable:
-                leads = [lead_id]
 
             status: UniqueStatus = await self._check_contact_leads(amocrm=amocrm, leads=leads)
             return status
@@ -178,11 +183,12 @@ class CheckPinningStatusService(BaseUserService):
                 leads = await amocrm.fetch_leads(lead_ids=lead_ids)
                 amo_leads.extend(leads)
 
+        self.logger.info(f"Найдено {len(amo_leads)} сделок в AmoCRM {amo_leads=}")
         for lead in amo_leads:
             status: Optional[UniqueStatus] = await self._check_lead_status(lead)
             if status and status.slug in (UserPinningStatusType.PINNED, UserPinningStatusType.PARTIALLY_PINNED):
                 return status
-
+        self.logger.info(f"Все проверки прошли, статус закрепления {UserPinningStatusType.NOT_PINNED=}")
         return await get_unique_status(slug=UserPinningStatusType.NOT_PINNED)
 
     async def _check_lead_status(self, lead: AmoLead) -> Optional[UniqueStatus]:
@@ -191,6 +197,7 @@ class CheckPinningStatusService(BaseUserService):
         Если статус 'Зкреплен' или 'Частично закреплен', то возвращаем его
         Статус 'Не закреплен' возвращаем, в случае прохождения всех проверок
         """
+        self.logger.info(f"Проверка статуса закрепления для сделки {lead.id=}")
         lead_custom_fields: dict = {}
         if lead.custom_fields_values:
             lead_custom_fields = {field.field_id: field.values[0].value for field in lead.custom_fields_values}
@@ -205,21 +212,26 @@ class CheckPinningStatusService(BaseUserService):
             cities_names = [city.name for city in condition.cities]
             lead_city = lead_custom_fields.get(self.amocrm_class.city_field_id)
             if not lead_city:
+                self.logger.info(f"Для сделки {lead.id=} не найден город")
                 continue
             if not (lead_city in cities_names):
+                self.logger.info(f"Для сделки {lead.id=} город {lead_city=} не в {cities_names=}")
                 continue
 
             # Сделка находится в определенной воронке
             pipelines_ids = [pipeline.id for pipeline in condition.pipelines]
             if not (lead.pipeline_id in pipelines_ids):
+                self.logger.info(f"Для сделки {lead.id=} воронка {lead.pipeline_id=} не в {pipelines_ids=}")
                 continue
 
             # Сделка находится в определенном статусе
             statuses_ids = [status.id for status in condition.statuses]
             if not (lead.status_id in statuses_ids):
+                self.logger.info(f"Для сделки {lead.id=} статус {lead.status_id=} не в {statuses_ids=}")
                 continue
 
             if condition.unique_status.slug in [UserPinningStatusType.PINNED, UserPinningStatusType.PARTIALLY_PINNED]:
+                self.logger.info(f"Для сделки {lead.id=} статус закрепления {condition.unique_status.slug=}")
                 return condition.unique_status
 
     def as_task(self, user_id: int) -> asyncio.Task:
@@ -228,6 +240,90 @@ class CheckPinningStatusService(BaseUserService):
         """
         return asyncio.create_task(self(user_id=user_id))
 
-    @property
-    def __is_strana_lk_3183_enable(self) -> bool:
-        return UnleashClient().is_enabled(FeatureFlags.strana_lk_3183)
+
+class CheckPinningStatusServiceV2(BaseUserService):
+    def __init__(
+        self,
+        user_repo: type[UserRepo],
+        check_pinning_repo: type[PinningStatusRepo],
+        user_pinning_repo: type[UserPinningStatusRepo],
+    ):
+        self.user_repo: UserRepo = user_repo()
+        self.check_pinning_repo: PinningStatusRepo = check_pinning_repo()
+        self.user_pinning_repo: UserPinningStatusRepo = user_pinning_repo()
+
+        self.logger = structlog.get_logger(self.__class__.__name__)
+
+    async def __call__(self, user_id: int) -> None:
+        user: User = await self._get_user(user_id=user_id)
+        self.logger.info(f"Start check pinning status for {user=}")
+        status: UniqueStatus = await self._check_user(user=user)
+        self.logger.info(f'Check pinning status for {user=} is {status.slug=}')
+        await self.user_pinning_repo.update_or_create(
+            filters=dict(user=user), data=dict(unique_status=status)
+        )
+
+    async def _get_user(self, user_id: int) -> User:
+        filters: dict[str, Any] = dict(id=user_id)
+        user: User = await self.user_repo.retrieve(
+            filters=filters,
+            prefetch_fields=[
+                "bookings__project__city",
+                "bookings__amocrm_status__pipeline",
+            ],
+        )
+        if not user:
+            raise UserNotFoundError
+        return user
+
+    async def _check_user(self, user: User) -> UniqueStatus:
+        for booking in user.bookings:
+            self.logger.info(f"Check {user=} pinning status for {booking=}")
+            status: UniqueStatus | None = await self._check_booking_status(booking=booking)
+            status_slug: str = status.slug if status else None
+            self.logger.info(f"Check {user=} pinning status for {booking=} is {status_slug=}")
+            if status and status.slug in (UserPinningStatusType.PINNED, UserPinningStatusType.PARTIALLY_PINNED):
+                return status
+        return await get_unique_status(slug=UserPinningStatusType.NOT_PINNED)
+
+    async def _check_booking_status(self, booking: Booking) -> UniqueStatus | None:
+        """
+        Проверяем статус сделки согласно Модели статусов закрепления (PinningStatus)
+        Если статус 'Зкреплен' или 'Частично закреплен', то возвращаем его.
+        Статус 'Не закреплен' возвращаем, в случае прохождения всех проверок
+        """
+        pinning_conditions: list[PinningStatus] = await self.check_pinning_repo.list(
+            ordering="priority",
+            prefetch_fields=["cities", "pipelines", "statuses", "unique_status"],
+        )
+        for condition in pinning_conditions:
+
+            # Сделка находится в определенном городе
+            booking_city: City | None = booking.project.city if booking.project else None
+            if not booking_city:
+                self.logger.info(f'{booking=} city {booking_city=} not found')
+                continue
+            if not (booking_city in condition.cities):
+                self.logger.info(f'{booking=} city {booking_city=} not in {condition.cities=}')
+                continue
+
+            # Сделка находится в определенной воронке
+            booking_pipeline: AmocrmPipeline | None = booking.amocrm_status.pipeline if booking.amocrm_status else None
+            if not (booking_pipeline in condition.pipelines):
+                self.logger.info(f'{booking=} pipeline {booking_pipeline=} not in {condition.pipelines=}')
+                continue
+
+            # Сделка находится в определенном статусе
+            if not (booking.amocrm_status in condition.statuses):
+                self.logger.info(f'{booking=} status {booking.amocrm_status=} not in {condition.statuses=}')
+                continue
+
+            if condition.unique_status.slug in [UserPinningStatusType.PINNED, UserPinningStatusType.PARTIALLY_PINNED]:
+                self.logger.info(f"For {booking=} and {condition=} pinning status is {condition.unique_status.slug=}")
+                return condition.unique_status
+
+    def as_task(self, user_id: int) -> asyncio.Task:
+        """
+        Wrap into a task object
+        """
+        return asyncio.create_task(self(user_id=user_id))

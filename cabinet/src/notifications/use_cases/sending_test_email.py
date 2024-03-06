@@ -43,4 +43,4 @@ class SendingTestEmailCase(BaseNotificationCase):
             )
 
             email_service: EmailService = self.email_class(**email_options)
-            email_service.as_task()
+            await email_service()

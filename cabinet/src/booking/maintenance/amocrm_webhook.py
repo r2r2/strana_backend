@@ -11,7 +11,9 @@ import structlog
 
 from common.amocrm import AmoCRM
 from common.sentry.utils import send_sentry_log
+from common.unleash.client import UnleashClient
 from config import EnvTypes, maintenance_settings
+from config.feature_flags import FeatureFlags
 
 logger = structlog.get_logger("amocrm_webhook_maintenance")
 
@@ -44,7 +46,11 @@ def amocrm_webhook_maintenance(amocrm_webhook):
 
     @wraps(amocrm_webhook)
     async def wrapper(request, *args, **kwargs):
-        data: dict[str, Any] = parse_qs(unquote((await request.body()).decode("utf-8")))
+        body = await request.body()
+        data: dict[str, Any] = parse_qs(unquote(body.decode("utf-8")))
+        if UnleashClient().is_enabled(FeatureFlags.amo_webhook_request):
+            logger.info(f"request body: {body}")
+            logger.info(f"request data: {data}")
         amocrm_id, tags = _fetch_tags(data)
         logger.info(f"[{datetime.now(tz=pytz.UTC)}] AMOCRM webhook maintenance: id={amocrm_id} tags={tags}")
         sentry_ctx: dict[str, Any] = dict(

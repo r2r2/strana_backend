@@ -29,7 +29,7 @@ class CheckClientInterestService(BaseUserService):
 
     def __init__(
         self,
-        email_class: Type[UserEmail],
+        email_class: Type[EmailService],
         interests_repo: Type[UserInterestedRepo],
         user_repo: Type[UserRepo],
         property_repo: Type[PropertyRepo],
@@ -42,7 +42,7 @@ class CheckClientInterestService(BaseUserService):
     ) -> None:
         self.user_repo: UserRepo = user_repo()
         self.property_repo: PropertyRepo = property_repo()
-        self.email_class: Type[UserEmail] = email_class
+        self.email_class: Type[EmailService] = email_class
         self.template_content: TemplateContentRepo = template_content()
         self.interests_repo: UserInterestedRepo = interests_repo()
         self.import_property_service: Any = import_property_service
@@ -53,9 +53,13 @@ class CheckClientInterestService(BaseUserService):
         if self.orm_config:
             self.orm_config.pop("generate_schemas", None)
 
-    async def __call__(self) -> None:
+    async def __call__(self, user_id: int | None = None, send_email_as_task: bool = True) -> None:
+        user_filters = dict(favorites__isnull=False)
+        if user_id:
+            user_filters.update(id=user_id)
+
         users: list[User] = await self.user_repo.list(
-            filters=dict(favorites__isnull=False),
+            filters=user_filters,
             prefetch_fields=[
                 "favorites__property",
                 "favorites__property__project",
@@ -116,18 +120,18 @@ class CheckClientInterestService(BaseUserService):
                         else:
                             property_special_offers = set()
 
-                        added_special_offers = property_special_offers.difference(interest_special_offers)
+                        added_special_offers = list(property_special_offers.difference(interest_special_offers))
                         if added_special_offers:
                             if property_data := properties_data_with_offer_and_discount_info.get(
                                     updated_property.global_id
                             ):
-                                property_data.update(special_offer=list(added_special_offers)[:1])
+                                property_data.update(special_offer=added_special_offers.pop())
                             else:
                                 await self._add_property_in_properties_data(
                                     updated_property,
                                     properties_data_with_offer_and_discount_info,
                                     discount=None,
-                                    special_offer=list(added_special_offers)[:1],
+                                    special_offer=added_special_offers.pop(),
                                     only_free_flat=True,
                                     old_final_price=None,
                                 )
@@ -135,6 +139,7 @@ class CheckClientInterestService(BaseUserService):
                     # проверяем изменение статусов и сохраняем данные для отправки по почте клиенту
                     if user_interest.interest_status != updated_property.status.value:
                         property_changed = True
+                        special_offers = user_interest.property.special_offers.split(", ")
                         await self._add_property_in_properties_data(
                             updated_property,
                             properties_data_with_status_info,
@@ -148,8 +153,7 @@ class CheckClientInterestService(BaseUserService):
                             if (price_difference and price_difference > 0) else None,
                             old_final_price=user_interest.interest_final_price
                             if (price_difference and price_difference > 0) else None,
-                            special_offer=user_interest.property.special_offers.split(", ")[:1]
-                            if user_interest.property.special_offers else None,
+                            special_offer=special_offers.pop() if special_offers else None,
                         )
 
                     # обновляем сохраненные данные собственности в избранном при их изменении на портале
@@ -174,6 +178,7 @@ class CheckClientInterestService(BaseUserService):
                         favorites_link=self.favorites_link.format(site_config["site_host"], token),
                         site_link=site_config["main_site_host"],
                         mail_event_slug=self.mail_event_slug_offer,
+                        send_email_as_task=send_email_as_task,
                     )
                 if properties_data_with_status_info:
                     await self._send_email_to_user(
@@ -182,6 +187,7 @@ class CheckClientInterestService(BaseUserService):
                         favorites_link=self.favorites_link.format(site_config["site_host"], token),
                         site_link=site_config["main_site_host"],
                         mail_event_slug=self.mail_event_slug_status,
+                        send_email_as_task=send_email_as_task,
                     )
 
     async def _add_property_in_properties_data(
@@ -208,6 +214,8 @@ class CheckClientInterestService(BaseUserService):
             )
             if base_template_plan and base_template_plan.file:
                 plan = base_template_plan.file.get("aws")
+            else:
+                plan = None
 
         properties_data[updated_property.global_id] = dict(
             global_id=updated_property.global_id,
@@ -232,8 +240,9 @@ class CheckClientInterestService(BaseUserService):
         self,
         recipient: str,
         mail_event_slug: str,
+        send_email_as_task,
         **context,
-    ) -> Task:
+    ) -> None:
         """
         Отправляем письмо на почту клиенту с информацией по изменениям
         объектов недвижимости в избранном.
@@ -252,7 +261,10 @@ class CheckClientInterestService(BaseUserService):
                 mail_event_slug=email_notification_template.mail_event_slug,
             )
             email_service: EmailService = self.email_class(**email_options)
-            return email_service.as_task()
+            if send_email_as_task:
+                email_service.as_task()
+            else:
+                await email_service()
 
     def _get_rooms_info(
         self,

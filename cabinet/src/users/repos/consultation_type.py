@@ -1,6 +1,6 @@
 from tortoise import Model, fields
 
-from common.orm.mixins import ReadOnlyMixin
+from common.orm.mixins import CRUDMixin
 from ..entities import BaseUserRepo
 
 
@@ -23,7 +23,7 @@ class ConsultationType(Model):
         ordering = ['priority']
 
 
-class ConsultationTypeRepo(BaseUserRepo, ReadOnlyMixin):
+class ConsultationTypeRepo(BaseUserRepo, CRUDMixin):
     """
     Репозиторий справочника типов консультаций
     """

@@ -20,6 +20,7 @@ class TaskInstanceLog(Model, AbstractLogMixin):
         model_name="models.Booking",
         related_name="task_instance_logs",
         null=True,
+        index=True,
     )
     task_chain: fields.ForeignKeyNullableRelation["TaskChain"] = fields.ForeignKeyField(
         description="Цепочка заданий",

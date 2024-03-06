@@ -180,8 +180,12 @@ class ImportClientsService(BaseAgentService):
             yield await amocrm_context.fetch_leads(lead_ids=lead_ids, query_with=[AmoLeadQueryWith.contacts])
 
     def _client_ids_by_lead(self, amocrm_context, lead: AmoLead, contact_id: int) -> Set:
-        """client_ids_by_lead"""
+        """
+        Получаем список id клиентов из сделок АМО
+
+        """
         client_ids = set()
+
         amocrm_substage = self._substage_by_lead(amocrm_context, lead)
 
         if amocrm_substage in (self.booking_substages.REALIZED, self.booking_substages.UNREALIZED):
@@ -230,8 +234,10 @@ class ImportClientsService(BaseAgentService):
             name = name_components[0]
         elif len(name_components) == 2:
             surname, name = name_components
-        else:
+        elif len(name_components) == 3:
             surname, name, patronymic = name_components
+        else:
+            surname, name, patronymic, *_ = name_components
         return name, surname, patronymic
 
     def _get_custom_fields(self, contact) -> Tuple[Optional[str], Optional[str]]:

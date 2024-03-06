@@ -2,13 +2,17 @@ import structlog
 from pytz import UTC
 from typing import Optional, Callable, Any
 from datetime import datetime, timedelta
+import json
 
 from common.amocrm.types import AmoLead
 from common.profitbase import ProfitBase
 from common.sentry.utils import send_sentry_log
+from common.unleash.client import UnleashClient
+from config.feature_flags import FeatureFlags
 from config import site_config, session_config
 from src.properties.repos import PropertyRepo, PropertyTypeRepo, PropertyType, Property
-from src.properties.services import ImportPropertyService, CheckProfitbasePropertyService
+from src.payments.repos import PropertyPrice
+from src.properties.services import ImportPropertyService, CheckProfitbasePropertyService, GetPropertyPriceService
 from src.properties.exceptions import PropertyTypeMissingError, PropertyImportError
 from src.users.repos import User, UserRepo
 from src.booking.constants import BookingCreatedSources, BookingStages, BookingSubstages
@@ -22,8 +26,9 @@ from src.booking.exceptions import (
     BookingPropertyUnavailableError,
     BookingPropertyAlreadyBookedError,
 )
+from ..event_emitter_handlers import event_emitter
 from ..models import RequestCreateBookingModel
-from src.booking.repos import Booking, BookingRepo, BookingSource
+from src.booking.repos import Booking, BookingRepo, BookingSource, TestBookingRepo
 from ..types import BookingAmoCRM
 from src.task_management.services import CreateTaskInstanceService
 from src.booking.utils import get_booking_source, create_lead_name, get_booking_reserv_time
@@ -32,6 +37,7 @@ from src.task_management.utils import get_booking_tasks
 from src.amocrm.repos import AmocrmStatus, AmocrmStatusRepo
 from src.task_management.dto import CreateTaskDTO
 from src.properties.constants import PropertyStatuses
+from src.payments.repos import PurchaseAmoMatrix, PurchaseAmoMatrixRepo
 
 
 class CreateBookingCase(BaseBookingCase):
@@ -49,6 +55,8 @@ class CreateBookingCase(BaseBookingCase):
         property_repo: type[PropertyRepo],
         property_type_repo: type[PropertyTypeRepo],
         booking_repo: type[BookingRepo],
+        purchase_amo_matrix_repo: type[PurchaseAmoMatrixRepo],
+        test_booking_repo: type[TestBookingRepo],
         user_repo: type[UserRepo],
         booking_type_repo: type[BookingTypeRepo],
         amocrm_class: type[BookingAmoCRM],
@@ -56,6 +64,7 @@ class CreateBookingCase(BaseBookingCase):
         amocrm_status_repo: type[AmocrmStatusRepo],
         create_task_instance_service: CreateTaskInstanceService,
         check_profitbase_property_service: CheckProfitbasePropertyService,
+        get_property_price_service: GetPropertyPriceService,
         check_booking_task: Any,
         global_id_decoder,
     ) -> None:
@@ -72,6 +81,9 @@ class CreateBookingCase(BaseBookingCase):
         self.create_task_instance_service: CreateTaskInstanceService = create_task_instance_service
         self.check_profitbase_property_service: CheckProfitbasePropertyService = check_profitbase_property_service
         self.check_booking_task: Any = check_booking_task
+        self.get_property_price_service: GetPropertyPriceService = get_property_price_service
+        self.purchase_amo_matrix_repo: PurchaseAmoMatrixRepo = purchase_amo_matrix_repo()
+        self.test_booking_repo: TestBookingRepo = test_booking_repo()
 
         self.logger: structlog.BoundLogger = structlog.get_logger(__name__)
 
@@ -123,15 +135,33 @@ class CreateBookingCase(BaseBookingCase):
         )
         user: User = await self.user_repo.retrieve(filters=dict(id=user_id))
         expires: datetime = datetime.now(tz=UTC) + timedelta(hours=booking_reserv_time)
-        booking_amocrm_id: int = await self._create_amo_lead(
-            user=user,
-            loaded_property=loaded_property_from_backend,
-            booking_type=booking_type,
-        )
-        profitbase_is_booked: bool = await self._profitbase_booking(
-            amocrm_id=booking_amocrm_id,
-            property_id=self.global_id_decoder(loaded_property_from_backend.global_id)[1],
-        )
+
+        # booking_amocrm_id: int = await self._create_amo_lead(
+        #     user=user,
+        #     loaded_property=loaded_property_from_backend,
+        #     booking_type=booking_type,
+        # )
+        #
+        # await self._profitbase_booking(
+        #     amocrm_id=booking_amocrm_id,
+        #     property_id=self.global_id_decoder(loaded_property_from_backend.global_id)[1],
+        # )
+        # booking_amocrm_id: int = await self._create_amo_lead(
+        #     user=user,
+        #     loaded_property=loaded_property_from_backend,
+        #     booking_type=booking_type,
+        # )
+        #
+        # data: dict[str, Any] = dict(
+        #     amocrm_id=booking_amocrm_id,
+        #     is_test_user=user.is_test_user if user else False,
+        # )
+        # await self.test_booking_repo.create(data=data)
+        #
+        # profitbase_is_booked: bool = await self._profitbase_booking(
+        #     amocrm_id=booking_amocrm_id,
+        #     property_id=self.global_id_decoder(loaded_property_from_backend.global_id)[1],
+        # )
 
         amocrm_status: AmocrmStatus = await self.amocrm_status_repo.retrieve(
             filters=dict(
@@ -142,8 +172,8 @@ class CreateBookingCase(BaseBookingCase):
         await loaded_property_from_backend.fetch_related("building")
         until: datetime = datetime.now(tz=UTC) + timedelta(days=booking_type.period)
         booking_data: dict = dict(
-            acitve=True,
-            amocrm_id=booking_amocrm_id,
+            active=True,
+            # amocrm_id=booking_amocrm_id,
             amocrm_stage=self.BOOKING_STAGE,
             amocrm_substage=self.BOOKING_STAGE,
             amocrm_status=amocrm_status,
@@ -162,32 +192,97 @@ class CreateBookingCase(BaseBookingCase):
             until=until,
         )
 
-        if profitbase_is_booked:
-            booking: Booking = await self.booking_repo.create(data=booking_data)
-            await self.create_task_instance(booking=booking)
-            await booking.fetch_related(
-                "building",
-                "ddu__participants",
-                "project__city",
-                "property__section",
-                "property__property_type",
-                "amocrm_status__group_status",
-                "floor",
-                "agent",
-                "agency",
-                "booking_source",
+        self.logger.info(f"{payload.payment_method_slug=}")
+        self.logger.info(f"{payload.mortgage_type_by_dev=}")
+        self.logger.info(f"{payload.mortgage_program_name=}")
+        self.logger.info(f"{payload.calculator_options=}")
+
+        booking_data.update(mortgage_offer=payload.mortgage_program_name)
+        try:
+            json.loads(payload.calculator_options)  # проверяем, что текст совместим с json
+            booking_data.update(calculator_options=payload.calculator_options)
+        except Exception:
+            self.logger.error(
+                f"В поле опции калькулятора передан не json-совместимый текст - {payload.calculator_options=}"
             )
-            booking.tasks = await get_booking_tasks(
-                booking_id=booking.id, task_chain_slug=OnlineBookingSlug.ACCEPT_OFFER.value
+
+        if payload.payment_method_slug:
+            booking_property_price, price_offer_matrix = await self.get_property_price_service(
+                property_id=loaded_property_from_backend.id,
+                property_payment_method_slug=payload.payment_method_slug,
+                property_mortgage_type_by_dev=payload.mortgage_type_by_dev,
             )
-            self.check_booking_task.apply_async((booking.id,), eta=expires, queue="scheduled")
-            return booking
+            if booking_property_price and price_offer_matrix:
+                booking_data.update(
+                    price_id=booking_property_price.id,
+                    amo_payment_method_id=price_offer_matrix.payment_method_id,
+                    mortgage_type_id=price_offer_matrix.mortgage_type_id,
+                    price_offer_id=price_offer_matrix.id,
+                    final_payment_amount=booking_property_price.price,
+                )
+
+        booking: Booking = await self.booking_repo.create(data=booking_data)
+        event_emitter.ee.emit(event='booking_created', booking=booking, user=user)
+
+        # находим данные из матрицы для поля в амо "Тип оплаты"
+        purchase_amo: Optional[PurchaseAmoMatrix] = await self.purchase_amo_matrix_repo.list(
+            filters=dict(
+                payment_method_id=booking.amo_payment_method_id,
+                mortgage_type_id=booking.mortgage_type_id,
+            ),
+            ordering="priority",
+        ).first()
+        payment_type_enum: Optional[int] = purchase_amo.amo_payment_type if purchase_amo else None
+
+        booking_amocrm_id: int = await self._create_amo_lead(
+            user=user,
+            loaded_property=loaded_property_from_backend,
+            booking_type=booking_type,
+            payment_type_enum=payment_type_enum,
+            booking_data=booking_data,
+        )
+
+        await self._profitbase_booking(
+            amocrm_id=booking_amocrm_id,
+            property_id=self.global_id_decoder(loaded_property_from_backend.global_id)[1],
+        )
+
+        await self.booking_repo.update(model=booking, data=dict(amocrm_id=booking_amocrm_id))
+
+        # await self._process_amocrm_update_lead(
+        #     booking=booking,
+        #     booking_data=booking_data,
+        #     payment_type_enum=payment_type_enum,
+        # )
+
+        await self.create_task_instance(booking=booking)
+        await booking.fetch_related(
+            "building",
+            "ddu__participants",
+            "project__city",
+            "property__section",
+            "property__property_type",
+            "amocrm_status__group_status",
+            "floor",
+            "agent",
+            "agency",
+            "booking_source",
+            "amo_payment_method",
+            "mortgage_type",
+        )
+        booking.tasks = await get_booking_tasks(
+            booking_id=booking.id, task_chain_slug=OnlineBookingSlug.ACCEPT_OFFER.value
+        )
+        self.check_booking_task.apply_async((booking.id,), eta=expires, queue="scheduled")
+        return booking
 
     async def _create_amo_lead(
         self,
         user: User,
         loaded_property: Property,
         booking_type: BookingType,
+        booking_data: dict[str, Any],
+        payment_type_enum: int | None = None,
     ) -> int:
         await loaded_property.fetch_related("project__city", "property_type")
         lead_options: dict = dict(
@@ -204,11 +299,46 @@ class CreateBookingCase(BaseBookingCase):
             property_id=self.global_id_decoder(loaded_property.global_id)[1],
             booking_type_id=booking_type.amocrm_id,
             creator_user_id=user.id,
+            payment_type_enum=payment_type_enum,
         )
         async with await self.amocrm_class() as amocrm:
             lead_data: list[AmoLead] = await amocrm.create_lead(**lead_options)
             lead_id: int = lead_data[0].id
+
+            if calculator_options_data := booking_data.get("calculator_options"):
+                await amocrm.send_lead_note(
+                    lead_id=lead_id,
+                    message=f"Выбранные опции - {calculator_options_data}",
+                )
+            if mortgage_offer_data := booking_data.get('mortgage_offer'):
+                await amocrm.send_lead_note(
+                    lead_id=lead_id,
+                    message=f"Название ипотечной программы - {mortgage_offer_data}",
+                )
         return lead_id
+
+    async def _process_amocrm_update_lead(
+        self,
+        booking: Booking,
+        booking_data: dict[str, Any],
+        payment_type_enum: int | None = None,
+    ) -> None:
+        async with await self.amocrm_class() as amocrm:
+            await amocrm.update_lead_v4(
+                lead_id=booking.amocrm_id,
+                payment_type_enum=payment_type_enum,
+            )
+
+            if calculator_options_data := booking_data.get("calculator_options"):
+                await amocrm.send_lead_note(
+                    lead_id=booking.amocrm_id,
+                    message=f"Выбранные опции - {calculator_options_data}",
+                )
+            if mortgage_offer_data := booking_data.get('mortgage_offer'):
+                await amocrm.send_lead_note(
+                    lead_id=booking.amocrm_id,
+                    message=f"Название ипотечной программы - {mortgage_offer_data}",
+                )
 
     async def _check_property_in_profitbase(self, property_: Property) -> None:
         property_status, property_available = await self.check_profitbase_property_service(
@@ -259,6 +389,7 @@ class CreateBookingCase(BaseBookingCase):
                          f"booked={booked}, in_deal={in_deal}"),
                 context=sentry_ctx,
             )
+            await self._if_error_close_amo_lead(amocrm_id=amocrm_id)
             raise BookingPropertyUnavailableError(booked, in_deal)
         return profit_base_booked
 
@@ -283,3 +414,15 @@ class CreateBookingCase(BaseBookingCase):
         if not booking_type:
             raise BookingTypeMissingError
         return property_type, booking_type
+
+    async def _if_error_close_amo_lead(self, amocrm_id: int) -> None:
+        """
+        В случае ошибки закрываем сделку в amoCRM
+        """
+        self.logger.info(f"Close amoCRM lead {amocrm_id=}")
+        async with await self.amocrm_class() as amocrm:
+            await amocrm.update_lead_v4(
+                lead_id=amocrm_id,
+                status_id=amocrm.unrealized_status_id,
+            )
+

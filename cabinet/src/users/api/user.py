@@ -4,6 +4,7 @@ from typing import Any, Callable, Coroutine, Optional
 
 from common import amocrm, dependencies, email, messages, paginations, requests, security, utils
 from common.amocrm import repos as amocrm_repos
+from common.backend import repos as backend_repos
 from config import amocrm_config, backend_config, email_recipients_config, session_config, site_config, tortoise_config
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, Header, Path, Query, Request, Response
 from fastapi.responses import RedirectResponse
@@ -37,6 +38,9 @@ from src.users import services as user_services
 from src.users import tasks as users_tasks
 from src.users import use_cases
 from tortoise import Tortoise
+
+from src.users.factories import CheckPinningStatusServiceFactory
+
 
 router = APIRouter(prefix="/users", tags=["Users"])
 router_v2 = APIRouter(prefix="/v2/users", tags=["Users", "v2"])
@@ -83,14 +87,7 @@ async def validate_code_view(
     import_property_service: property_services.ImportPropertyService = \
         property_services.ImportPropertyServiceFactory.create()
 
-    resources: dict[str, Any] = dict(
-        amocrm_class=amocrm.AmoCRM,
-        user_repo=users_repos.UserRepo,
-        check_pinning_repo=users_repos.PinningStatusRepo,
-        user_pinning_repo=users_repos.UserPinningStatusRepo,
-        amocrm_config=amocrm_config,
-    )
-    check_pinning: user_services.CheckPinningStatusService = user_services.CheckPinningStatusService(**resources)
+    check_pinning = CheckPinningStatusServiceFactory.create()
 
     resources: dict[str, Any] = dict(
         orm_class=Tortoise,
@@ -296,6 +293,7 @@ async def client_interests_view(
     Получение предпочтений пользователя
     """
     resources: dict[str: Any] = dict(
+        backend_properties_repo=backend_repos.BackendPropertiesRepo,
         user_interests_repo=users_repos.InterestsRepo,
     )
     user_case: use_cases.UsersInterestsListCase = use_cases.UsersInterestsListCase(**resources)
@@ -318,6 +316,7 @@ async def client_interests_view(
     """
 
     resources: dict[str: Any] = dict(
+        backend_properties_repo=backend_repos.BackendPropertiesRepo,
         user_interests_repo=users_repos.InterestsRepo,
     )
     user_case: use_cases.UsersInterestsListProfitIdCase = use_cases.UsersInterestsListProfitIdCase(**resources)
@@ -1183,15 +1182,7 @@ async def agent_booking_current_client(
 ):
     """Сделка действующего клиента за агентом"""
     create_task_instance_service = CreateTaskInstanceServiceFactory.create()
-
-    resources: dict[str, Any] = dict(
-        amocrm_class=amocrm.AmoCRM,
-        user_repo=users_repos.UserRepo,
-        check_pinning_repo=users_repos.PinningStatusRepo,
-        user_pinning_repo=users_repos.UserPinningStatusRepo,
-        amocrm_config=amocrm_config,
-    )
-    check_pinning: user_services.CheckPinningStatusService = user_services.CheckPinningStatusService(**resources)
+    check_pinning = CheckPinningStatusServiceFactory.create()
 
     resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
@@ -1199,6 +1190,7 @@ async def agent_booking_current_client(
         project_repo=projects_repos.ProjectRepo,
         booking_repo=booking_repos.BookingRepo,
         amo_statuses_repo=amocrm_repos.AmoStatusesRepo,
+        test_booking_repo=booking_repos.TestBookingRepo,
         amocrm_config=amocrm_config,
         amocrm_class=amocrm.AmoCRM,
         site_config=site_config,
@@ -1225,15 +1217,7 @@ async def repres_booking_current_client(
 ):
     """Сделка действующего клиента за представителем агентства"""
     create_task_instance_service = CreateTaskInstanceServiceFactory.create()
-
-    resources: dict[str, Any] = dict(
-        amocrm_class=amocrm.AmoCRM,
-        user_repo=users_repos.UserRepo,
-        check_pinning_repo=users_repos.PinningStatusRepo,
-        user_pinning_repo=users_repos.UserPinningStatusRepo,
-        amocrm_config=amocrm_config,
-    )
-    check_pinning: user_services.CheckPinningStatusService = user_services.CheckPinningStatusService(**resources)
+    check_pinning = CheckPinningStatusServiceFactory.create()
 
     resources: dict[str, Any] = dict(
         user_repo=users_repos.UserRepo,
@@ -1281,6 +1265,7 @@ async def assign_client_to_agent(
         template_repo=notifications_repos.AssignClientTemplateRepo,
         booking_fixing_condition_repo=booking_repos.BookingFixingConditionsMatrixRepo,
         consultation_type_repo=users_repos.ConsultationTypeRepo,
+        test_booking_repo=booking_repos.TestBookingRepo,
         amocrm_log_repo=users_repos.AmoCrmCheckLog,
         amocrm_config=amocrm_config,
         email_class=email.EmailService,
@@ -1327,6 +1312,7 @@ async def assign_client_to_repres(
         template_repo=notifications_repos.AssignClientTemplateRepo,
         booking_fixing_condition_repo=booking_repos.BookingFixingConditionsMatrixRepo,
         consultation_type_repo=users_repos.ConsultationTypeRepo,
+        test_booking_repo=booking_repos.TestBookingRepo,
         amocrm_log_repo=users_repos.AmoCrmCheckLog,
         amocrm_config=amocrm_config,
         email_class=email.EmailService,
@@ -1580,6 +1566,7 @@ async def create_ticket(
     resources: dict[str, Any] = dict(
         ticket_repo=dashboard_repos.TicketRepo,
         city_repo=cities_repos.CityRepo,
+        test_booking_repo=booking_repos.TestBookingRepo,
         amocrm_class=amocrm.AmoCRM,
         amocrm_config=amocrm_config,
     )
@@ -1608,6 +1595,7 @@ async def get_consultation_type():
     status_code=HTTPStatus.OK,
 )
 async def import_clients_and_bookings_from_amo_view(
+    request: Request,
     payload: models.RequestImportClientsAndBookingsModel = Body(...),
 ):
     """
@@ -1665,10 +1653,13 @@ async def import_clients_and_bookings_from_amo_view(
         get_email_template_service=get_email_template_service,
     )
     import_clients_service: agents_services.ImportClientsService = agents_services.ImportClientsService(**resources)
+    import_clients_all_booking_service: agents_services.ImportClientsAllBookingService = \
+        agents_services.ImportClientsAllBookingService(**resources)
 
     import_clients_and_bookings_from_amo_case: use_cases.ImportClientsAndBookingsModelCase = \
         use_cases.ImportClientsAndBookingsModelCase(
             user_repo=users_repos.UserRepo,
             import_clients_service=import_clients_service,
+            import_clients_all_booking_service=import_clients_all_booking_service,
         )
     return await import_clients_and_bookings_from_amo_case(payload=payload)

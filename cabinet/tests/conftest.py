@@ -42,6 +42,7 @@ from .api_integrations.test_depreg import *
 from .events_list.repos_fixtures import *
 from .news.repos_fixtures import *
 from .mortgage.repos_fixtures import *
+from .payments.repos_payments import *
 
 
 @pytest.fixture

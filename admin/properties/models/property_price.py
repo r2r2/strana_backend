@@ -7,7 +7,7 @@ class PropertyPriceType(models.Model):
     """
     name = models.CharField(max_length=100, null=True, verbose_name="Название")
     default: bool = models.BooleanField(default=False, verbose_name="Тип по умолчанию")
-    slug = models.CharField(max_length=15, unique=True, null=True, verbose_name="slug для импорта с портала")
+    slug = models.CharField(max_length=15, unique=True, verbose_name="slug для импорта с портала")
 
     def __str__(self) -> str:
         return self.name

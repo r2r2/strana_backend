@@ -2,19 +2,21 @@ import os
 from pathlib import Path
 from typing import Any
 
-from config.settings import (AerichSettings, AMOCrmSettings, AMOCrmSettingsOld,
-                             ApplicationSettings, AuthSettings, AWSSettings,
-                             BackendSettings, BazisSettings, BookingSettings,
-                             CelerySettings, CORSSettings, DataBaseSettings,
-                             EmailRecipientsSettings, EmailSettings, EnvTypes,
-                             GetdocSettings, ImgproxySettings, LKAdminSettins,
-                             MaintenanceSettings, ProfitbaseSettings,
-                             RedisSettings, SberbankSettings, SentrySettings,
-                             SessionSettings, SiteSettings, SmsCenterSettings,
-                             TortoiseSettings, TrustedSettings, FakeSendSms,
-                             UvicornSettings, LogsSettings, SenseiSettings,
-                             KonturTalkSettings, RequestLimiterSettings, MCSettings,
-                             UnleashSettings, DepregSettings, TildaSettings)
+from config.settings import (
+    AerichSettings, AMOCrmSettings, AMOCrmSettingsOld,
+    ApplicationSettings, AuthSettings, AWSSettings,
+    BackendSettings, BazisSettings, BookingSettings,
+    CelerySettings, CORSSettings, DataBaseSettings,
+    EmailRecipientsSettings, EmailSettings, EnvTypes,
+    GetdocSettings, ImgproxySettings, LKAdminSettins,
+    MaintenanceSettings, ProfitbaseSettings,
+    RedisSettings, SberbankSettings, SentrySettings,
+    SessionSettings, SiteSettings, SmsCenterSettings,
+    TortoiseSettings, TrustedSettings, FakeSendSms,
+    UvicornSettings, LogsSettings, SenseiSettings,
+    KonturTalkSettings, RequestLimiterSettings, MCSettings, MCLoyaltySettings,
+    UnleashSettings, DepregSettings, TildaSettings, NextcloudSettings, BitrixSettings,
+)
 
 
 base_dir: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -36,6 +38,7 @@ booking_config: dict[str, Any] = BookingSettings().dict()
 trusted_config: dict[str, Any] = TrustedSettings().dict()
 backend_config: dict[str, Any] = BackendSettings().dict()
 mc_backend_config: dict[str, Any] = MCSettings().dict()
+mc_loyalty_config: dict[str, Any] = MCLoyaltySettings().dict()
 uvicorn_config: dict[str, Any] = UvicornSettings().dict()
 session_config: dict[str, Any] = SessionSettings().dict()
 imgproxy_config: dict[str, Any] = ImgproxySettings().dict()
@@ -61,3 +64,5 @@ request_limiter_config: dict[str, Any] = RequestLimiterSettings().dict()
 unleash_config: dict[str, Any] = UnleashSettings().dict()
 depreg_config: dict[str, Any] = DepregSettings().dict()
 tilda_config: dict[str, Any] = TildaSettings().dict()
+nextcloud_config: dict[str, Any] = NextcloudSettings().dict()
+bitrix_config: dict[str, Any] = BitrixSettings().dict()

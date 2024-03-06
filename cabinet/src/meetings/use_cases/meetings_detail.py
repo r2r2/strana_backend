@@ -4,6 +4,8 @@ from typing import Type, Any
 from fastapi import HTTPException
 
 from common.settings.repos import BookingSettingsRepo
+from common.unleash.client import UnleashClient
+from config.feature_flags import FeatureFlags
 from src.users.repos import User, UserRepo
 from src.booking.repos import Booking
 from src.users.constants import UserType
@@ -12,7 +14,7 @@ from src.task_management.utils import is_task_in_compare_task_chain, TaskDataBui
 from src.amocrm.repos import AmocrmGroupStatusRepo, AmocrmGroupStatus
 
 from ..entities import BaseMeetingCase
-from ..repos import Meeting, MeetingRepo, MeetingStatusRepo
+from ..repos import Meeting, MeetingRepo, MeetingStatusRepo, MeetingStatusRefRepo
 from ..exceptions import MeetingNotFoundError
 from src.task_management.repos import TaskInstance
 from src.task_management.constants import MeetingsSlug
@@ -26,6 +28,7 @@ class MeetingsDetailCase(BaseMeetingCase):
         self,
         meeting_repo: Type[MeetingRepo],
         meeting_status_repo: Type[MeetingStatusRepo],
+        meeting_status_ref_repo: Type[MeetingStatusRefRepo],
         booking_settings_repo: Type[BookingSettingsRepo],
         user_repo: Type[UserRepo],
         amocrm_group_status_repo: Type[AmocrmGroupStatusRepo],
@@ -34,6 +37,7 @@ class MeetingsDetailCase(BaseMeetingCase):
     ) -> None:
         self.meeting_repo: MeetingRepo = meeting_repo()
         self.meeting_status_repo = meeting_status_repo()
+        self.meeting_status_ref_repo = meeting_status_ref_repo()
         self.user_repo: UserRepo = user_repo()
         self.booking_settings_repo: BookingSettingsRepo = booking_settings_repo()
         self.amocrm_group_status_repo: AmocrmGroupStatusRepo = amocrm_group_status_repo()
@@ -41,12 +45,7 @@ class MeetingsDetailCase(BaseMeetingCase):
         self.user_pinning_repo: UserPinningStatusRepo = user_pinning_repo()
         self.logger = structlog.getLogger(__name__)
 
-    async def __call__(
-        self,
-        *,
-        meeting_id: int,
-        user_id: int,
-    ) -> Meeting:
+    async def _get_meeting(self, meeting_id: int) -> Meeting:
         meeting: Meeting = await self.meeting_repo.retrieve(
             filters=dict(id=meeting_id),
             prefetch_fields=[
@@ -59,22 +58,38 @@ class MeetingsDetailCase(BaseMeetingCase):
                 "booking__task_instances__status__buttons",
                 "booking__task_instances__status__tasks_chain__task_visibility",
             ],
-            ordering="date",
         )
         if not meeting:
             raise MeetingNotFoundError
 
-        user: User = await self.user_repo.retrieve(filters=dict(id=user_id))
-        if (user.type == UserType.CLIENT and meeting.booking.user_id != user.id) or (
-            user.type in [UserType.AGENT, UserType.REPRES] and meeting.booking.agent_id != user.id
-        ):
-            raise HTTPException(
-                status_code=HTTPStatus.FORBIDDEN,
-                detail="Not authenticated",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+        return meeting
 
-        # находим текущий шаг и количество шагов по статусу встречи
+    async def _get_meeting_ref(self, meeting_id: int) -> Meeting:
+        meeting: Meeting = await self.meeting_repo.retrieve(
+            filters=dict(id=meeting_id),
+            prefetch_fields=[
+                "status",
+                "status_ref",
+                "booking__amocrm_status__group_status",
+                "booking__user",
+                "booking__agent",
+                "booking__agency",
+                "booking__property__floor",
+                "booking__task_instances__status__buttons",
+                "booking__task_instances__status__tasks_chain__task_visibility",
+            ],
+        )
+        if not meeting:
+            raise MeetingNotFoundError
+
+        return meeting
+
+    # deprecated
+    async def _set_meeting_step(self, meeting: Meeting) -> Meeting:
+        """
+        Находим текущий шаг и количество шагов по статусу встречи.
+        Реализация до 3011 and ADD
+        """
         meeting_statuses: list[MeetingStatusRepo] = await self.meeting_status_repo.list(filters=dict(is_final=False))
         final_meeting_statuses_ids: list[MeetingStatusRepo] = await self.meeting_status_repo.list(
             filters=dict(is_final=True)
@@ -87,6 +102,64 @@ class MeetingsDetailCase(BaseMeetingCase):
                     meeting.current_step = number + 1
                     meeting.steps_numbers = len(meeting_statuses) + 1
                     break
+
+        return meeting
+
+    async def _set_meeting_step_ref(self, meeting: Meeting) -> Meeting:
+        """
+        Находим текущий шаг и количество шагов по статусу встречи.
+        Реализация 3011 USE and OFF
+        """
+        meeting_statuses: list[MeetingStatusRefRepo] = await self.meeting_status_ref_repo.list(filters=dict(
+            is_final=False))
+        final_meeting_statuses_slugs: list[str] = await self.meeting_status_ref_repo.list(
+            filters=dict(is_final=True)
+        ).values_list("slug", flat=True)
+        if meeting.status_ref_id in final_meeting_statuses_slugs:
+            meeting.current_step = meeting.steps_numbers = len(meeting_statuses) + 1
+        else:
+            for number, meeting_status in enumerate(meeting_statuses):
+                if meeting_status.slug == meeting.status_ref_id:
+                    meeting.current_step = number + 1
+                    meeting.steps_numbers = len(meeting_statuses) + 1
+                    break
+
+        return meeting
+
+    async def __call__(
+        self,
+        *,
+        meeting_id: int,
+        user_id: int,
+    ) -> Meeting:
+
+        if self.__is_strana_lk_3011_add_enable:
+            meeting: Meeting = await self._get_meeting_ref(meeting_id)
+        elif self.__is_strana_lk_3011_use_enable:
+            meeting: Meeting = await self._get_meeting_ref(meeting_id)
+        elif self.__is_strana_lk_3011_off_old_enable:
+            meeting: Meeting = await self._get_meeting_ref(meeting_id)
+        else:
+            meeting: Meeting = await self._get_meeting(meeting_id)
+
+        user: User = await self.user_repo.retrieve(filters=dict(id=user_id))
+        if (user.type == UserType.CLIENT and meeting.booking.user_id != user.id) or (
+            user.type in [UserType.AGENT, UserType.REPRES] and meeting.booking.agent_id != user.id
+        ):
+            raise HTTPException(
+                status_code=HTTPStatus.FORBIDDEN,
+                detail="Not authenticated",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        if self.__is_strana_lk_3011_add_enable:
+            meeting = await self._set_meeting_step(meeting)
+        elif self.__is_strana_lk_3011_use_enable:
+            meeting = await self._set_meeting_step_ref(meeting)
+        elif self.__is_strana_lk_3011_off_old_enable:
+            meeting = await self._set_meeting_step_ref(meeting)
+        else:
+            meeting = await self._set_meeting_step(meeting)
 
         # получаем данные для расширенной информации и сделке
         group_statuses: list[AmocrmGroupStatus] = await self.amocrm_group_status_repo.list(
@@ -165,4 +238,14 @@ class MeetingsDetailCase(BaseMeetingCase):
             booking_settings=booking_settings,
         ).build()
 
+    @property
+    def __is_strana_lk_3011_add_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_3011_add)
 
+    @property
+    def __is_strana_lk_3011_use_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_3011_use)
+
+    @property
+    def __is_strana_lk_3011_off_old_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_3011_off_old)

@@ -8,6 +8,7 @@ class Floor(models.Model):
     global_id = models.CharField(unique=True, max_length=200, blank=True, null=True)
     number = models.CharField(max_length=20, blank=True, null=True, verbose_name="Номер этажа")
     building = models.ForeignKey("properties.Building", models.CASCADE, blank=True, null=True, verbose_name="Корпус")
+    plan = models.ImageField(max_length=500, blank=True, null=True, upload_to="p/p/p")
 
     def __str__(self) -> str:
         number = self.number if self.number else str(self.id)

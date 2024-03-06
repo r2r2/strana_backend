@@ -3,13 +3,15 @@ from typing import Callable, Union, Type, Any, Optional
 
 from pytz import UTC
 
+from common.unleash.client import UnleashClient
 from config import EnvTypes, maintenance_settings
+from config.feature_flags import FeatureFlags
 from src.buildings.repos import BuildingBookingType, BuildingBookingTypeRepo
 from ..constants import BookingSubstages, BookingTypeNamedTuple
 from ..entities import BaseBookingService
 from ..exceptions import BookingPropertyUnavailableError, BookingPropertyMissingError
 from ..loggers import booking_changes_logger
-from ..repos import Booking, BookingRepo
+from ..repos import Booking, BookingRepo, TestBookingRepo
 from ..types import (
     BookingAmoCRM, BookingProfitBase, BookingProperty, BookingPropertyRepo, BookingSqlUpdateRequest
 )
@@ -19,6 +21,7 @@ from ..utils import create_lead_name
 from ...task_management.constants import PaidBookingSlug
 
 
+# TODO Где используется?
 class RepeatBookingService(BaseBookingService):
     """
     Кейс повторной активации бронирования
@@ -36,6 +39,7 @@ class RepeatBookingService(BaseBookingService):
             request_class: Type[BookingSqlUpdateRequest],
             amocrm_class: Type[BookingAmoCRM],
             building_booking_type_repo: Type[BuildingBookingTypeRepo],
+            test_booking_repo: Type[TestBookingRepo],
             create_amocrm_log_task: Any,
             update_task_instance_status_task: Any,
             profitbase_class: Type[BookingProfitBase],
@@ -50,6 +54,7 @@ class RepeatBookingService(BaseBookingService):
         self.global_id_decoder: Callable[[str], tuple[str, Union[str, int]]] = global_id_decoder
         self.request_class: Type[BookingSqlUpdateRequest] = request_class
         self.building_booking_type_repo: BuildingBookingTypeRepo = building_booking_type_repo()
+        self.test_booking_repo: TestBookingRepo = test_booking_repo()
         self.create_amocrm_log_task: Any = create_amocrm_log_task
         self.amocrm_class: Type[BookingAmoCRM] = amocrm_class
         self.profitbase_class: Type[BookingProfitBase] = profitbase_class
@@ -159,30 +164,53 @@ class RepeatBookingService(BaseBookingService):
 
                 data: list[AmoLead] = await amocrm.create_lead(**lead_options)
                 lead_id: int = data[0].id
-                note_data: dict[str, Any] = dict(
-                    element="lead",
-                    lead_id=lead_id,
-                    note="lead_created",
-                    text="Создано онлайн-бронирование",
+
+                data: dict[str, Any] = dict(
+                    booking=booking,
+                    amocrm_id=lead_id,
+                    is_test_user=booking.user.is_test_user if booking.user else False,
                 )
+                await self.test_booking_repo.create(data=data)
+
+                if self.__is_strana_lk_2882_enable:
+                    note_data: dict[str, Any] = dict(
+                        lead_id=lead_id,
+                        text="Создано онлайн-бронирование",
+                    )
+                else:
+                    note_data: dict[str, Any] = dict(
+                        element="lead",
+                        lead_id=lead_id,
+                        note="lead_created",
+                        text="Создано онлайн-бронирование",
+                    )
+
                 self.create_amocrm_log_task.delay(note_data=note_data)
                 lead_options: dict[str, Any] = dict(
                     status=BookingSubstages.BOOKING, lead_id=lead_id, city_slug=booking.project.city.slug
                 )
                 data: list[Any] = await amocrm.update_lead(**lead_options)
                 lead_id: int = data[0]["id"]
-                note_data: dict[str, Any] = dict(
-                    element="lead",
-                    lead_id=lead_id,
-                    note="lead_changed",
-                    text="Изменен статус заявки на 'Бронь'",
-                )
+
+                if self.__is_strana_lk_2882_enable:
+                    note_data: dict[str, Any] = dict(
+                        lead_id=lead_id,
+                        text="Изменен статус заявки на 'Бронь'",
+                    )
+                else:
+                    note_data: dict[str, Any] = dict(
+                        element="lead",
+                        lead_id=lead_id,
+                        note="lead_changed",
+                        text="Изменен статус заявки на 'Бронь'",
+                    )
+
                 self.create_amocrm_log_task.delay(note_data=note_data)
         return lead_id
 
     async def __profitbase_booking(self, booking: Booking) -> bool:
         """
-        Бронированиве в profitbase
+        Бронирование в profitbase
         """
         property_id: int = self.global_id_decoder(booking.property.global_id)[1]
         async with await self.profitbase_class() as profit_base:
@@ -195,3 +223,7 @@ class RepeatBookingService(BaseBookingService):
         if not profitbase_booked:
             raise BookingPropertyUnavailableError(booked, in_deal)
         return profitbase_booked
+
+    @property
+    def __is_strana_lk_2882_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_2882)

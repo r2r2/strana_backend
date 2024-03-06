@@ -2,72 +2,56 @@
 AMOCRM webhook_status
 """
 import json
-import structlog
 from asyncio import Task
+from datetime import datetime, timedelta
 from secrets import compare_digest
 from typing import Any, Optional, Type, Union
 from urllib.parse import parse_qs, unquote
 
+import structlog
 from fastapi import BackgroundTasks
 
 from common.amocrm import AmoCRM
 from common.amocrm.repos import AmoStatusesRepo
-from common.email import EmailService
 from common.backend.models.amocrm import AmocrmStatus
+from common.email import EmailService
 from common.sentry.utils import send_sentry_log
-from src.users.services import ImportContactFromAmoService
-from src.properties.repos import Property
-from src.task_management.services import CreateTaskInstanceService, UpdateTaskInstanceStatusService
-from src.task_management.constants import MeetingsSlug
-from src.task_management.utils import check_task_instance_exists
-from src.events.repos import CalendarEventRepo
-from src.users.repos import UserRepo, User
-from src.users.services import CheckPinningStatusService
-from src.projects.repos import ProjectRepo, Project
+from common.unleash.client import UnleashClient
+from config.feature_flags import FeatureFlags
 from src.amocrm.repos import AmocrmStatusRepo
-from src.meetings.services import CreateRoomService, ImportMeetingFromAmoService
-from src.meetings.constants import MeetingType
-from src.notifications.services import GetEmailTemplateService
+from src.events.repos import CalendarEventRepo
 from src.meetings.constants import MeetingStatusChoice
+from src.meetings.constants import MeetingType
 from src.meetings.repos import MeetingRepo, Meeting, MeetingStatusRepo
-from src.task_management.constants import FixationExtensionSlug, BOOKING_UPDATE_FIXATION_STATUSES
+from src.meetings.repos import MeetingStatusRefRepo
+from src.meetings.services import CreateRoomService, ImportMeetingFromAmoService
+from src.notifications.services import GetEmailTemplateService
 from src.payments.repos import PurchaseAmoMatrix, PurchaseAmoMatrixRepo
-from ..services import BookingCreationFromAmoService
-from ..tasks import activate_bookings_task, deactivate_bookings_task, send_sms_to_msk_client_task
-from ..constants import BookingStagesMapping, BookingSubstages
+from src.projects.constants import ProjectStatus
+from src.projects.repos import ProjectRepo, Project
+from src.properties.repos import Property
+from src.task_management.constants import FixationExtensionSlug, BOOKING_UPDATE_FIXATION_STATUSES
+from src.task_management.constants import MeetingsSlug, UpdateMeetingGroupStatusSlug
+from src.task_management.dto import CreateTaskDTO
+from src.task_management.services import CreateTaskInstanceService, UpdateTaskInstanceStatusService
+from src.task_management.utils import check_task_instance_exists
+from src.users.repos import UserRepo, User
+from src.users.services import (
+    ImportAgentFromAmoService,
+    ImportClientFromAmoService,
+    CheckPinningStatusServiceV2,
+)
+from ..constants import BookingSubstages
 from ..entities import BaseBookingCase
 from ..loggers.wrappers import booking_changes_logger
 from ..mixins import BookingLogMixin
 from ..repos import Booking, BookingRepo, WebhookRequestRepo
+from ..services import BookingCreationFromAmoService
+from ..tasks import activate_bookings_task, deactivate_bookings_task, send_sms_to_msk_client_task
 from ..types import (
     BookingAmoCRM, BookingPropertyRepo, BookingRequest, CustomFieldValue, WebhookLead
 )
-from src.projects.constants import ProjectStatus
-from src.task_management.dto import CreateTaskDTO
-from src.mortgage.services import ChangeMortgageTicketStatusService
-
-
-MEETING_STATUSES = [
-    AmoCRM.TMNStatuses.MAKE_APPOINTMENT,
-    AmoCRM.TMNStatuses.ASSIGN_AGENT,
-    AmoCRM.TMNStatuses.MEETING,
-    AmoCRM.TMNStatuses.MEETING_IN_PROGRESS,
-
-    AmoCRM.MSKStatuses.MAKE_APPOINTMENT,
-    AmoCRM.MSKStatuses.ASSIGN_AGENT,
-    AmoCRM.MSKStatuses.MEETING,
-    AmoCRM.MSKStatuses.MEETING_IN_PROGRESS,
-
-    AmoCRM.SPBStatuses.MAKE_APPOINTMENT,
-    AmoCRM.SPBStatuses.ASSIGN_AGENT,
-    AmoCRM.SPBStatuses.MEETING,
-    AmoCRM.SPBStatuses.MEETING_IN_PROGRESS,
-
-    AmoCRM.EKBStatuses.MAKE_APPOINTMENT,
-    AmoCRM.EKBStatuses.ASSIGN_AGENT,
-    AmoCRM.EKBStatuses.MEETING,
-    AmoCRM.EKBStatuses.MEETING_IN_PROGRESS,
-]
+from src.meetings.event_emitter_handlers import meeting_event_emitter
 
 ASSIGN_AGENT_STATUSES = [
     AmoCRM.TMNStatuses.ASSIGN_AGENT,
@@ -93,9 +77,9 @@ class AmoCRMWebhookUpdateCase(BaseBookingCase, BookingLogMixin):
     query_type: str = "changePropertyStatus"
     query_name: str = "changePropertyStatus.graphql"
     query_directory: str = "/src/booking/queries/"
-    amocrm_group_status_default_name = "Бронь"
-    meeting_change_status_to_client_mail = "meeting_change_status_to_client_mail"
-    meeting_change_status_to_broker_mail = "meeting_change_status_to_broker_mail"
+    amocrm_group_status_default_name: str = "Бронь"
+    meeting_change_status_to_client_mail: str = "meeting_change_status_to_client_mail"
+    meeting_change_status_to_broker_mail: str = "meeting_change_status_to_broker_mail"
 
     def __init__(
         self,
@@ -105,6 +89,7 @@ class AmoCRMWebhookUpdateCase(BaseBookingCase, BookingLogMixin):
         booking_repo: Type[BookingRepo],
         meeting_repo: Type[MeetingRepo],
         meeting_status_repo: Type[MeetingStatusRepo],
+        meeting_status_ref_repo: Type[MeetingStatusRefRepo],
         calendar_event_repo: Type[CalendarEventRepo],
         user_repo: Type[UserRepo],
         project_repo: Type[ProjectRepo],
@@ -120,19 +105,21 @@ class AmoCRMWebhookUpdateCase(BaseBookingCase, BookingLogMixin):
         create_booking_log_task: Optional[Any] = None,
         create_task_instance_service: CreateTaskInstanceService,
         update_task_instance_service: UpdateTaskInstanceStatusService,
-        check_pinning: CheckPinningStatusService,
+        check_pinning: CheckPinningStatusServiceV2,
         email_class: Type[EmailService],
         get_email_template_service: GetEmailTemplateService,
-        import_contact_service: ImportContactFromAmoService,
+        import_contact_service: ImportClientFromAmoService,
+        import_agent_service: ImportAgentFromAmoService,
         import_meeting_service: ImportMeetingFromAmoService,
         booking_creation_service: BookingCreationFromAmoService,
         purchase_amo_matrix_repo: Type[PurchaseAmoMatrixRepo],
-        change_mortgage_ticket_status_service: ChangeMortgageTicketStatusService,
+        # change_mortgage_ticket_status_service: ChangeMortgageTicketStatusService,
     ) -> None:
         self.logger = logger
         self.booking_repo: BookingRepo = booking_repo()
         self.meeting_repo: MeetingRepo = meeting_repo()
         self.meeting_status_repo: MeetingStatusRepo = meeting_status_repo()
+        self.meeting_status_ref_repo: MeetingStatusRefRepo = meeting_status_ref_repo()
         self.calendar_event_repo: CalendarEventRepo = calendar_event_repo()
         self.user_repo: UserRepo = user_repo()
         self.project_repo: ProjectRepo = project_repo()
@@ -146,14 +133,15 @@ class AmoCRMWebhookUpdateCase(BaseBookingCase, BookingLogMixin):
         self.background_tasks: BackgroundTasks = background_tasks
         self.create_task_instance_service: CreateTaskInstanceService = create_task_instance_service
         self.update_task_instance_service: UpdateTaskInstanceStatusService = update_task_instance_service
-        self.check_pinning: CheckPinningStatusService = check_pinning
+        self.check_pinning: CheckPinningStatusServiceV2 = check_pinning
         self.email_class: Type[EmailService] = email_class
         self.get_email_template_service: GetEmailTemplateService = get_email_template_service
-        self.import_contact_service: ImportContactFromAmoService = import_contact_service
+        self.import_contact_service: ImportClientFromAmoService = import_contact_service
+        self.import_agent_service: ImportAgentFromAmoService = import_agent_service
         self.import_meeting_service: ImportMeetingFromAmoService = import_meeting_service
         self.booking_creation_service: BookingCreationFromAmoService = booking_creation_service
         self.purchase_amo_matrix_repo: PurchaseAmoMatrixRepo = purchase_amo_matrix_repo()
-        self.change_mortgage_ticket_status_service = change_mortgage_ticket_status_service
+        # self.change_mortgage_ticket_status_service = change_mortgage_ticket_status_service
 
         self.secret: str = amocrm_config["secret"]
         self.login: str = backend_config["internal_login"]
@@ -168,13 +156,13 @@ class AmoCRMWebhookUpdateCase(BaseBookingCase, BookingLogMixin):
             self.booking_repo.update, self, content="Деактивация брони webhook воронка не поддерживается | AMOCRM"
         )
 
-    def _is_secret_valid(self, secret):
+    def _is_secret_valid(self, secret) -> bool:
         if compare_digest(secret, self.secret):
             return True
         self.logger.error("Booking resource not found")
         return False
 
-    async def _send_log_no_custom_fields(self, webhook_lead, payload):
+    async def _send_log_no_custom_fields(self, webhook_lead, payload) -> None:
         if not webhook_lead.custom_fields:
             sentry_ctx: dict[str, Any] = dict(
                 webhook_lead=webhook_lead,
@@ -201,7 +189,7 @@ class AmoCRMWebhookUpdateCase(BaseBookingCase, BookingLogMixin):
 
         return booking
 
-    def _is_valid_pipeline(self, webhook_lead_pipeline_id):
+    def _is_valid_pipeline(self, webhook_lead_pipeline_id) -> bool:
         """
         Не обновляем сделки из воронок, кроме городов
         """
@@ -216,9 +204,14 @@ class AmoCRMWebhookUpdateCase(BaseBookingCase, BookingLogMixin):
             return
 
         webhook_lead: WebhookLead = self._parse_data(data=data)
-        print(webhook_lead.lead_id)
+        self.logger.info(f"{webhook_lead.lead_id=}")
 
         user: User = await self.import_contact_service(webhook_lead=webhook_lead)
+
+        if self.__is_strana_lk_3519_enable:
+            # if (datetime.utcnow() - datetime.fromtimestamp(webhook_lead.updated_at)) > timedelta(seconds=20):
+            await self.import_agent_service(webhook_lead=webhook_lead)
+
         task_context: Optional[CreateTaskDTO] = await self.import_meeting_service(webhook_lead=webhook_lead, user=user)
         if not webhook_lead.custom_fields:
             await self._send_log_no_custom_fields(webhook_lead, payload)
@@ -234,11 +227,9 @@ class AmoCRMWebhookUpdateCase(BaseBookingCase, BookingLogMixin):
             return
 
         await self._update_booking_custom_fields(booking, webhook_lead)
-        await self._update_booking_fixation_status(booking, webhook_lead.new_status_id)
-        await self._update_booking_status(booking, webhook_lead.new_status_id)
-        await self._update_mortgage_ticket_status(booking=booking)
+        # await self._update_mortgage_ticket_status(booking=booking)
 
-        if booking.user:
+        if booking.user and UnleashClient().is_enabled(FeatureFlags.check_pinning_webhook):
             await self._check_user_pinning_status(booking, webhook_lead, amocrm_substage)
 
         if not self._is_valid_pipeline(webhook_lead.pipeline_id):
@@ -249,7 +240,7 @@ class AmoCRMWebhookUpdateCase(BaseBookingCase, BookingLogMixin):
         await self._update_price_workflow(booking, webhook_lead)
         await self._meeting_workflow(booking, webhook_lead, task_context)
 
-    async def _update_price_workflow(self, booking, webhook_lead):
+    async def _update_price_workflow(self, booking, webhook_lead) -> None:
         has_property: bool = False
         amocrm_substage: Optional[str] = AmoCRM.get_lead_substage(webhook_lead.new_status_id)
         property_final_price: Optional[int] = webhook_lead.custom_fields.get(
@@ -292,48 +283,24 @@ class AmoCRMWebhookUpdateCase(BaseBookingCase, BookingLogMixin):
                 data = dict(final_price=price_with_sale or property_final_price)
                 await self.property_repo.update(model=_property, data=data)
 
-    async def _meeting_workflow(self, booking, webhook_lead, task_context):
-        amocrm_substage: Optional[str] = AmoCRM.get_lead_substage(webhook_lead.new_status_id)
-        amocrm_stage: Optional[str] = BookingStagesMapping()[amocrm_substage]
-        meeting_task_instance_created: bool = False
-        if amocrm_substage != booking.amocrm_substage:
-            data: dict[str, Any] = dict(
-                amocrm_substage=amocrm_substage,
-                amocrm_stage=amocrm_stage,
-                should_be_deactivated_by_timer=False,
-            )
-            if self.amocrm_class.booking_payment_field_id in webhook_lead.custom_fields:
-                data.update(
-                    price_payed=self.amocrm_class.purchase_field_mapping.get(
-                        webhook_lead.custom_fields[self.amocrm_class.booking_payment_field_id].enum),
-                )
-            booking: Booking = await self.booking_update(booking=booking, data=data)
-            await self.send_sms_to_msk_client(booking=booking)
-
-            await self._update_meeting_status(
-                booking=booking,
-                amocrm_substage=amocrm_substage,
-                task_context=task_context,
-            )
-            meeting_task_instance_created = True
-
-        if not meeting_task_instance_created:
-            sentry_ctx: dict[str, Any] = dict(
-                booking=booking,
-                task_context=task_context,
-            )
-            await send_sentry_log(
-                tag="webhook update",
-                message="_meeting_workflow create meeting",
-                context=sentry_ctx,
-            )
-            await self.create_task_instance(booking_ids=[booking.id], task_context=task_context)
+    async def _meeting_workflow(self, booking, webhook_lead, task_context) -> None:
+        sentry_ctx: dict[str, Any] = dict(
+            booking=booking,
+            task_context=task_context,
+        )
+        await send_sentry_log(
+            tag="webhook update",
+            message="_meeting_workflow create meeting",
+            context=sentry_ctx,
+        )
+        await self.create_task_instance(booking_ids=[booking.id], task_context=task_context)
 
     async def _update_meeting_status(
-            self,
-            amocrm_substage: str,
-            booking: Booking,
-            task_context: CreateTaskDTO,
+        self,
+        new_status_id: int,
+        amocrm_substage: str,
+        booking: Booking,
+        task_context: CreateTaskDTO,
     ) -> None:
         """
         Обновление статуса встречи сделки из амо.
@@ -341,26 +308,53 @@ class AmoCRMWebhookUpdateCase(BaseBookingCase, BookingLogMixin):
         filters: dict[str, Any] = dict(booking_id=booking.id)
         meeting = await self.meeting_repo.retrieve(
             filters=filters,
-            related_fields=["booking", "booking__agent", "booking__user", "status", "calendar_event"],
+            related_fields=[
+                "booking",
+                "status",
+                "calendar_event",
+            ],
+            prefetch_fields=["booking__agent", "booking__user"],
         )
 
+        task_context = task_context if task_context else CreateTaskDTO()
+
+        webhook_lead_status: AmocrmStatus = await self.amocrm_status_repo.retrieve(
+            filters=dict(id=new_status_id),
+            related_fields=["group_status"],
+        )
+        if not webhook_lead_status or not webhook_lead_status.group_status:
+            self.logger.info(f"Не найден амо статус или групповой статус для {new_status_id=}")
+            amocrm_group_status_name = ""
+        else:
+            amocrm_group_status_name = webhook_lead_status.group_status.name
+            self.logger.info(f"Найден групповой статус {amocrm_group_status_name=}")
+
+        old_status = meeting.status if meeting and meeting.status else None
+        new_status = None
+
         meeting_data = dict()
-        if meeting and amocrm_substage == BookingSubstages.MEETING \
-                and meeting.status.slug == MeetingStatusChoice.NOT_CONFIRM:
+        if meeting and (
+            amocrm_group_status_name == UpdateMeetingGroupStatusSlug.MEETING
+            or amocrm_substage == BookingSubstages.MEETING
+        ) and meeting.status.slug == MeetingStatusChoice.NOT_CONFIRM:
             confirm_meeting_status = await self.meeting_status_repo.retrieve(
                 filters=dict(slug=MeetingStatusChoice.CONFIRM)
             )
+            new_status = confirm_meeting_status
             meeting_data.update(status_id=confirm_meeting_status.id)
             if task_context.meeting_new_date:
                 task_context.update(status_slug=MeetingsSlug.CONFIRMED_RESCHEDULED.value)
             else:
                 task_context.update(status_slug=MeetingsSlug.CONFIRMED.value)
 
-        elif meeting and amocrm_substage == BookingSubstages.MEETING_IN_PROGRESS \
-                and meeting.status.slug == MeetingStatusChoice.CONFIRM:
+        elif meeting and (
+            amocrm_group_status_name == UpdateMeetingGroupStatusSlug.MEETING_IN_PROGRESS
+            or amocrm_substage == BookingSubstages.MEETING_IN_PROGRESS
+        ) and meeting.status.slug == MeetingStatusChoice.CONFIRM:
             start_meeting_status = await self.meeting_status_repo.retrieve(
                 filters=dict(slug=MeetingStatusChoice.START)
             )
+            new_status = start_meeting_status
             meeting_data.update(status_id=start_meeting_status.id)
             task_context.update(status_slug=MeetingsSlug.START.value)
             if meeting.type == MeetingType.ONLINE and not meeting.meeting_link:
@@ -368,18 +362,432 @@ class AmoCRMWebhookUpdateCase(BaseBookingCase, BookingLogMixin):
                     unix_datetime=meeting.date.timestamp(),
                     meeting_id=meeting.id,
                 )
-
-        elif meeting and meeting.status.slug == MeetingStatusChoice.START \
-                and booking.amocrm_status_id not in MEETING_STATUSES:
+        elif meeting and meeting.status.slug == MeetingStatusChoice.START and (
+            (
+                amocrm_group_status_name
+                and amocrm_group_status_name not in [
+                    UpdateMeetingGroupStatusSlug.MAKE_APPOINTMENT,
+                    UpdateMeetingGroupStatusSlug.MEETING,
+                    UpdateMeetingGroupStatusSlug.MEETING_IN_PROGRESS,
+                ]
+            ) or amocrm_substage not in [
+                BookingSubstages.MAKE_APPOINTMENT,
+                BookingSubstages.MEETING,
+                BookingSubstages.MEETING_IN_PROGRESS,
+            ]
+        ):
             finish_meeting_status = await self.meeting_status_repo.retrieve(
                 filters=dict(slug=MeetingStatusChoice.FINISH)
             )
+            new_status = finish_meeting_status
             meeting_data.update(status_id=finish_meeting_status.id)
             task_context.update(status_slug=MeetingsSlug.FINISH.value)
 
         await self.task_created_or_updated(booking=booking, meeting=meeting, task_context=task_context)
 
         if meeting_data and meeting:
+
+            meeting_event_emitter.ee.emit(
+                'meeting_status_changed',
+                booking=booking,
+                new_status=new_status,
+                old_status=old_status,
+            )
+
+            update_meeting: Meeting = await self.meeting_repo.update(model=meeting, data=meeting_data)
+            prefetch_fields: list[str] = ["booking", "booking__agent", "booking__user"]
+            await update_meeting.fetch_related(*prefetch_fields)
+            if update_meeting.booking.agent:
+                await self.send_email_to_broker(
+                    meeting=update_meeting,
+                    user=update_meeting.booking.agent,
+                    meeting_data=meeting_data,
+                )
+            if update_meeting.booking.user:
+                await self.send_email_to_client(
+                    meeting=update_meeting,
+                    user=update_meeting.booking.user,
+                    meeting_data=meeting_data,
+                )
+
+    async def _update_meeting_status_add(
+        self,
+        new_status_id: int,
+        amocrm_substage: str,
+        booking: Booking,
+        task_context: CreateTaskDTO,
+    ) -> None:
+        """
+        Обновление статуса встречи сделки из амо.
+        """
+        filters: dict[str, Any] = dict(booking_id=booking.id)
+        meeting = await self.meeting_repo.retrieve(
+            filters=filters,
+            related_fields=[
+                "booking",
+                "status",
+                "status_ref",
+                "calendar_event",
+            ],
+            prefetch_fields=["booking__agent", "booking__user"],
+        )
+        self.logger.info(
+            f"2: _update_meeting_status_add| {meeting=} {new_status_id=} {amocrm_substage=} {booking=} {task_context=}"
+        )
+        task_context = task_context if task_context else CreateTaskDTO()
+
+        webhook_lead_status: AmocrmStatus = await self.amocrm_status_repo.retrieve(
+            filters=dict(id=new_status_id),
+            related_fields=["group_status"],
+        )
+        if not webhook_lead_status or not webhook_lead_status.group_status:
+            self.logger.info(f"Не найден амо статус или групповой статус для {new_status_id=}")
+            amocrm_group_status_name = ""
+        else:
+            amocrm_group_status_name = webhook_lead_status.group_status.name
+            self.logger.info(f"Найден групповой статус {amocrm_group_status_name=}")
+
+        old_status = meeting.status if meeting and meeting.status else None
+        new_status = None
+
+        meeting_data = dict()
+        if meeting and (
+            amocrm_group_status_name == UpdateMeetingGroupStatusSlug.MEETING
+            or amocrm_substage == BookingSubstages.MEETING
+        ) and meeting.status.slug == MeetingStatusChoice.NOT_CONFIRM:
+            confirm_meeting_status = await self.meeting_status_repo.retrieve(
+                filters=dict(slug=MeetingStatusChoice.CONFIRM)
+            )
+            confirm_meeting_status_ref = await self.meeting_status_ref_repo.retrieve(
+                filters=dict(slug=MeetingStatusChoice.CONFIRM)
+            )
+            new_status = confirm_meeting_status
+            meeting_data.update(
+                status_id=confirm_meeting_status.id,
+                status_ref_id=confirm_meeting_status_ref.slug,
+            )
+            if task_context.meeting_new_date:
+                task_context.update(status_slug=MeetingsSlug.CONFIRMED_RESCHEDULED.value)
+            else:
+                task_context.update(status_slug=MeetingsSlug.CONFIRMED.value)
+
+        elif meeting and (
+            amocrm_group_status_name == UpdateMeetingGroupStatusSlug.MEETING_IN_PROGRESS
+            or amocrm_substage == BookingSubstages.MEETING_IN_PROGRESS
+        ) and meeting.status.slug == MeetingStatusChoice.CONFIRM:
+            start_meeting_status = await self.meeting_status_repo.retrieve(
+                filters=dict(slug=MeetingStatusChoice.START)
+            )
+            start_meeting_status_ref = await self.meeting_status_ref_repo.retrieve(
+                filters=dict(slug=MeetingStatusChoice.START)
+            )
+            new_status = start_meeting_status
+            meeting_data.update(
+                status_id=start_meeting_status.id,
+                status_ref_id=start_meeting_status_ref.slug,
+            )
+            task_context.update(status_slug=MeetingsSlug.START.value)
+            if meeting.type == MeetingType.ONLINE and not meeting.meeting_link:
+                await self.create_meeting_room_service(
+                    unix_datetime=meeting.date.timestamp(),
+                    meeting_id=meeting.id,
+                )
+
+        elif meeting and meeting.status.slug == MeetingStatusChoice.START and (
+            (
+                amocrm_group_status_name
+                and amocrm_group_status_name not in [
+                    UpdateMeetingGroupStatusSlug.MAKE_APPOINTMENT,
+                    UpdateMeetingGroupStatusSlug.MEETING,
+                    UpdateMeetingGroupStatusSlug.MEETING_IN_PROGRESS,
+                ]
+            ) or amocrm_substage not in [
+                BookingSubstages.MAKE_APPOINTMENT,
+                BookingSubstages.MEETING,
+                BookingSubstages.MEETING_IN_PROGRESS,
+            ]
+        ):
+            finish_meeting_status = await self.meeting_status_repo.retrieve(
+                filters=dict(slug=MeetingStatusChoice.FINISH)
+            )
+            finish_meeting_status_ref = await self.meeting_status_ref_repo.retrieve(
+                filters=dict(slug=MeetingStatusChoice.FINISH)
+            )
+            new_status = finish_meeting_status
+            meeting_data.update(
+                status_id=finish_meeting_status.id,
+                status_ref_id=finish_meeting_status_ref.slug,
+            )
+            task_context.update(status_slug=MeetingsSlug.FINISH.value)
+
+        await self.task_created_or_updated(booking=booking, meeting=meeting, task_context=task_context)
+
+        if meeting_data and meeting:
+
+            meeting_event_emitter.ee.emit(
+                'meeting_status_changed',
+                booking=booking,
+                new_status=new_status,
+                old_status=old_status,
+            )
+
+            update_meeting: Meeting = await self.meeting_repo.update(model=meeting, data=meeting_data)
+            prefetch_fields: list[str] = ["booking", "booking__agent", "booking__user"]
+            await update_meeting.fetch_related(*prefetch_fields)
+            if update_meeting.booking.agent:
+                await self.send_email_to_broker(
+                    meeting=update_meeting,
+                    user=update_meeting.booking.agent,
+                    meeting_data=meeting_data,
+                )
+            if update_meeting.booking.user:
+                await self.send_email_to_client(
+                    meeting=update_meeting,
+                    user=update_meeting.booking.user,
+                    meeting_data=meeting_data,
+                )
+
+    async def _update_meeting_status_use(
+        self,
+        new_status_id: int,
+        amocrm_substage: str,
+        booking: Booking,
+        task_context: CreateTaskDTO,
+    ) -> None:
+        """
+        Обновление статуса встречи сделки из амо.
+        """
+        filters: dict[str, Any] = dict(booking_id=booking.id)
+        meeting = await self.meeting_repo.retrieve(
+            filters=filters,
+            related_fields=[
+                "booking",
+                "status",
+                "status_ref",
+                "calendar_event",
+            ],
+            prefetch_fields=["booking__agent", "booking__user"],
+        )
+        self.logger.info(
+            f"2: _update_meeting_status_use| {meeting=} {new_status_id=} {amocrm_substage=} {booking=} {task_context=}"
+        )
+
+        task_context = task_context if task_context else CreateTaskDTO()
+
+        webhook_lead_status: AmocrmStatus = await self.amocrm_status_repo.retrieve(
+            filters=dict(id=new_status_id),
+            related_fields=["group_status"],
+        )
+        if not webhook_lead_status or not webhook_lead_status.group_status:
+            self.logger.info(f"Не найден амо статус или групповой статус для {new_status_id=}")
+            amocrm_group_status_name = ""
+        else:
+            amocrm_group_status_name = webhook_lead_status.group_status.name
+            self.logger.info(f"Найден групповой статус {amocrm_group_status_name=}")
+
+        old_status = meeting.status if meeting and meeting.status else None
+        new_status = None
+
+        meeting_data = dict()
+        if meeting and (
+            amocrm_group_status_name == UpdateMeetingGroupStatusSlug.MEETING
+            or amocrm_substage == BookingSubstages.MEETING
+        ) and meeting.status.slug == MeetingStatusChoice.NOT_CONFIRM:
+            confirm_meeting_status = await self.meeting_status_repo.retrieve(
+                filters=dict(slug=MeetingStatusChoice.CONFIRM)
+            )
+            confirm_meeting_status_ref = await self.meeting_status_ref_repo.retrieve(
+                filters=dict(slug=MeetingStatusChoice.CONFIRM)
+            )
+            new_status = confirm_meeting_status_ref
+            meeting_data.update(
+                status_id=confirm_meeting_status.id,
+                status_ref_id=confirm_meeting_status_ref.slug,
+            )
+            if task_context.meeting_new_date:
+                task_context.update(status_slug=MeetingsSlug.CONFIRMED_RESCHEDULED.value)
+            else:
+                task_context.update(status_slug=MeetingsSlug.CONFIRMED.value)
+
+        elif meeting and (
+            amocrm_group_status_name == UpdateMeetingGroupStatusSlug.MEETING_IN_PROGRESS
+            or amocrm_substage == BookingSubstages.MEETING_IN_PROGRESS
+        ) and meeting.status.slug == MeetingStatusChoice.CONFIRM:
+            start_meeting_status = await self.meeting_status_repo.retrieve(
+                filters=dict(slug=MeetingStatusChoice.START)
+            )
+            start_meeting_status_ref = await self.meeting_status_ref_repo.retrieve(
+                filters=dict(slug=MeetingStatusChoice.START)
+            )
+            new_status = start_meeting_status_ref
+            meeting_data.update(
+                status_id=start_meeting_status.id,
+                status_ref_id=start_meeting_status_ref.slug,
+            )
+            task_context.update(status_slug=MeetingsSlug.START.value)
+            if meeting.type == MeetingType.ONLINE and not meeting.meeting_link:
+                await self.create_meeting_room_service(
+                    unix_datetime=meeting.date.timestamp(),
+                    meeting_id=meeting.id,
+                )
+
+        elif meeting and meeting.status.slug == MeetingStatusChoice.START and (
+            (
+                amocrm_group_status_name
+                and amocrm_group_status_name not in [
+                    UpdateMeetingGroupStatusSlug.MAKE_APPOINTMENT,
+                    UpdateMeetingGroupStatusSlug.MEETING,
+                    UpdateMeetingGroupStatusSlug.MEETING_IN_PROGRESS,
+                ]
+            ) or amocrm_substage not in [
+                BookingSubstages.MAKE_APPOINTMENT,
+                BookingSubstages.MEETING,
+                BookingSubstages.MEETING_IN_PROGRESS,
+            ]
+        ):
+            finish_meeting_status = await self.meeting_status_repo.retrieve(
+                filters=dict(slug=MeetingStatusChoice.FINISH)
+            )
+            finish_meeting_status_ref = await self.meeting_status_ref_repo.retrieve(
+                filters=dict(slug=MeetingStatusChoice.FINISH)
+            )
+            new_status = finish_meeting_status_ref
+            meeting_data.update(
+                status_id=finish_meeting_status.id,
+                status_ref_id=finish_meeting_status_ref.slug,
+            )
+            task_context.update(status_slug=MeetingsSlug.FINISH.value)
+
+        await self.task_created_or_updated(booking=booking, meeting=meeting, task_context=task_context)
+
+        if meeting_data and meeting:
+
+            meeting_event_emitter.ee.emit(
+                'meeting_status_changed',
+                booking=booking,
+                new_status=new_status,
+                old_status=old_status,
+            )
+
+            update_meeting: Meeting = await self.meeting_repo.update(model=meeting, data=meeting_data)
+            prefetch_fields: list[str] = ["booking", "booking__agent", "booking__user"]
+            await update_meeting.fetch_related(*prefetch_fields)
+            if update_meeting.booking.agent:
+                await self.send_email_to_broker(
+                    meeting=update_meeting,
+                    user=update_meeting.booking.agent,
+                    meeting_data=meeting_data,
+                )
+            if update_meeting.booking.user:
+                await self.send_email_to_client(
+                    meeting=update_meeting,
+                    user=update_meeting.booking.user,
+                    meeting_data=meeting_data,
+                )
+
+    async def _update_meeting_status_ref(
+        self,
+        new_status_id: int,
+        amocrm_substage: str,
+        booking: Booking,
+        task_context: CreateTaskDTO,
+    ) -> None:
+        """
+        Обновление статуса встречи сделки из амо.
+        """
+        filters: dict[str, Any] = dict(booking_id=booking.id)
+        meeting = await self.meeting_repo.retrieve(
+            filters=filters,
+            related_fields=[
+                "booking",
+                "status_ref",
+                "calendar_event",
+            ],
+            prefetch_fields=["booking__agent", "booking__user"],
+        )
+        self.logger.info(
+            f"2: _update_meeting_status_ref| {meeting=} {new_status_id=} {amocrm_substage=} {booking=} {task_context=}"
+        )
+
+        task_context = task_context if task_context else CreateTaskDTO()
+
+        webhook_lead_status: AmocrmStatus = await self.amocrm_status_repo.retrieve(
+            filters=dict(id=new_status_id),
+            related_fields=["group_status"],
+        )
+        if not webhook_lead_status or not webhook_lead_status.group_status:
+            self.logger.info(f"Не найден амо статус или групповой статус для {new_status_id=}")
+            amocrm_group_status_name = ""
+        else:
+            amocrm_group_status_name = webhook_lead_status.group_status.name
+            self.logger.info(f"Найден групповой статус {amocrm_group_status_name=}")
+
+        old_status = meeting.status if meeting and meeting.status else None
+        new_status = None
+
+        meeting_data = dict()
+        if meeting and (
+            amocrm_group_status_name == UpdateMeetingGroupStatusSlug.MEETING
+            or amocrm_substage == BookingSubstages.MEETING
+        ) and meeting.status.slug == MeetingStatusChoice.NOT_CONFIRM:
+            confirm_meeting_status_ref = await self.meeting_status_ref_repo.retrieve(
+                filters=dict(slug=MeetingStatusChoice.CONFIRM)
+            )
+            new_status = confirm_meeting_status_ref
+            meeting_data.update(status_ref_id=confirm_meeting_status_ref.slug)
+            if task_context.meeting_new_date:
+                task_context.update(status_slug=MeetingsSlug.CONFIRMED_RESCHEDULED.value)
+            else:
+                task_context.update(status_slug=MeetingsSlug.CONFIRMED.value)
+
+        elif meeting and (
+            amocrm_group_status_name == UpdateMeetingGroupStatusSlug.MEETING_IN_PROGRESS
+            or amocrm_substage == BookingSubstages.MEETING_IN_PROGRESS
+        ) and meeting.status.slug == MeetingStatusChoice.CONFIRM:
+            start_meeting_status_ref = await self.meeting_status_ref_repo.retrieve(
+                filters=dict(slug=MeetingStatusChoice.START)
+            )
+            new_status = start_meeting_status_ref
+            meeting_data.update(status_ref_id=start_meeting_status_ref.slug)
+            task_context.update(status_slug=MeetingsSlug.START.value)
+            if meeting.type == MeetingType.ONLINE and not meeting.meeting_link:
+                await self.create_meeting_room_service(
+                    unix_datetime=meeting.date.timestamp(),
+                    meeting_id=meeting.id,
+                )
+
+        elif meeting and meeting.status.slug == MeetingStatusChoice.START and (
+            (
+                amocrm_group_status_name
+                and amocrm_group_status_name not in [
+                    UpdateMeetingGroupStatusSlug.MAKE_APPOINTMENT,
+                    UpdateMeetingGroupStatusSlug.MEETING,
+                    UpdateMeetingGroupStatusSlug.MEETING_IN_PROGRESS,
+                ]
+            ) or amocrm_substage not in [
+                BookingSubstages.MAKE_APPOINTMENT,
+                BookingSubstages.MEETING,
+                BookingSubstages.MEETING_IN_PROGRESS,
+            ]
+        ):
+            finish_meeting_status_ref = await self.meeting_status_ref_repo.retrieve(
+                filters=dict(slug=MeetingStatusChoice.FINISH)
+            )
+            new_status = finish_meeting_status_ref
+            meeting_data.update(status_ref_id=finish_meeting_status_ref.slug)
+            task_context.update(status_slug=MeetingsSlug.FINISH.value)
+
+        await self.task_created_or_updated(booking=booking, meeting=meeting, task_context=task_context)
+
+        if meeting_data and meeting:
+
+            meeting_event_emitter.ee.emit(
+                'meeting_status_changed',
+                booking=booking,
+                new_status=new_status,
+                old_status=old_status,
+            )
+
             update_meeting: Meeting = await self.meeting_repo.update(model=meeting, data=meeting_data)
             prefetch_fields: list[str] = ["booking", "booking__agent", "booking__user"]
             await update_meeting.fetch_related(*prefetch_fields)
@@ -428,6 +836,7 @@ class AmoCRMWebhookUpdateCase(BaseBookingCase, BookingLogMixin):
         new_status_id: Optional[int] = None
         tags: dict[str, Any] = {}
         custom_fields: dict[str, Any] = {}
+        updated_at: Optional[int] = None
         for key, value in data.items():
             if "custom_fields" in key:
                 key_components: list[str] = key.split("[")
@@ -476,6 +885,13 @@ class AmoCRMWebhookUpdateCase(BaseBookingCase, BookingLogMixin):
                 "leads[add][0][pipeline_id]",
             }:
                 pipeline_id = int(value[0])
+            elif key in {
+                "leads[status][0][updated_at]",
+                "leads[update][0][updated_at]",
+                "leads[create][0][updated_at]",
+                "leads[add][0][updated_at]",
+            }:
+                updated_at = int(value[0])
         custom_fields_dict: dict[int, CustomFieldValue] = {
             field["id"]: CustomFieldValue(
                 name=field.get("name"),
@@ -492,108 +908,11 @@ class AmoCRMWebhookUpdateCase(BaseBookingCase, BookingLogMixin):
             new_status_id=new_status_id,
             custom_fields=custom_fields_dict,
             tags=tags_dict,
+            updated_at=updated_at,
         )
         return lead
 
-    async def _update_booking_fixation_status(self, booking: Booking, new_status_id: int):
-        """
-        update booking fixation status
-        """
-        amocrm_status = await self.amocrm_status_repo.retrieve(
-            filters=dict(id=new_status_id),
-            related_fields=["group_status"],
-        )
-        if (
-                amocrm_status.group_status
-                and amocrm_status.group_status.name not in BOOKING_UPDATE_FIXATION_STATUSES
-        ):
-            sentry_ctx: dict[str, Any] = dict(
-                group_status=amocrm_status.group_status,
-                booking=booking,
-                new_status_id=new_status_id,
-            )
-            await send_sentry_log(
-                tag="webhook update",
-                message="_update_booking_fixation_status",
-                context=sentry_ctx,
-            )
-            await self.update_task_instance_service(
-                booking_id=booking.id,
-                status_slug=FixationExtensionSlug.DEAL_ALREADY_BOOKED.value,
-            )
-
-    async def _update_booking_status(self, booking: Booking, new_status_id: int):
-        """
-        update booking status
-        """
-        skip_statuses = [
-            57272745,
-            55950761,
-            42477951,  # TestStatuses.BOOKING
-            40127310,  # CallCenterStatuses.BOOKING
-            57272765,
-            55950773,
-            50814939,  # EKBStatuses.BOOKING
-            35065584,  # SPBStatuses.BOOKING
-            29096401,  # MSKStatuses.BOOKING
-            21197641,  # TMNStatuses.BOOKING
-            37592316,
-            39006300,
-            33900082,
-            40127307,  # CallCenterStatuses.MAKE_DECISION
-            42477867,  # TestStatuses.MAKE_DECISION
-            57272669,
-            55950765,
-            50814933,  # EKBStatuses.MAKE_DECISION
-            36204954,  # SPBStatuses.MAKE_DECISION
-            29096398,  # MSKStatuses.MAKE_DECISION
-            21189712,  # TMNStatuses.MAKE_DECISION
-            46323048,
-            36829821,
-            33900079,
-            39006294,
-        ]
-        sentry_ctx: dict[str, Any] = dict(
-            booking=booking,
-            new_status_id=new_status_id,
-        )
-
-        if new_status_id in skip_statuses and booking.is_agent_assigned():
-            sentry_ctx["is_agent_assigned"] = booking.is_agent_assigned()
-            sentry_ctx["skip_statuses"] = True
-            await send_sentry_log(
-                tag="webhook update",
-                message="_update_booking_status (1)",
-                context=sentry_ctx,
-            )
-            return
-
-        if new_status_id in ASSIGN_AGENT_STATUSES and booking.is_agent_assigned():
-            if booking.amocrm_status_id not in START_STATUSES:
-                sentry_ctx["is_agent_assigned"] = booking.is_agent_assigned()
-                sentry_ctx["ASSIGN_AGENT_STATUSES"] = False
-                await send_sentry_log(
-                    tag="webhook update",
-                    message="_update_booking_status (2)",
-                    context=sentry_ctx,
-                )
-                return
-
-        status: Optional[AmocrmStatus] = await self.statuses_repo.retrieve(
-            filters=dict(id=new_status_id)
-        )
-
-        if status and booking:
-            sentry_ctx["status"] = status
-            await send_sentry_log(
-                tag="webhook update",
-                message="_update_booking_status (3)",
-                context=sentry_ctx,
-            )
-            data = dict(amocrm_status_id=status.id, amocrm_status=status)
-            await self.booking_update(booking=booking, data=data)
-
-    async def _update_booking_custom_fields(self, booking: Booking, webhook_lead: WebhookLead):
+    async def _update_booking_custom_fields(self, booking: Booking, webhook_lead: WebhookLead) -> None:
         """
         update booking custom fields
         """
@@ -784,8 +1103,24 @@ class AmoCRMWebhookUpdateCase(BaseBookingCase, BookingLogMixin):
 
             return email_service.as_task()
 
-    async def _update_mortgage_ticket_status(self, booking: Booking) -> None:
-        """
-        Обновление статуса заявки на ипотеку
-        """
-        self.change_mortgage_ticket_status_service.as_task(booking_id=booking.id)
+    # async def _update_mortgage_ticket_status(self, booking: Booking) -> None:
+    #     """
+    #     Обновление статуса заявки на ипотеку
+    #     """
+    #     self.change_mortgage_ticket_status_service.as_task(booking_id=booking.id)
+
+    @property
+    def __is_strana_lk_3011_add_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_3011_add)
+
+    @property
+    def __is_strana_lk_3011_use_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_3011_use)
+
+    @property
+    def __is_strana_lk_3011_off_old_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_3011_off_old)
+
+    @property
+    def __is_strana_lk_3519_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_3519)

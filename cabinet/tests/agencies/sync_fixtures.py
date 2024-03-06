@@ -9,6 +9,12 @@ def agency_repo():
 
 
 @fixture(scope="function")
+def agency_type_repo():
+    agency_type_repo = getattr(import_module("src.agencies.repos"), "AgencyGeneralTypeRepo")()
+    return agency_type_repo
+
+
+@fixture(scope="function")
 def agency_factory(agency_repo, faker):
     async def agency(is_approved=True, i=0):
         data = {

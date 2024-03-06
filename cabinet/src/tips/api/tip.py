@@ -1,6 +1,6 @@
 from typing import Any
 from http import HTTPStatus
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Query
 import random
 
 from src.tips import models, use_cases

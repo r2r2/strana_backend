@@ -8,6 +8,7 @@ pytestmark = pytest.mark.asyncio
 
 class TestGetMortgageBookings:
 
+    @pytest.mark.skip(reason="Deprecated. Endpoint was moved to calculator service.")
     async def test_get_mortgage_bookings(
         self,
         async_client,

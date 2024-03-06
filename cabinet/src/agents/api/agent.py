@@ -54,7 +54,9 @@ from src.agents import repos as agents_repos
 from src.users import repos as users_repos
 from src.booking import repos as booking_repos
 
+
 router = APIRouter(prefix="/agents", tags=["Agents"])
+router_v2 = APIRouter(prefix="/v2/agents", tags=["Agents"])
 
 
 @router.post(
@@ -201,6 +203,7 @@ async def reset_password_view(
         site_config=site_config,
         auth_config=auth_config,
         session=request.session,
+        request_url=request.url,
         session_config=session_config,
         agent_repo=agents_repos.AgentRepo,
         user_type=users_constants.UserType.AGENT,
@@ -1162,7 +1165,47 @@ async def agents_upload_documents(
         use_cases.QuestionareUploadDocumentCase(**resources)
     )
     return await upload_document(
-        document_id=document_id, booking_id=booking_id, file_uuid=file_uuid, file=file
+        document_id=document_id,
+        booking_id=booking_id,
+        file_uuid=file_uuid,
+        file=file,
+    )
+
+
+@router_v2.put(
+    "/bookings/{booking_id}/upload-documents/{document_id}",
+    status_code=HTTPStatus.OK,
+    response_model=list[models.UploadFile | None],
+    dependencies=[
+        Depends(dependencies.CurrentUserId(user_type=users_constants.UserType.AGENT))
+    ],
+)
+async def agents_upload_documents(
+    booking_id: int = Path(..., description="ID сделки"),
+    document_id: int = Path(..., description="ID документа"),
+    files: list[UploadFile] = File(
+        ...,
+        description="Загружаемые документы",
+        max_upload_size=5_000_000,
+        alias="files[]",
+    ),
+):
+    """
+    Загрузка документов в амо
+    """
+    resources: dict[str, Any] = dict(
+        booking_repo=booking_repos.BookingRepo,
+        document_repo=questionnaire_repos.QuestionnaireDocumentRepo,
+        upload_document_repo=questionnaire_repos.QuestionnaireUploadDocumentRepo,
+        amocrm_uploader_class=amocrm.AmoCRMFileUploader,
+    )
+    upload_document: use_cases.QuestionareUploadDocumentCaseV2 = (
+        use_cases.QuestionareUploadDocumentCaseV2(**resources)
+    )
+    return await upload_document(
+        document_id=document_id,
+        booking_id=booking_id,
+        files=files,
     )
 
 

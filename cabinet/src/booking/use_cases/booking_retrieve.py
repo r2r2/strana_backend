@@ -1,12 +1,12 @@
-from typing import Any
+from typing import Any, Optional
 
 from src.amocrm.repos import AmocrmGroupStatus, AmocrmGroupStatusRepo
+from src.booking.event_emitter_handlers import event_emitter
 from src.buildings.repos import BuildingBookingType, BuildingBookingTypeRepo
-from src.payments import repos as payment_repos
 from src.task_management.constants import (
     FastBookingSlug,
     FreeBookingSlug,
-    OnlineBookingSlug,
+    OnlineBookingSlug, OnlinePurchaseSlug,
 )
 from src.task_management.repos import TaskStatus, TaskChain
 from src.task_management.utils import (
@@ -18,11 +18,11 @@ from ..constants import BookingCreatedSources
 from ..entities import BaseBookingCase
 from ..exceptions import (
     BookingNotFoundError,
-    BookingTimeOutError,
     BookingTimeOutRepeatError,
 )
 from ..repos import Booking, BookingRepo, BookingTag, BookingTagRepo
 from ..types import BookingSession
+from src.properties.constants import PropertyTypes
 
 
 class BookingRetrieveCase(BaseBookingCase):
@@ -38,12 +38,10 @@ class BookingRetrieveCase(BaseBookingCase):
         booking_tag_repo: type[BookingTagRepo],
         booking_type_repo: type[BuildingBookingTypeRepo],
         amocrm_group_status_repo: type[AmocrmGroupStatusRepo],
-        price_offer_matrix_repo: type[payment_repos.PriceOfferMatrixRepo]
     ) -> None:
         self.booking_repo: BookingRepo = booking_repo()
         self.booking_tag_repo: BookingTagRepo = booking_tag_repo()
         self.booking_type_repo: BuildingBookingTypeRepo = booking_type_repo()
-        self.price_offer_matrix_repo: payment_repos.PriceOfferMatrixRepo = price_offer_matrix_repo()
         self.amocrm_group_status_repo: AmocrmGroupStatusRepo = (
             amocrm_group_status_repo()
         )
@@ -57,12 +55,15 @@ class BookingRetrieveCase(BaseBookingCase):
             related_fields=[
                 "project__city",
                 "property__section",
+                "property__floor",
                 "property__property_type",
                 "floor",
                 "ddu",
                 "agent",
                 "agency",
                 "booking_source",
+                "amo_payment_method",
+                "mortgage_type",
             ],
             prefetch_fields=[
                 "ddu__participants",
@@ -77,6 +78,7 @@ class BookingRetrieveCase(BaseBookingCase):
                 ),
             ],
         )
+
         if not booking:
             raise BookingNotFoundError
 
@@ -86,17 +88,6 @@ class BookingRetrieveCase(BaseBookingCase):
             validated_price = int(booking.payment_amount)
         elif booking.building and (booking.building.booking_price is not None):
             validated_price = int(booking.building.booking_price)
-
-        price_offer: payment_repos.PriceOfferMatrix = await self.price_offer_matrix_repo.retrieve(
-            filters=dict(
-                payment_method_id=booking.amo_payment_method_id,
-                mortgage_type_id=booking.mortgage_type_id,
-            ),
-        )
-        if price_offer and price_offer.by_dev:
-            booking.has_subsidy_price = True
-        else:
-            booking.has_subsidy_price = False
 
         document_info: dict = dict( 
             city=booking.project.city.slug if booking.project else None,
@@ -108,12 +99,12 @@ class BookingRetrieveCase(BaseBookingCase):
         await self._session_insert_document_info(document_info)
 
         if not booking.time_valid():
+            event_emitter.ee.emit('booking_time_out_repeat', booking)
             if booking.booking_source and booking.booking_source.slug in [
                 BookingCreatedSources.LK,
                 BookingCreatedSources.FAST_BOOKING,
             ]:
                 raise BookingTimeOutRepeatError
-            # raise BookingTimeOutError
 
         if booking.amocrm_status:
             await self._set_group_statuses(booking=booking)
@@ -155,15 +146,22 @@ class BookingRetrieveCase(BaseBookingCase):
         self.session[self.document_key]: dict = document_info
         await self.session.insert()
 
-    async def _get_booking_tasks(self, booking: Booking) -> list[dict | None]:
+    async def _get_booking_tasks(self, booking: Booking) -> Optional[list[dict | None]]:
         """Get booking tasks"""
+        if not booking.booking_source:
+            return
+
         match booking.booking_source.slug:
             case BookingCreatedSources.FAST_BOOKING | BookingCreatedSources.LK_ASSIGN:
                 task_chain_slug: str = FastBookingSlug.ACCEPT_OFFER.value
             case BookingCreatedSources.AMOCRM:
                 task_chain_slug: str = FreeBookingSlug.ACCEPT_OFFER.value
             case _:
-                task_chain_slug: str = OnlineBookingSlug.ACCEPT_OFFER.value
+                slugs: list[str] = [
+                    OnlineBookingSlug.ACCEPT_OFFER.value,
+                    OnlinePurchaseSlug.TAKE_THE_QUESTIONNAIRE.value,
+                ]
+                task_chain_slug: list[str] = slugs
 
         tasks: list[dict[str, Any] | None] = await get_booking_tasks(
             booking_id=booking.id,
@@ -177,17 +175,29 @@ class BookingRetrieveCase(BaseBookingCase):
         tasks: list[dict[str, Any] | None],
         booking: Booking,
     ) -> list[dict[str, Any] | None]:
-        banned_statuses: list[str] = [
+        banned_statuses: set[str] = {
             OnlineBookingSlug.PAYMENT_SUCCESS.value,
             FastBookingSlug.PAYMENT_SUCCESS.value,
             FreeBookingSlug.PAYMENT_SUCCESS.value,
-        ]
+        }
+        banned_properties_types: set[str] = {
+            PropertyTypes.PARKING,
+            PropertyTypes.PANTRY,
+            PropertyTypes.COMMERCIAL,
+        }
+
         cleared_tasks: list[dict | None] = []
         for task in tasks:
             task_chain: TaskChain = await get_interesting_task_chain(status=task["task_status"])
-            valid_task_chain: bool = task_chain in booking.amocrm_status.client_group_status.task_chains
+
+            valid_task_chain: bool = await self._is_valid_task_chain(
+                task_chain=task_chain,
+                booking=booking,
+            )
             valid_task_status: bool = task["task_status"] not in banned_statuses
-            if valid_task_chain and valid_task_status:
+            valid_property_type: bool = booking.property.property_type.slug.upper() not in banned_properties_types
+
+            if all((valid_task_chain, valid_task_status, valid_property_type)):
                 cleared_tasks.append(task)
         return cleared_tasks
 
@@ -244,3 +254,14 @@ class BookingRetrieveCase(BaseBookingCase):
         booking.amocrm_status.steps_numbers = len(group_statuses) + 1
         booking.amocrm_status.current_step = booking_group_status_current_step
         booking.amocrm_status.actions = booking_group_status_actions
+
+    async def _is_valid_task_chain(
+        self,
+        task_chain: TaskChain,
+        booking: Booking,
+    ) -> bool:
+        """Проверяем, что сделка подходит под цепочку задач"""
+        if booking.amocrm_status.client_group_status:
+            return task_chain in booking.amocrm_status.client_group_status.task_chains
+        # Если нет связи client_group_status, то предполагаем, что эта задача не должна выводиться в сделке
+        return False

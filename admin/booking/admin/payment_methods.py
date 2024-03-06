@@ -7,5 +7,6 @@ from ..models import PaymentMethod
 class PaymentMethodAdmin(admin.ModelAdmin):
     list_display = (
         "name",
-        "amocrm_id"
+        "amocrm_id",
+        "slug",
     )

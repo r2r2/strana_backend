@@ -24,6 +24,7 @@ class QuestionnaireDocumentBlock(BaseQuestionnaireModel):
     )
 
     documents: fields.ForeignKeyNullableRelation['QuestionnaireDocument']
+    questionnaire_fields: fields.ReverseRelation['QuestionnaireField']
 
     def __repr__(self):
         return self.title

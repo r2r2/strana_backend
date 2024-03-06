@@ -4,13 +4,13 @@ from .entities import BaseCheckException, BaseUserException
 
 
 class UserCodeTimeoutError(BaseUserException):
-    message: str = "Время кода истекло."
+    message: str = "Время действия смс кода истекло. Пожалуйста, запросите смс код заново."
     status: int = HTTPStatus.BAD_REQUEST
     reason: str = "user_code_timeout"
 
 
 class UserNotFoundError(BaseUserException):
-    message: str = "Пользователь не найден."
+    message: str = "Пользователь с введенными данными не найден. Перепроверьте введенные данные или зарегистрируйтесь."
     status: int = HTTPStatus.NOT_FOUND
     reason: str = "user_not_found"
 
@@ -22,13 +22,17 @@ class UserWasDeletedError(BaseUserException):
 
 
 class UserWrongCodeError(BaseUserException):
-    message: str = "Неверный код."
+    message: str = (
+        "Введен неверный код. Пожалуйста, перепроверьте корректность введенных данных или запросите код снова."
+    )
     status: int = HTTPStatus.BAD_REQUEST
     reason: str = "wrong_code"
 
 
 class UserWrongPasswordError(BaseUserException):
-    message: str = "Введен неверный пароль."
+    message: str = (
+        'Введен неверный пароль. Пожалуйста, перепроверьте введенные данные или нажмите на кнопку "Забыли "пароль?".'
+    )
     status: int = HTTPStatus.BAD_REQUEST
     reason: str = "password_wrong"
 
@@ -60,7 +64,7 @@ class UserSendSmsError(BaseUserException):
 
 
 class UserEmailTakenError(BaseUserException):
-    message: str = "Введенный email занят."
+    message: str = "Простите, данная почта уже занята."
     status: int = HTTPStatus.BAD_REQUEST
     reason: str = "user_email_taken"
 
@@ -144,7 +148,7 @@ class CheckNotUniqueError(BaseCheckException):
 
 
 class UserNotUnique(BaseUserException):
-    message: str = "Пользователь не уникальный"
+    message: str = "Пользователь закреплен за другим агентом. Пожалуйста, выберите другого пользователя."
     status: int = HTTPStatus.FORBIDDEN
     reason: str = "User is not unique"
 
@@ -156,7 +160,7 @@ class UserChangePasswordError(BaseUserException):
 
 
 class UserSamePasswordError(BaseUserException):
-    message: str = "Пароль остался неизменным."
+    message: str = "Введен пароль, который использован ранее в этом аккаунте."
     status: int = HTTPStatus.BAD_REQUEST
     reason: str = "user_same_password"
 
@@ -192,8 +196,10 @@ class NotUniqueEmailUser(BaseUserException):
 
 
 class NotUniqueEmaiAndPhoneUser(BaseUserException):
-    message: str = "Простите, данная почта закреплена за другим {mail_match_user_type}, телефон закреплен за другим " \
-                   "{phone_match_user_type}, вы не можете их использовать."
+    message: str = (
+        "Простите, данная почта закреплена за другим {mail_match_user_type}, телефон закреплен за другим "
+        "{phone_match_user_type}, вы не можете их использовать."
+    )
     status: int = HTTPStatus.BAD_REQUEST
     reason: str = "email_and_phone_is_already_used"
 
@@ -238,3 +244,9 @@ class UserHasNoRoleError(BaseUserException):
     message: str = "У пользователя нет роли"
     status: int = HTTPStatus.BAD_REQUEST
     reason: str = "user_has_no_role"
+
+
+class UserResetPasswordLinkExpiredError(BaseUserException):
+    message: str = "Извините, данная ссылка устарела. Попробуйте воспользоваться функцией 'Забыли пароль' заново."
+    status: int = HTTPStatus.BAD_REQUEST
+    reason: str = "reset_password_link_expired"

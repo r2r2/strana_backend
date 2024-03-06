@@ -5,6 +5,7 @@ from typing import Any, Optional, Union, Callable, Coroutine
 
 import structlog
 from pytz import UTC
+from tortoise.exceptions import IntegrityError
 from tortoise.transactions import atomic
 
 from common.settings.repos import BookingSettingsRepo, BookingSettings
@@ -21,6 +22,7 @@ from src.task_management.constants import (
     OnlineBookingSlug,
     FastBookingSlug,
     FreeBookingSlug,
+    OnlinePurchaseSlug,
 )
 from src.task_management.dto import CreateTaskDTO
 from src.task_management.entities import BaseTaskService
@@ -78,6 +80,7 @@ class CreateTaskInstanceService(BaseTaskService):
         self.online_booking_statuses: type[OnlineBookingSlug] = OnlineBookingSlug
         self.fast_booking_statuses: type[FastBookingSlug] = FastBookingSlug
         self.free_booking_statuses: type[FreeBookingSlug] = FreeBookingSlug
+        self.online_purchase_statuses: type[OnlinePurchaseSlug] = OnlinePurchaseSlug
 
         self.status_to_case_mapping: dict[str, Callable[..., Any]] = {
             self.paid_booking_statuses.START.value: self.paid_booking_case,
@@ -87,6 +90,7 @@ class CreateTaskInstanceService(BaseTaskService):
             self.online_booking_statuses.ACCEPT_OFFER.value: self.online_booking_case,
             self.fast_booking_statuses.ACCEPT_OFFER.value: self.fast_booking_case,
             self.free_booking_statuses.EXTEND.value: self.free_booking_case,
+            self.online_purchase_statuses.TAKE_THE_QUESTIONNAIRE.value: self.online_purchase_case,
         }
 
     async def __call__(
@@ -329,6 +333,15 @@ class CreateTaskInstanceService(BaseTaskService):
             task_chain=task_chain,
         )
 
+    async def online_purchase_case(self, booking: Booking, task_chain: TaskChain) -> None:
+        filters: dict[str, Any] = dict(slug=self.online_purchase_statuses.TAKE_THE_QUESTIONNAIRE.value)
+        task_status: TaskStatus = await self.get_task_status(filters=filters)
+        await self.create_task_instance(
+            booking=booking,
+            task_status=task_status,
+            task_chain=task_chain,
+        )
+
     async def get_task_status(self, filters: dict[str, Any]) -> TaskStatus:
         """
         Получение статуса задачи
@@ -352,12 +365,16 @@ class CreateTaskInstanceService(BaseTaskService):
             booking=booking,
             task_chain=task_chain,
         ):
-            # Если в цепочке нет задачи, создаем ее
-            await self.__create_task_instance(
-                booking=booking,
-                task_status=task_status,
-            )
-            return True
+            try:
+                # Если в цепочке нет задачи, создаем ее
+                await self.__create_task_instance(
+                    booking=booking,
+                    task_status=task_status,
+                )
+                return True
+            except IntegrityError as e:
+                # Если задача уже создана, ловим ошибку и логируем
+                self.logger.info(f"Ошибка создания задачи: {e}")
         return False
 
     async def __create_task_instance(

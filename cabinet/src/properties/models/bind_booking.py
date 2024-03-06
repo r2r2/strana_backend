@@ -7,7 +7,10 @@ from common.pydantic import CamelCaseBaseModel
 
 class RequestBindBookingPropertyModel(CamelCaseBaseModel):
     property_id: int
-    property_type_slug: str = Field(default=None)
+    payment_method_slug: str | None = Field(default=None)
+    mortgage_type_by_dev: bool | None = Field(default=None, alias="mortgageType")
+    mortgage_program_name: str | None = Field(default=None)
+    calculator_options: str | None = Field(default=None)
     booking_id: int
     booking_type_id: int
 

@@ -6,8 +6,10 @@ from common.amocrm import AmoCRM
 from common.amocrm.constants import AmoContactQueryWith, AmoLeadQueryWith
 from common.amocrm.exceptions import AmoContactIncorrectPhoneFormatError
 from common.amocrm.types import AmoContact, AmoCustomField
+from common.unleash.client import UnleashClient
 from common.utils import parse_phone
 from common.utils import partition_list
+from config.feature_flags import FeatureFlags
 from src.users.constants import UserType
 from src.booking.exceptions import BookingRequestValidationError
 from src.booking.services import ImportBookingsService
@@ -90,6 +92,9 @@ class CreateContactService(BaseUserService):
     async def _no_contacts_case(self, amocrm: AmoCRM, phone: str) -> Tuple[int, dict]:
         """
         Контакт не существует в AmoCRM
+        Можно попробовать переделать на "Комплексное добавление сделок с контактом и компанией"
+        https://www.amocrm.ru/developers/content/crm_platform/leads-api#leads-complex-add
+
         """
         contact: list[Any] = await amocrm.create_contact(
             user_phone=phone,
@@ -98,7 +103,12 @@ class CreateContactService(BaseUserService):
         if not contact:
             raise UserAmoCreateError
         amocrm_id: int = contact[0]["id"]
-        await amocrm.register_lead(user_amocrm_id=amocrm_id)
+
+        if self.__is_strana_lk_2882_enable:
+            await amocrm.register_lead_v4(user_amocrm_id=amocrm_id)
+        else:
+            await amocrm.register_lead(user_amocrm_id=amocrm_id)
+
         return amocrm_id, {}
 
     async def _one_contacts_case(self, contact: AmoContact) -> Tuple[int, dict]:
@@ -266,3 +276,7 @@ class CreateContactService(BaseUserService):
                 ) + timedelta(days=1)
 
         return phone, email, passport_series, passport_number, birth_date, tags
+
+    @property
+    def __is_strana_lk_2882_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_2882)

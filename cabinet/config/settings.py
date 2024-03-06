@@ -108,6 +108,8 @@ class DataBaseSettings(BaseSettings):
         ("commercial_offers", "repos"),
         ("news", "repos"),
         ("mortgage", "repos"),
+        ("faq", "repos"),
+        ("privilege_program", "repos")
     ]
 
     class Config:
@@ -170,6 +172,11 @@ class BackendSettings(BaseSettings):
 
 class MCSettings(BaseSettings):
     url: str = Field("https://services.stranadev-new.com/api", env="MC_BACKEND_URL")
+
+
+class MCLoyaltySettings(BaseSettings):
+    url: str = Field("https://services.stranadev-new.com/loyalty/api", env="MC_LOYALTY_BACKEND_URL")
+    loyalty_secret: str = Field("8C0sc0iKl2ff6qhuQjM7WZuK", env="MC_LOYALTY_SECRET")
 
 
 class SberbankSettings(BaseSettings):
@@ -247,6 +254,7 @@ class AMOCrmSettings(BaseSettings):
     db_name: str = Field("postgres", env="LK_POSTGRES_DATABASE")
     db_password: str = Field("postgres", env="LK_POSTGRES_PASSWORD")
     secret: str = Field("HJFjasdhsgybh432dsaJHdasj", env="AMOCRM_SECRET")
+    client_secret: str = Field("SomeClientSecretCode", env="AMOCRM_CLIENT_SECRET")
     partition_limit: int = Field(50, env="AMOCRM_PARTITION_LIMIT")
 
     class Config:
@@ -299,6 +307,7 @@ class SentrySettings(BaseSettings):
     dsn: str = Field("https://dsn.ru", env="LK_SENTRY_DSN")
     send_default_pii: bool = Field(True)  # personally identifiable information (PII)
     max_value_length: int = Field(8192)   # DEFAULT_MAX_VALUE_LENGTH = 1024
+    environment: str = Field("not_env", env="LK_SENTRY_DSN_ENV")
 
     class Config:
         env_file = ".env"
@@ -573,6 +582,7 @@ class EnvTypes(StrEnum):
     DEV = "development-backend"
     STAGE = "pre-production-backend"
     PROD = "production-backend"
+    LOCAL = "local"
 
 
 class MaintenanceSettings(BaseSettings):
@@ -638,6 +648,29 @@ class TildaSettings(BaseSettings):
     base_url: str = Field("localhost", env="TILDA_BASE_URL")
     client_id: str = Field("localhost", env="TILDA_CLIENT_ID")
     auth_token: str = Field("token", env="TILDA_AUTH_TOKEN")
+
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+
+
+class NextcloudSettings(BaseSettings):
+    username: str = Field("Amopod", env="NEXTCLOUD_USERNAME")
+    password: str = Field("Amopod1234", env="NEXTCLOUD_PASSWORD")
+    server: str = Field("https://nextcloud.itstrana.site", env="NEXTCLOUD_SERVER")
+    remote_folder: str = Field("/AMOCRM_21189697/leads/", env="NEXTCLOUD_REMOTE_FOLDER")
+
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+
+
+class BitrixSettings(BaseSettings):
+    bitrix_url: str = Field("https://lenochka.org/rest/", env="BITRIX_URL")
+    bitrix_user: str = Field("1098", env="BITRIX_USER")
+    bitrix_secret: str = Field("gn30bh1m183jrea4", env="BITRIX_SECRET")
+    bitrix_chat: str = Field("chat17746", env="BITRIX_CHAT")
+
 
     class Config:
         env_file = ".env"

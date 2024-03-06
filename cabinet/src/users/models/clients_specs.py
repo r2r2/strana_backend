@@ -22,7 +22,7 @@ class _ResponseClientSpecsModelAgent(BaseUserModel):
     """
 
     agent__id: Optional[int] = Field(alias="value")
-    agent__name: Optional[str] = Field(alias="label")
+    agent__surname: Optional[str] = Field(alias="label")
 
     class Config:
         allow_population_by_field_name = True

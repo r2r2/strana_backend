@@ -22,4 +22,5 @@ class ActivateBookingServiceFactory:
             property_repo=properties_repos.PropertyRepo,
             request_class=requests.UpdateSqlRequest,
             booking_notification_sms_task=notification_tasks.booking_notification_sms_task,
+            test_booking_repo=booking_repos.TestBookingRepo,
         )

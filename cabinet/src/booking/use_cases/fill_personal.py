@@ -4,7 +4,9 @@ from celery.app import task
 
 from common.amocrm.types import AmoLead
 from common.sentry.utils import send_sentry_log
+from common.unleash.client import UnleashClient
 from config import EnvTypes, maintenance_settings
+from config.feature_flags import FeatureFlags
 from src.buildings.repos import BuildingBookingType, BuildingBookingTypeRepo
 from ..constants import (
     BookingStages,
@@ -13,9 +15,10 @@ from ..constants import (
     BookingCreatedSources,
 )
 from ..entities import BaseBookingCase
+from ..event_emitter_handlers import event_emitter
 from ..loggers.wrappers import booking_changes_logger
 from ..mixins import BookingLogMixin
-from ..repos import Booking, BookingRepo, BookingSource
+from ..repos import Booking, BookingRepo, BookingSource, TestBookingRepo
 from ..types import BookingAmoCRM, BookingProfitBase
 from ..models import RequestFillPersonalModel
 from ..exceptions import (
@@ -52,9 +55,11 @@ class FillPersonalCase(BaseBookingCase, BookingLogMixin):
         profitbase_class: type[BookingProfitBase],
         global_id_decoder: Callable[[str], tuple[str, str | int]],
         building_booking_type_repo: type[BuildingBookingTypeRepo],
+        test_booking_repo: type[TestBookingRepo],
     ) -> None:
         self.booking_repo: BookingRepo = booking_repo()
         self.building_booking_type_repo: BuildingBookingTypeRepo = building_booking_type_repo()
+        self.test_booking_repo: TestBookingRepo = test_booking_repo()
 
         self.amocrm_class: type[BookingAmoCRM] = amocrm_class
         self.create_amocrm_log_task: task = create_amocrm_log_task
@@ -97,8 +102,17 @@ class FillPersonalCase(BaseBookingCase, BookingLogMixin):
             raise BookingNotFoundError
 
         booking_source: BookingSource = booking.booking_source
+        old_group_status = booking.amocrm_substage if booking.amocrm_substage else None
         if booking_source and booking_source.slug in [BookingCreatedSources.AMOCRM]:
-            return await self._fill_personal(booking=booking, user_id=user_id, data=personal_filled_data)
+            updated_booking = await self._fill_personal(booking=booking, user_id=user_id, data=personal_filled_data)
+            event_emitter.ee.emit(
+                event='personal_filled',
+                booking=updated_booking,
+                user=updated_booking.user,
+                old_group_status=old_group_status,
+            )
+
+            return updated_booking
 
         if not booking.step_one():
             raise BookingWrongStepError
@@ -121,10 +135,19 @@ class FillPersonalCase(BaseBookingCase, BookingLogMixin):
         )
         profitbase_booked: bool = await self._profitbase_booking(booking=booking)
         data: dict = dict(profitbase_booked=profitbase_booked)
-        booking: Booking = await self.booking_update_from_profitbase(
+        _booking: Booking = await self.booking_update_from_profitbase(
             booking=booking, data=data
         )
-        return await self._fill_personal(booking=booking, user_id=user_id, data=personal_filled_data)
+        updated_booking = await self._fill_personal(booking=_booking, user_id=user_id, data=personal_filled_data)
+
+        event_emitter.ee.emit(
+            event='personal_filled',
+            booking=updated_booking,
+            user=updated_booking.user,
+            old_group_status=old_group_status,
+        )
+
+        return updated_booking
 
     async def _fill_personal(
         self, booking: Booking, user_id: int, data: dict
@@ -142,6 +165,7 @@ class FillPersonalCase(BaseBookingCase, BookingLogMixin):
                 "ddu",
                 "agent",
                 "agency",
+                "user",
             ],
             prefetch_fields=["ddu__participants"],
         )
@@ -194,12 +218,27 @@ class FillPersonalCase(BaseBookingCase, BookingLogMixin):
                 creator_user_id=booking.user.id, **lead_options
             )
             lead_id: int = data[0].id
-            note_data: dict = dict(
-                element="lead",
-                lead_id=lead_id,
-                note="lead_created",
-                text="Создано онлайн-бронирование",
+
+            data: dict[str, Any] = dict(
+                booking=booking,
+                amocrm_id=lead_id,
+                is_test_user=booking.user.is_test_user if booking.user else False,
             )
+            await self.test_booking_repo.create(data=data)
+
+            if self.__is_strana_lk_2882_enable:
+                note_data: dict[str, Any] = dict(
+                    lead_id=lead_id,
+                    text="Создано онлайн-бронирование",
+                )
+            else:
+                note_data: dict = dict(
+                    element="lead",
+                    lead_id=lead_id,
+                    note="lead_created",
+                    text="Создано онлайн-бронирование",
+                )
+
             self.create_amocrm_log_task.delay(note_data=note_data)
             lead_options: dict = dict(
                 status=BookingSubstages.BOOKING,
@@ -208,12 +247,19 @@ class FillPersonalCase(BaseBookingCase, BookingLogMixin):
             )
             data: list = await amocrm.update_lead(**lead_options)
             lead_id: int = data[0]["id"]
-            note_data: dict = dict(
-                element="lead",
-                lead_id=lead_id,
-                note="lead_changed",
-                text="Изменен статус заявки на 'Бронь'",
-            )
+            if self.__is_strana_lk_2882_enable:
+                note_data: dict[str, Any] = dict(
+                    lead_id=lead_id,
+                    text="Изменен статус заявки на 'Бронь'",
+                )
+            else:
+                note_data: dict = dict(
+                    element="lead",
+                    lead_id=lead_id,
+                    note="lead_changed",
+                    text="Изменен статус заявки на 'Бронь'",
+                )
+
             self.create_amocrm_log_task.delay(note_data=note_data)
         return lead_id
 
@@ -232,6 +278,10 @@ class FillPersonalCase(BaseBookingCase, BookingLogMixin):
         if not profitbase_booked:
             raise BookingPropertyUnavailableError(booked, in_deal)
         return profitbase_booked
+
+    @property
+    def __is_strana_lk_2882_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_2882)
 
 
 class FillPersonalCaseV2(BaseBookingCase, BookingLogMixin):
@@ -274,7 +324,6 @@ class FillPersonalCaseV2(BaseBookingCase, BookingLogMixin):
             filters=filters,
             related_fields=[
                 "user",
-                "project",
                 "project__city",
                 "property",
                 "building",
@@ -295,8 +344,18 @@ class FillPersonalCaseV2(BaseBookingCase, BookingLogMixin):
             raise BookingNotFoundError
 
         booking_source: BookingSource = booking.booking_source
+        old_group_status = booking.amocrm_substage if booking.amocrm_substage else None
         if booking_source and booking_source.slug in [BookingCreatedSources.AMOCRM]:
-            return await self._fill_personal(booking=booking, user_id=user_id, data=personal_filled_data)
+            updated_booking = await self._fill_personal(booking=booking, user_id=user_id, data=personal_filled_data)
+
+            event_emitter.ee.emit(
+                event='personal_filled',
+                booking=updated_booking,
+                user=updated_booking.user,
+                old_group_status=old_group_status,
+            )
+
+            return updated_booking
 
         try:
             self._check_booking_step(booking=booking)
@@ -314,18 +373,34 @@ class FillPersonalCaseV2(BaseBookingCase, BookingLogMixin):
             )
             raise ex
 
+        tags: list[str] = booking.tags if booking.tags else []
+        tags.append("Онлайн-бронирование")
+
         data: dict = dict(
-            tags=["Онлайн-бронирование"],
+            tags=tags,
             amocrm_stage=BookingStages.BOOKING,
             payment_status=PaymentStatuses.CREATED,
             amocrm_substage=BookingSubstages.BOOKING,
         )
-        booking: Booking = await self.booking_update(booking=booking, data=data)
-        return await self._fill_personal(booking=booking, user_id=user_id, data=personal_filled_data)
+        _booking: Booking = await self._booking_update(booking=booking, data=data)
+        updated_booking = await self._fill_personal(booking=_booking, user_id=user_id, data=personal_filled_data)
+
+        event_emitter.ee.emit(
+            event='personal_filled',
+            booking=updated_booking,
+            user=updated_booking.user,
+            old_group_status=old_group_status,
+        )
+
+        return updated_booking
+
+    async def _booking_update(self, booking: Booking, data: dict) -> Booking:
+        return await self.booking_update(booking=booking, data=data)
 
     async def _fill_personal(
         self, booking: Booking, user_id: int, data: dict
     ) -> Booking:
+        old_group_status = booking.amocrm_substage if booking.amocrm_substage else None
         booking: Booking = await self.booking_fill_personal_data(booking=booking, data=data)
         filters: dict = dict(active=True, id=booking.id, user_id=user_id)
         booking: Booking = await self.booking_repo.retrieve(
@@ -339,6 +414,7 @@ class FillPersonalCaseV2(BaseBookingCase, BookingLogMixin):
                 "ddu",
                 "agent",
                 "agency",
+                "user",
             ],
             prefetch_fields=["ddu__participants"],
         )
@@ -350,6 +426,13 @@ class FillPersonalCaseV2(BaseBookingCase, BookingLogMixin):
         booking.tasks = await get_booking_tasks(
             booking_id=booking.id, task_chain_slug=interested_task_chains
         )
+        # event_emitter.ee.emit(
+        #     event='extend_free_booking',
+        #     booking=booking,
+        #     user=booking.user,
+        #     old_group_status=old_group_status,
+        # )
+
         return booking
 
     def _check_booking_step(self, booking: Booking) -> None:

@@ -64,11 +64,16 @@ INSTALLED_APPS = [
     'events_list.apps.EventsListConfig',
     "commercial_offers.apps.CommercialOffersConfig",
     "news.apps.NewsAppConfig",
+    "privilege_program.apps.PrivilegeConfig",
     "mortgage.apps.MortgageConfig",
+    "faq.apps.FaqConfig",
+    "booking_event_history.apps.BookingEventHistoryConfig",
     "debug_toolbar",
+    "admin_auto_filters",
 ]
 
 MIDDLEWARE = [
+    # "debug_toolbar.middleware.DebugToolbarMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -77,7 +82,6 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "django.contrib.sites.middleware.CurrentSiteMiddleware",
-    "debug_toolbar.middleware.DebugToolbarMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -310,3 +314,4 @@ def show_toolbar(_):
 # в инлайне приходит много пользователей
 # стандартное значение DATA_UPLOAD_MAX_NUMBER_FIELDS = 1000
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000
+SITE_ID = 1

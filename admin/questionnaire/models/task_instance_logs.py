@@ -16,6 +16,7 @@ class TaskInstanceLog(AbstractLog):
         null=True,
         blank=True,
         verbose_name="Бронирование",
+        db_index=True,
     )
     task_chain = models.ForeignKey(
         to="task_management.TaskChain",

@@ -40,3 +40,8 @@ from .booking_payment_conditions import (
 )
 from .create_booking import RequestCreateBookingModel
 from .booking_document import ResponseBookingDocumentModel
+from .booking_property_types import ResponseBookingPropertyTypes
+from .booking_document_archive import ResponseBookingDocumentFromArchiveModel
+from .booking_event_history_detail import BookingEventHistories
+from .loyalty_reward import RequestLoyaltyRewardModel, ResponseLoyaltyRewardModel
+from .booking_info import ResponseBookingInfoModel

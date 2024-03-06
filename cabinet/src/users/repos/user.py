@@ -1,8 +1,9 @@
 from datetime import date, datetime
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, Type
 from uuid import UUID
 import traceback
 import structlog
+import re
 
 from common import cfields, orm
 from common.orm.mixins import ExistsMixin, GenericMixin, CountMixin
@@ -11,12 +12,23 @@ from src.projects.repos import Project
 from src.properties.constants import PropertyTypes
 from src.properties.repos import Property
 from tortoise import Model, fields
-from tortoise.exceptions import IntegrityError
+from tortoise.signals import pre_save
+from tortoise.exceptions import IntegrityError, ValidationError
 from tortoise.fields import ForeignKeyNullableRelation, ManyToManyRelation, ForeignKeyRelation
+from tortoise.validators import Validator
+from email_validator import validate_email, EmailNotValidError
 
 from ..constants import DutyType, UserType, OriginType
 from ..entities import BaseUserRepo
 from ..mixins import UserRepoFacetsMixin, UserRepoSpecsMixin
+
+
+class EmailValidator(Validator):
+    def __call__(self, value: Any):
+        regex = re.compile('([A-Za-z0-9]+[.-_])*[A-Za-z0-9]+@[A-Za-z0-9-]+(\.[A-Z|a-z]{2,})+')
+        if value:
+            if not regex.match(value):
+                raise ValidationError(f"Value '{value}' is not a valid email address")
 
 
 class User(Model):
@@ -30,14 +42,15 @@ class User(Model):
     id: int = fields.IntField(description="ID", pk=True, index=True)
     tags: Union[list, dict] = fields.JSONField(description="Тэги", null=True)
     type: Optional[str] = cfields.CharChoiceField(
-        description="Тип", max_length=20, default=UserType.CLIENT, choice_class=UserType, null=True
+        description="Тип", max_length=20, default=UserType.CLIENT, choice_class=UserType, null=True, index=True
     )
     role: ForeignKeyRelation["UserRole"] = fields.ForeignKeyField(
         description="Роль пользователя",
         model_name="models.UserRole",
         on_delete=fields.SET_NULL,
         related_name="users",
-        null=True
+        null=True,
+        index=True,
     )
     interested_type: Optional[str] = cfields.CharChoiceField(
         description="Интересующий тип недвижимости",
@@ -61,7 +74,7 @@ class User(Model):
     )
 
     email: Optional[str] = fields.CharField(
-        description="Email", max_length=100, null=True, index=True
+        description="Email", max_length=100, null=True, index=True, validators=[EmailValidator()]
     )
     phone: Optional[str] = fields.CharField(
         description="Номер телефона", max_length=20, null=True, index=True
@@ -94,7 +107,6 @@ class User(Model):
     change_email_token: Optional[str] = fields.CharField(
         description="Токен обновления email", max_length=100, null=True
     )
-
     reset_time: Optional[datetime] = fields.DatetimeField(
         description="Время валидности ресета", null=True
     )
@@ -297,6 +309,16 @@ class User(Model):
             ("role_id", "amocrm_id"),
         )
         ordering = ["-created_at"]
+
+
+@pre_save(User)
+async def pre_save_user(sender: "Type[User]", instance: User, using_db, update_fields):
+    if instance.role:
+        role = await instance.role
+        if role:
+            if role.slug == "agent":
+                if instance.email is None:
+                    raise ValueError("Agent without email")
 
 
 class UserRepo(BaseUserRepo, UserRepoSpecsMixin, UserRepoFacetsMixin, GenericMixin, ExistsMixin, CountMixin):

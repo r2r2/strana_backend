@@ -15,14 +15,16 @@ class PriceOfferMatrix(BasePaymentDatabaseModel):
         on_delete=fields.CASCADE,
         related_name="price_offer",
         description="ИД предложения из ИК",
+        null=True,
     )
     # guid обсудить
-    by_dev: bool = fields.BooleanField(default=False, description="Субсидированная ипотека")
-    price_type = fields.OneToOneField(
+    default: bool = fields.BooleanField(default=False, description="По умолчанию")
+    price_type = fields.ForeignKeyField(
         model_name="models.PropertyPriceType",
-        on_delete=fields.CASCADE,
+        on_delete=fields.SET_NULL,
         related_name="price_offer",
         description="Тип цены",
+        null=True,
     )
     mortgage_type = fields.ForeignKeyField(
         model_name="models.MortgageType",

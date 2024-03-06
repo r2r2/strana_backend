@@ -1,20 +1,27 @@
-from typing import Type, Callable, Coroutine, Any
+from typing import Callable, Coroutine, Any
 
 from aiohttp import ClientSession, TCPConnector
 
 from common.requests import CommonRequest, CommonResponse
 from config import mc_backend_config, maintenance_settings
+from src.mortgage.models import SendAmoDataSchema
 
 
 class CalculatorAPI:
     SPEC = "/v1/loan-offers/specs"
     BANNER = "/v1/banners"
+    SEND_AMO_DATA = "/v1/tickets/cabinet/send_amo_data"
 
     def __init__(
-            self,
-            request_class: Type[CommonRequest],
-            calculator_config: mc_backend_config
+        self,
+        request_class: type[CommonRequest] | None = None,
+        calculator_config: mc_backend_config = None,
     ):
+        if not request_class:
+            request_class = CommonRequest
+        if not calculator_config:
+            calculator_config = mc_backend_config
+
         self._request_class = request_class
         self._url: str = calculator_config["url"]
 
@@ -57,3 +64,13 @@ class CalculatorAPI:
         )
         request_get: Callable[..., Coroutine] = self._request_class(**request_data)
         return await request_get()
+
+    async def send_amo_data(self, payload: SendAmoDataSchema, headers: dict[str, str]) -> CommonResponse:
+        request_data: dict[str, Any] = dict(
+            url=self._url + self.SEND_AMO_DATA,
+            method="POST",
+            json=payload.dict(),
+            headers=headers,
+        )
+        request_post: Callable[..., Coroutine] = self._request_class(**request_data)
+        return await request_post()

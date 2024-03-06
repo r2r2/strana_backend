@@ -4,7 +4,12 @@ from django.db import models
 
 class UserLog(AbstractLog):
     user = models.ForeignKey(
-        "users.CabinetUser", models.CASCADE, blank=True, null=True, verbose_name='Пользователь'
+        "users.CabinetUser",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        verbose_name='Пользователь',
+        db_index=True,
     )
 
     class Meta:

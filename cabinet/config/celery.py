@@ -282,8 +282,7 @@ class CeleryTaskQueue:
                 }
             },
             "periodic_update_missed_amocrm_id_task": {
-                # "schedule": crontab(minute=0, hour='21'),
-                "schedule": crontab(hour='*/1', minute='0'),
+                "schedule": crontab(minute='0', hour='20'),
                 "task": "src.agencies.tasks.periodic_update_missed_amocrm_id_task",
                 "options": {
                     "priority": self._priority.low,
@@ -348,6 +347,13 @@ class CeleryTaskQueue:
                     # "queue": self._q_periodic_tasks,
                     # "exchange": self._q_periodic_tasks,
                     # "routing_key": self._q_periodic_tasks,
+                }
+            },
+            "periodic_check_test_booking_task": {
+                "schedule": crontab(hour='21', minute='0'),
+                "task": "src.booking.tasks.periodic_check_test_booking_task",
+                "options": {
+                    "priority": self._priority.low,
                 }
             },
             }

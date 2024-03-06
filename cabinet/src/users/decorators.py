@@ -18,7 +18,10 @@ def check_maintenance(method: Callable[..., Coroutine]) -> Callable[..., Corouti
         agency_id: int | None = None,
         user_id: int | None = None,
     ) -> Model:
-        filters: dict[str: Any] = dict(id=agent_id)
+        if agent_id:
+            filters: dict[str: Any] = dict(id=agent_id)
+        else:
+            filters: dict[str: Any] = dict(agency_id=agency_id)
         broker_amocrm_id = await UserRepo().retrieve(filters=filters).values_list("amocrm_id", flat=True)
         error = None
         successful = True

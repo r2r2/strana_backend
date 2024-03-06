@@ -11,7 +11,9 @@ from .fake_send_code import FakeSendCodeService
 from .clean_logs import CleanLogsService
 from .check_unique_in_base import UserCheckUniqueService
 from .update_contact_in_amo import UpdateContactService
-from .check_pinning_status import CheckPinningStatusService
+from .check_pinning_status import CheckPinningStatusService, CheckPinningStatusServiceV2
 from .send_check_admins_email import SendCheckAdminsEmailService
 from .get_agent_client_from_query import GetAgentClientFromQueryService
-from .import_client_from_amo import ImportContactFromAmoService
+from .import_client_from_amo import ImportClientFromAmoService
+from .import_contact_from_amo import ImportContactFromAmoService
+from .import_agent_from_amo import ImportAgentFromAmoService

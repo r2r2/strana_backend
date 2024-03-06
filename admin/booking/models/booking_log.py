@@ -4,7 +4,14 @@ from django.db import models
 
 
 class BookingLog(AbstractLog):
-    booking = models.ForeignKey("booking.Booking", models.CASCADE, blank=True, null=True, verbose_name="Бронирование")
+    booking = models.ForeignKey(
+        "booking.Booking",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        verbose_name="Бронирование",
+        db_index=True,
+    )
 
     def __str__(self):
         return f"{self.use_case} – {self.content}" if self.use_case and self.content else self

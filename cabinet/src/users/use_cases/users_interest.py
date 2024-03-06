@@ -196,19 +196,20 @@ class UsersInterestProfitIdCase(UsersInterestCase):
             raise UserNotFoundError
         current_user: User = await self.get_current_user()
 
+        user_interested_profitbase_ids: set[int] = set(map(lambda x: x.profitbase_id, list(user.interested)))
         interested = []
         for interested_profitbase_id in interested_profitbase_ids:
-            if _property := await self._create_or_update_property(interested_profitbase_id):
-                interested.append(_property)
-        user_interested_global_ids: set[int] = set(map(lambda x: x.global_id, list(user.interested)))
+            if interested_profitbase_id not in user_interested_profitbase_ids:
+                _property = await self._create_or_update_property(interested_profitbase_id)
+                if _property:
+                    interested.append(_property)
 
         for interest in interested:
-            if interest.global_id not in user_interested_global_ids:
-                asyncio.create_task(
-                    self.interests_repo.add(
-                        user=user, interest=interest, created_by=current_user, slug_type=slug_type
-                    )
+            asyncio.create_task(
+                self.interests_repo.add(
+                    user=user, interest=interest, created_by=current_user, slug_type=slug_type
                 )
+            )
         return user
 
     async def _create_or_update_property(self, profitbase_id: int) -> UserProperty:
@@ -218,4 +219,3 @@ class UsersInterestProfitIdCase(UsersInterestCase):
 
         _, updated_property = await self.import_property_service(backend_property_id=profitbase_id)
         return updated_property
-

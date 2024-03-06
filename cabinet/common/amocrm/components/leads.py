@@ -7,7 +7,6 @@ from enum import IntEnum
 from typing import Any, Optional, Union
 
 import jmespath
-import sentry_sdk
 import structlog
 from common.amocrm.components.interface import AmoCRMInterface
 from config import EnvTypes, maintenance_settings
@@ -15,15 +14,17 @@ from pydantic import ValidationError, parse_obj_as
 from pytz import UTC
 from starlette import status as http_status
 
+from config.feature_flags import FeatureFlags
 from ...requests import CommonResponse
 from ..constants import AmoLeadQueryWith, BaseLeadSalesStatuses
 from ..exceptions import AmocrmHookError
-from ..leads.payment_method import (AmoCRMPaymentMethod,
-                                    AmoCRMPaymentMethodMapping)
+from ..leads.payment_method import AmoCRMPaymentMethod, AmoCRMPaymentMethodMapping
 from ..models import Entity
 from ..types import AmoCustomField, AmoCustomFieldValue, AmoLead, AmoTag
 from ..types.lead import AmoLeadCompany, AmoLeadContact, AmoLeadEmbedded
 from .decorators import user_tag_test_wrapper
+from ...sentry.utils import send_sentry_log
+from ...unleash.client import UnleashClient
 
 
 class AmoCRMLeads(AmoCRMInterface, ABC):
@@ -43,7 +44,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         EKB: int = 5798376
         TEST: int = 4623009
 
-    city_name_mapping: dict[str, Any] = {
+    city_name_mapping: dict[str, str] = {
         "Тюмень": "tmn",
         "Санкт-Петербург": "spb",
         "Москва": "msk",
@@ -136,7 +137,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
     meeting_user_name_field_id = 676461
     meeting_type_next_contact_field_id = 694316
     commercial_offer_field_id = 826886
-    meeting_types_next_contact_map: dict[str, dict] = {
+    meeting_types_next_contact_map: dict[str, dict[str, int | str]] = {
         "Meet": {"enum_id": 1323738, "value": "Встреча"},
         "ZOOM": {"enum_id": 1325614, "value": "Назначить ZOOM КЦ"},
     }
@@ -160,6 +161,8 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
     fast_booking_tag_id: int = 748608
     dev_booking_tag_id: int = 708334
     stage_booking_tag_id: int = 765058
+    dev_contact_tag_id: int = 741628
+    stage_contact_tag_id: int = 788570
 
     # Lead contacts tags IDs
     realtor_tag_id: int = 437407
@@ -263,6 +266,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         715525: "PARKING",
         1311059: "COMMERCIAL",
         1324118: "COMMERCIAL_APARTMENT",
+        1331542: "PANTRY",
     }
     property_final_price_field_id: int = 679313
     property_price_with_sale_field_id: int = 575401
@@ -272,8 +276,9 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         Call Center statuses
         """
         UNASSEMBLED: int = 37592454  # Неразобранное
-        START: int = 37592457  # Первичный контракт
-        START_2: int = 55148413  # Первичный контракт 2
+        START: int = 37592457  # Первичный контакт
+        START_2: int = 55148413  # Первичный контакт 2
+        ASSIGN_AGENT: int = 62123581  # Фиксация клиента за ан
         THINKING_ABOUT_PRICE: int = 51568512  # думает над ценой
         SEEKING_MONEY: int = 51568509  # ищет деньги
         CONTACT_AFTER_BOT: int = 60225745  # связаться после бота
@@ -568,7 +573,11 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
 
         if response.status == http_status.HTTP_204_NO_CONTENT:
             return []
-        return self._parse_leads_data(response=response, method_name='cabinet/amocrm/fetch_leads')
+        return await self._parse_leads_data(
+            response=response,
+            method_name='cabinet/amocrm/fetch_leads',
+            payload=query,
+        )
 
     @user_tag_test_wrapper
     async def create_lead(
@@ -586,10 +595,11 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         contact_ids: Optional[list[int]] = None,
         status: Optional[str] = None,
         status_id: Optional[int] = None,
-        tags: list[str] = [],
+        tags: list[str] | None = None,
         booking_type_id: Optional[int] = None,
         companies: Optional[list[int]] = None,
         is_agency_deal: Optional[bool] = None,
+        payment_type_enum: Optional[int] = None,
     ) -> list[AmoLead]:
         """
         Lead creation
@@ -610,6 +620,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         @param companies: Optional[list[int]]. Список id компаний из амо
         @param is_agency_deal: Сделка с Агентством?
         @param lead_name: Название сделки, для общего случая можно использовать метод create_lead_name, он лежит в
+        @param payment_type_enum: int
         booking.utils
         @return: list[AmoLead]
         """
@@ -618,6 +629,9 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
             status_id = getattr(self, f"{self.lead_city_mapping[city_slug]}_status_ids")[status]
         if not lead_name:
             lead_name = self.default_lead_name
+
+        if tags is None:
+            tags = []
 
         if maintenance_settings["environment"] == EnvTypes.DEV:
             self._lead_tags.extend(self.dev_test_lead_tag)
@@ -642,6 +656,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
             project_amocrm_organization=project_amocrm_organization,
             booking_type_id=booking_type_id,
             is_agency_deal=is_agency_deal,
+            payment_type_enum=payment_type_enum,
         )
         self.logger.debug("AmoCRM create lead", custom_fields=custom_fields)
         payload: AmoLead = AmoLead(
@@ -655,12 +670,16 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
             _embedded=AmoLeadEmbedded(
                 tags=tags,
                 contacts=contacts,
-                companies=companies
+                companies=companies,
             )
         )
         response: CommonResponse = await self._request_post_v4(
             route=route, payload=[payload.dict(exclude_unset=True)])
-        return self._parse_leads_data(response=response, method_name='cabinet/amocrm/create_lead')
+        return await self._parse_leads_data(
+            response=response,
+            method_name='cabinet/amocrm/create_lead',
+            payload=payload,
+        )
 
     async def create_showtime(
         self,
@@ -698,12 +717,22 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
             responsible_user_id=self.showtime_responsible_user,
             _embedded=AmoLeadEmbedded(
                 tags=[AmoTag(name="Запись на показ")],
-                contacts=contacts
+                contacts=contacts,
             )
         )
         response: CommonResponse = await self._request_post_v4(
             route=route, payload=payload.dict(exclude_unset=True))
-        return self._parse_leads_data(response=response, method_name='cabinet/amocrm/create_lead')
+        return await self._parse_leads_data(
+            response=response,
+            method_name='cabinet/amocrm/create_showtime',
+            payload=payload,
+        )
+
+    async def update_lead(self, *args, **kwargs):
+        if self.__is_strana_lk_2882_enable:
+            return await self.update_lead_v4(*args, **kwargs)
+        else:
+            return await self.update_lead_v2(*args, **kwargs)
 
     async def update_lead_v4(
         self,
@@ -712,6 +741,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         price: Optional[int] = None,
         city_slug: Optional[str] = None,
         status_id: Optional[int] = None,
+        status: str | None = None,
         property_id: Optional[int] = None,
         property_type: Optional[str] = None,
         booking_type_id: Optional[int] = None,
@@ -726,24 +756,37 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         meeting_date_zoom: Optional[datetime.timestamp] = None,
         meeting_date_next_contact: Optional[datetime.timestamp] = None,
         meeting_type_next_contact: Optional[str] = None,
-        tags: Optional[list[AmoTag]] = None,
+        tags: list[AmoTag] | None = None,
         payment_type_enum: Optional[int] = None,
-        tilda_offer_amo: Optional[dict] = None,
+        tilda_offer_amo: dict | None = None,
         online_purchase_status: str | None = None,
         online_purchase_start_datetime: int | None = None,
-        ddu_acceptance_datetime: Optional[int] = None,
-        ddu_upload_url: Optional[str] = None,
-        send_documents_datetime: Optional[int] = None,
-        online_purchase_id: Optional[str] = None,
-        is_mortgage_approved: Optional[bool] = None,
-        payment_method: Optional[AmoCRMPaymentMethod] = None,
-        booking_end: Optional[int] = None,
-        booking_price: Optional[int] = None,
-        is_agency_deal: Optional[bool] = None,
-        booking_expires_datetime: Optional[int] = None,
+        ddu_acceptance_datetime: int | None = None,
+        ddu_upload_url: str | None = None,
+        send_documents_datetime: int | None = None,
+        online_purchase_id: str | None = None,
+        is_mortgage_approved: bool | None = None,
+        payment_method: AmoCRMPaymentMethod | None = None,
+        booking_end: int | None = None,
+        booking_price: int | None = None,
+        is_agency_deal: bool | None = None,
+        booking_expires_datetime: int | None = None,
     ):
+        """
+        https://www.amocrm.ru/developers/content/crm_platform/leads-api#leads-edit
+        """
         route: str = f"/leads/{lead_id}"
         custom_fields = []
+
+        if self.__is_strana_lk_2882_enable:
+            if status_id is None:
+                if status and city_slug:
+                    # NOTE: цитата "по Москве предлагаю закрыть онлайн покупку, т.к там один объект остался
+                    # и процессы пока старые в crm, как появятся объекты в Мск, то доработаем логику и
+                    # откроем онлайн-покупку"
+                    if status == "mortgage_apply" and city_slug == "msk":
+                        raise ValueError("Онлайн-покупка для Москвы пока что недоступна.")
+                    status_id: int = getattr(self, f"{self.lead_city_mapping[city_slug]}_status_ids")[status]
 
         # Город
         if city_slug is not None:
@@ -946,9 +989,27 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
 
         self.logger.debug(f"Payload lead v4: {payload}")
         response: CommonResponse = await self._request_patch_v4(route=route, payload=payload)
-        if response:
-            print(f'{response.data=}')
-        return response.data if response else []
+
+        if self.__is_strana_lk_2882_enable:
+            response_data = getattr(response, 'data', {})
+            self.logger.debug(f"Lead Update v4 1:{response_data=}")
+            try:
+                leads: list[Any] = response_data.get("_embedded", {}).get("leads")
+            except (ValidationError, AttributeError) as err:
+                self.logger.debug(f"Lead Update v4 ERROR: {err=} {response_data=}")
+                leads: list[Any] = []
+
+            self.logger.debug(f"Lead Update v4 2:{leads=}")
+            leads = [
+                dict(id=lead_id),
+            ]
+
+            return leads
+
+        else:
+            if response:
+                print(f'{response.data=}')
+            return response.data if response else []
 
     async def update_leads_v4(
         self,
@@ -1057,7 +1118,8 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
 
         return response.data if response else []
 
-    async def update_lead(
+    # deprecated
+    async def update_lead_v2(
         self,
         *,
         lead_id: int,
@@ -1279,11 +1341,11 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
             ]
         )
         response: CommonResponse = await self._request_post_v4(route=route, payload=payload)
-        if response.data:
-            data: list[Any] = response.data["_embedded"]["leads"]
-        else:
-            data: list[Any] = []
-        return data
+        return await self._parse_leads_data_no_exception(
+            response=response,
+            method_name='cabinet/amocrm/update_showtime_v4',
+            payload=payload,
+        )
 
     # deprecated
     async def register_lead(self, user_amocrm_id: int) -> list[Any]:
@@ -1319,26 +1381,28 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         """
 
         route: str = "/leads"
-        payload: dict[str, Any] = dict(
-            add=[
-                dict(
-                    name=self.default_lead_name,
-                    created_at=int(datetime.now(tz=UTC).timestamp()),
-                    updated_at=int(datetime.now(tz=UTC).timestamp()),
-                    status_id=self.start_status_id,
-                    pipeline_id=self.start_pipeline_id,
-                    tags=self.start_tags,
-                    contacts_id=[user_amocrm_id],
-                    responsible_user_id=self.start_responsible_user,
-                )
-            ]
+        tags: list[AmoTag] = [AmoTag(name=tag) for tag in self.start_tags]
+        contacts: list[AmoLeadContact] = [AmoLeadContact(id=user_amocrm_id, is_main=True)]
+        payload: AmoLead = AmoLead(
+            name=self.default_lead_name,
+            created_at=int(datetime.now(tz=UTC).timestamp()),
+            updated_at=int(datetime.now(tz=UTC).timestamp()),
+            status_id=self.start_status_id,
+            pipeline_id=self.start_pipeline_id,
+            responsible_user_id=self.start_responsible_user,
+            _embedded=AmoLeadEmbedded(
+                tags=tags,
+                contacts=contacts,
+            )
         )
-        response: CommonResponse = await self._request_post_v4(route=route, payload=payload)
-        if response.data:
-            data: list[Any] = response.data["_embedded"]["leads"]
-        else:
-            data: list[Any] = []
-        return data
+
+        response: CommonResponse = await self._request_post_v4(route=route, payload=[payload.dict(exclude_unset=True)])
+
+        return await self._parse_leads_data_no_exception(
+            response=response,
+            method_name='cabinet/amocrm/register_lead_v4',
+            payload=payload,
+        )
 
     async def get_leads_pipelines(self) -> list[Any]:
         route: str = '/leads/pipelines'
@@ -1377,6 +1441,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         project_amocrm_organization: Optional[str],
         booking_type_id: Optional[int],
         is_agency_deal: Optional[bool],
+        payment_type_enum: Optional[int] = None,
     ) -> list[AmoCustomField]:
         """
         get lead default custom fields
@@ -1414,6 +1479,12 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
             custom_fields.append(AmoCustomField(field_id=self.booking_is_agency_deal_field_id, values=[
                 AmoCustomFieldValue(value="Да" if is_agency_deal else "Нет")
             ]))
+        if payment_type_enum is not None:
+            custom_fields.append(
+                AmoCustomField(field_id=self.booking_payment_type_field_id, values=[
+                    AmoCustomFieldValue(**self.booking_payment_types_values.get(payment_type_enum, {}))
+                ])
+            )
 
         return custom_fields
 
@@ -1462,7 +1533,7 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
         ]
         return custom_fields
 
-    def _parse_leads_data(self, response: CommonResponse, method_name: str) -> list[AmoLead]:
+    async def _parse_leads_data(self, response: CommonResponse, method_name: str, payload) -> list[AmoLead]:
         """
         parse_leads_data
         """
@@ -1470,14 +1541,37 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
             items: list[Any] = getattr(response, "data", {}).get("_embedded", {}).get("leads")
             return parse_obj_as(list[AmoLead], items)
         except (ValidationError, AttributeError) as err:
-            response_status = response.status
-            response_data = response.data
-            sentry_sdk.capture_exception(err)
             message = (f"{method_name}: Status {response.status}: "
                        f"Пришли неверные данные: {response.data}"
                        f"Exception: {err}")
             self.logger.warning(message)
             raise AmocrmHookError(reason=message) from err
+
+    async def _parse_leads_data_no_exception(self, response: CommonResponse, method_name: str, payload) -> list:
+        """
+        parse_leads_data_no_exception
+        """
+        try:
+            leads: list[Any] = getattr(response, "data", {}).get("_embedded", {}).get("leads")
+            return leads
+        except (ValidationError, AttributeError) as err:
+            message = (f"{method_name}: Status {response.status}: "
+                       f"Пришли неверные данные: {response.data}"
+                       f"Exception: {err}")
+            self.logger.warning(message)
+            sentry_ctx: dict[str, Any] = dict(
+                response_status=response.status,
+                response_data=response.data,
+                payload=payload,
+                method_name=method_name,
+                err=err,
+            )
+            await send_sentry_log(
+                tag="AMO",
+                message=f"{method_name} Неожидаемый ответ от AMO",
+                context=sentry_ctx,
+            )
+            return []
 
     async def lead_link_entities(
         self,
@@ -1563,21 +1657,6 @@ class AmoCRMLeads(AmoCRMInterface, ABC):
 
         await self._request_post_v4(route=route, payload=payload)
 
-    def get_substatus_id_in_pipeline(self, amocrm_status_id: int, new_substatus: str) -> int | None:
-        if amocrm_status_id in self.tmn_substages:
-            return self.tmn_status_ids[new_substatus]
-
-        if amocrm_status_id in self.msk_substages:
-            return self.msk_status_ids[new_substatus]
-
-        if amocrm_status_id in self.spb_substages:
-            return self.spb_status_ids[new_substatus]
-
-        if amocrm_status_id in self.ekb_substages:
-            return self.ekb_status_ids[new_substatus]
-
-        if amocrm_status_id in self.call_center_substages:
-            return self.call_center_status_ids[new_substatus]
-
-        if amocrm_status_id in self.test_case_substages:
-            return self.test_case_status_ids[new_substatus]
+    @property
+    def __is_strana_lk_2882_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_2882)

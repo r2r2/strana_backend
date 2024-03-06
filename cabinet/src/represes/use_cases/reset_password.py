@@ -3,9 +3,13 @@ from asyncio import sleep, create_task
 from datetime import datetime, timedelta
 from typing import Type, Callable, Union, Any
 
+from common.sentry.utils import send_sentry_log
+from common.unleash.client import UnleashClient
+from config.feature_flags import FeatureFlags
 from ..entities import BaseRepresCase
 from ..repos import RepresRepo, User
 from ..types import RepresSession
+from ...users.exceptions import UserResetPasswordLinkExpiredError
 from ...users.loggers.wrappers import user_changes_logger
 
 
@@ -14,8 +18,9 @@ class ResetPasswordCase(BaseRepresCase):
     Сброс пароля
     """
 
-    fail_link: str = "https://{}/account/represes/set-password"
+    fail_link = "https://{}/errors/link-expired"
     success_link: str = "https://{}/account/represes/set-password"
+    login_link: str = "https://{}/login"
 
     def __init__(
         self,
@@ -50,6 +55,8 @@ class ResetPasswordCase(BaseRepresCase):
         repres: User = await self.repres_repo.retrieve(filters=filters)
         link: str = self.fail_link.format(self.site_host)
         if repres:
+            if discard_token != repres.discard_token:
+                return link
             link: str = self.success_link.format(self.site_host)
             self.session[self.password_reset_key]: int = repres_id
             await self.session.insert()

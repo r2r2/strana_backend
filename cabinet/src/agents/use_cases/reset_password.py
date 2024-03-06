@@ -1,27 +1,33 @@
 from asyncio import sleep, create_task
 from datetime import datetime, timedelta
 from typing import Type, Callable, Union, Any
+from starlette.datastructures import URL
 
 from pytz import UTC
 
+from common.sentry.utils import send_sentry_log
+from common.unleash.client import UnleashClient
+from config.feature_flags import FeatureFlags
 from ..entities import BaseAgentCase
 from ..repos import AgentRepo, User
 from ..types import AgentSession
 from src.users.loggers.wrappers import user_changes_logger
+from src.users.exceptions import UserResetPasswordLinkExpiredError
 
 
 class ResetPasswordCase(BaseAgentCase):
     """
     Сброс пароля
     """
-
-    fail_link: str = "https://{}/account/agents/set-password"
+    fail_link = "https://{}/errors/link-expired"
     success_link: str = "https://{}/account/agents/set-password"
+    login_link: str = "https://{}/login"
 
     def __init__(
         self,
         user_type: str,
         session: AgentSession,
+        request_url: URL,
         auth_config: dict[str, Any],
         site_config: dict[str, Any],
         session_config: dict[str, Any],
@@ -35,6 +41,7 @@ class ResetPasswordCase(BaseAgentCase):
 
         self.user_type: str = user_type
         self.session: AgentSession = session
+        self.current_reset_password_url = request_url
         self.token_decoder: Callable[[str], Union[int, None]] = token_decoder
 
         self.site_host: str = site_config["broker_site_host"]
@@ -46,11 +53,12 @@ class ResetPasswordCase(BaseAgentCase):
         filters: dict[str, Any] = dict(
             id=agent_id,
             type=self.user_type,
-            discard_token=discard_token,
         )
         agent: User = await self.agent_repo.retrieve(filters=filters)
         link: str = self.fail_link.format(self.site_host)
         if agent:
+            if discard_token != agent.discard_token:
+                return link
             link: str = self.success_link.format(self.site_host)
             self.session[self.password_reset_key]: int = agent_id
             await self.session.insert()

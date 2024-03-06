@@ -18,6 +18,14 @@ def repres_authorization(repres):
 
 
 @fixture(scope="function")
+def repres_authorization_for_assign(repres_for_assign):
+    token_creator = getattr(import_module("common.security"), "create_access_token")
+    jwt = token_creator(repres_for_assign.type.value, repres_for_assign.id, {"agency_id": repres_for_assign.agency_id})
+    authorization = f"{jwt['type'].capitalize()} {jwt['token']}"
+    return authorization
+
+
+@fixture(scope="function")
 def repres_factory(repres_repo, faker):
     async def repres(agency_id=None, i=0, maintained_id=None, email=None):
         data = {
@@ -60,4 +68,22 @@ async def repres(repres_repo, active_agency):
         "maintained_id": active_agency.id,
     }
     repres = await repres_repo.update_or_create({"phone": "+79296010019"}, data)
+    return repres
+
+
+@fixture(scope="function")
+async def repres_for_check_register_agency(repres_repo, active_agency):
+    data = {
+        "name": "test",
+        "type": "repres",
+        "is_active": True,
+        "surname": "string",
+        "is_approved": True,
+        "patronymic": "string",
+        "email": "testtest22_email@email.com",
+        "email_token": token_urlsafe(32),
+        "duty_type": "director",
+        "agency_id": active_agency.id,
+    }
+    repres = await repres_repo.update_or_create({"phone": "+79296010333"}, data)
     return repres

@@ -11,6 +11,7 @@ class PaymentMethod(BasePaymentDatabaseModel):
     id: int = fields.IntField(pk=True, description="ID")
     name = fields.CharField(max_length=100, null=True, description="Название")
     amocrm_id: int | None = fields.BigIntField(description="ID в AmoCRM", null=True, unique=True)
+    slug: str = fields.CharField(max_length=50, null=True, unique=True, description="Слаг")
 
     class Meta:
         table = "payments_payment_method"

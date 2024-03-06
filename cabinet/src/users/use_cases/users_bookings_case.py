@@ -66,6 +66,8 @@ class UsersBookingsCase(BaseUserCase, CurrentUserDataMixin):
             "task_instances__status__buttons",
             "task_instances__status__tasks_chain__task_visibility",
             "task_instances__status__tasks_chain__systems",
+            "amo_payment_method",
+            "mortgage_type",
         ]
         q_filters = self.get_booking_q_filters(search)
         q_filters += self.get_work_period_q_filters(init_filters)

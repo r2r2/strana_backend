@@ -7,6 +7,7 @@ class ProofOfIncome(mixins.Choices):
     """
     NO_NEEDED: str = "no_needed", "Без справок"
     NDFL: str = "ndfl", "2-НДФЛ"
+    BANK_CERTIFICATE: str = "bank_certificate", "Справка банка"
 
 
 class MortgageApprove(mixins.Choices):

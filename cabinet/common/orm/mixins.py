@@ -6,11 +6,16 @@ from typing import Any, Optional, Union
 
 from tortoise import Model
 from tortoise.expressions import F, Q
-from tortoise.functions import Count, Max, Min
+from tortoise.functions import Max, Min
 from tortoise.query_utils import Prefetch
-from tortoise.queryset import (CountQuery, ExistsQuery, QuerySet,
-                               QuerySetSingle, ValuesListQuery, ValuesQuery,
-                               CountQuery)
+from tortoise.queryset import (
+    CountQuery,
+    ExistsQuery,
+    QuerySet,
+    QuerySetSingle,
+    ValuesListQuery,
+    ValuesQuery,
+)
 
 
 class BaseMixin:

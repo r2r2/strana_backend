@@ -8,3 +8,4 @@ from .upload_documents import QuestionnaireUploadDocument, QuestionnaireUploadDo
 from .matrix import Matrix, MatrixRepo
 from .conditions import Condition, ConditionRepo
 from .users_answers import UserAnswer, UserAnswerRepo
+from .fields import QuestionnaireField, QuestionnaireFieldRepo

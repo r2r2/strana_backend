@@ -3,7 +3,7 @@ from typing import Any, Optional, Type
 from common.amocrm.types import AmoLead
 from config import EnvTypes, maintenance_settings
 from src.agreements.repos import AgencyAgreement, AgreementType
-from src.booking.repos import Booking
+from src.booking.repos import Booking, TestBookingRepo
 from src.getdoc.repos import DocTemplate
 from src.projects.repos import Project
 from src.users.repos import User
@@ -36,6 +36,7 @@ class RepresAgenciesCreateAgreementCase(BaseAgencyCase):
         agreement_type_repo: Type[AgencyAgreementTypeRepo],
         booking_repo: Type[AgencyBookingRepo],
         doc_template_repo: Type[AgencyDocTemplateRepo],
+        test_booking_repo: Type[TestBookingRepo],
     ) -> None:
         self._booking_getdoc_statuses: Any = booking_getdoc_statuses
         self._agency_repo: AgencyRepo = agency_repo()
@@ -45,6 +46,7 @@ class RepresAgenciesCreateAgreementCase(BaseAgencyCase):
         self._booking_repo: AgencyBookingRepo = booking_repo()
         self._agreement_type_repo: AgencyAgreementTypeRepo = agreement_type_repo()
         self._doc_template_repo: AgencyDocTemplateRepo = doc_template_repo()
+        self._test_booking_repo: TestBookingRepo = test_booking_repo()
         self._amocrm_class: Type[AgencyAmoCRM] = amocrm_class
 
     async def __call__(self, *, repres_id: int, projects_ids: list[int], type_id: int) -> list[AgencyAgreement]:
@@ -72,6 +74,14 @@ class RepresAgenciesCreateAgreementCase(BaseAgencyCase):
 
             for template in doc_templates:
                 booking: Booking = await self._create_agreement_lead(agency, repres, project)
+
+                data: dict[str, Any] = dict(
+                    booking=booking,
+                    amocrm_id=booking.amocrm_id,
+                    is_test_user=repres.is_test_user,
+                )
+                await self._test_booking_repo.create(data=data)
+
                 agreement: AgencyAgreement = await self._create_agreement(
                     repres=repres,
                     booking=booking,
@@ -105,6 +115,7 @@ class RepresAgenciesCreateAgreementCase(BaseAgencyCase):
             creator_user_id=repres.id,
             tags=tags,
         )
+
         async with await self._amocrm_class() as amocrm:
             data: list[AmoLead] = await amocrm.create_lead(**lead_options)
 

@@ -2,8 +2,11 @@ from datetime import datetime
 from typing import Any, Optional, Type
 
 from common.amocrm import AmoCRM
-from common.amocrm.types import AmoTask
+from common.amocrm.types import AmoTask, AmoTag
 from pytz import UTC
+
+from common.unleash.client import UnleashClient
+from config.feature_flags import FeatureFlags
 from src.booking.loggers.wrappers import booking_changes_logger
 
 from ..constants import OnlinePurchaseStatuses, OnlinePurchaseSteps
@@ -99,12 +102,22 @@ class PurchaseStartCase(BaseBookingCase, BookingLogMixin):
             # Ставим тег "онлайн-покупка" в сделке.
             # Меняем значение свойства "статус онлайн-покупки" на "приступил к онлайн-покупке"
             # Заполняем поле "дата и время начала онлайн-покупки"
-            data: list[Any] = await amocrm.update_lead(
-                lead_id=booking.amocrm_id,
-                tags=booking.tags,
-                online_purchase_status=booking.amocrm_purchase_status,
-                online_purchase_start_datetime=int(booking.purchase_start_datetime.timestamp()),
-            )
+
+            if self.__is_strana_lk_2882_enable:
+                data: list[Any] = await amocrm.update_lead(
+                    lead_id=booking.amocrm_id,
+                    tags=[AmoTag(name=tag) for tag in booking.tags],
+                    online_purchase_status=booking.amocrm_purchase_status,
+                    online_purchase_start_datetime=int(booking.purchase_start_datetime.timestamp()),
+                )
+            else:
+                data: list[Any] = await amocrm.update_lead(
+                    lead_id=booking.amocrm_id,
+                    tags=booking.tags,
+                    online_purchase_status=booking.amocrm_purchase_status,
+                    online_purchase_start_datetime=int(booking.purchase_start_datetime.timestamp()),
+                )
+
             lead_id: int = data[0]["id"]
 
             # Завершаем задачу "Уточни что клиент хочет делать дальше?"
@@ -127,3 +140,7 @@ class PurchaseStartCase(BaseBookingCase, BookingLogMixin):
         """Проверка текущего шага."""
         if booking.online_purchase_step() != OnlinePurchaseSteps.ONLINE_PURCHASE_START:
             raise BookingWrongStepError
+
+    @property
+    def __is_strana_lk_2882_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_2882)

@@ -29,8 +29,9 @@ from src.booking.repos import (
     BookingRepo,
     BookingFixingConditionsMatrix,
     BookingFixingConditionsMatrixRepo,
-    BookingSource,
+    BookingSource, TestBookingRepo,
 )
+from src.booking.event_emitter_handlers import event_emitter
 from src.booking.loggers import booking_changes_logger
 from src.booking.utils import get_booking_source, create_lead_name
 from src.cities.repos import City
@@ -99,6 +100,7 @@ class AssignClientCase(BaseUserCase):
             booking_fixing_condition_repo: type[BookingFixingConditionsMatrixRepo],
             user_pinning_repo: type[UserPinningStatusRepo],
             consultation_type_repo: type[ConsultationTypeRepo],
+            test_booking_repo: type[TestBookingRepo],
             amocrm_log_repo: type[AmoCrmCheckLog],
             email_class: type[AgentEmail],
             amocrm_class: type[AmoCRM],
@@ -122,6 +124,7 @@ class AssignClientCase(BaseUserCase):
         self.confirm_client_assign_repo: ConfirmClientAssignRepo = confirm_client_assign_repo()
         self.booking_fixing_condition_repo: BookingFixingConditionsMatrixRepo = booking_fixing_condition_repo()
         self.consultation_type_repo: ConsultationTypeRepo = consultation_type_repo()
+        self.test_booking_repo: TestBookingRepo = test_booking_repo()
         self.amocrm_log_repo: AmoCrmCheckLog = amocrm_log_repo()
         self.email_class: Type[AgentEmail] = email_class
         self.amocrm_class: Type[AmoCRM] = amocrm_class
@@ -167,7 +170,7 @@ class AssignClientCase(BaseUserCase):
 
         return agency_realtor
 
-    async def _get_client(self, payload):
+    async def _get_or_create_client(self, payload):
         client_id_filters: dict[str: Any] = dict(type=UserType.CLIENT, id=payload.user_id)
         client: User = await self.user_repo.retrieve(filters=client_id_filters)
 
@@ -199,10 +202,9 @@ class AssignClientCase(BaseUserCase):
     ) -> ResponseAssignClient:
 
         agency_realtor = await self._get_agency_realtor(agent_id, repres_id)
-        client = await self._get_client(payload)
+        client = await self._get_or_create_client(payload)
         if not payload.email:
             payload.email = client.email
-
         await asyncio.gather(
             self._check_email_exists(email=payload.email, client=client),
             self._check_user_is_unique(
@@ -274,38 +276,36 @@ class AssignClientCase(BaseUserCase):
         @param payload: RequestAssignClient
         @param client: User
         """
-        async with await self.amocrm_class() as amocrm:
-            contact: AmoContact = await self._get_or_create_amo_contact(
-                amocrm,
-                payload=payload,
+
+        contact: AmoContact = await self._get_or_create_amo_contact(
+            payload=payload,
+            client=client,
+            agent_id=agent.id,
+        )
+        await self.client_update(client, data=dict(amocrm_id=contact.id))
+        contact_leads: list[AmoLead] = await self._fetch_contact_leads(contact=contact)
+        await self._import_amo_leads(
+            client=client, agent=agent, active_projects=payload.active_projects, leads=contact_leads
+        )
+        await self._update_amocrm_leads(leads=contact_leads, agent=agent, user=client)
+        await self._update_booking_data(client=client, agent=agent)
+        not_created_projects: list[Project] = await self._find_not_created_projects(
+            client=client, agent_id=agent.id, payload=payload
+        )
+
+        if not_created_projects:
+            result_booking_id = await self._create_requested_leads(
                 client=client,
-                agent_id=agent.id,
+                not_created_projects=not_created_projects,
+                agent=agent,
+                consultation_type=payload.consultation_type,
             )
-            await self.client_update(client, data=dict(amocrm_id=contact.id))
-            contact_leads: list[AmoLead] = await self._fetch_contact_leads(amocrm, contact=contact)
-            await self._import_amo_leads(
-                client=client, agent=agent, active_projects=payload.active_projects, leads=contact_leads
-            )
-            await self._update_amocrm_leads(amocrm, leads=contact_leads, agent=agent, user=client)
-            await self._update_booking_data(client=client, agent=agent)
-            not_created_projects: list[Project] = await self._find_not_created_projects(
+        else:
+            result_booking_id = await self._get_existed_booking(
                 client=client, agent_id=agent.id, payload=payload
             )
 
-            if not_created_projects:
-                result_booking_id = await self._create_requested_leads(
-                    amocrm,
-                    client=client,
-                    not_created_projects=not_created_projects,
-                    agent=agent,
-                    consultation_type=payload.consultation_type,
-                )
-            else:
-                result_booking_id = await self._get_existed_booking(
-                    client=client, agent_id=agent.id, payload=payload
-                )
-
-            return result_booking_id
+        return result_booking_id
 
     async def _check_user_is_unique(self, check_id: int, client_id: int, agent: User):
         """
@@ -340,45 +340,53 @@ class AssignClientCase(BaseUserCase):
             if await self.user_repo.exists(filters=filters):
                 raise UserEmailTakenError
 
-
     async def _get_or_create_amo_contact(
         self,
-        amocrm: AmoCRM,
         payload: RequestAssignClient,
         client: User,
         agent_id: int,
     ) -> AmoContact:
         """
-        Находим контакт в амо или создаём его. Если несколько контактов - сортируем по дате создания
+        Находим контакт в АМО или создаём его. Если несколько контактов - сортируем по дате создания
         и возвращаем самый последний.
         @param payload: pydantic объект запроса.
         @return: AmoContact (Контакт пользователя в схеме Pydantic).
         """
         amocrm_id = client.amocrm_id
-        if not amocrm_id:
-            contacts: list[AmoContact] = await amocrm.fetch_contacts(
-                user_phone=client.phone,
-                query_with=[AmoContactQueryWith.leads],
-            )
-            if contacts:
-                amocrm_id: int = contacts[0].id
-            else:
-                created_contact: list[dict] = await amocrm.create_contact(
-                    user_phone=payload.phone,
-                    user_email=payload.email,
-                    user_name=payload.full_name,
-                    first_name=payload.name,
-                    last_name=payload.surname,
-                    creator_user_id=agent_id,
-                    tags=self.client_tag + self.lk_broker_tag
+
+        if amocrm_id is None:
+            async with await self.amocrm_class() as amocrm:
+                founded_contacts: list[AmoContact] = await amocrm.fetch_contacts(
+                    user_phone=client.phone,
+                    query_with=[AmoContactQueryWith.leads],
                 )
-                amocrm_id: int = created_contact[0].get('id')
-        contact: AmoContact = await amocrm.fetch_contact(
-            user_id=amocrm_id, query_with=[AmoContactQueryWith.leads]
-        )
+
+            if founded_contacts:
+                amocrm_id: int = founded_contacts[0].id
+            else:
+                tags = self.client_tag + self.lk_broker_tag
+                if client.is_test_user:
+                    tags += self.lk_test_tag
+                async with await self.amocrm_class() as amocrm:
+                    created_contacts: list[dict] = await amocrm.create_contact(
+                        user_phone=payload.phone,
+                        user_email=payload.email,
+                        user_name=payload.full_name,
+                        first_name=payload.name,
+                        last_name=payload.surname,
+                        creator_user_id=agent_id,
+                        tags=tags,
+                    )
+                    amocrm_id: int = created_contacts[0].get('id')
+
+        async with await self.amocrm_class() as amocrm:
+            contact: AmoContact = await amocrm.fetch_contact(
+                user_id=amocrm_id, query_with=[AmoContactQueryWith.leads]
+            )
+
         return contact
 
-    async def _fetch_contact_leads(self, amocrm: AmoCRM, contact: AmoContact) -> list[AmoLead]:
+    async def _fetch_contact_leads(self, contact: AmoContact) -> list[AmoLead]:
         """
         Найти сделки контакта в амо
         @param contact: AmoContact
@@ -388,8 +396,9 @@ class AssignClientCase(BaseUserCase):
         if not big_lead_ids:
             return []
         leads = []
-        for lead_ids in partition_list(big_lead_ids, self.partition_limit):
-            leads.extend(await amocrm.fetch_leads(lead_ids=lead_ids, query_with=[AmoLeadQueryWith.contacts]))
+        async with await self.amocrm_class() as amocrm:
+            for lead_ids in partition_list(big_lead_ids, self.partition_limit):
+                leads.extend(await amocrm.fetch_leads(lead_ids=lead_ids, query_with=[AmoLeadQueryWith.contacts]))
         return leads
 
     async def _update_client_data(self, agent: User, client: User, payload: RequestAssignClient) -> User:
@@ -513,6 +522,7 @@ class AssignClientCase(BaseUserCase):
                     booking_source=booking_source,
                 )
                 booking = await self.booking_create(data=data)
+                event_emitter.ee.emit(event='booking_created', booking=booking)
                 booking_created: bool = True
 
             self.logger.info(f"Booking taste case 1: {booking.id}, {booking.active}, {booking.amocrm_status}")
@@ -547,7 +557,6 @@ class AssignClientCase(BaseUserCase):
 
     async def _create_requested_leads(
         self,
-        amocrm: AmoCRM,
         client: User,
         not_created_projects: list[Project],
         agent: User,
@@ -608,10 +617,18 @@ class AssignClientCase(BaseUserCase):
                 tags=tags,
                 is_agency_deal=True,
             )
-            print(f"New lead AMO data: {amo_data}")
-            lead: list[AmoLead] = await amocrm.create_lead(**amo_data)
+            self.logger.info(f"New lead AMO data: {amo_data}")
+            async with await self.amocrm_class() as amocrm:
+                lead: list[AmoLead] = await amocrm.create_lead(**amo_data)
             booking_source: BookingSource = await get_booking_source(slug=BookingCreatedSources.LK_ASSIGN)
             lead_amocrm_id = lead[0].id
+
+            data: dict[str, Any] = dict(
+                amocrm_id=lead_amocrm_id,
+                is_test_user=agent.is_test_user if agent else False,
+            )
+            await self.test_booking_repo.create(data=data)
+
             booking = await self.booking_repo.retrieve(filters=dict(amocrm_id=lead_amocrm_id))
             data: dict[str, Any] = dict(
                 amocrm_id=lead_amocrm_id,
@@ -634,6 +651,7 @@ class AssignClientCase(BaseUserCase):
                 booking_created: bool = False
             else:
                 booking = await self.booking_create(data=data)
+                event_emitter.ee.emit(event='booking_created', booking=booking)
                 booking_created: bool = True
 
             await booking.refresh_from_db(fields=["id"])
@@ -734,7 +752,7 @@ class AssignClientCase(BaseUserCase):
                              f" {[booking.amocrm_status for booking in bookings]}")
             await self._create_task_instance([booking.id for booking in bookings])
 
-    async def _update_amocrm_leads(self, amocrm: AmoCRM, leads: list[AmoLead], agent: User, user: User):
+    async def _update_amocrm_leads(self, leads: list[AmoLead], agent: User, user: User):
         """
         @param leads: list[AmoLead]. Список сделок амоцрм.
         """
@@ -763,20 +781,21 @@ class AssignClientCase(BaseUserCase):
         agent_entities: Entity = Entity(ids=[agent.amocrm_id], type=AmoCompanyEntityType.contacts)
         agency_entities: Entity = Entity(ids=[agent.agency.amocrm_id], type=AmoCompanyEntityType.companies)
 
-        # отвязываем старое агентство и старых агентов от всех активных сделок клиента в амо
-        await amocrm.leads_unlink_entities(
-            lead_ids=active_leads_ids,
-            entities=[old_agent_entities, old_agency_entities],
-        )
+        async with await self.amocrm_class() as amocrm:
+            # отвязываем старое агентство и старых агентов от всех активных сделок клиента в амо
+            await amocrm.leads_unlink_entities(
+                lead_ids=active_leads_ids,
+                entities=[old_agent_entities, old_agency_entities],
+            )
 
-        # привязываем новое агентство и нового агента ко всем активным сделкам клиента в амо
-        await amocrm.leads_link_entities(
-            lead_ids=active_leads_ids,
-            entities=[agent_entities, agency_entities],
-        )
+            # привязываем новое агентство и нового агента ко всем активным сделкам клиента в амо
+            await amocrm.leads_link_entities(
+                lead_ids=active_leads_ids,
+                entities=[agent_entities, agency_entities],
+            )
 
-        for lead_id in active_leads_ids:
-            await amocrm.update_lead(lead_id=lead_id, is_agency_deal=True)
+            for lead_id in active_leads_ids:
+                await amocrm.update_lead(lead_id=lead_id, is_agency_deal=True)
 
     async def _notify_client_sms(
         self,

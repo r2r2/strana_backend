@@ -21,7 +21,9 @@ from commercial_offers import models as commercial_offers_models
 from news import models as news_models
 from mortgage import models as mortgage_models
 from settings import models as settings_models
-
+from faq import models as faq_models
+from privilege_program import models as privilege_models
+from booking_event_history import models as booking_event_history_models
 
 cabinet_models: list = [
     booking_models.Booking,
@@ -64,6 +66,7 @@ cabinet_models: list = [
     users_models.CabinetAgent,
     users_models.CabinetAdmin,
     users_models.CabinetClient,
+    users_models.UsersInterests,
     documents_models.AgencyAct,
     documents_models.AgencyAgreement,
     documents_models.AgencyAdditionalAgreement,
@@ -100,7 +103,6 @@ cabinet_models: list = [
     disputes_models.StatusesThrough,
     disputes_models.UniqueStatusButton,
     disputes_models.DisputeStatus,
-    # disputes_models.UsersCheck,
     references_models.Acquiring,
     references_models.Cities,
     references_models.CityMenuThrough,
@@ -126,6 +128,7 @@ cabinet_models: list = [
     users_models.HistoricalDisputeData,
     users_models.CityUserThrough,
     users_models.StranaOfficeAdmin,
+    users_models.StranaOfficeAdminsProjectsThrough,
     contents_models.Caution,
     contents_models.CautionMute,
     contents_models.TextBlock,
@@ -147,6 +150,7 @@ cabinet_models: list = [
     questionnaire_models.QuestionnaireUploadDocument,
     questionnaire_models.UserAnswer,
     questionnaire_models.TaskInstanceLog,
+    questionnaire_models.QuestionnaireField,
     task_management_models.TaskStatus,
     task_management_models.Button,
     task_management_models.TaskInstance,
@@ -187,11 +191,13 @@ cabinet_models: list = [
     event_models.CalendarEvent,
     event_models.CalendarEventTypeSettings,
     event_models.MeetingStatus,
+    event_models.MeetingStatusRef,
     event_models.CalendarEventTagThrough,
     event_models.EventTag,
     event_models.EventParticipant,
     event_models.Meeting,
     event_models.MeetingCreationSource,
+    event_models.MeetingCreationSourceRef,
     events_list_models.EventList,
     events_list_models.EventParticipantList,
     events_list_models.EventGroup,
@@ -203,10 +209,6 @@ cabinet_models: list = [
     dashboard_models.ElementCityThrough,
     dashboard_models.Link,
     dashboard_models.LinkCityThrough,
-    settings_models.BookingSettings,
-    settings_models.AddServiceSettings,
-    settings_models.DaDataSettings,
-    settings_models.SystemList,
     main_page_models.MainPageContent,
     main_page_models.MainPageOffer,
     main_page_models.MainPagePartnerLogo,
@@ -223,20 +225,38 @@ cabinet_models: list = [
     commercial_offers_models.OfferSource,
     commercial_offers_models.Offer,
     commercial_offers_models.OfferProperty,
-    mortgage_models.MortgageConditionMatrix,
-    mortgage_models.MortgageConditionStatusThrough,
-    mortgage_models.MortgageDeveloperTicket,
-    mortgage_models.MortgageApplicationStatus,
-    mortgage_models.MortgageApplicationStatusAmocrmStatusesThrough,
-    mortgage_models.MortgageDeveloperTicketOfferThrough,
-    mortgage_models.MortgageProgram,
-    mortgage_models.MortgageCalculatorCondition,
-    mortgage_models.MortgageConditionBankThrough,
-    mortgage_models.MortgageConditionProgramThrough,
-    mortgage_models.MortgageBank,
-    mortgage_models.MortgageForm,
-    mortgage_models.MortgageOffer,
+    mortgage_models.MortgageQuestionnaireDocument,
+    mortgage_models.MortgageQuestionnaireUploadDocument,
+    faq_models.FAQ,
+    faq_models.FAQPageType,
+    booking_event_history_models.BookingEvent,
+    booking_event_history_models.EventType,
+    booking_event_history_models.DocumentArchive,
+    booking_event_history_models.MortgageApplicationArchive,
+    booking_event_history_models.BookingEventHistory,
 ]
+
+cabinet_models.extend([
+    settings_models.BookingSettings,
+    settings_models.TestBooking,
+    settings_models.AddServiceSettings,
+    settings_models.DaDataSettings,
+    settings_models.SystemList,
+    settings_models.FeedbackSettings,
+])
+
+cabinet_models.extend([
+    privilege_models.PrivilegeProgram,
+    privilege_models.PrivilegeCategory,
+    privilege_models.PrivilegeCategoryM2MCity,
+    privilege_models.PrivilegeSubCategory,
+    privilege_models.PrivilegeCooperationType,
+    privilege_models.PrivilegePartnerCompany,
+    privilege_models.PrivilegeRequest,
+    privilege_models.PrivilegeInfo,
+    privilege_models.PrivilegeBenefit,
+    privilege_models.PrivilegeFeedbackEmail,
+])
 
 
 class DatabaseRouter:

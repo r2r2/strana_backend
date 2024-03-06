@@ -48,19 +48,16 @@ class UserCheckUniqueService(BaseUserService):
         """
         Возвращает ошибку, если пользователь с указанным телефоном или почтой уже есть в базе.
         """
-        role_mapping: dict[str, str] = {
-            "agents": UserType.AGENT,
-            "represes": UserType.REPRES,
-        }
+        role_list = [UserType.AGENT, UserType.REPRES]
 
         filters = [
             {
                 "phone": payload.phone,
-                # "type": role_mapping[payload.role],
+                "type__in": role_list,
             },
             {
                 "email": payload.email,
-                # "type": role_mapping[payload.role],
+                "type__in": role_list,
             },
         ]
         exceptions = (

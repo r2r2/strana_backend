@@ -10,6 +10,7 @@ class QuestionnaireDocument(BaseQuestionnaireModel):
     """
     id: int = fields.IntField(description='ID', pk=True)
     label: str = fields.CharField(max_length=150, description='Название', null=True)
+    slug: str = fields.CharField(max_length=100, description='Название', null=True)
     required: bool = fields.BooleanField(description="Обязательный", default=True)
     doc_blocks: fields.ForeignKeyNullableRelation['QuestionnaireDocumentBlock'] = fields.ForeignKeyField(
         on_delete=fields.CASCADE,
@@ -24,7 +25,6 @@ class QuestionnaireDocument(BaseQuestionnaireModel):
 
     def __repr__(self):
         return self.label
-
 
     class Meta:
         table = "questionnaire_documents"

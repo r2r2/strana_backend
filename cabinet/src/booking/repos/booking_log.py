@@ -15,8 +15,10 @@ class BookingLog(Model, AbstractLogMixin):
     booking: ForeignKeyNullableRelation[Booking] = fields.ForeignKeyField(
         description="Бронирование",
         model_name="models.Booking",
+        on_delete=fields.SET_NULL,
         related_name="booking_logs",
         null=True,
+        index=True,
     )
 
     def __str__(self) -> str:

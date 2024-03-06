@@ -2,6 +2,7 @@ import asyncio
 import structlog
 from asyncio import Task
 from pytz import UTC
+import json
 from typing import Type, Any, Callable, Union, Optional, Awaitable
 from datetime import datetime, timedelta
 
@@ -28,7 +29,7 @@ from src.buildings.repos import BuildingBookingTypeRepo, BuildingBookingType
 from src.task_management.constants import PaidBookingSlug
 from src.task_management.dto import CreateTaskDTO
 from src.task_management.services import UpdateTaskInstanceStatusService, CreateTaskInstanceService
-from src.users.services import CheckPinningStatusService
+from src.users.services import CheckPinningStatusServiceV2
 from src.amocrm.repos import AmocrmStatus, AmocrmStatusRepo
 from src.notifications.services import GetSmsTemplateService
 from src.properties.entities import BasePropertyCase
@@ -46,9 +47,9 @@ class BindBookingPropertyCase(BasePropertyCase):
     STRANA_OZERNAYA_GLOBALID_DEV: str = "R2xvYmFsUHJvamVjdFR5cGU6c2VyZHRjaGUtc2liaXJp"
     STRANA_OZERNAYA_GLOBALID_PROD: str = "R2xvYmFsUHJvamVjdFR5cGU6c3RyYW5hb3plcm5heWE="
     sms_event_slug = "properties_bind"
-    lk_client_auth_link_template: str = "https://{host}/fast-booking"
+    lk_client_auth_link_template: str = "/fast-booking"
     aggregator_slug = "aggregator"
-    TAG: str = "Платная бронь от агента"
+    TAG: str = "Бронь от агента"
     AGGREGATOR_TAG: str = "Платная бронь агрегатор"
 
     def __init__(
@@ -57,15 +58,17 @@ class BindBookingPropertyCase(BasePropertyCase):
         booking_repo: Type[BookingRepo],
         building_booking_type_repo: Type[BuildingBookingTypeRepo],
         amocrm_status_repo: Type[AmocrmStatusRepo],
+        purchase_amo_matrix_repo: Type[PurchaseAmoMatrixRepo],
         amocrm_class: Type[BookingAmoCRM],
         activate_bookings_service: ActivateBookingService,
         check_profitbase_property_service: CheckProfitbasePropertyService,
         sms_class: Type[BookingSms],
         email_class: Type[BookingEmail],
         change_booking_status_task: Any,
+        check_booking_task: Any,
         update_task_instance_status_service: UpdateTaskInstanceStatusService,
         create_task_service: CreateTaskInstanceService,
-        check_pinning: CheckPinningStatusService,
+        check_pinning: CheckPinningStatusServiceV2,
         send_sms_to_msk_client_service: SendSmsToMskClientService,
         global_id_decoder: Callable[[str], tuple[str, Union[str, int]]],
         get_sms_template_service: GetSmsTemplateService,
@@ -80,16 +83,17 @@ class BindBookingPropertyCase(BasePropertyCase):
         )
         self.building_booking_type_repo: BuildingBookingTypeRepo = building_booking_type_repo()
         self.amocrm_status_repo: AmocrmStatusRepo = amocrm_status_repo()
-        self.purchase_amo_matrix_repo: PurchaseAmoMatrixRepo = PurchaseAmoMatrixRepo()
+        self.purchase_amo_matrix_repo: PurchaseAmoMatrixRepo = purchase_amo_matrix_repo()
         self.create_task_service: CreateTaskInstanceService = create_task_service
 
         self.amocrm_class: Type[BookingAmoCRM] = amocrm_class
         self.activate_bookings_service: ActivateBookingService = activate_bookings_service
         self.token_creator: Callable = create_access_token
         self.check_profitbase_property_service: CheckProfitbasePropertyService = check_profitbase_property_service
-        self.check_pinning: CheckPinningStatusService = check_pinning
+        self.check_pinning: CheckPinningStatusServiceV2 = check_pinning
 
         self.change_booking_status_task: Any = change_booking_status_task
+        self.check_booking_task: Any = check_booking_task
         self.update_task_instance_status_service: UpdateTaskInstanceStatusService = update_task_instance_status_service
         self.send_sms_to_msk_client_service: SendSmsToMskClientService = send_sms_to_msk_client_service
         self.get_property_price_service: GetPropertyPriceService = get_property_price_service
@@ -167,6 +171,9 @@ class BindBookingPropertyCase(BasePropertyCase):
             should_be_deactivated_by_timer=True,
             amocrm_status=actual_amocrm_status,
             tags=tags,
+            property_lk=True,
+            property_lk_datetime=datetime.now(tz=UTC),
+            property_lk_on_time=False,
         )
 
         building_type: BuildingBookingType = await self.building_booking_type_repo.retrieve(
@@ -205,20 +212,34 @@ class BindBookingPropertyCase(BasePropertyCase):
             )
             booking_data.update(additional_data)
 
-        self.logger.info(f"is_strana_lk_3196_enabled {self.__is_strana_lk_3196_enable}")
-        self.logger.info(f"payload.property_type_slug {payload.property_type_slug}")
+        self.logger.info(f"{payload.payment_method_slug=}")
+        self.logger.info(f"{payload.mortgage_type_by_dev=}")
+        self.logger.info(f"{payload.mortgage_program_name=}")
+        self.logger.info(f"{payload.calculator_options=}")
 
-        if self.__is_strana_lk_3196_enable and payload.property_type_slug:
-            booking_property_price: PropertyPrice | None = await self.get_property_price_service(
-                property=booking_property,
-                property_price_type_slug=payload.property_type_slug,
+        booking_data.update(mortgage_offer=payload.mortgage_program_name)
+        try:
+            json.loads(payload.calculator_options)  # проверяем, что текст совместим с json
+            booking_data.update(calculator_options=payload.calculator_options)
+        except Exception:
+            self.logger.error(
+                f"В поле опции калькулятора передан не json-совместимый текст - {payload.calculator_options=}"
             )
-            if booking_property_price:
+
+        if payload.payment_method_slug:
+            booking_property_price, price_offer_matrix = await self.get_property_price_service(
+                property_id=booking_property.id,
+                property_payment_method_slug=payload.payment_method_slug,
+                property_mortgage_type_by_dev=payload.mortgage_type_by_dev,
+            )
+            if booking_property_price and price_offer_matrix:
+                booking_agent_discount: int = int(booking_property_price.price * booking_discount / 100)
                 booking_data.update(
                     price_id=booking_property_price.id,
-                    amo_payment_method_id=booking_property_price.price_type.price_offer.payment_method_id,
-                    mortgage_type_id=booking_property_price.price_type.price_offer.mortgage_type_id,
-                    price_offer_id=booking_property_price.price_type.price_offer.id,
+                    amo_payment_method_id=price_offer_matrix.payment_method_id,
+                    mortgage_type_id=price_offer_matrix.mortgage_type_id,
+                    price_offer_id=price_offer_matrix.id,
+                    final_payment_amount=int(booking_property_price.price - booking_agent_discount),
                 )
 
         booking: Booking = await self.booking_update(booking=booking, data=booking_data)
@@ -273,12 +294,23 @@ class BindBookingPropertyCase(BasePropertyCase):
         )
         async with await self.amocrm_class() as amocrm:
             await amocrm.update_lead_v4(**lead_options)
+            if calculator_options_data := booking_data.get("calculator_options"):
+                await amocrm.send_lead_note(
+                    lead_id=booking.amocrm_id,
+                    message=f"Выбранные опции - {calculator_options_data}",
+                )
+            if mortgage_offer_data := booking_data.get('mortgage_offer'):
+                await amocrm.send_lead_note(
+                    lead_id=booking.amocrm_id,
+                    message=f"Название ипотечной программы - {mortgage_offer_data}",
+                )
 
         final_amocrm_substage: str = BookingSubstages.MAKE_DECISION
         await self.activate_bookings_service(booking=booking, amocrm_substage=final_amocrm_substage)
         # дополнительная таска на смену статуса
         # task_delay: int = (booking.expires - datetime.now(tz=UTC)).seconds
         # self.change_booking_status_task.apply_async((booking.id, amocrm_substage), countdown=task_delay)
+        self.check_booking_task.apply_async((booking.id,), eta=booking.expires, queue="scheduled")
         self.check_pinning.as_task(user_id=booking.user.id)
         await self._create_task_instance(booking=booking)
         return booking
@@ -301,6 +333,7 @@ class BindBookingPropertyCase(BasePropertyCase):
                 route_template=self.lk_client_auth_link_template,
                 host=self.site_host,
                 query_params=query_params,
+                use_ampersand_ascii=True,
             )
             url_dto: UrlEncodeDTO = UrlEncodeDTO(**data)
             fast_booking_link: str = generate_notify_url(url_dto=url_dto)
@@ -337,7 +370,3 @@ class BindBookingPropertyCase(BasePropertyCase):
         task_context: CreateTaskDTO = CreateTaskDTO()
         task_context.is_main = True
         await self.create_task_service(booking_ids=booking.id, task_context=task_context)
-
-    @property
-    def __is_strana_lk_3196_enable(self) -> bool:
-        return UnleashClient().is_enabled(FeatureFlags.strana_lk_3196)

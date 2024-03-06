@@ -15,8 +15,16 @@ class UpdateUsersService(CreateContactService):
 
     logger = structlog.getLogger(__name__)
 
-    async def __call__(self, user_id: int):
-        user: User = await self.user_repo.retrieve(filters=dict(id=user_id))
+    async def __call__(
+        self,
+        *_,
+        phone: Optional[str] = None,
+        user: Optional[User] = None,
+        user_id: Optional[int] = None,
+        **__,
+    ) -> None:
+        if user is None:
+            user: User = await self.user_repo.retrieve(filters=dict(id=user_id))
         if not user:
             raise UserNotFoundError
 

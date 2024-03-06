@@ -66,6 +66,13 @@ class AmoElementTypes:
     CUSTOMER = 12
 
 
+class AmoNoteTypes:
+    """
+    https://www.amocrm.ru/developers/content/crm_platform/events-and-notes#notes-types
+    """
+    COMMON = "common"  # Текстовое примечание
+
+
 class BaseLeadSalesStatuses:
     START: Union[int, str, None] = None  # первичный контакт
     ASSIGN_AGENT: Union[int, str, None] = None  # Фиксация клиента за агентом

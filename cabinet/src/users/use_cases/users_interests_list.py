@@ -5,6 +5,7 @@ from pydantic import ValidationError
 
 from common import paginations
 from common.utils import from_global_id
+from common.backend import repos as backend_repos
 from src.users.entities import BaseUserCase
 from src.users.models import ResponseInterestsList, SlugTypeChoiceFilters
 from src.users.repos import InterestsRepo, UsersInterests
@@ -19,8 +20,13 @@ class UsersInterestsListCase(BaseUserCase):
         "GlobalCommercialSpaceType",
     ]
 
-    def __init__(self, user_interests_repo: Type[InterestsRepo]):
+    def __init__(
+        self,
+        user_interests_repo: Type[InterestsRepo],
+        backend_properties_repo: type[backend_repos.BackendPropertiesRepo],
+    ):
         self.user_interests_repo: InterestsRepo = user_interests_repo()
+        self.backend_properties_repo: backend_repos.BackendPropertiesRepo = backend_properties_repo()
 
     async def __call__(
             self,
@@ -39,7 +45,7 @@ class UsersInterestsListCase(BaseUserCase):
             filters=filters,
             related_fields=["property"],
         )
-        user_interests_global_ids = self._get_sorted_unique_global_ids(user_interests=user_interests)
+        user_interests_global_ids = await self._get_sorted_unique_global_ids(user_interests=user_interests)
 
         # пагинируем отсортированный список global_ids вручную из-за кастомной сортировки
         if pagination.start is not None and pagination.end is not None:
@@ -53,7 +59,7 @@ class UsersInterestsListCase(BaseUserCase):
             page_info=pagination(count=len(user_interests_global_ids)),
         )
 
-    def _get_sorted_unique_global_ids(self, user_interests: list[UsersInterests]) -> list[str]:
+    async def _get_sorted_unique_global_ids(self, user_interests: list[UsersInterests]) -> list[str]:
         """
         Используем кастомную сортировку по статусам и удаляем дубли квартир из избранного.
         """
@@ -64,18 +70,23 @@ class UsersInterestsListCase(BaseUserCase):
             PropertyStatuses.SOLD: set(),
         }
         for user_interest in user_interests:
-            if (
-                user_interest.property.status is None
-                or not self._check_global_id_is_correct(user_interest.property.global_id)
-            ):
-                continue
+            global_id_is_correct, backend_property_id = self._decode_global_id(
+                global_id=user_interest.property.global_id,
+            )
 
-            elif user_interest.property.status == PropertyStatuses.FREE:
-                user_interests_ordered_data[PropertyStatuses.FREE].add(user_interest.property.global_id)
-            elif user_interest.property.status == PropertyStatuses.BOOKED:
-                user_interests_ordered_data[PropertyStatuses.BOOKED].add(user_interest.property.global_id)
-            elif user_interest.property.status == PropertyStatuses.SOLD:
-                user_interests_ordered_data[PropertyStatuses.SOLD].add(user_interest.property.global_id)
+            if global_id_is_correct:
+                property_status_from_portal = await self._get_property_status_from_portal(
+                    backend_property_id=backend_property_id,
+                )
+                if property_status_from_portal is None:
+                    continue
+
+                if property_status_from_portal == PropertyStatuses.FREE:
+                    user_interests_ordered_data[PropertyStatuses.FREE].add(user_interest.property.global_id)
+                elif property_status_from_portal == PropertyStatuses.BOOKED:
+                    user_interests_ordered_data[PropertyStatuses.BOOKED].add(user_interest.property.global_id)
+                elif property_status_from_portal == PropertyStatuses.SOLD:
+                    user_interests_ordered_data[PropertyStatuses.SOLD].add(user_interest.property.global_id)
 
         global_ids = []
         for key, values in user_interests_ordered_data.items():
@@ -83,9 +94,13 @@ class UsersInterestsListCase(BaseUserCase):
 
         return global_ids
 
-    def _check_global_id_is_correct(self, global_id: str) -> bool:
+    def _decode_global_id(self, global_id: str) -> tuple:
         try:
-            property_type, _ = from_global_id(global_id)
-            return True if property_type in self.correct_property_types else False
+            property_type, backend_property_id = from_global_id(global_id)
+            return (True, int(backend_property_id)) if property_type in self.correct_property_types else (False, None)
         except (binascii.Error, UnicodeDecodeError, ValidationError, ValueError):
-            return False
+            return (False, None)
+
+    async def _get_property_status_from_portal(self, backend_property_id: int) -> int | None:
+        backend_property = await self.backend_properties_repo.retrieve(filters=dict(id=backend_property_id))
+        return backend_property.status if backend_property else None

@@ -553,6 +553,7 @@ async def repres_agencies_create_agreement(
         agreement_type_repo=agreement_repos.AgreementTypeRepo,
         booking_repo=booking_repos.BookingRepo,
         doc_template_repo=getdoc_repos.DocTemplateRepo,
+        test_booking_repo=booking_repos.TestBookingRepo,
     )
     create_agreement_case = use_cases.RepresAgenciesCreateAgreementCase(**resources)
     return await create_agreement_case(repres_id=repres_id, projects_ids=payload.projects, type_id=payload.type_id)
@@ -733,6 +734,7 @@ async def admins_agencies_additional_agreement_get_document(
         booking_repo=booking_repos.BookingRepo,
         additional_agreement_repo=agreement_repos.AgencyAdditionalAgreementRepo,
         agent_repo=agents_repos.AgentRepo,
+        test_booking_repo=booking_repos.TestBookingRepo,
     )
     additional_agreement_get_document_case = use_cases.AgenciesAdditionalAgreementGetDocCase(**resources)
     return await additional_agreement_get_document_case(additional_id=additional_id, admin_id=admin_id)
@@ -854,6 +856,7 @@ async def represes_agencies_additional_agreement_get_document(
         booking_repo=booking_repos.BookingRepo,
         additional_agreement_repo=agreement_repos.AgencyAdditionalAgreementRepo,
         agent_repo=agents_repos.AgentRepo,
+        test_booking_repo=booking_repos.TestBookingRepo,
     )
     additional_agreement_get_document_case = use_cases.AgenciesAdditionalAgreementGetDocCase(**resources)
     return await additional_agreement_get_document_case(additional_id=additional_id, repres_id=repres_id)
@@ -928,6 +931,7 @@ async def agents_agencies_additional_agreement_get_document(
         booking_repo=booking_repos.BookingRepo,
         additional_agreement_repo=agreement_repos.AgencyAdditionalAgreementRepo,
         agent_repo=agents_repos.AgentRepo,
+        test_booking_repo=booking_repos.TestBookingRepo,
     )
     additional_agreement_get_document_case = use_cases.AgenciesAdditionalAgreementGetDocCase(**resources)
     return await additional_agreement_get_document_case(additional_id=additional_id, agent_id=agent_id)

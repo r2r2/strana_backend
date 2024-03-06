@@ -7,7 +7,9 @@ from tortoise.expressions import Q
 from common.calculator.calculator import CalculatorAPI
 from common.calculator.exeptions import BaseCalculatorException
 from common.utils import from_global_id
+from common.backend import repos as backend_repos
 from src.booking.repos import BookingRepo
+from src.booking.utils import get_statuses_before_booking
 from src.cities.repos import CityRepo
 from src.notifications.repos import ClientNotification
 from src.users.entities import BaseUserCase
@@ -29,13 +31,15 @@ class GetUsersSpecs(BaseUserCase):
             booking_repos: Type[BookingRepo],
             city_repos: Type[CityRepo],
             notifications_model: Type[ClientNotification],
-            calculator_class: CalculatorAPI
+            calculator_class: CalculatorAPI,
+            backend_properties_repo: type[backend_repos.BackendPropertiesRepo],
     ):
         self.users_interested_repos = users_interested_repos()
         self.booking_repos = booking_repos()
         self.city_repos = city_repos()
         self.notifications_model = notifications_model
         self.calculator_class: CalculatorAPI = calculator_class
+        self.backend_properties_repo: backend_repos.BackendPropertiesRepo = backend_properties_repo()
 
     async def __call__(self, user_id: int, city_slug: str):
         booking_filters = dict(
@@ -44,20 +48,18 @@ class GetUsersSpecs(BaseUserCase):
             property_id__isnull=False,
             building_id__isnull=False,
             project_id__isnull=False,
+            amocrm_status__id__not_in=get_statuses_before_booking(),
         )
         active_bookings = await self.booking_repos.count(filters=booking_filters)
         released_bookings = await self.booking_repos.count(filters=dict(user_id=user_id),
                                                           q_filters=[
                                                               Q(amocrm_signed=True) | Q(price_payed=True)])
 
-        interests_filter = dict(
-            user_id=user_id,
-            property__status=PropertyStatuses.FREE,
-        )
+        interests_filter = dict(user_id=user_id)
         interest_global_ids = await self.users_interested_repos.list(
             filters=interests_filter,
         ).distinct().values_list("property__global_id", flat=True)
-        interest = self._count_correct_interest_global_ids(interest_global_ids)
+        interest = await self._count_correct_interest_global_ids(interest_global_ids)
 
         city = await self.city_repos.retrieve(filters=dict(slug=city_slug))
 
@@ -72,15 +74,25 @@ class GetUsersSpecs(BaseUserCase):
         return dict(active_bookings=active_bookings, completed_bookings=released_bookings, interests=interest,
                     notifications=notifications, min_property_price=int(response.data["cost"]["range"]["min"]))
 
-    def _count_correct_interest_global_ids(self, interest_global_ids: list[str]) -> int:
+    async def _count_correct_interest_global_ids(self, interest_global_ids: list[str]) -> int:
         correct_interest_global_ids = []
         for interest_global_id in interest_global_ids:
             try:
-                property_type, _ = from_global_id(interest_global_id)
-                if property_type in self.correct_property_types:
+                property_type, backend_property_id = from_global_id(interest_global_id)
+                property_status_from_portal = await self._get_property_status_from_portal(
+                    backend_property_id=int(backend_property_id),
+                )
+                if (
+                    property_type in self.correct_property_types
+                    and property_status_from_portal is not None
+                    and property_status_from_portal == PropertyStatuses.FREE
+                ):
                     correct_interest_global_ids.append(interest_global_id)
             except (binascii.Error, UnicodeDecodeError, ValidationError, ValueError):
                 continue
 
         return len(correct_interest_global_ids)
 
+    async def _get_property_status_from_portal(self, backend_property_id: int) -> int | None:
+        backend_property = await self.backend_properties_repo.retrieve(filters=dict(id=backend_property_id))
+        return backend_property.status if backend_property else None

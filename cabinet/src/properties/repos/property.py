@@ -32,6 +32,7 @@ class Property(Model):
         description="Profitbase ID", null=True
     )
     type: Optional[str] = cfields.CharChoiceField(
+        # todo: deprecated , use property_type
         description="Тип", max_length=50, null=True, choice_class=PropertyTypes
     )
     property_type: Optional[str] = fields.ForeignKeyField(
@@ -48,6 +49,7 @@ class Property(Model):
     plan_png: Annotated[str, Field(max_length=500)] = cfields.MediaField(
         description="Планировка png", max_length=500, null=True
     )
+    plan_hover: Optional[str] = fields.TextField(description="Обводка на плане", null=True)
     price: Optional[int] = fields.BigIntField(description="Цена", null=True)
     original_price: Optional[int] = fields.BigIntField(description="Оригинальная цена", null=True)
     final_price: Optional[int] = fields.BigIntField(description="Конечная цена", null=True)

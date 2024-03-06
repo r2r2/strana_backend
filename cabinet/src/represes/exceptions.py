@@ -39,7 +39,7 @@ class RepresConfirmEmailError(BaseRepresException):
 
 
 class RepresSamePasswordError(BaseRepresException):
-    message: str = "Пароль остался неизменным."
+    message: str = "Введен пароль, который использован ранее в этом аккаунте."
     status: int = HTTPStatus.BAD_REQUEST
     reason: str = "repres_same_password"
 

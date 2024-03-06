@@ -16,6 +16,7 @@ class PropertyFloorModel(BasePropertyModel):
 
     id: Optional[int]
     number: Optional[str]
+    plan: Optional[dict[str, Any]]
 
     class Config:
         orm_mode = True
@@ -65,6 +66,7 @@ class PropertyRetrieveModel(BasePropertyModel):
     final_price: Optional[int]
     plan: Optional[dict[str, Any]]
     plan_png: Optional[dict[str, Any]]
+    plan_hover: Optional[str]
     floor: Optional[PropertyFloorModel]
     type: PropertyTypes.serializer | None
     property_type: Optional[PropertyTypeModel] = Field(None, alias="propertyType")

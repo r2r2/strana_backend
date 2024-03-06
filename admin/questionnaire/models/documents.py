@@ -14,6 +14,7 @@ class QuestionnaireDocument(BaseQuestionnaireModel):
         null=True,
         help_text="Определяет список документов, которые будут загружаться по сделке",
     )
+    slug: str = models.CharField(max_length=100, verbose_name="slug", null=True, blank=True)
     required: bool = models.BooleanField(
         verbose_name="Обязательный", default=True, help_text="Документ обязателен для заполнения"
     )

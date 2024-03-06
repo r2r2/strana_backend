@@ -1,6 +1,8 @@
 from copy import copy
 from typing import Type, Optional, Any, Union
 
+from common.unleash.client import UnleashClient
+from config.feature_flags import FeatureFlags
 from ..entities import BaseShowTimeService
 from ..repos import ShowTimeRepo, ShowTime
 from ..types import ShowTimeORM, ShowTimeAmoCRM
@@ -46,6 +48,14 @@ class CreateShowTimeService(BaseShowTimeService):
             amocrm_id: int = data[0]["id"]
             data: dict[str, Any] = dict(amocrm_id=amocrm_id)
             await self.showtime_repo.update(showtime, data=data)
-            await amocrm.update_showtime(lead_id=amocrm_id)
+
+            if self.__is_strana_lk_2882_enable:
+                await amocrm.update_showtime_v4(lead_id=amocrm_id)
+            else:
+                await amocrm.update_showtime(lead_id=amocrm_id)
+
         return amocrm_id
 
+    @property
+    def __is_strana_lk_2882_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_2882)

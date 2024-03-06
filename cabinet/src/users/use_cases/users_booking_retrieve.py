@@ -72,6 +72,8 @@ class UserBookingRetrieveCase(BaseBookingCase):
             "task_instances__status__buttons",
             "task_instances__status__tasks_chain__task_visibility",
             "task_instances__status__tasks_chain__systems",
+            "amo_payment_method",
+            "mortgage_type",
         ]
 
         booking: Booking = await self.booking_repo.retrieve(

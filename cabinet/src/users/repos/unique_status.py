@@ -71,7 +71,6 @@ class UniqueStatus(Model):
         null=True,
     )
     comment: str = fields.TextField(description="Комментарий", null=True)
-    can_dispute: bool = fields.BooleanField(default=False, description="Можно оспорить статус клиента")
     stop_check: bool = fields.BooleanField(default=False, description="Остановить проверку")
 
     terms: fields.ReverseRelation["CheckTerm"]

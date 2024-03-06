@@ -68,18 +68,38 @@ class Meeting(models.Model):
         to='events.MeetingStatus',
         related_name='meetings',
         on_delete=models.SET_NULL,
+        verbose_name='Статус встречи deprecated',
+        blank=True,
+        null=True,
+    )
+    status_ref: models.ForeignKey = models.ForeignKey(
+        to='events.MeetingStatusRef',
+        related_name='meetings',
+        on_delete=models.SET_NULL,
         verbose_name='Статус встречи',
         blank=True,
         null=True,
     )
+
+    # deprecates
     creation_source: models.ForeignKey = models.ForeignKey(
         to='events.MeetingCreationSource',
+        related_name='meetings',
+        on_delete=models.SET_NULL,
+        verbose_name='Источник создания встречи deprecated',
+        blank=True,
+        null=True,
+    )
+
+    creation_source_ref: models.ForeignKey = models.ForeignKey(
+        to='events.MeetingCreationSourceRef',
         related_name='meetings',
         on_delete=models.SET_NULL,
         verbose_name='Источник создания встречи',
         blank=True,
         null=True,
     )
+
     record_link: str = models.CharField(verbose_name="Ссылка на запись", max_length=255, blank=True, null=True)
     meeting_link: str = models.CharField(verbose_name="Ссылка на встречу", max_length=255, blank=True, null=True)
     meeting_address: str = models.CharField(verbose_name="Адрес встречи", max_length=255, blank=True, null=True)

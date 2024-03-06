@@ -29,3 +29,6 @@ class QuestionnaireUploadDocumentAdmin(admin.ModelAdmin):
             return "-"
 
     get_agent_info_on_list.short_description = 'Агент сделки'
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).filter(uploaded_document__slug__isnull=True)

@@ -80,7 +80,7 @@ class RebookingCase(BaseBookingCase):
         )
         expires: datetime = datetime.now(tz=UTC) + timedelta(hours=booking_reserv_time)
         booking_data: dict = dict(
-            acitve=True,
+            active=True,
             amocrm_stage=self.BOOKING_STAGE,
             amocrm_substage=self.BOOKING_STAGE,
             expires=expires,

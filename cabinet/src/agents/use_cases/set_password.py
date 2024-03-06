@@ -91,6 +91,8 @@ class SetPasswordCase(BaseAgentCase):
 
         await self.session.pop(self.password_settable_key)
         await self.session.pop(self.password_reset_key)
+        # После успешной установки пароля обязательно нужно сбросить discard_token если он был
+        await self.agent_repo.update(agent, data=dict(discard_token=None))
         return agent
 
     async def _send_email(self, agent: User, token: str) -> Task:

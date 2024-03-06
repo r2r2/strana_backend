@@ -1,7 +1,7 @@
 from typing import Any
 
 from common.settings.repos import SystemList
-from src.task_management.constants import OnlineBookingSlug, FastBookingSlug, FreeBookingSlug
+from src.task_management.constants import OnlineBookingSlug, FastBookingSlug, FreeBookingSlug, OnlinePurchaseSlug
 from src.amocrm.repos import (
     AmocrmGroupStatus,
     AmocrmGroupStatusRepo,
@@ -12,12 +12,13 @@ from src.task_management.utils import (
     get_booking_tasks,
     get_interesting_task_chain,
 )
-from src.payments import repos as payment_repos
 from src.booking.constants import BookingCreatedSources
 from ..entities import BaseBookingCase
 from ..models import BookingListFilters
 from ..repos import Booking, BookingRepo, BookingTag, BookingTagRepo
 from src.task_management.repos import TaskChain
+from src.properties.constants import PropertyTypes
+from src.booking.utils import get_statuses_before_booking
 
 
 class BookingListCase(BaseBookingCase):
@@ -30,7 +31,6 @@ class BookingListCase(BaseBookingCase):
         booking_repo: type[BookingRepo],
         booking_tag_repo: type[BookingTagRepo],
         amocrm_group_status_repo: type[AmocrmGroupStatusRepo],
-        price_offer_matrix_repo: type[payment_repos.PriceOfferMatrixRepo],
         client_amocrm_group_status_repo: type[ClientAmocrmGroupStatusRepo],
     ) -> None:
         self.booking_repo: BookingRepo = booking_repo()
@@ -39,7 +39,6 @@ class BookingListCase(BaseBookingCase):
             amocrm_group_status_repo()
         )
         self.client_amocrm_group_status_repo: ClientAmocrmGroupStatusRepo = client_amocrm_group_status_repo()
-        self.price_offer_matrix_repo: payment_repos.PriceOfferMatrixRepo = price_offer_matrix_repo()
 
     async def __call__(
         self,
@@ -48,38 +47,11 @@ class BookingListCase(BaseBookingCase):
         init_filters: BookingListFilters,
         property_types_filter: list,
     ) -> dict:
-        filters: dict = dict(
-            active=True,
+        bookings: list[Booking] = await self._get_bookings(
             user_id=user_id,
-            property_id__isnull=False,
-            property__property_type__is_active=True,
-            building_id__isnull=False,
-            project_id__isnull=False,
-        )
-        additional_filters: dict = self._get_additional_filters(
-            statuses=statuses,
             init_filters=init_filters,
+            statuses=statuses,
             property_types_filter=property_types_filter,
-        )
-        filters.update(additional_filters)
-        related_fields = [
-            "property__section",
-            "property__property_type",
-            "floor",
-            "building",
-            "project",
-            "ddu",
-            "agent",
-            "agency",
-            "booking_source",
-        ]
-        bookings: list[Booking] = await self.booking_repo.list(
-            filters=filters,
-            related_fields=related_fields,
-            prefetch_fields=[
-                "amocrm_status__group_status",
-                "amocrm_status__client_group_status__task_chains",
-            ],
         )
         for booking in bookings:
             booking.tasks = await self._get_booking_tasks(booking=booking)
@@ -89,20 +61,56 @@ class BookingListCase(BaseBookingCase):
                 await self._set_group_statuses(booking=booking)
             booking.booking_tags = await self._get_booking_tags(booking)
 
-            price_offer: payment_repos.PriceOfferMatrix = await self.price_offer_matrix_repo.retrieve(
-                filters=dict(
-                    payment_method_id=booking.amo_payment_method_id,
-                    mortgage_type_id=booking.mortgage_type_id,
-                ),
-            )
-            if price_offer and price_offer.by_dev:
-                booking.has_subsidy_price = True
-            else:
-                booking.has_subsidy_price = False
-
         data: dict = dict(result=bookings, count=len(bookings))
 
         return data
+
+    async def _get_bookings(
+        self,
+        user_id: int,
+        init_filters: BookingListFilters,
+        statuses: list,
+        property_types_filter: list,
+    ) -> list[Booking]:
+        filters: dict = dict(
+            active=True,
+            user_id=user_id,
+            property_id__isnull=False,
+            property__property_type__is_active=True,
+            building_id__isnull=False,
+            project_id__isnull=False,
+            amocrm_status__id__not_in=get_statuses_before_booking(),
+        )
+        additional_filters: dict = self._get_additional_filters(
+            statuses=statuses,
+            init_filters=init_filters,
+            property_types_filter=property_types_filter,
+        )
+        filters.update(additional_filters)
+        related_fields = [
+            "property__section",
+            "property__floor",
+            "property__property_type",
+            "floor",
+            "building",
+            "project",
+            "ddu",
+            "agent",
+            "agency",
+            "booking_source",
+            "amo_payment_method",
+            "mortgage_type",
+        ]
+        prefetch_fields = [
+            "amocrm_status__group_status",
+            "amocrm_status__client_group_status__task_chains",
+        ]
+        bookings: list[Booking] = await self.booking_repo.list(
+            filters=filters,
+            related_fields=related_fields,
+            prefetch_fields=prefetch_fields,
+        )
+        return bookings
 
     async def _get_booking_tags(self, booking: Booking) -> list[BookingTag] | None:
         group_statuses = booking.amocrm_status.group_status if booking.amocrm_status else None
@@ -133,7 +141,7 @@ class BookingListCase(BaseBookingCase):
 
     async def _get_booking_tasks(self, booking: Booking) -> list[dict[str, Any] | None]:
         """Get booking tasks"""
-        task_chain_slug: str = await self._get_task_chain_slug(booking=booking)
+        task_chain_slug: str | list[str] = await self._get_task_chain_slug(booking=booking)
         tasks: list[dict[str, Any] | None] = await get_booking_tasks(
             booking_id=booking.id,
             task_chain_slug=task_chain_slug,
@@ -141,15 +149,22 @@ class BookingListCase(BaseBookingCase):
         tasks: list[dict | None] = await self._clear_tasks(tasks=tasks, booking=booking)
         return tasks
 
-    async def _get_task_chain_slug(self, booking: Booking) -> str:
+    async def _get_task_chain_slug(self, booking: Booking) -> str | list[str]:
         """Get task chain slug"""
+        if booking.booking_source is None:
+            return OnlineBookingSlug.ACCEPT_OFFER.value
+
         match booking.booking_source.slug:
             case BookingCreatedSources.FAST_BOOKING | BookingCreatedSources.LK_ASSIGN:
                 task_chain_slug: str = FastBookingSlug.ACCEPT_OFFER.value
             case BookingCreatedSources.AMOCRM:
                 task_chain_slug: str = FreeBookingSlug.ACCEPT_OFFER.value
             case _:
-                task_chain_slug: str = OnlineBookingSlug.ACCEPT_OFFER.value
+                slugs: list[str] = [
+                    OnlineBookingSlug.ACCEPT_OFFER.value,
+                    OnlinePurchaseSlug.TAKE_THE_QUESTIONNAIRE.value,
+                ]
+                task_chain_slug: list[str] = slugs
         return task_chain_slug
 
     async def _set_group_statuses(self, booking: Booking) -> None:
@@ -231,7 +246,9 @@ class BookingListCase(BaseBookingCase):
         которая должна выводиться для этой брони.
         Так как брони с системой больше никак не связаны
         """
-        task_chain_slug: str = await self._get_task_chain_slug(booking=booking)
+        task_chain_slug: str | list[str] = await self._get_task_chain_slug(booking=booking)
+        if isinstance(task_chain_slug, list):
+            task_chain_slug: str = task_chain_slug[0]
         task_chain: TaskChain = await get_interesting_task_chain(status=task_chain_slug)
         await task_chain.fetch_related('systems')
 
@@ -248,20 +265,31 @@ class BookingListCase(BaseBookingCase):
         tasks: list[dict[str, Any] | None],
         booking: Booking,
     ) -> list[dict[str, Any] | None]:
-        banned_statuses: list[str] = [
+        banned_statuses: set[str] = {
             OnlineBookingSlug.PAYMENT_SUCCESS.value,
             FastBookingSlug.PAYMENT_SUCCESS.value,
             FreeBookingSlug.PAYMENT_SUCCESS.value,
-        ]
+        }
+        banned_properties_types: set[str] = {
+            PropertyTypes.PARKING,
+            PropertyTypes.PANTRY,
+            PropertyTypes.COMMERCIAL,
+        }
+
         cleared_tasks: list[dict | None] = []
         for task in tasks:
             task_chain: TaskChain = await get_interesting_task_chain(status=task["task_status"])
+
             valid_task_chain: bool = await self._is_valid_task_chain(
                 task_chain=task_chain,
                 booking=booking,
             )
             valid_task_status: bool = task["task_status"] not in banned_statuses
-            if valid_task_chain and valid_task_status:
+            valid_property_type: bool = booking.property.property_type.slug.upper() not in banned_properties_types
+
+            print(f'{valid_task_chain=}, {valid_task_status=}, {valid_property_type=}')
+
+            if all((valid_task_chain, valid_task_status, valid_property_type)):
                 cleared_tasks.append(task)
         return cleared_tasks
 

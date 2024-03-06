@@ -35,6 +35,8 @@ class Meeting(BaseMeetingDatabaseModel):
         on_delete=fields.SET_NULL,
         null=True,
     )
+
+    # deprecated
     status: fields.ForeignKeyNullableRelation['MeetingStatus'] = fields.ForeignKeyField(
         description="Статус встречи",
         model_name="models.MeetingStatus",
@@ -42,6 +44,17 @@ class Meeting(BaseMeetingDatabaseModel):
         on_delete=fields.SET_NULL,
         null=True,
     )
+
+    status_ref: fields.ForeignKeyNullableRelation['MeetingStatusRef'] = fields.ForeignKeyField(
+        description="Статус встречи",
+        model_name="models.MeetingStatusRef",
+        related_name="meetings_slug",
+        to_field="slug",
+        on_delete=fields.SET_NULL,
+        null=True,
+    )
+
+    # deprecated
     creation_source: fields.ForeignKeyNullableRelation['MeetingCreationSource'] = fields.ForeignKeyField(
         description="Источник создания встречи",
         model_name="models.MeetingCreationSource",
@@ -49,6 +62,16 @@ class Meeting(BaseMeetingDatabaseModel):
         on_delete=fields.SET_NULL,
         null=True,
     )
+
+    creation_source_ref: fields.ForeignKeyNullableRelation['MeetingCreationSourceRef'] = fields.ForeignKeyField(
+        description="Источник создания встречи",
+        model_name="models.MeetingCreationSourceRef",
+        related_name="meetings_slug",
+        to_field="slug",
+        on_delete=fields.SET_NULL,
+        null=True,
+    )
+
     record_link: Optional[str] = fields.CharField(max_length=255, description="Ссылка на запись", null=True)
     meeting_link: Optional[str] = fields.CharField(max_length=255, description="Ссылка на встречу", null=True)
     meeting_address: Optional[str] = fields.CharField(max_length=300, description="Адрес встречи", null=True)
@@ -62,9 +85,6 @@ class Meeting(BaseMeetingDatabaseModel):
         max_length=20, choice_class=MeetingPropertyType, default=MeetingPropertyType.FLAT, description="Тип помещения"
     )
     date: datetime = fields.DatetimeField(description="Дата")
-
-    def __str__(self):
-        return self.topic
 
     class Meta:
         table = "meetings_meeting"

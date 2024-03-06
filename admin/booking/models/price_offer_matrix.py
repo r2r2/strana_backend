@@ -8,24 +8,29 @@ class PriceOfferMatrix(models.Model):
     name = models.CharField(max_length=100, null=True, verbose_name="Название")
     payment_method = models.ForeignKey(
         "booking.PaymentMethod",
-        on_delete=models.SET_NULL,
+        on_delete=models.CASCADE,
         related_name="price_offer",
         verbose_name="Способ оплаты",
         help_text="Способ оплаты",
         null=True,
+        blank=True,
     )
-    by_dev: bool = models.BooleanField(default=False, verbose_name="Субсидированная ипотека")
-    price_type = models.OneToOneField(
+    default: bool = models.BooleanField(default=False, verbose_name="По умолчанию")
+    price_type = models.ForeignKey(
         "properties.PropertyPriceType",
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
         related_name="price_offer",
         verbose_name="Тип цены",
+        null=True,
+        blank=True,
     )
     mortgage_type = models.ForeignKey(
         to="properties.MortgageType",
         on_delete=models.CASCADE,
         related_name="price_offer",
         verbose_name="Тип ипотеки",
+        null=True,
+        blank=True,
     )
     priority: int = models.IntegerField(default=0, verbose_name="Приоритет")
 

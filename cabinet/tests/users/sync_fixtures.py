@@ -123,6 +123,14 @@ def agent_authorization(agent):
 
 
 @fixture(scope="function")
+def agent_not_approved_authorization(agent_not_approved):
+    token_creator = getattr(import_module("common.security"), "create_access_token")
+    jwt = token_creator(agent_not_approved.type.value, agent_not_approved.id)
+    authorization = f"{jwt['type'].capitalize()} {jwt['token']}"
+    return authorization
+
+
+@fixture(scope="function")
 def fake_user_authorization():
     token_creator = getattr(import_module("common.security"), "create_access_token")
     jwt = token_creator("fake", 9864)

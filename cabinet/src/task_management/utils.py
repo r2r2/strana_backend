@@ -6,11 +6,13 @@ from tortoise.queryset import QUERY
 
 from common.amocrm.components import AmoCRMLeads
 from common.settings.repos import BookingSettings
+from common.unleash.client import UnleashClient
+from config.feature_flags import FeatureFlags
 from src.amocrm.repos import AmocrmStatus
 from src.booking.exceptions import BookingNotFoundError
 from src.booking.repos import Booking, BookingRepo
 from src.meetings.constants import MeetingStatusChoice
-from src.meetings.repos import Meeting, MeetingRepo, MeetingStatusRepo
+from src.meetings.repos import Meeting, MeetingRepo, MeetingStatusRepo, MeetingStatusRefRepo
 from src.task_management.constants import MeetingsSlug, FixationExtensionSlug
 from src.task_management.exceptions import TaskStatusNotFoundError, TaskInstanceNotFoundError
 from src.task_management.helpers import Slugs
@@ -172,28 +174,60 @@ class TaskDataBuilder:
         """
         Сборка данных для отображения встречи
         """
-        meeting_statuses_qs: QUERY = MeetingStatusRepo().list(
-            filters=dict(
-                slug__in=[
-                    MeetingStatusChoice.CONFIRM,
-                    MeetingStatusChoice.NOT_CONFIRM,
-                    MeetingStatusChoice.START,
-                ],
-            ),
-        ).values_list("id", flat=True).as_query()
+        if self.__is_strana_lk_3011_add_enable:
+            meeting_statuses_qs: QUERY = MeetingStatusRepo().list(
+                filters=dict(
+                    slug__in=[
+                        MeetingStatusChoice.CONFIRM,
+                        MeetingStatusChoice.NOT_CONFIRM,
+                        MeetingStatusChoice.START,
+                    ],
+                ),
+            ).values_list("id", flat=True).as_query()
+            filters = dict(booking=self.booking, status__id__in=meeting_statuses_qs)
+        elif self.__is_strana_lk_3011_use_enable:
+            meeting_statuses_ref_qs: QUERY = MeetingStatusRefRepo().list(
+                filters=dict(
+                    slug__in=[
+                        MeetingStatusChoice.CONFIRM,
+                        MeetingStatusChoice.NOT_CONFIRM,
+                        MeetingStatusChoice.START,
+                    ],
+                ),
+            ).values_list("slug", flat=True).as_query()
+            filters = dict(booking=self.booking, status_ref__slug__in=meeting_statuses_ref_qs)
+        elif self.__is_strana_lk_3011_off_old_enable:
+            meeting_statuses_ref_qs: QUERY = MeetingStatusRefRepo().list(
+                filters=dict(slug__in=[
+                        MeetingStatusChoice.CONFIRM,
+                        MeetingStatusChoice.NOT_CONFIRM,
+                        MeetingStatusChoice.START,
+                    ],
+                ),
+            ).values_list("slug", flat=True).as_query()
+            filters = dict(booking=self.booking, status_ref__slug__in=meeting_statuses_ref_qs)
+        else:
+            meeting_statuses_qs: QUERY = MeetingStatusRepo().list(
+                filters=dict(
+                    slug__in=[
+                        MeetingStatusChoice.CONFIRM,
+                        MeetingStatusChoice.NOT_CONFIRM,
+                        MeetingStatusChoice.START,
+                    ],
+                ),
+            ).values_list("id", flat=True).as_query()
+            filters = dict(booking=self.booking, status__id__in=meeting_statuses_qs)
 
         meeting: Meeting = await MeetingRepo().retrieve(
-            filters=dict(
-                booking=self.booking,
-                status__id__in=meeting_statuses_qs,
-            ),
+            filters=filters,
             related_fields=["city", "project"],
         )
+
         if not meeting:
             return
         meeting_data: dict[str, Any] = {
             "id": meeting.id,
-            "city": meeting.city.name,
+            "city": meeting.city.name if meeting.city else None,
             "project": meeting.project.name,
             "property_type": meeting.property_type,
             "type": meeting.type,
@@ -217,6 +251,18 @@ class TaskDataBuilder:
                 "extension_number": self.booking.extension_number,
             }
             return fixation_data
+
+    @property
+    def __is_strana_lk_3011_add_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_3011_add)
+
+    @property
+    def __is_strana_lk_3011_use_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_3011_use)
+
+    @property
+    def __is_strana_lk_3011_off_old_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_3011_off_old)
 
 
 async def check_task_instance_exists(booking: Booking, task_status: str) -> bool:

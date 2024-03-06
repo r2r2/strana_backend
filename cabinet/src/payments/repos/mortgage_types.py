@@ -14,6 +14,8 @@ class MortgageType(BasePaymentDatabaseModel):
     amocrm_id: int | None = fields.BigIntField(
         description="ID в AmoCRM", null=True, unique=True
     )
+    by_dev: bool = fields.BooleanField(default=False, description="Субсидированная ипотека")
+    slug: str = fields.CharField(max_length=50, null=True, unique=True, description="Слаг")
 
     class Meta:
         table = "payments_mortgage_types"

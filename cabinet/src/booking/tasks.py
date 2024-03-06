@@ -3,7 +3,7 @@ from typing import Any, Optional
 
 import structlog
 
-from common import amocrm, email, messages, profitbase, requests, security, utils
+from common import amocrm, bitrix, email, messages, profitbase, requests, security, utils
 from common.amocrm import repos as amo_repos
 from common.celery.utils import redis_lock
 from config import amocrm_config, backend_config, celery, site_config, tortoise_config
@@ -265,3 +265,28 @@ def send_sms_to_msk_client_task(booking_id: int, sms_slug: str) -> None:
     loop.run_until_complete(
         celery.sentry_catch(celery.init_orm(send_sms_to_msk_client))(booking_id=booking_id, sms_slug=sms_slug)
     )
+
+
+@celery.app.task
+def periodic_check_test_booking_task() -> None:
+    # async def periodic_check_test_booking_task() -> None:
+    """
+    Проверка тестовых сделок
+    """
+    logger = structlog.getLogger("periodic_check_test_booking_task")
+    logger.info(f'Starting periodic_check_test_booking_task')
+
+    resources: dict[str, Any] = dict(
+        test_booking_repo=booking_repos.TestBookingRepo,
+        amocrm_class=amocrm.AmoCRM,
+        bitrix_class=bitrix.Bitrix,
+        orm_class=Tortoise,
+        orm_config=tortoise_config,
+    )
+    check_test_booking: services.CheckTestBookingService = services.CheckTestBookingService(**resources)
+    # return await check_test_booking()
+    loop: Any = get_event_loop()
+    loop.run_until_complete(
+        celery.sentry_catch(celery.init_orm(check_test_booking))()
+    )
+    logger.info(f'Finished periodic_check_test_booking_task')

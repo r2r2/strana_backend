@@ -12,3 +12,4 @@ class BookingLogAdmin(admin.ModelAdmin):
         "content",
         "use_case",
     )
+    autocomplete_fields = ('booking', )

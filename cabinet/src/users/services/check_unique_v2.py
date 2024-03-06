@@ -12,7 +12,7 @@ from pytz import UTC
 
 from src.projects.constants import ProjectStatus
 from src.projects.repos import ProjectRepo
-from src.users.constants import UserStatus, UserType, UniqueStatusButtonSlug
+from src.users.constants import UserStatus, UserType
 from src.users.entities import BaseUserService
 from src.users.repos import (Check, CheckRepo, CheckTermRepo, IsConType,
                              User, UserRepo, UniqueStatus, CheckTerm, CheckHistoryRepo)
@@ -57,7 +57,7 @@ class CheckUniqueServiceV2(BaseUserService):
         self.orm_config: Union[dict[str, Any], None] = copy(orm_config)
         if self.orm_config:
             self.orm_config.pop("generate_schemas", None)
-        self.logger = structlog.get_logger(__name__)
+        self.logger = structlog.get_logger(__class__.__name__)
 
         self.amocrm_id: int | None = None
         self.project_id: int | None = None
@@ -106,7 +106,7 @@ class CheckUniqueServiceV2(BaseUserService):
         unique_status: UniqueStatus
         lead: Optional[AmoLead]
         unique_status, lead = await self._check_unique(phone=phone)
-        await self._set_button_slug(unique_status=unique_status, lead=lead)
+        # await self._set_button_slug(unique_status=unique_status, lead=lead) todo: delete
         data: dict[str, Any] = dict(
             unique_status=unique_status,
             send_admin_email=self.send_admin_email,
@@ -213,7 +213,7 @@ class CheckUniqueServiceV2(BaseUserService):
 
         terms: list[CheckTerm] = await self.check_term_repo.list(
             ordering="priority",
-            prefetch_fields=["cities", "pipelines", "statuses", "unique_status"]
+            prefetch_fields=["cities", "pipelines", "statuses", "unique_status", "button"]
         )
         for term in terms:
             # Сделка находится в определенном городе
@@ -292,6 +292,7 @@ class CheckUniqueServiceV2(BaseUserService):
 
             self.term_uid: str = str(term.uid)
             self.term_comment: str = term.comment or ''
+            self._button_slug: str | None = term.button.slug if term.button else None
 
             # Если дошла до статуса - возвращаем результат
             return term.unique_status
@@ -345,88 +346,170 @@ class CheckUniqueServiceV2(BaseUserService):
             # Представитель проверяет клиента, закрепленного за агентом из этого же агентства
             self.agent_repres_pinned = True
 
-    async def _set_button_slug(self, unique_status: UniqueStatus, lead: Optional[AmoLead] = None) -> None:
-        """
-        Устанавливаем slug возвращаемой кнопки. В UsersCheckCase найдем по slug кнопку и вернем ее
-        """
-        statuses_before_booking: set[int] = await self._get_statuses_before_booking()
+    # async def _set_button_slug(self, unique_status: UniqueStatus, lead: Optional[AmoLead] = None) -> None:
+    #     """
+    #     Устанавливаем slug возвращаемой кнопки. В UsersCheckCase найдем по slug кнопку и вернем ее
+    #     """
+    #     button_slug_handler = ButtonSlugHandler(
+    #         amocrm_class=self.amocrm_class,
+    #         unique_status=unique_status,
+    #         assign_agency_status=self.assign_agency_status,
+    #         agent_repres_pinned=self.agent_repres_pinned,
+    #         same_pinned=self.same_pinned,
+    #         lead=lead,
+    #     )
+    #     self._button_slug: str | None = await button_slug_handler.get_button_slug()
 
-        if (unique_status.slug == UserStatus.NOT_UNIQUE and
-            (lead.status_id in statuses_before_booking or
-                self.assign_agency_status is False)):
-            self._button_slug: str = UniqueStatusButtonSlug.WANT_WORK.value
 
-        elif unique_status.slug == UserStatus.CAN_DISPUTE:
-            self._button_slug: str = UniqueStatusButtonSlug.WANT_DISPUTE.value
-
-    async def _get_statuses_before_booking(self) -> set[int]:
-        return {
-            self.amocrm_class.CallCenterStatuses.START.value,
-            self.amocrm_class.CallCenterStatuses.REDIAL.value,
-            self.amocrm_class.CallCenterStatuses.ROBOT_CHECK.value,
-            self.amocrm_class.CallCenterStatuses.TRY_CONTACT.value,
-            self.amocrm_class.CallCenterStatuses.QUALITY_CONTROL.value,
-            self.amocrm_class.CallCenterStatuses.SELL_APPOINTMENT.value,
-            self.amocrm_class.CallCenterStatuses.GET_TO_MEETING.value,
-            self.amocrm_class.CallCenterStatuses.MAKE_APPOINTMENT.value,
-            self.amocrm_class.CallCenterStatuses.APPOINTED_ZOOM.value,
-            self.amocrm_class.CallCenterStatuses.ZOOM_CALL.value,
-            self.amocrm_class.CallCenterStatuses.MAKE_DECISION.value,
-            self.amocrm_class.CallCenterStatuses.THINKING_OF_MORTGAGE.value,
-            self.amocrm_class.CallCenterStatuses.START_2.value,
-            self.amocrm_class.CallCenterStatuses.SUCCESSFUL_BOT_CALL_TRANSFER.value,
-            self.amocrm_class.CallCenterStatuses.REFUSE_MANGO_BOT.value,
-            self.amocrm_class.CallCenterStatuses.RESUSCITATED_CLIENT.value,
-            self.amocrm_class.CallCenterStatuses.SUBMIT_SELECTION.value,
-            self.amocrm_class.CallCenterStatuses.THINKING_ABOUT_PRICE.value,
-            self.amocrm_class.CallCenterStatuses.SEEKING_MONEY.value,
-            self.amocrm_class.CallCenterStatuses.CONTACT_AFTER_BOT.value,
-
-            self.amocrm_class.TMNStatuses.START.value,
-            self.amocrm_class.TMNStatuses.MAKE_APPOINTMENT.value,
-            self.amocrm_class.TMNStatuses.ASSIGN_AGENT.value,
-            self.amocrm_class.TMNStatuses.MEETING.value,
-            self.amocrm_class.TMNStatuses.MEETING_IN_PROGRESS.value,
-            self.amocrm_class.TMNStatuses.MAKE_DECISION.value,
-            self.amocrm_class.TMNStatuses.RE_MEETING.value,
-
-            self.amocrm_class.MSKStatuses.START.value,
-            self.amocrm_class.MSKStatuses.ASSIGN_AGENT.value,
-            self.amocrm_class.MSKStatuses.MAKE_APPOINTMENT.value,
-            self.amocrm_class.MSKStatuses.MEETING.value,
-            self.amocrm_class.MSKStatuses.MEETING_IN_PROGRESS.value,
-            self.amocrm_class.MSKStatuses.MAKE_DECISION.value,
-            self.amocrm_class.MSKStatuses.RE_MEETING.value,
-
-            self.amocrm_class.SPBStatuses.START.value,
-            self.amocrm_class.SPBStatuses.ASSIGN_AGENT.value,
-            self.amocrm_class.SPBStatuses.MAKE_APPOINTMENT.value,
-            self.amocrm_class.SPBStatuses.MEETING.value,
-            self.amocrm_class.SPBStatuses.MEETING_IN_PROGRESS.value,
-            self.amocrm_class.SPBStatuses.MAKE_DECISION.value,
-            self.amocrm_class.SPBStatuses.RE_MEETING.value,
-
-            self.amocrm_class.EKBStatuses.START.value,
-            self.amocrm_class.EKBStatuses.ASSIGN_AGENT.value,
-            self.amocrm_class.EKBStatuses.MAKE_APPOINTMENT.value,
-            self.amocrm_class.EKBStatuses.MEETING.value,
-            self.amocrm_class.EKBStatuses.MEETING_IN_PROGRESS.value,
-            self.amocrm_class.EKBStatuses.MAKE_DECISION.value,
-            self.amocrm_class.EKBStatuses.RE_MEETING.value,
-
-            self.amocrm_class.TestStatuses.START.value,
-            self.amocrm_class.TestStatuses.REDIAL.value,
-            self.amocrm_class.TestStatuses.ROBOT_CHECK.value,
-            self.amocrm_class.TestStatuses.TRY_CONTACT.value,
-            self.amocrm_class.TestStatuses.QUALITY_CONTROL.value,
-            self.amocrm_class.TestStatuses.SELL_APPOINTMENT.value,
-            self.amocrm_class.TestStatuses.GET_TO_MEETING.value,
-            self.amocrm_class.TestStatuses.ASSIGN_AGENT.value,
-            self.amocrm_class.TestStatuses.MAKE_APPOINTMENT.value,
-            self.amocrm_class.TestStatuses.APPOINTED_ZOOM.value,
-            self.amocrm_class.TestStatuses.MEETING_IS_SET.value,
-            self.amocrm_class.TestStatuses.ZOOM_CALL.value,
-            self.amocrm_class.TestStatuses.MEETING_IN_PROGRESS.value,
-            self.amocrm_class.TestStatuses.MAKE_DECISION.value,
-            self.amocrm_class.TestStatuses.RE_MEETING.value,
-        }
+# class ButtonSlugHandler:
+#     """
+#     https://lucid.app/lucidchart/c7513caf-7916-40ca-aac9-64e58ea5bdf6/view?invitationId=inv_bc3742c0-9e01-4ae8-a54e-a7da9fca8825&page=uc80p0GNvJIQ#
+#     """
+#     def __init__(
+#         self,
+#         amocrm_class: type[AmoCRM],
+#         unique_status: UniqueStatus,
+#         assign_agency_status: bool | None = None,
+#         agent_repres_pinned: bool = False,
+#         same_pinned: bool = False,
+#         lead: AmoLead | None = None,
+#     ) -> None:
+#         self.amocrm_class: type[AmoCRM] = amocrm_class
+#         self._unique_status: UniqueStatus = unique_status
+#         self.assign_agency_status: bool | None = assign_agency_status
+#         self.agent_repres_pinned: bool = agent_repres_pinned
+#         self.same_pinned: bool = same_pinned
+#         self._lead: AmoLead | None = lead
+#
+#         self.statuses_before_booking: set[int] = self._get_statuses_before_booking()
+#         self.logger: structlog.BoundLogger = structlog.get_logger(__class__.__name__)
+#
+#     async def get_button_slug(self) -> str | None:
+#
+#         self.logger.info(
+#             f"Статус уникальности клиента: {self._unique_status.slug=},"
+#             f" {self._unique_status.can_dispute=}, {self.assign_agency_status=},"
+#             f"{self.same_pinned=}, {self.agent_repres_pinned=}, {self._lead=}"
+#         )
+#         if self._not_unique_not_fixation_for_an_or_not_before_booking:
+#             self.logger.info(
+#                 f"Клиент не уникален, но сделка не была в статусе 'Фиксация за АН' или в статусе до бронирования. "
+#                 f"Ставим для кнопки слаг={UniqueStatusButtonSlug.WANT_DISPUTE.value}"
+#             )
+#             return UniqueStatusButtonSlug.WANT_WORK.value
+#
+#         elif self._call_center_before_booking_another_agency_or_no_agent:
+#             self.logger.info(
+#                 f"Сделка в воронке Call Center, "
+#                 f"ставим для кнопки слаг={UniqueStatusButtonSlug.WANT_DISPUTE.value}"
+#             )
+#             return UniqueStatusButtonSlug.WANT_DISPUTE.value
+#
+#         elif self._unique_status.slug == UserStatus.CAN_DISPUTE:
+#             self.logger.info(
+#                 f"Клиент в статусе {self._unique_status.slug=}, "
+#                 f"но ставим для кнопки слаг={UniqueStatusButtonSlug.WANT_DISPUTE.value}"
+#             )
+#             return UniqueStatusButtonSlug.WANT_DISPUTE.value
+#
+#     @property
+#     def _not_unique_not_fixation_for_an_or_not_before_booking(self) -> bool:
+#         if self._unique_status.slug == UserStatus.NOT_UNIQUE:
+#             # Клиент не уникален
+#             fixation_or_before_booking: bool = (
+#                 self._lead.status_id in self.statuses_before_booking
+#                 or self.assign_agency_status is False
+#             )
+#             if fixation_or_before_booking:
+#                 # Сделка не была в статусе 'Фиксация за АН' или находится в статусе до бронирования
+#                 return True
+#
+#     @property
+#     def _call_center_before_booking_another_agency_or_no_agent(self) -> bool:
+#         """
+#         Проверка на то, что сделка была в статусе до бронирования и в воронке Call Center
+#         За чужим агентством/без агентства
+#         Статус 2.2.2.3
+#         """
+#         if not self._lead:
+#             return False
+#
+#         if self._lead.pipeline_id == self.amocrm_class.PipelineIds.CALL_CENTER.value:
+#             # Сделка в воронке Call Center
+#             if self._lead.status_id in self.statuses_before_booking:
+#                 # Сделка в статусе до бронирования
+#                 if not self.agent_repres_pinned:
+#                     # За чужим агентством/без агентства
+#                     return True
+#
+#     def _get_statuses_before_booking(self) -> set[int]:
+#         return {
+#             self.amocrm_class.CallCenterStatuses.START.value,
+#             self.amocrm_class.CallCenterStatuses.REDIAL.value,
+#             self.amocrm_class.CallCenterStatuses.ROBOT_CHECK.value,
+#             self.amocrm_class.CallCenterStatuses.TRY_CONTACT.value,
+#             self.amocrm_class.CallCenterStatuses.QUALITY_CONTROL.value,
+#             self.amocrm_class.CallCenterStatuses.SELL_APPOINTMENT.value,
+#             self.amocrm_class.CallCenterStatuses.GET_TO_MEETING.value,
+#             self.amocrm_class.CallCenterStatuses.MAKE_APPOINTMENT.value,
+#             self.amocrm_class.CallCenterStatuses.APPOINTED_ZOOM.value,
+#             self.amocrm_class.CallCenterStatuses.ZOOM_CALL.value,
+#             self.amocrm_class.CallCenterStatuses.MAKE_DECISION.value,
+#             self.amocrm_class.CallCenterStatuses.THINKING_OF_MORTGAGE.value,
+#             self.amocrm_class.CallCenterStatuses.START_2.value,
+#             self.amocrm_class.CallCenterStatuses.SUCCESSFUL_BOT_CALL_TRANSFER.value,
+#             self.amocrm_class.CallCenterStatuses.REFUSE_MANGO_BOT.value,
+#             self.amocrm_class.CallCenterStatuses.RESUSCITATED_CLIENT.value,
+#             self.amocrm_class.CallCenterStatuses.SUBMIT_SELECTION.value,
+#             self.amocrm_class.CallCenterStatuses.THINKING_ABOUT_PRICE.value,
+#             self.amocrm_class.CallCenterStatuses.SEEKING_MONEY.value,
+#             self.amocrm_class.CallCenterStatuses.CONTACT_AFTER_BOT.value,
+#
+#             self.amocrm_class.TMNStatuses.START.value,
+#             self.amocrm_class.TMNStatuses.MAKE_APPOINTMENT.value,
+#             self.amocrm_class.TMNStatuses.ASSIGN_AGENT.value,
+#             self.amocrm_class.TMNStatuses.MEETING.value,
+#             self.amocrm_class.TMNStatuses.MEETING_IN_PROGRESS.value,
+#             self.amocrm_class.TMNStatuses.MAKE_DECISION.value,
+#             self.amocrm_class.TMNStatuses.RE_MEETING.value,
+#
+#             self.amocrm_class.MSKStatuses.START.value,
+#             self.amocrm_class.MSKStatuses.ASSIGN_AGENT.value,
+#             self.amocrm_class.MSKStatuses.MAKE_APPOINTMENT.value,
+#             self.amocrm_class.MSKStatuses.MEETING.value,
+#             self.amocrm_class.MSKStatuses.MEETING_IN_PROGRESS.value,
+#             self.amocrm_class.MSKStatuses.MAKE_DECISION.value,
+#             self.amocrm_class.MSKStatuses.RE_MEETING.value,
+#
+#             self.amocrm_class.SPBStatuses.START.value,
+#             self.amocrm_class.SPBStatuses.ASSIGN_AGENT.value,
+#             self.amocrm_class.SPBStatuses.MAKE_APPOINTMENT.value,
+#             self.amocrm_class.SPBStatuses.MEETING.value,
+#             self.amocrm_class.SPBStatuses.MEETING_IN_PROGRESS.value,
+#             self.amocrm_class.SPBStatuses.MAKE_DECISION.value,
+#             self.amocrm_class.SPBStatuses.RE_MEETING.value,
+#
+#             self.amocrm_class.EKBStatuses.START.value,
+#             self.amocrm_class.EKBStatuses.ASSIGN_AGENT.value,
+#             self.amocrm_class.EKBStatuses.MAKE_APPOINTMENT.value,
+#             self.amocrm_class.EKBStatuses.MEETING.value,
+#             self.amocrm_class.EKBStatuses.MEETING_IN_PROGRESS.value,
+#             self.amocrm_class.EKBStatuses.MAKE_DECISION.value,
+#             self.amocrm_class.EKBStatuses.RE_MEETING.value,
+#
+#             self.amocrm_class.TestStatuses.START.value,
+#             self.amocrm_class.TestStatuses.REDIAL.value,
+#             self.amocrm_class.TestStatuses.ROBOT_CHECK.value,
+#             self.amocrm_class.TestStatuses.TRY_CONTACT.value,
+#             self.amocrm_class.TestStatuses.QUALITY_CONTROL.value,
+#             self.amocrm_class.TestStatuses.SELL_APPOINTMENT.value,
+#             self.amocrm_class.TestStatuses.GET_TO_MEETING.value,
+#             self.amocrm_class.TestStatuses.ASSIGN_AGENT.value,
+#             self.amocrm_class.TestStatuses.MAKE_APPOINTMENT.value,
+#             self.amocrm_class.TestStatuses.APPOINTED_ZOOM.value,
+#             self.amocrm_class.TestStatuses.MEETING_IS_SET.value,
+#             self.amocrm_class.TestStatuses.ZOOM_CALL.value,
+#             self.amocrm_class.TestStatuses.MEETING_IN_PROGRESS.value,
+#             self.amocrm_class.TestStatuses.MAKE_DECISION.value,
+#             self.amocrm_class.TestStatuses.RE_MEETING.value,
+#         }

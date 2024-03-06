@@ -3,6 +3,7 @@ from fastapi import APIRouter, Query, Depends
 from common import dependencies
 from common.calculator.calculator import CalculatorAPI
 from common.requests import CommonRequest
+from common.backend import repos as backend_repos
 from config import mc_backend_config
 from src.booking import repos as booking_repos
 from src.cities import repos as city_repos
@@ -31,6 +32,7 @@ async def get_specs(
         city_repos=city_repos.CityRepo,
         notifications_model=notifications_repos.ClientNotification,
         calculator_class=calculator_class,
+        backend_properties_repo=backend_repos.BackendPropertiesRepo,
     )
     specs = GetUsersSpecs(**resource)
     return await specs(user_id=user_id, city_slug=city)

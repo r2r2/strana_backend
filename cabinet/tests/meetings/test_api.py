@@ -42,5 +42,5 @@ class TestRefuseMeeting:
                                             headers=headers)
 
         assert response.status_code == HTTPStatus.NOT_FOUND
-        expected_result = dict(message='Встреча не найдена.', reason='meeting_not_found', ok=False)
+        expected_result = dict(message='Данная встреча не найдена.', reason='meeting_not_found', ok=False)
         assert response.json() == expected_result

@@ -119,6 +119,10 @@ x-app_environment: &app_environment
     - DADATA_SECRET
     - SESSION_CACHE_URL
     - LK_STRANA_FAKE_NUMBERS
+    - BITRIX_URL
+    - BITRIX_USER
+    - BITRIX_SECRET
+    - BITRIX_CHAT
 
 services:
   backend:
@@ -190,7 +194,7 @@ services:
         POETRY_PARAMS: "--no-dev"
     <<: *app_environment
     entrypoint: sh wait-for ${LK_POSTGRES_HOST:-db_cabinet}:${LK_POSTGRES_PORT:-5432} -- ./entrypoint.production.sh
-    command: gunicorn config.wsgi:application -w 1 --keep-alive 120 -b 0.0.0.0:2100 --access-logfile - --error-logfile -
+    command: gunicorn config.wsgi:application -w 5 --keep-alive 120 -b 0.0.0.0:2100 --access-logfile - --error-logfile -
     ports:
       - 127.0.0.1:2100:2100
     volumes:

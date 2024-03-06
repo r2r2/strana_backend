@@ -10,6 +10,7 @@ from src.buildings.repos.building import Building, BuildingBookingType
 from src.properties.repos import Property
 from src.properties.services import CheckProfitbasePropertyService
 from src.booking.utils import get_booking_reserv_time, get_booking_source
+from ..event_emitter_handlers import event_emitter
 
 from ...properties.constants import PropertyStatuses
 from ..constants import (FORBIDDEN_FOR_BOOKING_PROPERTY_PARAMS,
@@ -232,6 +233,7 @@ class AcceptContractCase(BaseBookingCase, BookingLogMixin):
         data.update(extra_data)
 
         booking: Booking = await self.booking_create(data=data)
+        old_group_status = booking.amocrm_substage if booking.amocrm_substage else None
         setattr(booking, "property", booking_property)
         property_status, property_available = await self.check_profitbase_property_service(booking.property)
         property_status_bool = property_status == booking_property.statuses.FREE
@@ -240,6 +242,8 @@ class AcceptContractCase(BaseBookingCase, BookingLogMixin):
             await self.booking_delete(booking=booking)
             await self.property_repo.update(booking_property, data=property_data)
             raise BookingPropertyUnavailableError(property_status_bool, property_available)
+        else:
+            event_emitter.ee.emit(event='booking_created', booking=booking)
 
         property_data: dict[str, Any] = dict(status=booking_property.statuses.BOOKED)
         await self._backend_booking(booking=booking)
@@ -251,9 +255,18 @@ class AcceptContractCase(BaseBookingCase, BookingLogMixin):
         filters: dict[str, Any] = dict(active=True, id=booking.id, user_id=user_id)
         booking: Booking = await self.booking_repo.retrieve(
             filters=filters,
-            related_fields=["project__city", "property", "floor", "building", "ddu", "agent", "agency"],
+            related_fields=["project__city", "property", "floor", "building", "ddu", "agent", "agency", "user"],
             prefetch_fields=["ddu__participants"],
         )
+
+        # event_emitter.ee.emit(
+        #     event='accept_contract',
+        #     booking=booking,
+        #     user=booking.user,
+        #     old_group_status=old_group_status,
+        #     city=booking.project.city.slug if booking.project.city else None,
+        # )
+
         booking.tasks = await get_booking_tasks(
             booking_id=booking.id, task_chain_slug=OnlineBookingSlug.ACCEPT_OFFER.value
         )

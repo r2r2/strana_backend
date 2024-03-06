@@ -27,6 +27,7 @@ def initialize_sentry(application: FastAPI) -> FastAPI:
             send_default_pii=sentry_config["send_default_pii"],
             before_send=utils.before_send,
             max_value_length=sentry_config["max_value_length"],
+            environment=sentry_config["environment"],
             # ignore_errors=['ExceptionGroup', ],
         )
         application: FastAPI = SentryAsgiMiddleware(application)
@@ -91,3 +92,13 @@ def initialize_unleash(application: FastAPI) -> None:
     application.unleash = client
     application.feature_flags = FeatureFlags
     logging.getLogger('apscheduler.executors.default').propagate = False
+
+
+def initialize_event_emitter(application: FastAPI) -> None:
+    from common.event_emitter.client import AsyncIOEventEmitter
+
+    ee = AsyncIOEventEmitter()
+
+    @ee.on('error')
+    def on_error(message):
+        print("Error", message)

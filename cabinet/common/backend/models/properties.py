@@ -15,6 +15,7 @@ class BackendProperty(Model):
     article: str = fields.CharField(max_length=100)
     plan: str = fields.TextField()
     plan_png: str = fields.CharField(max_length=100)
+    plan_hover: str = fields.TextField()
     price: Decimal = fields.DecimalField(14, 2)
     original_price: Decimal = fields.DecimalField(14, 2)
     full_final_price: Decimal = fields.DecimalField(14, 2)

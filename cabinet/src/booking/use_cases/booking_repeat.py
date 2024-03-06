@@ -107,7 +107,7 @@ class BookingRepeat(BaseBookingCase, BookingLogMixin):
 
         property_data: dict[str, Any] = dict(status=booking.property.statuses.BOOKED)
 
-        data: dict[str] = dict(
+        data: dict[str, datetime] = dict(
             expires=datetime.datetime.now(tz=UTC) + datetime.timedelta(minutes=self.booking_time_minutes)
         )
         await self.booking_update(booking, data=data)

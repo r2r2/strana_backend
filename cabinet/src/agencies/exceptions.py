@@ -16,7 +16,9 @@ class AgencyNotApprovedError(BaseAgencyException):
 
 
 class AgencyDataTakenError(BaseAgencyException):
-    message: str = "Введенные данные заняты."
+    message: str = (
+        "Простите, данная почта или телефон закреплены за другим пользователем, вы не можете их использовать."
+    )
     status: int = HTTPStatus.BAD_REQUEST
     reason: str = "agency_data_taken"
 
@@ -107,3 +109,8 @@ class AgencyMainteinerNotExists(BaseAgencyException):
 
 class InvalidAdminDataError(BaseAgencyException):
     status: int = HTTPStatus.BAD_REQUEST
+
+
+class ActTemplateNotFound(BaseAgencyException):
+    message: str = "Шаблон акта не найден"
+    status: int = HTTPStatus.NOT_FOUND

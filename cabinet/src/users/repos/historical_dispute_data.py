@@ -35,6 +35,7 @@ class HistoricalDisputeData(Model):
         on_delete=fields.SET_NULL,
         related_name="historical_dispute_data_client",
         null=True,
+        index=True,
     )
     client_agency: ForeignKeyNullableRelation[Agency] = fields.ForeignKeyField(
         description="Агентство",

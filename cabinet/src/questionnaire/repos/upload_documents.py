@@ -2,7 +2,7 @@ from uuid import uuid4, UUID
 
 from tortoise import fields
 
-from common.orm.mixins import ReadWriteMixin
+from common.orm.mixins import CRUDMixin
 from ..entities import BaseQuestionnaireRepo, BaseQuestionnaireModel
 
 
@@ -27,16 +27,16 @@ class QuestionnaireUploadDocument(BaseQuestionnaireModel):
         related_name="booking",
         null=True,
     )
+    mortgage_ticket_id: int = fields.IntField(description="ID заявки на ипотеку", null=True)
 
     def __repr__(self):
         return self.file_name
-
 
     class Meta:
         table = "questionnaire_upload_documents"
 
 
-class QuestionnaireUploadDocumentRepo(BaseQuestionnaireRepo, ReadWriteMixin):
+class QuestionnaireUploadDocumentRepo(BaseQuestionnaireRepo, CRUDMixin):
     """
     Репозиторий загруженного документа опросника
     """

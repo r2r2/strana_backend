@@ -2,9 +2,11 @@ from typing import Any, Type
 
 from common.amocrm import AmoCRM
 from common.files import FileCategory, FileContainer, ProcessedFile
+from common.unleash.client import UnleashClient
 from common.utils import size_to_byte
 from fastapi import UploadFile
 
+from config.feature_flags import FeatureFlags
 from ..constants import (DDU_ALLOWED_FILE_EXTENSIONS, BookingFileType,
                          OnlinePurchaseSteps, UploadPath)
 from ..entities import BaseBookingCase
@@ -100,12 +102,15 @@ class EscrowUploadCase(BaseBookingCase):
             Ссылка на документ - $ссылка
         """
         async with await self.amocrm_class() as amocrm:
-            await amocrm.create_note(
-                lead_id=booking.amocrm_id,
-                text=self._get_note_text(booking),
-                element="lead",
-                note="common",
-            )
+            if self.__is_strana_lk_2882_enable:
+                await amocrm.create_note_v4(lead_id=booking.amocrm_id, text=self._get_note_text(booking))
+            else:
+                await amocrm.create_note(
+                    lead_id=booking.amocrm_id,
+                    text=self._get_note_text(booking),
+                    element="lead",
+                    note="common",
+                )
 
     @classmethod
     def _get_note_text(cls, booking: Booking) -> str:
@@ -126,3 +131,7 @@ class EscrowUploadCase(BaseBookingCase):
         """Проверка на выполнение условий."""
         if booking.online_purchase_step() != OnlinePurchaseSteps.ESCROW_UPLOAD:
             raise BookingWrongStepError
+
+    @property
+    def __is_strana_lk_2882_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_2882)

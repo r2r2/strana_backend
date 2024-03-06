@@ -10,9 +10,9 @@ from ..constants import UserType, OriginType
 from ..repos import UserRepo, User, UserRoleRepo, UserRole
 
 
-class ImportContactFromAmoService(CreateContactService):
+class ImportClientFromAmoService(CreateContactService):
     """
-    Импорт данных контакта из АМО
+    Импорт данных клиента из АМО
     """
 
     import_pipelines_ids: list[int] = [3934218, 1941865, 3568449, 5798376, 1305043]

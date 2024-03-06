@@ -10,6 +10,7 @@ from src.amocrm.repos import (
     AmocrmStatusRepo,
     AmocrmStatus,
 )
+from src.booking.constants import BookingSubstages
 
 
 @fixture(scope="function")
@@ -46,6 +47,15 @@ async def amo_pipeline(amo_pipeline_repo, faker) -> AmocrmPipeline:
 
 
 @fixture(scope="function")
+async def amo_pipeline_for_assign(amo_pipeline_repo, faker) -> AmocrmPipeline:
+    pipeline: AmocrmPipeline = await amo_pipeline_repo.update_or_create(
+        filters=dict(name="test_for_assign"),
+        data={},
+    )
+    return pipeline
+
+
+@fixture(scope="function")
 async def amo_group_status(amo_group_status_repo, faker) -> AmocrmGroupStatus:
     group_status_data: dict = dict(
         name=faker.word(),
@@ -63,6 +73,20 @@ async def amo_status(
 ) -> AmocrmStatus:
     amo_status_data: dict = dict(
         name=faker.word(),
+        pipeline_id=amo_pipeline.id,
+        group_status_id=amo_group_status.id,
+        color=faker.color(),
+    )
+    status: AmocrmStatus = await amo_status_repo.create(data=amo_status_data)
+    return status
+
+
+@fixture(scope="function")
+async def bind_amo_status(
+    amo_status_repo, amo_pipeline, amo_group_status, faker
+) -> AmocrmStatus:
+    amo_status_data: dict = dict(
+        name=BookingSubstages.BOOKING_LABEL,
         pipeline_id=amo_pipeline.id,
         group_status_id=amo_group_status.id,
         color=faker.color(),
@@ -91,6 +115,34 @@ async def amo_group_status_booking(amo_group_status_repo, faker) -> AmocrmGroupS
         data=group_status_data
     )
     return group_status
+
+
+@fixture(scope="function")
+async def amo_group_status_for_assign(amo_group_status_repo, faker) -> AmocrmGroupStatus:
+    group_status_data: dict = dict(
+        color=faker.color(),
+    )
+    group_status: AmocrmGroupStatus = await amo_group_status_repo.update_or_create(
+        filters=dict(name="amo_group_status_for_assign"),
+        data=group_status_data,
+    )
+    return group_status
+
+
+@fixture(scope="function")
+async def amo_status_for_assign(
+    amo_status_repo, amo_pipeline_for_assign, faker, amo_group_status_for_assign
+) -> AmocrmStatus:
+    amo_status_data: dict = dict(
+        name=faker.word(),
+        group_status_id=amo_group_status_for_assign.id,
+        color=faker.color(),
+    )
+    status: AmocrmStatus = await amo_status_repo.update_or_create(
+        filters=dict(pipeline_id=amo_pipeline_for_assign.id),
+        data=amo_status_data,
+    )
+    return status
 
 
 @fixture(scope="function")

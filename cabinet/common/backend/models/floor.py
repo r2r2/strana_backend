@@ -11,6 +11,7 @@ class BackendFloor(Model):
         "backend.BackendSection", null=True, on_delete=fields.CASCADE
     )
     section_id: int
+    plan: str = fields.TextField()
 
     class Meta:
         app = "backend"

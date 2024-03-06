@@ -1,9 +1,11 @@
-from typing import Any, NamedTuple, Optional, Type, Union
+from typing import Any, NamedTuple, Optional, Type, Union, Callable
 from copy import copy
 
 from common.amocrm.constants import AmoCompanyEntityType, AmoLeadQueryWith
 from common.amocrm.types import AmoLead
 from common.amocrm.models import Entity
+from common.unleash.client import UnleashClient
+from config.feature_flags import FeatureFlags
 from src.payments.repos import PurchaseAmoMatrix, PurchaseAmoMatrixRepo
 
 from ..entities import BaseBookingCase
@@ -27,6 +29,7 @@ class UpdateAmoBookingService(BaseBookingCase, BookingLogMixin):
         create_amocrm_log_task: Any,
         booking_repo: Type[BookingRepo],
         amocrm_class: Type[BookingAmoCRM],
+        global_id_decoder: Callable,
         orm_class: Optional[Type[BookingORM]] = None,
         orm_config: Optional[dict[str, Any]] = None,
     ) -> None:
@@ -34,6 +37,7 @@ class UpdateAmoBookingService(BaseBookingCase, BookingLogMixin):
         self.create_amocrm_log_task: Any = create_amocrm_log_task
         self.booking_repo: BookingRepo = booking_repo()
         self.purchase_amo_matrix_repo: PurchaseAmoMatrixRepo = PurchaseAmoMatrixRepo()
+        self.global_id_decoder = global_id_decoder
 
         self.orm_class: Union[Type[BookingORM], None] = orm_class
         self.orm_config: Union[dict[str, Any], None] = copy(orm_config)
@@ -96,19 +100,20 @@ class UpdateAmoBookingService(BaseBookingCase, BookingLogMixin):
             ordering="priority",
         ).first()
         payment_type_enum: Optional[int] = purchase_amo.amo_payment_type if purchase_amo else None
+        property_id: Optional[int] = self.global_id_decoder(booking.property.global_id)[1] if booking.property else None
 
         # обновляем сделку в амо (основные поля)
         await amocrm.update_lead_v4(
             lead_id=booking.amocrm_id,
             city_slug=booking.project.city.slug if booking.project else None,
             status_id=booking.amocrm_status_id,
-            price=int(booking.payment_amount) if booking.payment_amount else None,
+            price=booking.property.original_price,
             project_amocrm_name=booking.project.amocrm_name if booking.project else None,
             project_amocrm_enum=booking.project.amocrm_enum if booking.project else None,
             project_amocrm_organization=booking.project.amocrm_organization if booking.project else None,
             project_amocrm_pipeline_id=booking.project.amo_pipeline_id if booking.project else None,
             project_amocrm_responsible_user_id=booking.project.amo_responsible_user_id if booking.project else None,
-            property_id=booking.property.global_id if booking.property else None,
+            property_id=property_id,
             property_type=booking.property.type.value.lower() if booking.property and booking.property.type else None,
             payment_type_enum=payment_type_enum,
         )
@@ -128,10 +133,23 @@ class UpdateAmoBookingService(BaseBookingCase, BookingLogMixin):
             )
 
         # логируем изменения
-        note_data: dict[str, Any] = dict(
-            element="lead",
-            lead_id=booking.amocrm_id,
-            note="lead_changed",
-            text="Изменены данные сделки в админке",
-        )
+
+        if self.__is_strana_lk_2882_enable:
+            note_data: dict[str, Any] = dict(
+                lead_id=booking.amocrm_id,
+                note="lead_changed",
+                text="Изменены данные сделки в админке",
+            )
+        else:
+            note_data: dict[str, Any] = dict(
+                element="lead",
+                lead_id=booking.amocrm_id,
+                note="lead_changed",
+                text="Изменены данные сделки в админке",
+            )
+
         self.create_amocrm_log_task.delay(note_data=note_data)
+
+    @property
+    def __is_strana_lk_2882_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_2882)

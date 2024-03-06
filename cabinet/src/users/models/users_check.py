@@ -69,7 +69,6 @@ class ResponseUsersCheckModel(BaseCheckModel):
     requested: Optional[datetime]
     unique_status: Optional[Any]
     status: Optional[UniqueStatusSchema]
-    can_dispute: Optional[bool]
     button: Optional[ButtonSchema]
 
     @root_validator
@@ -77,7 +76,6 @@ class ResponseUsersCheckModel(BaseCheckModel):
         """unique status"""
         if unique_status := values.pop("unique_status"):
             values["status"] = parse_obj_as(UniqueStatusSchema, unique_status)
-            values["can_dispute"] = unique_status.can_dispute
         return values
 
     class Config:

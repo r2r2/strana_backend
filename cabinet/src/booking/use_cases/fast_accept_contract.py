@@ -5,6 +5,7 @@ from src.booking.loggers.wrappers import booking_changes_logger
 from ..constants import (BookingCreatedSources, BookingStages,
                          BookingSubstages, PaymentStatuses)
 from ..entities import BaseBookingCase
+from ..event_emitter_handlers import event_emitter
 from ..exceptions import BookingNotFoundError, BookingTimeOutError
 from ..mixins import BookingLogMixin
 from ..models import RequestFastAcceptContractModel
@@ -28,13 +29,17 @@ class FastAcceptContractCase(BaseBookingCase, BookingLogMixin):
     async def __call__(
         self, user_id: int, origin: Union[str, None], payload: RequestFastAcceptContractModel
     ) -> Booking:
-        booking: Booking = await self.booking_repo.retrieve(filters=dict(id=payload.booking_id))
+        booking: Booking = await self.booking_repo.retrieve(
+            filters=dict(id=payload.booking_id),
+            related_fields=["project__city", "user"],
+        )
         if not booking:
             raise BookingNotFoundError
 
         if not booking.time_valid():
             raise BookingTimeOutError
 
+        old_group_status = booking.amocrm_substage if booking.amocrm_substage else None
         if booking.amocrm_substage in (
             BookingSubstages.MORTGAGE_DONE,
             BookingSubstages.MORTGAGE_LEAD,
@@ -54,5 +59,11 @@ class FastAcceptContractCase(BaseBookingCase, BookingLogMixin):
             contract_accepted=payload.contract_accepted,
         )
         booking: Booking = await self.booking_update(booking=booking, data=data)
-
+        # event_emitter.ee.emit(
+        #     event='accept_contract',
+        #     booking=booking,
+        #     user=booking.user,
+        #     old_group_status=old_group_status,
+        #     city=booking.project.city.slug if booking.project.city else None,
+        # )
         return booking

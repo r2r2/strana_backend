@@ -2,8 +2,8 @@ from typing import Type
 
 import structlog
 
-from src.properties.repos import Property
-from src.payments.repos import PropertyPriceRepo, PropertyPrice, PropertyPriceTypeRepo, PropertyPriceType
+from src.payments.repos import PropertyPriceRepo, PropertyPrice
+from src.payments import repos as payment_repos
 
 from ..entities import BasePropertyService
 
@@ -16,40 +16,57 @@ class GetPropertyPriceService(BasePropertyService):
     def __init__(
         self,
         property_price_repo: Type[PropertyPriceRepo],
-        property_price_type_repo: Type[PropertyPriceTypeRepo],
+        price_offer_matrix_repo: type[payment_repos.PriceOfferMatrixRepo],
     ):
         self.property_price_repo: PropertyPriceRepo = property_price_repo()
-        self.property_price_type_repo: PropertyPriceTypeRepo = property_price_type_repo()
+        self.price_offer_matrix_repo: payment_repos.PriceOfferMatrixRepo = price_offer_matrix_repo()
 
         self.logger = structlog.get_logger(self.__class__.__name__)
 
-    async def __call__(self, property: Property, property_price_type_slug: str) -> PropertyPrice | None:
-        property_price_type: PropertyPriceType = await self.property_price_type_repo.retrieve(
-            filters=dict(slug=property_price_type_slug),
-            related_fields=["price_offer"],
+    async def __call__(
+        self,
+        property_id: int,
+        property_payment_method_slug: str,
+        property_mortgage_type_by_dev: bool | None,
+    ) -> tuple[PropertyPrice | None, payment_repos.PriceOfferMatrix | None]:
+
+        price_offer_matrix: payment_repos.PriceOfferMatrix | None = await self.price_offer_matrix_repo.retrieve(
+            filters=dict(
+                payment_method__slug=property_payment_method_slug,
+                mortgage_type__by_dev=property_mortgage_type_by_dev,
+            ),
+            related_fields=["price_type"],
+            ordering="priority",
         )
-        if not property_price_type:
-            self.logger.error(f"Не найден тип цены объектов недвижимости со слагом {property_price_type_slug=}")
-            return
-
-        if not property_price_type.price_offer:
-            self.logger.error(f"У типа цены со слагом {property_price_type_slug=} не задана матрица предложения цены")
-            return
-
-        property_price: PropertyPrice = await self.property_price_repo.create(
-            data=dict(
-                property=property,
-                price_type=property_price_type,
-                price=property.original_price if property_price_type.price_offer.by_dev else property.final_price
+        if not price_offer_matrix or not price_offer_matrix.price_type:
+            self.logger.error(
+                f"Не не задана матрица предложения цены c параметрами "
+                f"{property_payment_method_slug=}, {property_mortgage_type_by_dev=}"
             )
-        )
-        self.logger.info(f"Создан новый объект цены недвижимости {property_price=}")
-        prefetch_fields: list[str] = [
-            "price_type__price_offer",
-            "price_type__price_offer__payment_method",
-            "price_type__price_offer__price_type",
-            "price_type__price_offer__mortgage_type",
-        ]
-        await property_price.fetch_related(*prefetch_fields)
 
-        return property_price
+            price_offer_matrix: payment_repos.PriceOfferMatrix | None = await self.price_offer_matrix_repo.retrieve(
+                filters=dict(default=True),
+                ordering="priority",
+            )
+            self.logger.info(f"Найдена матрица предложения цены по умолчанию {price_offer_matrix=}")
+
+            property_price: PropertyPrice = await self.property_price_repo.retrieve(
+                filters=dict(
+                    property_id=property_id,
+                    price__isnull=False,
+                    price_type__default=True,
+                ),
+            )
+            self.logger.info(f"Найден объект цены недвижимости с типом по умолчанию {property_price=}")
+
+        else:
+            property_price: PropertyPrice = await self.property_price_repo.retrieve(
+                filters=dict(
+                    property_id=property_id,
+                    price__isnull=False,
+                    price_type_id=price_offer_matrix.price_type_id,
+                ),
+            )
+            self.logger.info(f"Найден объект цены недвижимости (по умолчанию) {property_price=}")
+
+        return property_price, price_offer_matrix

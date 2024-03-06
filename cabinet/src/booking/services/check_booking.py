@@ -7,6 +7,8 @@ import structlog
 from pytz import UTC
 
 from common.email import EmailService
+from common.unleash.client import UnleashClient
+from config.feature_flags import FeatureFlags
 from src.task_management.constants import PaidBookingSlug, OnlineBookingSlug
 from src.booking.constants import BookingStages, BookingSubstages, BookingCreatedSources
 from src.amocrm.repos import AmocrmStatus, AmocrmStatusRepo
@@ -90,7 +92,7 @@ class CheckBookingService(BaseBookingService):
 
     async def __call__(self, booking_id: int, status: Optional[str] = None) -> bool:
         """
-        status: Статус, устанавливаемый по истечению времени бронирования
+        :param status: Статус, устанавливаемый по истечению времени бронирования
         """
         print("CheckBookingService")
         filters: dict[str, Any] = dict(id=booking_id, should_be_deactivated_by_timer=True)
@@ -99,7 +101,6 @@ class CheckBookingService(BaseBookingService):
             related_fields=[
                 "user",
                 "agent",
-                "project",
                 "project__city",
                 "property",
                 "building",
@@ -107,87 +108,102 @@ class CheckBookingService(BaseBookingService):
             ],
         )
         print(f'{booking=}')
-        result: bool = True
-        if booking:
-            if booking.step_four():
-                print("booking.step_four()")
-                data = dict(should_be_deactivated_by_timer=False)
-                await self.booking_deactivate_for_step_four(booking=booking, data=data)
-                result: bool = True
-            # elif booking.time_valid():
-            #     print("booking.time_valid()")
-            #     task_delay: int = (booking.expires - datetime.now(tz=UTC)).seconds
-            #     if self.check_booking_task:
-            #         pass
-            #         # self.check_booking_task.apply_async(
-            #         #     (booking.id, status), countdown=task_delay
-            #         # )
-            #     result: bool = False
-            else:
-                print("else")
-                match booking.booking_source.slug:
-                    case BookingCreatedSources.FAST_BOOKING | BookingCreatedSources.LK_ASSIGN:
-                        # быстрое бронирование
-                        need_change_status: bool = False
-                    case BookingCreatedSources.AMOCRM:
-                        # бесплатная бронь
-                        need_change_status: bool = False
-                    case _:
-                        need_change_status: bool = True
+        if not booking:
+            return True
 
-                if not status:
-                    status: str = BookingStages.START
+        if booking.step_four():
+            print("booking.step_four()")
+            data = dict(should_be_deactivated_by_timer=False)
+            await self.booking_deactivate_for_step_four(booking=booking, data=data)
 
-                status_label = BookingSubstages(status).label
-                filters = dict(
-                    name__iexact=status_label,
-                    pipeline_id=booking.project.amo_pipeline_id,
-                )
-                actual_amocrm_status: AmocrmStatus = (
-                    await self.amocrm_status_repo.retrieve(filters=filters)
-                )
-                data: dict[str, Any] = dict(
-                    active=False,
-                    project_id=None,
-                    property_id=None,
-                    profitbase_booked=False,
-                    params_checked=False,
-                    should_be_deactivated_by_timer=False,
-                )
-                if need_change_status:
-                    data["amocrm_stage"] = status
-                    data["amocrm_substage"] = status
-                    data["amocrm_status"] = actual_amocrm_status
+            return True
+        # elif booking.time_valid():
+        #     print("booking.time_valid()")
+        #     task_delay: int = (booking.expires - datetime.now(tz=UTC)).seconds
+        #     if self.check_booking_task:
+        #         pass
+        #         # self.check_booking_task.apply_async(
+        #         #     (booking.id, status), countdown=task_delay
+        #         # )
+        #     result: bool = False
 
-                property_data: dict[str, Any] = dict(status=PropertyStatuses.FREE)
-                if booking.is_agent_assigned():
-                    await self._profitbase_unbooking(booking)
-                    await self._amocrm_unbooking(booking, actual_amocrm_status.id)
-                else:
-                    if (
-                        booking.step_one()
-                        and not booking.step_two()
-                        and booking.amocrm_id
-                    ):
-                        await self._amocrm_unbooking(booking, actual_amocrm_status.id)
-                        await self._send_agent_email(booking=booking)
-                    elif booking.step_two():
-                        await self._profitbase_unbooking(booking)
-                        await self._amocrm_unbooking(booking, actual_amocrm_status.id)
+        if not status:
+            status: str = BookingStages.START
 
-                self.logger.debug(f"Booking deactivation data: {data}")
-                await self.booking_deactivate(booking=booking, data=data)
-                await self.property_repo.update(booking.property, data=property_data)
-                await self._backend_unbooking(booking)
-                self.booking_notification_sms_task.delay(booking.id)
-                await self.update_task_instance_status(booking_id=booking.id)
-                result: bool = False
-        return result
+        status_label = BookingSubstages(status).label
+        filters = dict(
+            name__iexact=status_label,
+            pipeline_id=booking.project.amo_pipeline_id,
+        )
+        actual_amocrm_status: AmocrmStatus = (
+            await self.amocrm_status_repo.retrieve(filters=filters)
+        )
+        data: dict[str, Any] = dict(
+            active=False,
+            project_id=None,
+            property_id=None,
+            profitbase_booked=False,
+            params_checked=False,
+            should_be_deactivated_by_timer=False,
+        )
+        if self._is_need_to_change_status(booking=booking):
+            data["amocrm_stage"] = status
+            data["amocrm_substage"] = status
+            data["amocrm_status"] = actual_amocrm_status
+
+        if booking.booking_source.slug == BookingCreatedSources.FAST_BOOKING:
+            data.pop("property_id")
+            data.pop("project_id")
+        else:
+            await self._process_unbooking(booking, actual_amocrm_status.id)
+
+        self.logger.debug(f"Booking deactivation data: {data}")
+        await self.booking_deactivate(booking=booking, data=data)
+        property_data: dict[str, Any] = dict(status=PropertyStatuses.FREE)
+        await self.property_repo.update(booking.property, data=property_data)
+        if booking.booking_source.slug != BookingCreatedSources.FAST_BOOKING:
+            await self._backend_unbooking(booking)
+        self.booking_notification_sms_task.delay(booking.id)
+        await self.update_task_instance_status(booking_id=booking.id)
+        return False
+
+    async def _process_unbooking(self, booking: Booking, status_id: int) -> None:
+        """
+        Обработка отмены бронирования
+        """
+        if self.__is_strana_lk_3639_enable:
+            if booking.is_agent_assigned():
+                await self._profitbase_unbooking(booking)
+                await self._amocrm_unbooking(booking, status_id)
+            elif (
+                booking.step_one()
+                and not booking.step_two()
+                and booking.amocrm_id
+            ):
+                await self._amocrm_unbooking(booking, status_id)
+                await self._send_agent_email(booking=booking)
+            elif booking.step_two():
+                await self._profitbase_unbooking(booking)
+                await self._amocrm_unbooking(booking, status_id)
+        else:
+            await self._profitbase_unbooking(booking)
+            await self._amocrm_unbooking(booking, status_id)
+
+    def _is_need_to_change_status(self, booking: Booking) -> bool:
+        match booking.booking_source.slug:
+            case BookingCreatedSources.FAST_BOOKING | BookingCreatedSources.LK_ASSIGN:
+                # быстрое бронирование
+                return False
+            case BookingCreatedSources.AMOCRM:
+                # бесплатная бронь
+                return False
+            case _:
+                return True
 
     async def _amocrm_unbooking(self, booking: Booking, status_id: int) -> int:
         """
         Amocrm unbooking
-        В АМО сделку в статусе "Бронь" нельзя перевести в статус "Первичный контакт"
+        В АМО сделку в статусе "Бронь" нельзя перевести в статус "Первичный контакт" в кейсе Быстрой брони
         """
         # находим данные из матрицы для поля в амо "Тип оплаты"
         purchase_amo: Optional[PurchaseAmoMatrix] = await self.purchase_amo_matrix_repo.list(
@@ -267,6 +283,10 @@ class CheckBookingService(BaseBookingService):
         """
         statuses_to_update: list[str] = [
             PaidBookingSlug.RE_BOOKING.value,
-            OnlineBookingSlug.TIME_IS_UP.value,
+            # OnlineBookingSlug.TIME_IS_UP.value,
         ]
         await self.update_task_instance_status_service(booking_id=booking_id, status_slug=statuses_to_update)
+
+    @property
+    def __is_strana_lk_3639_enable(self) -> bool:
+        return UnleashClient().is_enabled(FeatureFlags.strana_lk_3639)

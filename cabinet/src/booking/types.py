@@ -65,3 +65,12 @@ class WebhookLead(NamedTuple):
     new_status_id: Optional[int] = None
     custom_fields: dict[int, CustomFieldValue] = {}
     tags: dict[int, str] = {}
+    updated_at: int | None = None
+
+
+class WebhookContact(NamedTuple):
+    amocrm_id: int
+    fullname: str
+    custom_fields: dict[int, CustomFieldValue] = {}
+    tags: dict[int, str] = {}
+    role: Optional[str] = None

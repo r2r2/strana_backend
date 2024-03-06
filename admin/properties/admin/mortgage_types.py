@@ -8,4 +8,6 @@ class MortgageTypeAdmin(admin.ModelAdmin):
     list_display = (
         "title",
         "amocrm_id",
+        "slug",
+        "by_dev",
     )

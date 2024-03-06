@@ -1,6 +1,6 @@
 from typing import Any
 
-from fastapi import APIRouter, Body, Depends, Path, Query, status
+from fastapi import APIRouter, Body, Depends, Path, Query, Request, status
 
 from common import amocrm, dependencies, paginations, email
 from common.amocrm.components import AmoCRMAvailableMeetingSlots
@@ -105,6 +105,7 @@ async def meeting_detail_view(
     resources: dict[str, Any] = dict(
         meeting_repo=meeting_repos.MeetingRepo,
         meeting_status_repo=meeting_repos.MeetingStatusRepo,
+        meeting_status_ref_repo=meeting_repos.MeetingStatusRefRepo,
         booking_settings_repo=BookingSettingsRepo,
         user_repo=user_repo.UserRepo,
         check_repo=user_repo.CheckRepo,
@@ -121,6 +122,7 @@ async def meeting_detail_view(
     response_model=models.ResponseCreatedMeetingModel,
 )
 async def meeting_create_view(
+    request: Request,
     user_id: int = Depends(dependencies.CurrentAnyTypeUserId()),
     payload: models.RequestCreateMeetingModel = Body(...),
 ):
@@ -135,7 +137,9 @@ async def meeting_create_view(
     resources: dict[str, Any] = dict(
         meeting_repo=meeting_repos.MeetingRepo,
         meeting_status_repo=meeting_repos.MeetingStatusRepo,
+        meeting_status_ref_repo=meeting_repos.MeetingStatusRefRepo,
         meeting_creation_source_repo=meeting_repos.MeetingCreationSourceRepo,
+        meeting_creation_source_ref_repo=meeting_repos.MeetingCreationSourceRefRepo,
         calendar_event_repo=event_repo.CalendarEventRepo,
         booking_repo=booking_repos.BookingRepo,
         user_repo=user_repo.UserRepo,
@@ -144,6 +148,7 @@ async def meeting_create_view(
         amocrm_pipeline_repo=amocrm_repos.AmocrmPipelineRepo,
         amocrm_group_status_repo=amocrm_repos.AmocrmGroupStatusRepo,
         strana_office_admin_repo=user_repo.StranaOfficeAdminRepo,
+        test_booking_repo=booking_repos.TestBookingRepo,
         amocrm_class=amocrm.AmoCRM,
         email_class=email.EmailService,
         get_email_template_service=get_email_template_service,
@@ -160,6 +165,7 @@ async def meeting_create_view(
     dependencies=[Depends(dependencies.DeletedUserCheck())],
 )
 async def meeting_update_view(
+    request: Request,
     meeting_id: int,
     payload: models.RequestUpdateMeetingModel = Body(...),
     user_id: int = Depends(dependencies.CurrentAnyTypeUserId()),
@@ -176,6 +182,7 @@ async def meeting_update_view(
     resources: dict[str, Any] = dict(
         meeting_repo=meeting_repos.MeetingRepo,
         meeting_status_repo=meeting_repos.MeetingStatusRepo,
+        meeting_status_ref_repo=meeting_repos.MeetingStatusRefRepo,
         calendar_event_repo=event_repo.CalendarEventRepo,
         user_repo=user_repo.UserRepo,
         booking_repo=booking_repos.BookingRepo,
@@ -197,6 +204,7 @@ async def meeting_update_view(
     dependencies=[Depends(dependencies.DeletedUserCheck())],
 )
 async def meeting_refuse_view(
+    request: Request,
     meeting_id: int,
     user_id: int = Depends(dependencies.CurrentAnyTypeUserId()),
 ):
@@ -211,6 +219,7 @@ async def meeting_refuse_view(
     resources: dict[str, Any] = dict(
         meeting_repo=meeting_repos.MeetingRepo,
         meeting_status_repo=meeting_repos.MeetingStatusRepo,
+        meeting_status_ref_repo=meeting_repos.MeetingStatusRefRepo,
         user_repo=user_repo.UserRepo,
         booking_repo=booking_repos.BookingRepo,
         amocrm_status_repo=amocrm_repos.AmocrmStatusRepo,

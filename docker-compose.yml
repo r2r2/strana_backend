@@ -105,6 +105,7 @@ x-app_environment: &app_environment
     - REDIS_CACHE_URL
     - CACHE_TTL
     - LK_SENTRY_DSN
+    - LK_SENTRY_DSN_ENV
     - LK_STRANA_MANAGER_EMAIL
     - LK_STRANA_BOOKING_EMAIL
     - DADATA_TOKEN
@@ -126,6 +127,8 @@ x-app_environment: &app_environment
     - TILDA_AUTH_TOKEN
     - PERIODIC_ETA_TIMEOUT_HOURS
     - PERIODIC_TIMEOUT_HOURS
+    - ALLOWED_TOOLBAR
+    - AMOCRM_CLIENT_SECRET
 
 services:
   cabinet:

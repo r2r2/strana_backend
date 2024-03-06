@@ -109,6 +109,14 @@ class CabinetChecksTerms(models.Model):
                   "“Неуникален” (или аналогичный ему) - проверка прекращается, "
                   "в противном случае проверяются все сделки клиента",
     )
+    button: models.ForeignKey = models.ForeignKey(
+        verbose_name="Кнопка",
+        to="disputes.UniqueStatusButton",
+        related_name="terms",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
     comment = models.TextField(
         verbose_name="Комментарий",
         null=True,
