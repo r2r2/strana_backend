@@ -1,0 +1,45 @@
+---
+- name: Check directory is exist
+  stat:
+    path: '{{ FILE_PATH }}/{{ COMPONENT_NAME }}-{{ SERVICE_NAME }}-{{ CONTAINER_NAME }}'
+  register: name_of_directory
+  #become: true
+
+- name: Message about ensure directory is exist
+  debug:
+    msg: "The file or directory exists"
+  when: name_of_directory.stat.exists
+
+- name: Message about ensure directory is not exist
+  fail:
+    msg: "The file or directory exists"
+  when: not name_of_directory.stat.exists
+
+- name: Message about image_tag variable is not defined
+  fail:
+    msg: "Version of service is not defined. Please define `image_tag` in inventory/group_vars/{{ COMPONENT_NAME }}-{{ SERVICE_NAME }}-{{ CONTAINER_NAME }}"
+  when: IMAGE_TAG is not defined
+
+- name: Copy config file
+  copy:
+    src: "{{ item }}"
+    dest: '{{ FILE_PATH }}/{{ COMPONENT_NAME }}-{{ SERVICE_NAME }}-{{ CONTAINER_NAME }}/'
+  with_fileglob:
+    - "*.yml"
+    - "*.yaml"
+    - "*.json"
+    - "*.env"
+    - "*.ini"
+
+- name: Run container
+  shell: 'sudo {{ FILE_PATH }}/{{ COMPONENT_NAME}}-{{ SERVICE_NAME }}-{{ CONTAINER_NAME }}/run_app.sh {{ IMAGE_TAG }}'
+  when: '"migration" not in inventory_hostname'
+
+
+- name: Wait for container run
+  script: 'wait_for_container.sh {{ COMPONENT_NAME }}-{{ SERVICE_NAME }}-{{ CONTAINER_NAME }}'
+  when: '"migration" not in inventory_hostname'
+
+- name: Run container
+  shell: 'sudo {{ FILE_PATH }}/{{ COMPONENT_NAME}}-{{ SERVICE_NAME }}-{{ CONTAINER_NAME }}/run_app.sh {{ IMAGE_TAG }} {{ COMMAND | default("python cli.py migrator upgrade head") }}'
+  when:  '"migration" in inventory_hostname'

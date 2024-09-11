@@ -1,0 +1,38 @@
+stages:
+  - deploy
+
+image: '$DOCKER_SL_REG/$DOCKER_BASED_IMAGE'
+
+deploy:
+  stage: deploy
+  variables:
+    ANSIBLE_CONFIG: $PWD/ansible.cfg
+    ANSIBLE_FORCE_COLOR: 'true'
+    COPY_FILE_PATH: deploy/ansible/roles/deploy_sm/files/
+    COMPONENT_NAME: sportlevel
+    SERVICE_NAME: messenger
+  when: manual
+  tags:
+    - sl-runner-deploy
+  parallel:
+    matrix:
+      - CONTAINER_NAME: [http-server, jobs, migration, worker01, worker02, ws-server, updates-streamer, push-sender]
+  environment:
+    name: production
+  script:
+    - source "$SECRET_ENV_PROD"
+    - |
+      if [ "$CONTAINER_NAME" == "worker01" ] || [ "$CONTAINER_NAME" == "worker02" ]; then 
+        FILE_LIST=`curl -sk --header @"$HEADERS_PROD" https://gitlab.fbsvc.bz/api/v4/projects/1292/repository/tree?path="$COMPONENT_NAME"-"$SERVICE_NAME" | jq -r .[].name| grep worker`
+      else
+        FILE_LIST=`curl -sk --header @"$HEADERS_PROD" https://gitlab.fbsvc.bz/api/v4/projects/1292/repository/tree?path="$COMPONENT_NAME"-"$SERVICE_NAME" | jq -r .[].name| grep $CONTAINER_NAME`
+      fi
+    - |
+      for i in $FILE_LIST; do curl -sk --header @"$HEADERS_PROD" https://gitlab.fbsvc.bz/api/v4/projects/1292/repository/files/"$COMPONENT_NAME"-"$SERVICE_NAME"%2F$i/raw?ref="master" -o "$COPY_FILE_PATH"/$i; envsubst < "$COPY_FILE_PATH"/$i > $COPY_FILE_PATH/$i.tmp && mv $COPY_FILE_PATH/$i.tmp $COPY_FILE_PATH/$i ; done
+    - eval $(ssh-agent -s)
+    - echo "$SSH_KEY" | tr -d '\r' | ssh-add - > /dev/null
+    - chmod 0755 deploy/ansible
+    - cd deploy/ansible
+    - ansible-playbook -i inventory/inventory_prod playbooks/run.yml -e IMAGE_TAG="$IMAGE_TAG_PROD" -e COMPONENT_NAME="$COMPONENT_NAME" -e SERVICE_NAME="$SERVICE_NAME" -e CONTAINER_NAME="$CONTAINER_NAME" -e COMMAND="$COMMAND" --vault-password-file="$VAULT_FILE" -vD
+  rules:
+    - if: $CI_COMMIT_BRANCH == "master"

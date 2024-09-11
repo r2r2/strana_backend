@@ -1,0 +1,57 @@
+ARG PYTHON_VERSION=3.12.0-20.12.0-node
+
+FROM nexus.fbsvc.bz/constanta_docker/base-sl-python:${PYTHON_VERSION}
+
+ARG NPM_REGISTRY=nexus.fbsvc.bz/repository/proxy_npmjs_npm/
+
+RUN apt-get update -y
+RUN apt-get install git -y
+RUN apt-get install make -y
+RUN npm set registry https://${NPM_REGISTRY}
+
+ARG POETRY_VERSION=1.8.2
+ARG POETRY_EXPORT_VERSION=1.7.1
+ARG POETRY_SOURCE_EXPORT_VERSION=1.0.0
+ARG DOCKER_PYTHON_REG=nexus.fbsvc.bz/repository/constanta_python/simple/
+
+WORKDIR /tmp
+
+COPY ./pyproject.toml ./poetry.lock* /tmp/
+
+RUN pip install \
+    --no-cache-dir \
+    --no-input \
+    poetry==${POETRY_VERSION} \
+    poetry-plugin-export==${POETRY_EXPORT_VERSION} \
+    wheel
+
+RUN --mount=type=secret,id=netrc,target=/root/.netrc \
+    pip install \
+    --no-cache-dir \
+    --no-input \
+    --no-build-isolation \
+    --index-url https://${DOCKER_PYTHON_REG} \
+    poetry-plugin-source-export==${POETRY_SOURCE_EXPORT_VERSION}
+
+RUN poetry export-by-source --with dev
+RUN poetry config virtualenvs.create false
+
+RUN pip install \
+    --no-cache-dir \
+    --no-input \
+    -r pypi.requirements.txt
+
+RUN pip install \
+    --no-cache-dir \
+    --no-input \
+    poetry-core
+
+RUN --mount=type=secret,id=netrc,target=/root/.netrc \
+    pip install \
+    --no-cache-dir \
+    --no-input \
+    --no-build-isolation \
+    --index-url https://${DOCKER_PYTHON_REG} \
+    -r nexus.requirements.txt
+
+WORKDIR /opt/app/

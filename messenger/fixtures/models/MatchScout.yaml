@@ -1,0 +1,24 @@
+-
+  sportlevel_match_id: 1
+  scout_id: 1
+  is_main_scout: True
+  scout_number: 100
+  scout_name: Иванов Иван
+-
+  sportlevel_match_id: 1
+  scout_id: 2
+  is_main_scout: False
+  scout_number: 101
+  scout_name: Олегов Олег
+-
+  sportlevel_match_id: 2
+  scout_id: 1
+  is_main_scout: True
+  scout_number: 100
+  scout_name: Иванов Иван
+-
+  sportlevel_match_id: 3
+  scout_id: 3
+  is_main_scout: True
+  scout_number: 103
+  scout_name: Петров Пётр

@@ -1,0 +1,231 @@
+default:
+  max_connections_per_ip: 5
+
+  app:
+    title: SL Messenger
+    host: 0.0.0.0
+    port: 8080
+    debug: True
+    api_root_path: ""
+    forwarded_allow_ips: "*"
+
+  logging:
+    spammy_loggers:
+      - asyncio
+      - websockets
+      - urllib3.connectionpool
+      - aiormq.connection
+      - aio_pika
+      - aiocache
+      - multipart
+      - multipart.multipart
+    log_format: plain
+    log_level: DEBUG
+
+  cors:
+    is_enabled: True
+    allow_origins: ["*"]
+    allow_credentials: True
+    allow_methods: ["*"]
+    allow_headers: ["*"]
+
+  docs:
+    is_enabled: False
+    username: constanta
+    password: CHANGEME!
+
+  auth:
+    host: http://localhost:11717
+    aud: messenger
+    priv_key: NOTSET
+    request_timeout: 3.0
+    token_leeway: 5
+
+  sentry:
+    dsn: http://localhost:9999
+    is_enabled: False
+    environment: local
+
+  push_notifications:
+    vapid_private_key: secretPEMformat
+    vapid_email: email@sportlevel.com
+    vapid_token_ttl: 43200 # 12 hours
+    send_push_request_timeout: 5.0
+
+  connections:
+    redis:
+      host: localhost
+      port: 6379
+      db: 0
+      max_connections: 100
+      reconnect_max_retries: 3
+
+  presence:
+    activity_time_threshold: 5
+
+    redis:
+      host: localhost
+      port: 6379
+      db: 0
+      max_connections: 50
+      reconnect_max_retries: 3
+
+  chat:
+    cache_max_connections: 10
+    is_user_in_chat_cache_ttl: 30
+    activity_throttle_time: 2
+    delivery_status_updated_throttle_time: 3
+    unread_message_delay_sec: 2
+
+  storage:
+    db:
+      user: user
+      password: password
+      database_name: database
+      port: 5435
+      host: localhost
+      echo: False
+      pool_size: 10
+      max_overflow: 10
+      timeout: 5.0
+      is_profiling_enabled: False
+
+    migrator:
+      schema_name: public
+      create_schema_on_migration: True
+
+  rabbitmq_publisher:
+    amqp:
+      vhost: /
+      host: localhost
+      port: 5680
+      username: user
+      password: password
+      connection_pool_size: 1
+      channel_pool_size: 8
+
+  updates_listener:
+    service_updates_rk: service_updates
+    publisher_max_concurrent_jobs: 50
+    publisher_max_pending_jobs: 500
+    publisher_jobs_warning_threshold: 30
+
+    amqp:
+      vhost: /
+      host: localhost
+      port: 5680
+      username: user
+      password: password
+      connection_pool_size: 1
+      channel_pool_size: 3
+
+  users_cache:
+    memory_cache:
+      ttl: 60
+      max_size: 1000
+
+    redis_cache:
+      ttl: 60
+      max_size: 1000
+
+    redis:
+      host: localhost
+      port: 6379
+      db: 0
+      max_connections: 30
+      reconnect_max_retries: 2
+
+  sportlevel:
+    host: https://sportlevel-domain.com
+    credentials:
+      username: username
+      password: password
+
+    debug: True
+    request_max_attempts: 3
+    request_timeout: 3.0
+    headers:
+      X-Service-Name: sportlevel-messenger
+
+  background_jobs:
+    start_immediately: True
+    wait_for_finish: True
+
+    users_cache:
+      ttl: 259200
+      max_size: 10_000
+
+    matches_cache:
+      ttl: 86400
+      max_size: 5_000
+
+    autoclose_private_chats:
+      is_enabled: True
+      debug: True
+      check_interval: 120
+      close_after: 10800
+
+    presence_track:
+      is_enabled: True
+      debug: True
+      check_interval: 3.0
+      offline_time_threshold: 10.0
+      cleanup_interval: 120
+
+      redis:
+        host: localhost
+        port: 6379
+        db: 0
+        max_connections: 50
+        reconnect_max_retries: 3
+
+    sportlevel_users_sync:
+      is_enabled: True
+      debug: False
+      check_interval: 10
+
+    sl_match_scout_changes_listener:
+      is_enabled: True
+      updates_exchange_name: main_scout_changes
+      queue_name: sl_messenger_match_scout_changes
+      amqp:
+        vhost: /
+        host: localhost
+        port: 5680
+        username: user
+        password: password
+        connection_pool_size: 1
+        channel_pool_size: 2
+
+    sl_match_state_updates_listener:
+      is_enabled: True
+      updates_exchange_name: sportlevel
+      queue_name: sl_messenger_match_state_updates
+      finish_match_update_delay: 300 # 5 minutes
+      amqp:
+        vhost: /
+        host: localhost
+        port: 5680
+        username: user
+        password: password
+        connection_pool_size: 1
+        channel_pool_size: 2
+
+  file_uploads:
+    allowed_mime_types:
+      - image/png
+      - image/jpeg
+      - image/jpg
+      - image/svg+xml
+      - text/csv
+      - application/zip
+    max_file_size: 25000000
+    uploads_path: ./uploads/
+
+  telegram:
+    api_token: 000:AAA
+    notifications_channel_id: -0001
+    url_templates:
+      sl_partner_match_url: https://partner.sl-dev-stage.com/translations/{match_id}
+      sl_messenger_ticket_url: https://messenger.sl-dev-stage.com/dev-kuber/ticket/{ticket_id}/chatId/{chat_id}
+      sl_messenger_match_ticket_url: https://messenger.sl-dev-stage.com/dev-kuber/matches/{chat_id}/tickets/{ticket_id}

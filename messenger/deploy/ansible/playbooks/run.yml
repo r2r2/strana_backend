@@ -1,0 +1,6 @@
+---
+- name: Run container on servers
+  hosts: '{{ COMPONENT_NAME }}-{{ SERVICE_NAME }}-{{ CONTAINER_NAME }}'
+  gather_facts: no
+  roles:
+    - role: deploy_sm

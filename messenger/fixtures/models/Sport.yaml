@@ -1,0 +1,88 @@
+- id: 4
+  name_en: Futsal
+  name_ru: Мини-футбол
+  created_at: 2023-01-01T10:00:00.000000+00:00
+- id: 36
+  name_en: Rugby
+  name_ru: Регби
+  created_at: 2023-01-01T10:00:00.000000+00:00
+- id: 22
+  name_en: Floorball
+  name_ru: Флорбол
+  created_at: 2023-01-01T10:00:00.000000+00:00
+- id: 18
+  name_en: Beach Soccer
+  name_ru: Пляжный футбол
+  created_at: 2023-01-01T10:00:00.000000+00:00
+- id: 40
+  name_en: Rugby-7
+  name_ru: Регби-7
+  created_at: 2023-01-01T10:00:00.000000+00:00
+- id: 7
+  name_en: Handball
+  name_ru: Гандбол
+  created_at: 2023-01-01T10:00:00.000000+00:00
+- id: 24
+  name_en: Water polo
+  name_ru: Водное поло
+  created_at: 2023-01-01T10:00:00.000000+00:00
+- id: 39
+  name_en: Basketball 3x3
+  name_ru: Баскетбол 3х3
+  created_at: 2023-01-01T10:00:00.000000+00:00
+- id: 11
+  name_en: Volleyball
+  name_ru: Волейбол
+  created_at: 2023-01-01T10:00:00.000000+00:00
+- id: 6
+  name_en: Table Tennis
+  name_ru: Настольный теннис
+  created_at: 2023-01-01T10:00:00.000000+00:00
+- id: 20
+  name_en: Badminton
+  name_ru: Бадминтон
+  created_at: 2023-01-01T10:00:00.000000+00:00
+- id: 23
+  name_en: Beach volleyball
+  name_ru: Пляжный волейбол
+  created_at: 2023-01-01T10:00:00.000000+00:00
+- id: 3
+  name_en: Basketball
+  name_ru: Баскетбол
+  created_at: 2023-01-01T10:00:00.000000+00:00
+- id: 2
+  name_en: Ice Hockey
+  name_ru: Хоккей
+  created_at: 2023-01-01T10:00:00.000000+00:00
+- id: 37
+  name_en: American football
+  name_ru: Американский футбол
+  created_at: 2023-01-01T10:00:00.000000+00:00
+- id: 1
+  name_en: Football
+  name_ru: Футбол
+  created_at: 2023-01-01T10:00:00.000000+00:00
+- id: 44
+  name_en: Tennis
+  name_ru: Теннис
+  created_at: 2023-01-01T10:00:00.000000+00:00
+- id: 63
+  name_en: Squash
+  name_ru: Сквош
+  created_at: 2023-01-01T10:00:00.000000+00:00
+- id: 17
+  name_en: NHL
+  name_ru: NHL
+  created_at: 2023-01-01T10:00:00.000000+00:00
+- id: 12
+  name_en: FIFA
+  name_ru: FIFA
+  created_at: 2023-01-01T10:00:00.000000+00:00
+- id: 19
+  name_en: NBA 2K
+  name_ru: NBA 2K
+  created_at: 2023-01-01T10:00:00.000000+00:00
+- id: 25
+  name_en: Bandy
+  name_ru: Хоккей с мячом
+  created_at: 2023-01-01T10:00:00.000000+00:00

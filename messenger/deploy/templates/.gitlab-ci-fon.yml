@@ -1,0 +1,122 @@
+stages:
+  - build_pre_image
+  - test-linter
+  - build_image
+  - push_image
+  - deploy
+
+image: '$DOCKER_SL_REG/$DOCKER_BASED_IMAGE'
+
+variables:
+  DOCKER_LINTER_IMAGE: docker-linter:1-sm
+  NEXUS_USER: usrNexusConstUpload
+  NEXUS_HOST: nexus.fbsvc.bz
+  DOCKER_SL_REG: nexus.fbsvc.bz/constanta_docker
+  DOCKER_SL_IMAGE: sportlevel-messenger
+  DOCKER_PYTHON_REG: nexus.fbsvc.bz/repository/constanta_python/simple/
+  IMAGE_TAG: ${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-test-ci
+  IMAGE_TAG_PROD: ${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-prod-ci
+  COMMAND:
+    value: '"python cli.py migrator upgrade head"'
+    description: 'add the new command for migration'
+
+build_linter_image:
+  stage: build_pre_image
+  tags:
+    - sm-build
+  script:
+    - docker login -u "$NEXUS_USER" -p "$NEXUS_PASS" "$NEXUS_HOST"
+    - docker build -t "$DOCKER_SL_REG"\/"$DOCKER_LINTER_IMAGE"  -f deploy/Dockerfile_linter . 
+      --secret id=netrc,src=${PYPI_NETRC}
+      --build-arg DOCKER_PYTHON_REG=${DOCKER_PYTHON_REG}
+      --build-arg DOCKER_PYPI_MIRROR=${DOCKER_PYPI_MIRROR}
+    - docker push "$DOCKER_SL_REG"\/"$DOCKER_LINTER_IMAGE"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+      changes:
+        - deploy/Dockerfile_linter
+    - if: $CI_PIPELINE_SOURCE == "push"
+      changes:
+        - pyproject.toml
+        - poetry.lock
+
+test-linter:
+ stage: test-linter
+ image: '$DOCKER_SL_REG/$DOCKER_LINTER_IMAGE'
+ tags:
+   - test-sm
+ script:
+   - make lint
+ rules:
+   - if: $CI_PIPELINE_SOURCE == "push"
+
+.build_image_all:
+  stage: build_image
+  tags:
+    - sm-build
+  script:
+    - docker login -u "$NEXUS_USER" -p "$NEXUS_PASS" "$NEXUS_HOST"
+    - docker build -t "$DOCKER_SL_REG"/"$DOCKER_SL_IMAGE":"$IMAGE_TAG" -f deploy/Dockerfile . 
+      --secret id=netrc,src=${PYPI_NETRC}
+      --build-arg DOCKER_PYTHON_REG=${DOCKER_PYTHON_REG}
+      --build-arg DOCKER_PYPI_MIRROR=${DOCKER_PYPI_MIRROR}
+  needs: [ "test-linter" ]
+  rules:
+    - if: $CI_COMMIT_BRANCH == "dev"
+
+build_image_test:
+  extends: .build_image_all
+
+build_image_prod:
+  extends: .build_image_all
+  script:
+    - docker login -u "$NEXUS_USER" -p "$NEXUS_PASS" "$NEXUS_HOST"
+    - docker build -t "$DOCKER_SL_REG_NEW"/app/"$CI_PROJECT_NAME":"$IMAGE_TAG_PROD" -f deploy/Dockerfile . 
+      --secret id=netrc,src=${PYPI_NETRC}
+      --build-arg DOCKER_PYTHON_REG=${DOCKER_PYTHON_REG}
+      --build-arg DOCKER_PYPI_MIRROR=${DOCKER_PYPI_MIRROR}
+  rules:
+    - if: $CI_COMMIT_BRANCH == "master"
+
+.push_image_all:
+  stage: push_image
+  tags:
+    - sm-build
+  script:
+    - docker login -u "$NEXUS_USER_NEW" -p "$NEXUS_PASS_NEW" "$NEXUS_HOST"
+    - docker push "$DOCKER_SL_REG_NEW"/app/"$CI_PROJECT_NAME":"$IMAGE_TAG_PROD"
+    - docker rmi "$DOCKER_SL_REG_NEW"/app/"$CI_PROJECT_NAME":"$IMAGE_TAG_PROD" -f
+  needs: ["build_image"]
+  rules:
+    - if: $CI_COMMIT_BRANCH == "dev"
+
+push_image_test:
+  extends: .push_image_all
+  needs: ["build_image_test"]
+
+push_image_prod:
+  extends: .push_image_all
+  script:
+    - docker login -u "$NEXUS_USER_NEW" -p "$NEXUS_PASS_NEW" "$NEXUS_HOST"
+    - docker push "$DOCKER_SL_REG_NEW"/app/"$CI_PROJECT_NAME":"$IMAGE_TAG_PROD"
+    - docker rmi "$DOCKER_SL_REG_NEW"/app/"$CI_PROJECT_NAME":"$IMAGE_TAG_PROD" -f
+  needs: ["build_image_prod"]
+  rules:
+    - if: $CI_COMMIT_BRANCH == "master"
+
+.trigger-deploy-services_all:
+  stage: deploy
+  trigger:
+    include: deploy/.deploy-ci.yml
+  rules:
+    - if: $CI_COMMIT_BRANCH == "dev"
+
+prod-trigger-deploy-services:
+  variables:
+    COMMAND: ${COMMAND}
+  extends: .trigger-deploy-services_all
+  trigger:
+    include: deploy/.deploy-ci-prod.yml
+  rules:
+    - if: $CI_COMMIT_BRANCH == "master"
+

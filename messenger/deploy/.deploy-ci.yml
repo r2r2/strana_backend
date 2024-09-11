@@ -1,0 +1,29 @@
+stages:
+  - deploy
+
+image: '$DOCKER_SL_REG/$DOCKER_BASED_IMAGE'
+
+deploy:
+  stage: deploy
+  variables:
+    ANSIBLE_CONFIG: $PWD/ansible.cfg
+    ANSIBLE_FORCE_COLOR: 'true'
+    COPY_FILE_PATH: deploy/ansible/roles/deploy_sm/files/
+    COMPONENT_NAME: sportlevel
+    SERVICE_NAME: messenger
+  tags:
+    - sm-deploy
+  environment:
+    name: test
+  script:
+    - source "$SECRET_ENV"
+    - |
+      FILE_LIST=`curl -sk --header @"$HEADERS" https://gitlab.fbsvc.bz/api/v4/projects/1293/repository/tree?path="$COMPONENT_NAME"-"$SERVICE_NAME" | jq -r .[].name`
+    - |
+      for i in $FILE_LIST; do curl -sk --header @"$HEADERS" https://gitlab.fbsvc.bz/api/v4/projects/1293/repository/files/"$COMPONENT_NAME"-"$SERVICE_NAME"%2F$i/raw?ref="master" -o "$COPY_FILE_PATH"/$i; envsubst < "$COPY_FILE_PATH"/$i > $COPY_FILE_PATH/$i.tmp && mv $COPY_FILE_PATH/$i.tmp $COPY_FILE_PATH/$i ; done
+    - eval $(ssh-agent -s)
+    - echo "$SSH_KEY" | tr -d '\r' | ssh-add - > /dev/null
+    - chmod 0755 deploy/ansible
+    - cd deploy/ansible
+    - ansible-playbook -i inventory/inventory_test playbooks/run.yml -e IMAGE_TAG="$IMAGE_TAG" -e COMPONENT_NAME="$COMPONENT_NAME" -e SERVICE_NAME="$SERVICE_NAME" --vault-password-file="$VAULT_FILE" -vD
+

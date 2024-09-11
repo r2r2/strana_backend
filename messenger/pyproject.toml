@@ -1,0 +1,120 @@
+[tool.poetry]
+name = "sl-messenger"
+version = "0.5.0"
+description = "Messenger for the sportlevel ecosystem"
+authors = ["Sportlevel <cto@sportlevel.com>"]
+license = "Proprietary"
+readme = "README.md"
+
+[[tool.poetry.source]]
+name = "nexus"
+url = "https://nexus.fbsvc.bz/repository/constanta_python/simple/"
+priority = "explicit"
+
+[tool.poetry.dependencies]
+aioconsole = "^0.5.1"
+python = "^3.12"
+fastapi = "0.111.0"
+starlette = "0.37.2" # https://github.com/advisories/GHSA-74m5-2c7w-9w3x
+dynaconf = "^3.1.11"
+pydantic = "2.7.4"
+pyyaml = "^6.0.1"
+secret-docs = "^1.0.1"
+uvicorn = "0.30.1"
+sl-healthchecks = {version = "^0.1.0", source = "nexus"}
+sl-auth-client = {version = "2.2.0", source = "nexus"}
+sl-auth-tokens = {version = "1.1.0", source = "nexus"}
+secret_docs = {version = "^1.0.0", source = "nexus"}
+sl-api-client = {version = "5.5.5", source = "nexus"}
+sl-messenger-protobuf = {version = "4.6.0", source = "nexus"}
+boilerplates = {version = "0.9.0", extras = ["logging-sentry", "rabbitmq"], source = "nexus"}
+redis = "^4.6.0"
+sqlalchemy = "^2.0.30"
+alembic = "^1.13.1"
+asyncpg = "^0.29.0"
+aiocache = {extras = ["redis"], version = "^0.12.2"}
+aiojobs = "1.2.1"
+typer = "0.12.3"
+ujson = "5.10.0"
+psycopg2-binary = "^2.9.9"
+websockets = "12.0"
+httpx = "^0.27.0"
+starlette-context = "0.3.6"
+uvloop = "0.19.0"
+cachetools = "^5.3.3"
+python-magic = "^0.4.27"
+aiofiles = "^23.2.1"
+python-multipart = "^0.0.9"
+web-pusher = {version = "0.2.0", source = "nexus"}
+tenacity = "^8.4.1"
+aiogram = "3.7.0"
+
+[tool.poetry.group.dev.dependencies]
+asgi-lifespan = "^2.1.0"
+pytest = "^8.2.2"
+pytest-asyncio = "^0.23.7"
+pytest-env = "1.1.3"
+types-pyyaml = "^6.0.12.3"
+mypy-protobuf = "^3.4.0"
+async-asgi-testclient = "^1.4.11"
+types-redis = "^4.6.0.10"
+rich = "^13.7.1"
+pyright = "1.1.367"
+ruff = "0.4.9"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "Q", "I", "N", "S", "COM", "A", "C4", "DTZ", "PIE", "Q", "RET", "SIM", "TID"]
+ignore = [
+    "B008", # Fastapi depends
+    "E999", # Pattern matching (invalid syntax. Got unexpected token ...)
+    "S101", # Assert detected
+    "N805", # First argument of a method should be named `self`, conflicts with pydantic validators
+    "COM812", # Conflicts with ruff formatter
+    "S311", # random generators
+]
+
+[tool.ruff.lint.flake8-builtins]
+builtins-ignorelist = ["id", "type"]
+
+[tool.pyright]
+pythonVersion = "3.12"
+exclude = [
+    "**/__pycache__",
+    ".venv",
+    "venv",
+]
+
+reportGeneralTypeIssues = true
+reportMissingImports = false
+reportMissingTypeStubs = false
+
+strictListInference = false
+strictDictionaryInference = true
+strictSetInference = true
+reportUnusedCoroutine = "error"
+reportConstantRedefinition = "error"
+reportIncompatibleMethodOverride = "error"
+reportIncompatibleVariableOverride = "error"
+reportInconsistentConstructor = "error"
+reportMatchNotExhaustive = "warning"
+reportMissingParameterType = "error"
+reportMissingTypeArgument = "error"
+reportUnknownVariableType = "none"
+reportUnknownArgumentType = "none"
+reportUnknownParameterType = "none"
+reportUnnecessaryCast = "error"
+reportUnnecessaryIsInstance = "error"
+reportUntypedBaseClass = "information"
+reportUntypedClassDecorator = "error"
+reportUntypedFunctionDecorator = "error"
+reportUntypedNamedTuple = "error"
+reportImplicitStringConcatenation = "none"
+reportMissingSuperCall = "none"
+reportPropertyTypeMismatch = "error"
+reportUninitializedInstanceVariable = "none"
+reportUnnecessaryTypeIgnoreComment = "warning"
+reportUnusedCallResult = "none"

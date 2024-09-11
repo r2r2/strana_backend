@@ -1,0 +1,357 @@
+default:
+  max_connections_per_ip: 5
+
+  redis_common: &redis
+    host: localhost
+    port: 6379
+    db: 0
+    max_connections: 30
+    reconnect_max_retries: 2
+    username: null
+    password: null
+    is_profiling_enabled: True
+    slow_query_time_threshold: 0.01
+    debug: True
+
+  amqp_common: &amqp
+    vhost: /
+    host: localhost
+    port: 5680
+    username: user
+    password: password
+    connection_pool_size: 1
+    channel_pool_size: 3
+
+  app:
+    title: SL Messenger
+    host: 0.0.0.0
+    port: 8080
+    debug: True
+    api_root_path: ""
+    forwarded_allow_ips: "*"
+
+  logging:
+    spammy_loggers:
+      - asyncio
+      - websockets
+      - urllib3.connectionpool
+      - aiormq.connection
+      - aio_pika
+      - aiocache
+      - multipart
+      - multipart.multipart
+    log_format: plain
+    log_level: DEBUG
+
+  cors:
+    is_enabled: True
+    allow_origins: [ "*" ]
+    allow_credentials: True
+    allow_methods: [ "*" ]
+    allow_headers: [ "*" ]
+
+  docs:
+    is_enabled: False
+    username: constanta
+    password: CHANGEME!
+
+  auth:
+    host: http://localhost:11717
+    aud: messenger
+    request_timeout: 3.0
+    token_leeway: 5
+    #    pub_key: |
+    #      -----BEGIN PUBLIC KEY-----
+    #      MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA9IIxmY3tnP6QybYxuqNv
+    #      yoWAw/VjyKfDh0Q6qZKcn//GuVqm9PrB1C20PzVDBMSVWn2cylxsMJMyZ3tisg6n
+    #      7TSoTxZ8ThatAzo3zzCh9FLNADhM9iCHnyQCuCedsJxsdkHzHZ3X9+yPSSgJCEk3
+    #      3rRSnmfxvjdcaTTIhPDFHym9UX9DtqhOOV9kg7FsVlNyYbx0420U6zxec7KKeETn
+    #      iMNaAg6bMhjbUYrb1ADjZjm//BDmOfplkzx43Zg9Pc9J7BmSgph4uRSbniDykWB+
+    #      qLq7eNEmudqLxZZM5Af3XqGYTnI64gkk0HSFg8EA6GlLwTUGsYN/gMrFejOU3vzQ
+    #      4QIDAQAB
+    #      -----END PUBLIC KEY-----
+    #    priv_key: |
+    #      -----BEGIN RSA PRIVATE KEY-----
+    #      MIIEpAIBAAKCAQEA9IIxmY3tnP6QybYxuqNvyoWAw/VjyKfDh0Q6qZKcn//GuVqm
+    #      9PrB1C20PzVDBMSVWn2cylxsMJMyZ3tisg6n7TSoTxZ8ThatAzo3zzCh9FLNADhM
+    #      9iCHnyQCuCedsJxsdkHzHZ3X9+yPSSgJCEk33rRSnmfxvjdcaTTIhPDFHym9UX9D
+    #      tqhOOV9kg7FsVlNyYbx0420U6zxec7KKeETniMNaAg6bMhjbUYrb1ADjZjm//BDm
+    #      Ofplkzx43Zg9Pc9J7BmSgph4uRSbniDykWB+qLq7eNEmudqLxZZM5Af3XqGYTnI6
+    #      4gkk0HSFg8EA6GlLwTUGsYN/gMrFejOU3vzQ4QIDAQABAoIBAA/h2RjxWCrnej4w
+    #      AIDwFtXf4CJacTXad9/0dZ8IL/ZQpfbqRYgKNcbzhQ7KBeVsY4syN5oJcNmi5hZE
+    #      tH9+ZjgJQJmKi16DKI/aGz/xF8QIENrfzVf7evPCYg7WO+756i2wUPtuglXPXutQ
+    #      l22bW+6yZd92PwStEeqfjBrejN9eNTWuP6LCL5R4uYvWrzOrHyPz5Q315pJ1yYqP
+    #      TURXmv4omrvzTxWfZarDNfcV+hXdou860bLl9TiyqO0x2IwE+hIC+NRHUeM1wNgK
+    #      osynMS09Sij0LFldDQFriwPNpGJvr7+ZcOtOAWy6dyggkbqF4Vj1bLXul8qAlf6+
+    #      63sQu4UCgYEA/RaD7w0x8enxLB5ZnEDWHKpSDhOuf4jXTC+qQ+aqXWdRMQ/Ta74m
+    #      dTJu0GcY8ObavON62phns8babBVaHtQm9/RFLNHdvQVd27ppWmUW6zQbxDLeRu8Q
+    #      dXwCLv+6R6T4yNG20T4YYFqopxho1Ful8NaXoRyLnuSF2l2/lGtAQ3cCgYEA91Jo
+    #      R0+wjVeH1lcER/lyV2VT2Z7L13PQDbwS3rwgrvK+ihfQUjc9jUK3sZBj0U/R8cjr
+    #      n6S4g1Vwzk8zuxNkAADJlRAJUkBVgYpiz9d+7VVSctatN9wGQuFUWJ/Ezhbdx4g0
+    #      6rVDpsTSbjrFVHmLA+i0RLnfqLz17fpNBRVetGcCgYEAyQQaFEPBuKgcQvN0LzQc
+    #      G7Z35/Bf97HjdwKg1L+f7wIBrdspDHmCKDG/bE2GtMhXUhHH4VmNfG/jylcHNldB
+    #      AE4Gp3ulB938V2pvBTongvbnWuUgQOzegMHXJic9eGwiobZX40fTqqw3Kkir8oc8
+    #      fNakpnV6u+A8JF2zrZml+C8CgYEAqZvKB52O5l9wuH1UYkefMnA64LMV99tkgwbH
+    #      qhg6EcBHC0zpgHiBra5ja1IqIhErWTUA4aqFHwwpIFMQlurlWVsw4xjsS4vzF7Nf
+    #      sEmIshohQMAYaoZphNQik+R9gxgLYBr4rz0/985iwVVsnlH8E+IyPi96Qq3TujA9
+    #      QY82M2ECgYBIrN8X7FG8BPetUiaa1ih68kbbxOCFSTVe7itZDyFF7j+nZELOOhrc
+    #      tg5GqcfutjiB8qjCWXiRExdej2UY94hjy1sTuGc8c7vhhF0kOyEaDhCn5myIK9R8
+    #      ig2Kz+iOrBUcH9nrNgXkWxcRhhYiVSEWqQGZVHtSGZgbfCckcW1vRg==
+    #      -----END RSA PRIVATE KEY-----
+    pub_key: |
+      -----BEGIN PUBLIC KEY-----
+      MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqdzb9/Rdb04hrNdn8fNt
+      8KnbmQiyX9bMhDNrVRniq7KDg+AD+pwKFphrphHHCr+t4JBCfY8JLxTisLh55yBR
+      KKheah1enXiRk7OBqdNcA0XGVYF7A9JffKqrbWtl0UGlQaA5g350J0udWCFabJBg
+      kd7NZbQHeQXNHfyG3rS9lz2kcIuKdj+TBY5EKP3OZqxFvp9bQIZwAIZ2Wn6uS18v
+      CtY1MnueCcvBf/hT+c4Qz7uR/rxt3xVORFVcFMT6RCuR+W1be3gw0pMGJCkXeEJa
+      LD8NMfquiD6VnBDiBkSY9oU1p4CRJBto+CFYGc0oKNVSF1UOZv1fg9PfRm7YERw4
+      2QIDAQAB
+      -----END PUBLIC KEY-----
+    priv_key: |
+      -----BEGIN RSA PRIVATE KEY-----
+      MIIEogIBAAKCAQEAqdzb9/Rdb04hrNdn8fNt8KnbmQiyX9bMhDNrVRniq7KDg+AD
+      +pwKFphrphHHCr+t4JBCfY8JLxTisLh55yBRKKheah1enXiRk7OBqdNcA0XGVYF7
+      A9JffKqrbWtl0UGlQaA5g350J0udWCFabJBgkd7NZbQHeQXNHfyG3rS9lz2kcIuK
+      dj+TBY5EKP3OZqxFvp9bQIZwAIZ2Wn6uS18vCtY1MnueCcvBf/hT+c4Qz7uR/rxt
+      3xVORFVcFMT6RCuR+W1be3gw0pMGJCkXeEJaLD8NMfquiD6VnBDiBkSY9oU1p4CR
+      JBto+CFYGc0oKNVSF1UOZv1fg9PfRm7YERw42QIDAQABAoIBACsGCWMe7nGMSSRF
+      tQrH/R85bqku1jtHJSsQ+Q0njs2tW/lRisB1uGprtcxs8UzMKwbXkzfJPGrD7/0R
+      5LKBcX0KVEutX7MkAD94do2kvsgHaspqjtVzegMSGXSQAMyFQ43BPwAKzfHMCbDy
+      Vbxsv0EDPWQWutPQ/9iqByEuh1zgcuvgTUPw8GmGSV1ECBxldJPnEPaqHn5EneJr
+      lMRobPz+y2xG/vOwMTbMacTRE3rpcFbvoLt5dI+c1IwXau4W8ypVhm9utiw0+UHv
+      iZ4L47bzpJDg35All7K0LDi5iHxsT8EbL442ICEEwST0v4BRmZdjniYZtWTH8PYX
+      oSLVmG8CgYEAyU+v/c9jAw6oJ3antnHmx3QSBS1scKJRoKG60ca7dI3YExHzoztJ
+      6zpMcj4kMk9SGSIEG9sEaj+VhgsVW7BSqaG5LnyaaVKrNECANjJ1KBieSwW/25wc
+      kvRkWhRCUy9oL7jkeoAPL6U/RkPXorte8mku7SSvkqkap7N+Le1sVhMCgYEA2AIQ
+      WFAfziG3JUk0gYuFn3VwWjRF+Ks3F4MWvLXJd9PEz3iP40MM1p6KIxauBVWznDgq
+      iMNQLMlz7voGffmYx0H4l4xBHJuny50nHAWlMbly+kFOGj3oCngs+7iUoCMIUuu0
+      HRi4o2kXwG08klun7S+3BTvMRwF1cstmMXwZQuMCgYA7bOyUze16b48v5xTnBISN
+      iDPxl1EVhrT16AgP+MxJQb3xEzGKk+vkJld+ud1RhJzFkocH+gU5n/9xjEAHyur7
+      7COQF3Q1dxPW3tt6JDb1WR8RImdaWqEMuFwPQz+48pucysWXa8oP1IXzJf+3p/wF
+      LwuNMXEqqASYUKIEyLtcRQKBgGsL6sm5O2nN75M8yhaA7EFv07QAP8TSJMU0I6p1
+      dFg7zEb8+mGnss8RVme5L5hZNl9uvjV0hWEMnLWLlngLn5jvqqB/0yy4Ptl7Egyj
+      B5Cy1LYMcwYyM7IsiC5e9Ni/Q7rEMEhTHf1tcWXdPK1TWs8CXHLthXiS0n+HKSfQ
+      1jv9AoGAV6KHZt9Ry52W2LidvE0BTDPE1a/6VcQd3+bggRwqXnyhblu8YGVBu25O
+      JLUTjB1DzEPn2LDMUF7YPX3K0ktP22Ek1NwelIft3FBY5saxZazHv0/lQhHSXd6+
+      GC9neVDGwqgD3SMSZ7izzLLglMwvkgXTounfFO+Mubc8gpkHLJk=
+      -----END RSA PRIVATE KEY-----
+    verify_signature: False
+
+  sentry:
+    dsn: http://localhost:9999
+    is_enabled: False
+    environment: local
+
+  push_notifications:
+    vapid_private_key: secretPEMformat
+    vapid_email: email@sportlevel.com
+    vapid_token_ttl: 43200 # 12 hours
+    send_push_request_timeout: 5.0
+
+  connections:
+    redis:
+      <<: *redis
+      max_connections: 10
+
+
+  presence:
+    activity_time_threshold: 5
+
+    redis:
+      <<: *redis
+
+  chat:
+    redis:
+      <<: *redis
+      max_connections: 100
+
+    cache_max_connections: 10
+    is_user_in_chat_cache_ttl: 30
+    activity_throttle_time: 2
+    delivery_status_updated_throttle_time: 3
+    unread_message_delay_sec: 2
+
+  storage:
+    db: # Local
+      user: user
+      password: password
+      database_name: database
+      port: 5435
+      host: localhost
+      echo: False
+      pool_size: 10
+      max_overflow: 10
+      timeout: 5.0
+      is_profiling_enabled: False
+
+#    db: # DEV
+#      user: dsidorenko_ms
+#      password: a4608d96831216c989378c31a6575fd9
+#      database_name: messenger
+#      port: 5432
+#      host: 10.186.2.252
+#      echo: False
+#      pool_size: 10
+#      max_overflow: 10
+#      timeout: 5.0
+#      is_profiling_enabled: False
+
+    migrator:
+      schema_name: public
+      create_schema_on_migration: True
+
+  rabbitmq_publisher:
+    amqp:
+      <<: *amqp
+      channel_pool_size: 8
+
+  service_updates_publisher:
+    amqp:
+      <<: *amqp
+
+  push_updates_publisher:
+    amqp:
+      <<: *amqp
+
+  updates_listener:
+    service_updates_rk: service_updates
+    publisher_max_concurrent_jobs: 50
+    publisher_max_pending_jobs: 500
+    publisher_jobs_warning_threshold: 30
+    queue_overflow_time_limit: 3
+    updates_broadcast_extended_activity_time: 180
+
+    amqp:
+      <<: *amqp
+    publisher_redis:
+      <<: *redis
+    cache:
+      memory_cache_maxsize: 1000
+
+  users_cache:
+    memory_cache:
+      ttl: 60
+      max_size: 1000
+
+    redis_cache:
+      ttl: 60
+      max_size: 1000
+
+    redis:
+      <<: *redis
+      max_connections: 50
+
+  sportlevel:
+    #    host: https://partner.sl-svc.com/
+    host: http://service-fb-videoplatform-frontend.fb-videoplatform.svc.cluster.local/
+    active_match_status_ids: [ 1, 2, 3, 4 ]
+    credentials:
+      #      username: service_messenger@sportlevel.com
+      #      password: '64h,]0rBI+Bvb<ia2PlS'
+      username: sl-messenger@const.tech
+      password: G'3R@t<#6%Tufje9
+
+    debug: True
+    request_max_attempts: 3
+    request_timeout: 3.0
+    headers:
+      X-Service-Name: sportlevel-messenger
+      VAR-Validation: Theezahy9soV
+
+  background_jobs:
+    start_immediately: True
+    wait_for_finish: True
+
+    users_cache:
+      ttl: 259200
+      max_size: 10_000
+
+    matches_cache:
+      ttl: 86400
+      max_size: 5_000
+
+    autoclose_private_chats:
+      is_enabled: True
+      debug: True
+      check_interval: 120
+      close_after: 10800
+
+    presence_track:
+      is_enabled: True
+      debug: True
+      check_interval: 3.0
+      offline_time_threshold: 10.0
+      cleanup_interval: 120
+
+      redis:
+        host: localhost
+        port: 6379
+        db: 0
+        max_connections: 50
+        reconnect_max_retries: 3
+
+    sportlevel_users_sync:
+      is_enabled: True
+      debug: False
+      check_interval: 10
+
+    sl_match_scout_changes_listener:
+      is_enabled: True
+      updates_exchange_name: main_scout_changes
+      queue_name: sl_messenger_match_scout_changes
+      amqp:
+        vhost: /
+        host: localhost
+        port: 5680
+        username: user
+        password: password
+        connection_pool_size: 1
+        channel_pool_size: 2
+
+    sl_match_state_updates_listener:
+      is_enabled: True
+      updates_exchange_name: sportlevel
+      queue_name: sl_messenger_match_state_updates
+#      finish_match_update_delay: 300 # 5 minutes
+      finish_match_update_delay: 1800 # 30 minutes
+      amqp:
+        vhost: /
+        host: localhost
+        port: 5680
+        username: user
+        password: password
+        connection_pool_size: 1
+        channel_pool_size: 2
+
+  file_uploads:
+    allowed_mime_types:
+      - image/png
+      - image/jpeg
+      - image/jpg
+      - image/svg+xml
+      - text/csv
+      - application/zip
+    max_file_size: 25000000
+    uploads_path: ./uploads/
+
+  telegram:
+    api_token: 000:AAA
+    notifications_channel_id: -0001
+    url_templates:
+      sl_partner_match_url: https://partner.sl-dev-stage.com/translations/{match_id}
+      sl_messenger_ticket_url: https://messenger.sl-dev-stage.com/dev-kuber/ticket/{ticket_id}/chatId/{chat_id}
+      sl_messenger_match_ticket_url: https://messenger.sl-dev-stage.com/dev-kuber/matches/{chat_id}/tickets/{ticket_id}
+
+  vapid:
+    private_key: ${vapid_priv_key}
+    email: support@sportlevel.com
+    token_ttl: 43200 # 12 hours
+
+  unread_counters:
+    redis:
+      <<: *redis
+      max_connections: 30
+      debug: True
+
+

@@ -1,0 +1,114 @@
+stages:
+  - prepare
+  - build pre image
+  - test-linter
+  - test
+  - build push
+  - build image job
+  - deploy
+
+image: '$DOCKER_IMAGE_SL/$DOCKER_BASED_IMAGE_KUBER'
+
+prepare:
+  stage: prepare
+  script:
+    - cat "$KUBE_ENV" >> build.env
+  artifacts:
+    reports:
+      dotenv:
+        - build.env
+  tags:
+    - kuber-runner
+
+build linter image:
+  stage: build pre image
+  tags:
+    - kuber-runner-ext
+  script:
+    - docker login -u "$NEXUS_USER" -p "$NEXUS_PASS" "$NEXUS_HOST"
+    - docker build -t $DOCKER_IMAGE_SL/ci/$DOCKER_LINTER_IMAGE  -f deploy/Dockerfile_linter .
+      --secret id=netrc,src=${PYPI_NETRC}
+      --build-arg DOCKER_PYTHON_REG=${DOCKER_PYTHON_REG}
+      --build-arg DOCKER_PYPI_MIRROR=${DOCKER_PYPI_MIRROR}
+    - docker login -u "$NEXUS_USER_NEW" -p "$NEXUS_PASS_NEW" "$NEXUS_HOST"
+    - docker push "$DOCKER_IMAGE_SL"/ci/"$DOCKER_LINTER_IMAGE"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+      changes:
+        - deploy/Dockerfile_linter
+    - if: $CI_PIPELINE_SOURCE == "push"
+      changes:
+        - pyproject.toml
+        - poetry.lock
+
+test-linter:
+  stage: test-linter
+  image: $DOCKER_IMAGE_SL/ci/$DOCKER_LINTER_IMAGE
+  tags:
+    - kuber-runner-ext
+  script:
+    - make lint
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+
+build push:
+  stage: build push
+  tags:
+    - kuber-runner
+  script:
+    - docker login -u "$NEXUS_USER" -p "$NEXUS_PASS" "$NEXUS_HOST"
+    - docker build -t "$DOCKER_IMAGE_SL"/app/"$CI_PROJECT_NAME":"$IMAGE_TAG" -f deploy/Dockerfile .
+      --secret id=netrc,src=${PYPI_NETRC}
+      --build-arg DOCKER_PYTHON_REG=${DOCKER_PYTHON_REG}
+      --build-arg DOCKER_PYPI_MIRROR=${DOCKER_PYPI_MIRROR}
+    - docker login -u "$NEXUS_USER_NEW" -p "$NEXUS_PASS_NEW" "$NEXUS_HOST"
+    - docker push "$DOCKER_IMAGE_SL"/app/"$CI_PROJECT_NAME":"$IMAGE_TAG"
+    - docker rmi "$DOCKER_IMAGE_SL"/app/"$CI_PROJECT_NAME":"$IMAGE_TAG" -f
+  rules:
+    - if: $CI_COMMIT_BRANCH == "dev-kuber"
+    - if: $CI_COMMIT_BRANCH == "dev"
+
+deploy:
+  stage: deploy
+  image: '$DOCKER_SL_REG_NEW/$DOCKER_KUBE_IMAGE'
+  parallel:
+    matrix:
+      - api: [ http-api, jobs, migrator, worker, ws-api, updates-streamer, push-sender ]
+  environment:
+    name: ${CI_COMMIT_BRANCH}/$api
+  when: manual
+  before_script:
+    - source $KUBE_ENV_PASSWORD
+    - cd .helm/$api
+    - mkdir config .kube
+    - helm repo add default "https://gitlab.fbsvc.bz/api/v4/projects/1319/packages/helm/beta/" --username ${USER_HELM} --password ${USER_PASS}
+    - |
+      FILE_LIST=`curl -sk --header @"$HEADERS" https://gitlab.fbsvc.bz/api/v4/projects/1293/repository/tree?path="$CI_PROJECT_NAME" | jq -r .[].name`
+    - |
+      for i in $FILE_LIST; do curl -sk --header @"$HEADERS" https://gitlab.fbsvc.bz/api/v4/projects/1293/repository/files/"$CI_PROJECT_NAME"%2F$i/raw?ref="master" -o "$COPY_FILE_PATH"/$i; envsubst < "$COPY_FILE_PATH"/$i > $COPY_FILE_PATH/$i.tmp && mv $COPY_FILE_PATH/$i.tmp $COPY_FILE_PATH/$i ; done
+    - ls -l $COPY_FILE_PATH
+    - envsubst < namespace.yml > namespace.yml.tmp && mv namespace.yml.tmp namespace.yml
+    - envsubst < Chart.yaml > Chart.yaml.tmp && mv Chart.yaml.tmp Chart.yaml
+    - envsubst < values.yml > values.yml.tmp && mv values.yml.tmp values.yml
+    - helm repo update && helm dependency update
+    - helm template $api . -f values.yml --debug
+  script:
+    - mkdir ~/.kube && cat $KUBECONFIG > /root/.kube/config && chmod 600 /root/.kube/config
+    - export KUBECONFIG=/root/.kube/config
+    - kubectl get namespace ${CI_PROJECT_NAME} || kubectl create namespace ${CI_PROJECT_NAME}
+    - kubectl get secret kuber-cert -n ${CI_PROJECT_NAME} || kubectl get secret kuber-cert -n default -o yaml | sed "s/default/${CI_PROJECT_NAME}/" | kubectl apply -n ${CI_PROJECT_NAME} -f -
+    - cat ${SA_KUBECONFIG} | sed 's/default/'"${CI_PROJECT_NAME}"'/' > .kube/kubeconfig
+    - |
+      if [ "$api" = "migrator" ]; then
+          kubectl delete job sportlevel-messenger-migrator --namespace "${CI_PROJECT_NAME}"
+          helm upgrade --install $api . -f values.yml --namespace ${CI_PROJECT_NAME} --cleanup-on-fail --kubeconfig $KUBECONFIG
+          kubectl get po -n ${CI_PROJECT_NAME}
+      else
+          helm upgrade --install $api . -f values.yml --namespace ${CI_PROJECT_NAME} --cleanup-on-fail --kubeconfig $KUBECONFIG
+          kubectl get po -n ${CI_PROJECT_NAME}
+      fi
+  tags:
+    - kuber-runner
+  rules:
+    - if: $CI_COMMIT_BRANCH == "dev-kuber"
+    - if: $CI_COMMIT_BRANCH == "dev"
