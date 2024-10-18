@@ -1,0 +1,83 @@
+/**
+ * Протокол коммуникаций
+ */
+syntax = "proto3";
+
+package sl_messenger_protobuf;
+
+import "requests.proto";
+import "responses.proto";
+
+/** Do not modify structure! Semver version: major.minor.fix, i.e. 1.3.16
+ * @exclude
+ * X-Proto-Version: 4.4.0
+ */
+
+/**
+ * Сообщения, отправляемые с сервера клиенту.
+ * Заканчиваются суффиксом `*Update`.
+ */
+message ServerMessage {
+  oneof message {
+    ErrorOccuredUpdate error_occured_update = 1; // Произошла ошибка
+    MessageReceivedUpdate message_received_update = 2; // Пришло сообщение
+    /*
+     * Статус доставки сообщения изменился
+     */
+    DeliveryStatusChangedUpdate delivery_status_changed_update = 3;
+    MessageSentUpdate message_sent_update = 4; // Сообщение успешно отправлено
+    /*
+     * Сообщение не удалось отправить
+     */
+    MessageSendFailedUpdate message_send_failed_update = 5;
+    /*
+     * Онлайн статус пользователя изменился
+     */
+    UserStatusChangedUpdate user_status_changed_update = 7;
+    UserIsTypingUpdate user_is_typing_update = 8; // Пользователь печатает
+    TicketCreatedUpdate ticket_created_update = 9; // Создан тикет
+    TicketStatusChangedUpdate ticket_status_changed_update = 10; // Статус тикета изменился
+    MatchCreatedUpdate match_created_update = 11; // Создан новый матч
+    MatchStateChangedUpdate match_state_changed_update = 12; // Статус матча изменился
+    ChatCreatedUpdate chat_created_update = 13; // Создан новый чат
+    ReactionUpdate reaction_update = 14; // Обновлена реакция на сообщение
+    MessageEditedUpdate message_edited_update = 15; // Сообщение отредактировано
+    MessageDeletedUpdate message_deleted_update = 16; // Сообщение удалено
+  }
+  reserved 6;  // deprecated ChatClosedUpdate
+}
+
+/**
+ * Сообщения, отправляемые клиентом на сервер.
+ * Заканчиваются суффиксом `*Command`.
+ */
+message ClientMessage {
+  oneof message {
+    SendActivityCommand activity = 1; // Отправить активность
+    SendMessageCommand send_message_command = 2; // Отправить сообщение
+    /*
+     * Отметить сообщение как полученное
+     */
+    MessageReceivedCommand message_received_command = 3;
+    /*
+     * Отметить сообщение как прочитанное
+     */
+    MessageReadCommand message_read_command = 4;
+    /*
+     * Отметить сообщение как непрочитанное
+     */
+    MessageUnreadCommand message_unread_command = 5;
+    /*
+     * Обновить реакцию на сообщение
+     */
+    SendReactionCommand send_reaction_command = 6;
+    /*
+     * Отредактировать сообщение
+     */
+    EditMessageCommand edit_message_command = 7;
+    /*
+     * Удалить сообщение
+     */
+    DeleteMessageCommand delete_message_command = 8;
+  }
+}

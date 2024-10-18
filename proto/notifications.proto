@@ -1,0 +1,94 @@
+/**
+ * Протокол Push уведомлений
+ */
+syntax = "proto3";
+
+package sl_messenger_protobuf;
+
+import "enums.proto";
+import "messages.proto";
+
+/**
+ * Данные пользователя для уведомлений
+ */
+message NotificationUserData {
+  int32 id = 1;             // ID пользователя
+  UserRole role = 2;        // Роль пользователя
+  optional string name = 3; // Опциональное имя пользователя
+  /**
+   * Номер скаута, если пользователь является скаутом
+   */
+  optional int32 scout_number = 4;
+}
+
+/*
+ * Данные тикета для уведомлений
+ */
+message NotificationTicketData {
+  int32 id = 1; // ID тикета
+}
+
+/**
+ * Данные матча для уведомлений
+ */
+message NotificationMatchData {
+  int32 id = 1;  // ID матча
+  string team_a_name_ru = 2; // Название команды 1, русский
+  string team_b_name_ru = 3; // Название команды 2, русский
+  string team_a_name_en = 4; // Название команды 1, английский
+  string team_b_name_en = 5; // Название команды 2, английский
+}
+
+/**
+ * Уведомление о новом сообщении
+ */
+message NewMessageNotification {
+  int64 id = 1; // ID сообщения
+  int32 chat_id = 2; // ID чата
+  int32 sent_at = 3; // Время отправки сообщения, timestamp, UTC
+  /**
+   * Данные пользователя, отправившего сообщение
+   */
+  optional int32 sender_id = 4;
+  MessageContent content = 5; // Содержимое сообщения
+  optional NotificationMatchData match_data = 6; // Данные матча
+  optional NotificationTicketData ticket_data = 7; // Данные тикета
+  /**
+   * Дополнительные данные пользователей
+   */
+  repeated NotificationUserData user_data = 8;
+}
+
+/**
+ * Уведомление о новом созданном тикете
+ */
+message NewTicketNotification {
+  int32 ticket_id = 1; // ID тикета
+  NotificationUserData created_by = 2; // Данные пользователя, создавшего тикет
+  optional int32 match_id = 3; // ID матча
+  int32 chat_id = 4; // ID чата по тикету
+}
+
+/**
+ * Уведомление о смене статуса тикета
+ */
+message TicketStatusChangedNotification {
+  int32 ticket_id = 1; // ID тикета
+  TicketStatus status = 2; // Новый статус тикета
+  TicketStatus old_status = 6; // Старый статус тикета
+  NotificationUserData changed_by = 3; // Данные пользователя, изменившего статус
+  int32 chat_id = 4; // ID чата по тикету
+  optional int32 match_id = 5; // ID матча
+}
+
+/**
+ * Содержимое уведомления
+ */
+message PushNotificationContent {
+  int32 created_at = 1; // Время создания уведомления, timestamp, UTC
+  oneof content { // Содержимое уведомления
+    NewMessageNotification new_message = 2; // Новое сообщение
+    NewTicketNotification new_ticket = 3; // Новый тикет
+    TicketStatusChangedNotification ticket_status_changed = 4; // Смена статуса тикета
+  }
+}

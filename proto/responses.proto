@@ -1,0 +1,172 @@
+/**
+ * Сообщения сервера
+ */
+syntax = "proto3";
+
+package sl_messenger_protobuf;
+
+import "enums.proto";
+import "messages.proto";
+
+/**
+ * Ответ в случае неуспешной отправки сообщения (командой `SendMessageCommand`)
+ */
+message MessageSendFailedUpdate {
+  /**
+   * Временный ID сообщения, заданный клиентом.
+   * Значение такое же, как в `SendMessageCommand.temporary_id`
+   */
+  bytes temporary_id = 1;
+  MessageSendFailedErrorCode error_code = 2;  // Код ошибки
+  string error_message = 3;                   // Человекочитаемый текст ошибки
+}
+
+/**
+ * Уведомление от сервера о том, что произошла ошибка при коммуникациях
+ */
+message ErrorOccuredUpdate {
+  ErrorReason reason = 1;  // Причина ошибки
+  string description = 2;  // Человекочитаемый текст ошибки
+}
+
+/**
+ * Уведомления от сервера о новом сообщении.
+ * Сообщение не обязательно должно предназначаться текущему пользователю,
+ * это может быть сообщение, отправленное им самим с другого устройства.
+ */
+message MessageReceivedUpdate {
+  Message message = 1;  // Само сообщение
+  ChatType chat_type = 2;  // Тип чата, в который было отправлено сообщение
+}
+
+/**
+ * Уведомление об изменении статуса доставки сообщений.
+ * В уведомлении указан только ID последнего сообщения (больший).
+ * Статус всех сообщений с меньшим ID также считается обновлённым.
+ */
+message DeliveryStatusChangedUpdate {
+  int64 message_id = 1;      // ID последнего сообщения с изменённым статусов
+  DeliveryStatus state = 2;  // Новый статус
+  int32 chat_id = 3;         // ID чата
+  int32 read_by = 4;         // ID пользователя, прочитавшего сообщение
+  /**
+   * Общее число сообщений, статус которых изменился.
+   * Используется для корректировок количества непрочитанных для собственных
+   * сообщений (read_by = id текущего пользователя).
+   */
+  int32 updated_count = 5;
+  /**
+   * ID матча к которому относится чат, в котором изменился статус сообщения
+   */
+  optional int32 match_id = 6;
+  ChatType chat_type = 7;  // Тип чата, статус доставки сообщений в котором изменился
+}
+
+/**
+ * Уведомление о том, что онлайн статус пользователя изменился
+ */
+message UserStatusChangedUpdate {
+  int32 user_id = 1;      // ID пользователя
+  UserStatus status = 2;  // Новый статус
+}
+
+/**
+ * Уведомление о том, что пользователь печатает сообщение
+ */
+message UserIsTypingUpdate {
+  int32 chat_id = 1;       // ID чата
+  int32 user_id = 2;       // ID пользователя
+  bool is_typing = 3;      // Печатает/не печатает
+  reserved 4;
+}
+
+/**
+ * Подтверждение успешной отправки сообщения (командой `SendMessageCommand`)
+ */
+message MessageSentUpdate {
+  /**
+   * Временный ID сообщения, заданный клиентом.
+   * Значение такое же, как в `SendMessageCommand.temporary_id`
+   */
+  bytes temporary_id = 1;
+  int64 message_id = 2;  // ID созданного сообщения
+}
+
+
+/**
+ * Уведомление о том, что был создан новый тикет
+ */
+message TicketCreatedUpdate {
+  int32 ticket_id = 1;  // ID созданного тикета
+  int32 match_id = 2;  // ID матча, к которому относится тикет
+  int32 created_by_user_id = 3; // ID пользователя, создавшего тикет
+}
+
+/**
+ * Уведомление о том, что статус тикета был изменён
+ */
+message TicketStatusChangedUpdate {
+  int32 ticket_id = 1;  // ID тикета
+  TicketStatus old_status = 2;  // Старый статус
+  TicketStatus new_status = 3;  // Новый статус
+  int32 changed_by_user_id = 4;  // ID пользователя, изменившего статус
+}
+
+
+/**
+ * Уведомление о том, что был создан новый матч
+ */
+message MatchCreatedUpdate {
+  int32 match_id = 1;  // ID созданного матча
+}
+
+/**
+ * Уведомление о том, что состояние матча было изменёно
+ */
+message MatchStateChangedUpdate {
+  int32 match_id = 1;  // ID матча
+  MatchState old_state = 2; // Старое состояние
+  MatchState new_state = 3; // Новое состояние
+}
+
+
+/**
+ * Уведомление о том, что был создан новый чат с пользователем
+ */
+message ChatCreatedUpdate {
+  int32 chat_id = 1; // ID созданного чата
+  optional int32 created_by_user_id = 2; // ID пользователя, создавшего чат
+  optional int32 match_id = 3; // ID матча, к которому относится чат
+  ChatType chat_type = 4; // Тип чата
+}
+
+
+/**
+ * Уведомление о том, что реакция на сообщение была (добавлена/удалена)
+ * командой `SendReactionCommand`
+ */
+message ReactionUpdate {
+  int32 chat_id = 1; // ID чата
+  int32 user_id = 2; // ID пользователя
+  string emoji = 3; // Реакция
+  int32 emoji_count = 4; // Количество конкретной реакции
+  int64 message_id = 5; // ID сообщения
+  bool is_deleted = 6; // Удалена ли реакция
+}
+
+/**
+ * Уведомление о том, что сообщение было отредактировано
+ */
+message MessageEditedUpdate {
+  int64 message_id = 1; // ID сообщения
+  MessageContent content = 2; // Новое содержимое сообщения
+  int32 chat_id = 3; // ID чата
+}
+
+/**
+ * Уведомление о том, что сообщение было удалено
+ */
+message MessageDeletedUpdate {
+  int64 message_id = 1; // ID сообщения
+  int32 chat_id = 2; // ID чата
+}

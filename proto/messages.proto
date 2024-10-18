@@ -1,0 +1,173 @@
+/**
+ * Сообщения в чате
+ */
+syntax = "proto3";
+
+package sl_messenger_protobuf;
+
+import "enums.proto";
+
+/**
+ * Контент сообщения - уведомление о том, что чат был закрыт по причине
+ */
+message ChatClosedNotificationContent {
+  ChatCloseReason reason = 1;  // Причина закрытия чата
+}
+
+/**
+ * Контент сообщения - уведомление о том, что чат был открыт по причине
+ */
+message ChatOpenedNotificationContent {
+  ChatOpenReason reason = 1;  // Причина открытия чата
+}
+
+/**
+ * Контент сообщения - уведомление о том, что по чату была создана заявка
+ */
+message RelatedTicketCreatedNotificationContent {
+  int32 ticket_chat_id = 1;  // ID чата по тикету
+  int32 ticket_id = 2;       // ID созданного тикета
+}
+
+/**
+ * Контент сообщения - уведомление о том, что чат был создан пользователем X
+ */
+message ChatCreatedNotificationContent {
+  int32 created_by_user_id = 1;       // ID пользователя, создавшего чат
+  reserved 2;
+}
+
+/**
+ * Контент сообщения - уведомления о том, что заявка закрыта
+ */
+message TicketClosedNotificationContent {
+  int32 ticket_id = 1;               // ID заявки
+  int32 ticket_chat_id = 2;          // ID чата по заявке
+  int32 closed_by_user_id = 3;       // ID пользователя, закрывшего заявку
+  reserved 4;
+}
+
+/**
+ * Контент сообщения - уведомления о том, что статус заявки был изменён
+ */
+message TicketStatusChangedNotificationContent {
+  int32 ticket_id = 1;              // ID заявки
+  TicketStatus status = 2;          // Новый статус
+}
+
+/**
+ * Контент сообщения - уведомление о том, что пользователь X присоединился к
+ * чату
+ */
+message UserJoinedChatNotificationContent {
+  int32 user_id = 1;       // ID пользователя, присоединившегося к чату
+  reserved 2;
+}
+
+/**
+ * Контент сообщения - уведомление о том, что пользователь X вышел из чата
+ */
+message UserLeftChatNotificationContent {
+  int32 user_id = 1;       // ID пользователя, вышедшего из чата
+  reserved 2;
+}
+
+/**
+ * Контент сообщения - уведомление о том, что чат является чатом по заявке
+ */
+message TicketFirstMessageNotificationContent {
+  int32 ticket_id = 1;                      // ID тикета
+  optional int32 created_from_chat_id = 2;  // ID чата по заявке
+}
+
+/**
+ * Контент сообщения - загруженный файл
+ */
+message FileContent {
+  string file_id = 1; // Уникальный строковый идентификатор
+  string filename = 2;   // Имя файла
+  int32 size = 3;    // Размер файла в байтах
+  string mime_type = 4; // MIME-тип файла
+}
+
+/**
+ * Текстовый контент сообщения
+ */
+message TextContent {
+  string text = 1; // Текст сообщения
+}
+
+/**
+ * Контент сообщения не поддерживается
+ * (вероятно, из-за устаревшей версии клиента)
+ */
+message UnsupportedContent {
+
+}
+
+/**
+ * Обёртка для содержимого сообщения, содержит в себе все варианты контента
+ */
+message MessageContent {
+  oneof content {
+    UnsupportedContent unsupported = 1; // Сообщение не поддерживается
+    TextContent text = 2; // Текстовое сообщение
+    /**
+     * Уведомление о том, что по чату была создана заявка
+     */
+    RelatedTicketCreatedNotificationContent related_ticket_created_notification = 3;
+    /**
+     * Уведомление о том, что чат был создан пользователем X
+     */
+    ChatCreatedNotificationContent chat_created_notification = 4;
+    /**
+     * Уведомление о том, что пользователь X присоединился к чату
+     */
+    UserJoinedChatNotificationContent user_joined_chat_notification = 5;
+    /**
+     * Уведомление о том, что заявка закрыта
+     */
+    TicketClosedNotificationContent ticket_closed_notification = 6;
+    /**
+     * Уведомление о том, что пользователь X вышел из чата
+     */
+    UserLeftChatNotificationContent user_left_chat_notification = 7;
+    /**
+     * Уведомление о том, что тикет был создан
+     */
+    TicketFirstMessageNotificationContent ticket_first_message_notification = 8;
+    /**
+     * Уведомление о том, что чат был закрыт по причине
+     */
+    ChatClosedNotificationContent chat_closed_notification = 9;
+    /**
+     * Уведомление о том, что статус заявки был изменён
+     */
+    TicketStatusChangedNotificationContent ticket_status_changed_notification = 10;
+    /**
+     * Загруженный файл
+     */
+    FileContent file = 11;
+    /**
+     * Уведомление о том, что чат был открыт по причине
+     */
+    ChatOpenedNotificationContent chat_opened_notification = 12;
+  }
+}
+
+/**
+ * Сообщение в чате
+ */
+message Message {
+  int64 id = 1;                       // Уникальный идентификатор
+  optional int32 sender_id = 2;       // ID отправителя в экосистеме SportLevel
+  int32 chat_id = 3;                  // ID чата
+  DeliveryStatus state = 4;           // Статус доставки
+  int32 sent_at = 6;                  // Дата создания
+  MessageContent content = 7;         // Содержимое
+  /**
+   * ID матча к которому относится чат, в который было отправлено сообщение
+   */
+  optional int32 match_id = 9;
+  reserved 5, 8;
+}

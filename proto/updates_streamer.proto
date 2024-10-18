@@ -1,0 +1,52 @@
+/**
+ * Протокол коммуникаций messenger updates streamer - scout server
+ */
+syntax = "proto3";
+
+package sl_messenger_protobuf;
+
+
+/**
+ * Обновления от сервера
+ */
+message StreamerUpdate {
+  oneof message {
+    UnreadCountersUpdate unread_counters_update = 1; // обновление счётчика непрочитанных по пользователю
+  }
+}
+
+
+/**
+ * Команды от клиента
+ */
+message StreamerClientRequest {
+  oneof message {
+    SubscribeRequest subscribe_request = 1; // запрос на подписку на обновления по пользователю
+    UnsubscribeRequest unsubscribe_request = 2; // запрос на отписку от обновлений по пользователю
+  }
+}
+
+
+/**
+ * Запрос на подписку на обновления по пользователю
+ */
+message SubscribeRequest {
+  repeated int32 user_ids = 1; // id пользователей
+}
+
+
+/**
+ * Запрос на отписку от обновлений по пользователю
+ */
+message UnsubscribeRequest {
+  repeated int32 user_ids = 1; // id пользователей
+}
+
+
+/**
+ * Обновление счётчика непрочитанных по пользователю
+ */
+message UnreadCountersUpdate {
+  int32 user_id = 1; // id пользователя
+  int32 unread_count = 2; // количество непрочитанных сообщений во всех чатах
+}

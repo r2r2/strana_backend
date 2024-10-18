@@ -1,0 +1,119 @@
+/**
+ * Перечисления
+ */
+syntax = "proto3";
+
+package sl_messenger_protobuf;
+
+/**
+ * Статус доставки сообщения в чате
+ */
+enum DeliveryStatus {
+  DELIVERY_STATUS_UNSPECIFIED = 0; // Не указан
+  DELIVERY_STATUS_PENDING = 1;     // В процессе отправки
+  DELIVERY_STATUS_SENT = 2;        // Отправлено
+  /**
+   * Доставлено получателю / Получено текущим пользователем
+   */
+  DELIVERY_STATUS_DELIVERED = 3;
+  /**
+   * Прочитано получателем / Прочитано текущим пользователем
+   */
+  DELIVERY_STATUS_READ = 4;
+}
+
+/**
+ * Статус заявки
+ */
+enum TicketStatus {
+  TICKET_STATUS_UNSPECIFIED = 0; // Не указан
+  TICKET_STATUS_NEW = 1;         // Новый
+  TICKET_STATUS_IN_PROGRESS = 2; // В работе
+  TICKET_STATUS_SOLVED = 3;      // Решен
+  TICKET_STATUS_CONFIRMED = 4;   // Подтвержден
+}
+
+/**
+ * Причина закрытия чата
+ */
+enum ChatCloseReason {
+  CHAT_CLOSE_REASON_UNSPECIFIED = 0;            // Не указана
+  CHAT_CLOSE_REASON_MATCH_SCOUT_IS_CHANGED = 1; // Скаут матча изменен
+  CHAT_CLOSE_REASON_MATCH_IS_FINISHED = 2; // Матч завершен
+  CHAT_CLOSE_REASON_MEMBERS_INACTIVITY = 3; // Участники чата неактивны
+  CHAT_CLOSE_REASON_INITIATED_BY_USER = 4; // Закрыто пользователем
+  CHAT_CLOSE_REASON_MATCH_IS_CANCELLED = 5; // Матч отменен
+}
+
+/**
+ * Причина возобновления чата
+ */
+enum ChatOpenReason {
+  CHAT_OPEN_REASON_UNSPECIFIED = 0;       // Не указана
+  CHAT_OPEN_REASON_INITIATED_BY_USER = 1; // Открыт пользователем
+}
+
+/**
+ * Коды ошибок при создании нового сообщения
+ */
+enum MessageSendFailedErrorCode {
+  MESSAGE_SEND_FAILED_ERROR_CODE_UNSPECIFIED = 0; // Не указан
+  /*
+   * Недостаточно прав для отправки сообщения
+   * (например, нет доступа в чат)
+   */
+  MESSAGE_SEND_FAILED_ERROR_CODE_NOT_PERMITTED = 1;
+  /*
+   * Ошибка валидации сообщения
+   */
+  MESSAGE_SEND_FAILED_ERROR_CODE_VALIDATION_ERROR = 2;
+}
+
+/**
+ * Код ошибки при коммуникации по *websocket*
+ */
+enum ErrorReason {
+  ERROR_REASON_UNSPECIFIED = 0; // Не указана
+  ERROR_REASON_SERVER = 1; // Ошибка на стороне клиента
+  ERROR_REASON_CLIENT = 2; // Ошибка на стороне сервера
+}
+
+/**
+ * Возможные онлайн статусы пользователя
+ */
+enum UserStatus {
+  USER_STATUS_UNSPECIFIED = 0; // Не указан
+  USER_STATUS_ONLINE = 1;      // Онлайн
+  USER_STATUS_OFFLINE = 2;     // Оффлайн
+}
+
+/*
+ * Состояние матча
+ */
+enum MatchState {
+  MATCH_STATE_UNSPECIFIED = 0; // Не указан
+  MATCH_STATE_ACTIVE = 1;      // Активен
+  MATCH_STATE_ARCHIVED = 2;    // Архивирован
+  MATCH_STATE_CANCELLED = 3;   // Отменен
+}
+
+/*
+ * Принадлежность чата
+ */
+enum ChatType {
+  CHAT_TYPE_UNSPECIFIED = 0; // Не указан
+  CHAT_TYPE_PERSONAL = 1;    // Личный диалог
+  CHAT_TYPE_MATCH = 2;       // Чат по матчу
+  CHAT_TYPE_TICKET = 3;      // Чат по заявке
+}
+
+
+/*
+ * Роль пользователя
+ */
+enum UserRole {
+  USER_ROLE_UNSPECIFIED = 0; // Не указана
+  USER_ROLE_SCOUT = 1; // Скаут
+  USER_ROLE_BOOKMAKER = 2; // Букмекер
+  USER_ROLE_SUPERVISOR = 3; // Супервайзер
+}
